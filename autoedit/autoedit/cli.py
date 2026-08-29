@@ -2400,6 +2400,65 @@ def ytref_harvest_cmd(
                 fg=typer.colors.YELLOW)
 
 
+@app.command(name="merge-drafts")
+def merge_drafts_cmd(
+    drafts: list[Path] = typer.Argument(..., help="Folder draft từng chương, THEO THỨ TỰ."),
+    name: Optional[str] = typer.Option(
+        None, "--name", help="Tên draft tổng (ASCII). Mặc định: <chương đầu>_TONG."),
+    out_root: Optional[Path] = typer.Option(
+        None, "--out-root", help="Folder chứa draft tổng (mặc định: draft root của máy)."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Đè draft tổng trùng tên."),
+) -> None:
+    """Gộp draft các chương thành MỘT draft tổng, nối tiếp đúng thứ tự truyền vào.
+
+    Chương sau dịch sang phải đúng bằng tổng thời lượng các chương trước. Track gộp
+    theo tên (video_l1 vào video_l1), media copy vào materials/ của draft tổng.
+    """
+    from autoedit.packager.machine import MachineProfile
+    from autoedit.packager.merge import merge_drafts, merge_sourcebooks
+    from autoedit.packager.packager import PackageError
+
+    dirs = [Path(d).expanduser() for d in drafts]
+    missing = [d for d in dirs if not (d / "draft_content.json").is_file()]
+    if missing:
+        typer.secho("Lỗi: không phải folder draft (thiếu draft_content.json):",
+                    fg=typer.colors.RED, err=True)
+        for d in missing:
+            typer.echo(f"  {d}")
+        raise typer.Exit(code=1)
+
+    if out_root is None:
+        try:
+            out_root = MachineProfile.load().out_root()
+        except (FileNotFoundError, ValueError) as exc:
+            typer.secho(f"Lỗi: {exc} — chạy `register-machine` hoặc chỉ --out-root",
+                        fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+
+    out_dir = Path(out_root) / (name or f"{dirs[0].name}_TONG")
+    typer.echo(f"Gộp {len(dirs)} chương -> {out_dir}")
+    for i, d in enumerate(dirs, start=1):
+        typer.echo(f"  {i}. {d.name}")
+
+    try:
+        merged = merge_drafts(dirs, out_dir, overwrite=overwrite)
+    except PackageError as exc:
+        typer.secho(f"Lỗi gộp: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    import json as _json
+
+    content = _json.loads((merged / "draft_content.json").read_text(encoding="utf-8"))
+    typer.secho(f"✓ Draft tổng: {merged}", fg=typer.colors.GREEN)
+    typer.echo(f"  thời lượng: {content['duration'] / 1e6:.1f}s")
+    typer.echo(f"  track     : {len(content.get('tracks', []))}")
+
+    book = merge_sourcebooks(dirs, merged)
+    if book is not None:
+        typer.echo(f"  sổ nguồn  : {book.name}")
+    typer.echo("  Mở CapCut → draft tổng phải có đủ các chương nối tiếp đúng thứ tự.")
+
+
 @app.command(name="sub-status")
 def sub_status_cmd(
     profiles_root: Optional[Path] = typer.Option(
