@@ -33,6 +33,7 @@ PAUSE_MIN, PAUSE_MAX = 6.0, 18.0   # nghỉ ngẫu nhiên giữa 2 lần tải (
 NAV_TIMEOUT_MS = 45_000
 MIN_VIDEO_BYTES = 50_000   # nhỏ hơn = bị chặn / dính bản preview
 _MAX_CONSECUTIVE_FAIL = 3  # fail liên tiếp -> nghi bị chặn mềm, dừng nguồn
+_MIN_CANDIDATES = 5        # đủ ứng viên thì thôi mở thêm tier (= MIN_CANDIDATES_PER_TIER)
 
 PROFILES_DIRNAME = ".browser_profiles"
 
@@ -190,9 +191,87 @@ class SubscriptionClient:
     def __exit__(self, *exc) -> None:
         self.close()
 
+    # ------------------------------ tìm -------------------------------------
+    def search_tiered(self, queries) -> list[dict]:
+        """Interface StockClient: gom ứng viên theo tier, dừng sớm khi đủ.
+
+        Search KHÔNG tính vào trần tải (chỉ mở trang, không lấy file) nhưng vẫn
+        nghỉ giữa các query và dừng ngay khi gặp challenge.
+        """
+        if self.blocked:
+            return []
+        out: list[dict] = []
+        seen: set[str] = set()
+        for tier in (queries.specific, queries.broad, queries.thematic):
+            for q in tier:
+                try:
+                    found = self._search_one(q)
+                except BlockedError:
+                    self.blocked = True
+                    return out          # giữ những gì đã tìm được, ngừng nguồn
+                except Exception:
+                    continue            # 1 query hỏng không giết cả tier
+                for c in found:
+                    if c["asset_key"] not in seen:
+                        seen.add(c["asset_key"])
+                        out.append(c)
+            if len(out) >= _MIN_CANDIDATES:
+                break
+        return out
+
+    def _search_one(self, query: str) -> list[dict]:
+        """Mở trang search, gom thẻ clip từ DOM. Trả candidate shape StockClient."""
+        page = self._context().new_page()
+        try:
+            page.goto(search_url(self.site, query), timeout=NAV_TIMEOUT_MS,
+                      wait_until="domcontentloaded")
+            if is_challenge(page):
+                raise BlockedError(f"{self.site}: challenge khi search")
+            href_pat = "/stock-video/" if self.site == "envato" else "/video/"
+            try:
+                page.wait_for_selector(f'a[href*="{href_pat}"]', timeout=12_000)
+            except Exception:
+                return []               # không có kết quả (hoặc site đổi giao diện)
+            items = page.eval_on_selector_all(
+                f'a[href*="{href_pat}"]',
+                """els => els.slice(0, 24).map(a => ({
+                    href: a.href,
+                    title: (a.querySelector('img')?.alt || '').trim(),
+                    hasImg: !!a.querySelector('img'),
+                }))""",
+            )
+        finally:
+            try:
+                page.close()
+            except Exception:
+                pass
+            self.limiter.pause()        # nghỉ cả sau search, không chỉ sau tải
+
+        out: list[dict] = []
+        for it in items:
+            if not it.get("hasImg") or not it.get("href"):
+                continue
+            clip_id = it["href"].split("?")[0].rstrip("/").split("/")[-1]
+            if not clip_id:
+                continue
+            out.append({
+                "asset_key": f"{self.site}:{clip_id}",
+                "url": it["href"],          # TRANG clip — download() mở rồi bấm nút
+                "media_type": "video",
+                "duration": 0.0,            # site không cho biết trước khi tải
+                "width": 0, "height": 0,
+                "description": it.get("title", ""),
+                "source": self.site,
+            })
+        return out
+
     # ------------------------------ tải -------------------------------------
-    def download(self, page_url: str, dest: Path) -> Path:
-        """Mở trang clip, bấm Download, lưu file. Raise BlockedError nếu gặp challenge."""
+    def download(self, candidate: "dict | str", dest: Path) -> Path:
+        """Mở trang clip, bấm Download, lưu file. Raise BlockedError nếu gặp challenge.
+
+        Nhận cả dict candidate (đường runner) lẫn URL trần (đường gọi tay).
+        """
+        page_url = candidate["url"] if isinstance(candidate, dict) else candidate
         if self.blocked:
             raise BlockedError(f"{self.site}: đã dừng phiên này (gặp challenge trước đó)")
         self.limiter.check()

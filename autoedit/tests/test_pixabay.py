@@ -216,6 +216,33 @@ def test_khong_co_client_bao_loi():
         MultiStockClient([])
 
 
+def test_close_dong_client_giu_tai_nguyen():
+    """Nguồn subscription giữ cửa sổ trình duyệt — phải đóng khi xong stage."""
+    closed = []
+
+    class _WithClose(_FakeStock):
+        def close(self):
+            closed.append(self.SOURCE_NAME)
+
+    a = _FakeStock("pexels", [])                 # API thuần, không có close()
+    b = _WithClose("envato", [])
+    MultiStockClient([a, b]).close()
+    assert closed == ["envato"]
+
+
+def test_close_mot_client_loi_van_dong_cac_client_con_lai():
+    closed = []
+
+    class _Boom(_FakeStock):
+        def close(self): raise RuntimeError("trình duyệt treo")
+
+    class _Ok(_FakeStock):
+        def close(self): closed.append(self.SOURCE_NAME)
+
+    MultiStockClient([_Boom("envato", []), _Ok("vecteezy", [])]).close()
+    assert closed == ["vecteezy"]
+
+
 # ------------------------------ collect keys --------------------------------
 def test_gom_key_nhieu_kieu_khai():
     env = {"PIXABAY_API_KEY": "k1, k2", "PIXABAY_API_KEY_2": "k3", "PIXABAY_API_KEY_3": "k1"}

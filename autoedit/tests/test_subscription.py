@@ -179,6 +179,93 @@ def test_gap_challenge_dung_ngay_va_dong_nguon(tmp_path, monkeypatch):
     assert c.blocked is True
 
 
+def test_search_tra_ve_candidate_dung_shape(tmp_path, monkeypatch):
+    """Phải cùng shape với PexelsClient để MultiStockClient dùng chung."""
+    from autoedit.project import SearchQueries
+
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+    monkeypatch.setattr(c, "_search_one", lambda q: [{
+        "asset_key": "envato:abc123", "url": "https://elements.envato.com/x-abc123",
+        "media_type": "video", "duration": 0.0, "width": 0, "height": 0,
+        "description": "clip", "source": "envato",
+    }])
+    got = c.search_tiered(SearchQueries(specific=["rome"]))
+    assert len(got) == 1 and got[0]["source"] == "envato"
+    assert got[0]["asset_key"].startswith("envato:")
+
+
+def test_search_khu_trung_giua_cac_tier(tmp_path, monkeypatch):
+    from autoedit.project import SearchQueries
+
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+    monkeypatch.setattr(c, "_search_one", lambda q: [
+        {"asset_key": "envato:same", "url": "u", "source": "envato"}])
+    got = c.search_tiered(SearchQueries(specific=["a"], broad=["b"], thematic=["c"]))
+    assert len(got) == 1
+
+
+def test_search_1_query_hong_khong_giet_tier(tmp_path, monkeypatch):
+    from autoedit.project import SearchQueries
+
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+
+    def flaky(q):
+        if q == "xau":
+            raise RuntimeError("selector đổi")
+        return [{"asset_key": f"envato:{q}", "url": "u", "source": "envato"}]
+
+    monkeypatch.setattr(c, "_search_one", flaky)
+    got = c.search_tiered(SearchQueries(specific=["xau", "tot"]))
+    assert [g["asset_key"] for g in got] == ["envato:tot"]
+
+
+def test_search_gap_challenge_thi_dung_va_giu_ket_qua_da_co(tmp_path, monkeypatch):
+    from autoedit.project import SearchQueries
+
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+    calls = []
+
+    def block_sau_lan_dau(q):
+        calls.append(q)
+        if len(calls) == 1:
+            return [{"asset_key": "envato:1", "url": "u", "source": "envato"}]
+        raise BlockedError("challenge")
+
+    monkeypatch.setattr(c, "_search_one", block_sau_lan_dau)
+    got = c.search_tiered(SearchQueries(specific=["a", "b", "c"]))
+    assert [g["asset_key"] for g in got] == ["envato:1"]   # giữ cái đã tìm được
+    assert c.blocked is True
+    assert len(calls) == 2                                  # dừng ngay, không thử "c"
+
+
+def test_blocked_thi_search_tra_rong_ngay(tmp_path):
+    from autoedit.project import SearchQueries
+
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+    c.blocked = True
+    c._search_one = lambda q: pytest.fail("không được search khi đã bị chặn")
+    assert c.search_tiered(SearchQueries(specific=["x"])) == []
+
+
+def test_download_nhan_ca_dict_lan_url(tmp_path, monkeypatch):
+    """Runner truyền dict candidate; gọi tay truyền URL trần."""
+    c = SubscriptionClient("envato", profiles_root=tmp_path)
+    seen = []
+
+    class _Page:
+        def goto(self, url, **k): seen.append(url)
+        def title(self): return "Just a moment"   # dừng sớm, chỉ cần biết URL
+        def query_selector(self, sel): return None
+        def close(self): pass
+
+    monkeypatch.setattr(c, "_context", lambda: type("C", (), {"new_page": lambda s: _Page()})())
+    for arg in ({"url": "https://a"}, "https://b"):
+        c.blocked = False
+        with pytest.raises(BlockedError):
+            c.download(arg, tmp_path / "x.mp4")
+    assert seen == ["https://a", "https://b"]
+
+
 def test_file_qua_nho_bi_xoa_va_bao_loi(tmp_path, monkeypatch):
     """Bị chặn hay dính bản preview đều ra file tí hon -> không được coi là thành công."""
     c = SubscriptionClient("envato", profiles_root=tmp_path)

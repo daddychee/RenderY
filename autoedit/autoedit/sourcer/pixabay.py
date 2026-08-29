@@ -186,3 +186,13 @@ class MultiStockClient:
     def rate_limited(self) -> bool:
         """True khi MỌI nguồn đều hết hạn mức — runner dừng gọi mạng."""
         return all(getattr(c, "rate_limited", False) for c in self.clients)
+
+    def close(self) -> None:
+        """Đóng client nào giữ tài nguyên (nguồn subscription giữ cửa sổ trình duyệt)."""
+        for client in self.clients:
+            closer = getattr(client, "close", None)
+            if callable(closer):
+                try:
+                    closer()
+                except Exception:
+                    pass

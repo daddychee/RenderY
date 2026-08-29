@@ -1000,8 +1000,12 @@ def source(
              "mặc định all; X = tiếng Anh theo từ vựng tag kho, vd 'beautiful woman'). "
              "Chèn cảnh KHO + bonus phễu; cộng với audience_bias của niche. Dính vào "
              "project.json. MO_TA_VAN_HANH_BOOST.md"),
+    use_sub: bool = typer.Option(
+        True, "--sub/--no-sub",
+        help="Dùng nguồn subscription (Envato/Vecteezy) khi stock free chưa đủ ứng viên. "
+             "Chạy qua trình duyệt, có phanh chống khoá tài khoản. Xem `sub-status`."),
 ) -> None:
-    """Stage 4: tải footage theo sourcing_route — local -> Pexels -> Pixabay; entity -> Google CSE.
+    """Stage 4: tải footage theo sourcing_route — local -> Pexels -> Pixabay -> sub; entity -> Google CSE.
     Chọn qua PHỄU c5 (2 veto + NÃO chấm + sàn 3 + kill-log — MO_TA_VAN_HANH_PHEU_C5.md)."""
     import os
 
@@ -1039,6 +1043,22 @@ def source(
     if pixabay_keys:
         stock_clients.append(PixabayClient(pixabay_keys, conn=conn))
         typer.echo(f"  Pixabay: {len(pixabay_keys)} key (chạy khi Pexels chưa đủ ứng viên)")
+
+    # Nguồn subscription CHẠY CUỐI: đã trả tiền nên footage đa dạng hơn, nhưng phải
+    # điều khiển trình duyệt (chậm + có phanh chống khoá tài khoản) -> chỉ dùng khi
+    # stock free chưa đủ ứng viên. Tắt bằng --no-sub.
+    # khi run() gọi trực tiếp, use_sub là OptionInfo (không phải bool) -> lấy mặc định
+    sub_clients = []
+    if use_sub if isinstance(use_sub, bool) else True:
+        from autoedit.sourcer.subscription import SubscriptionClient, available_sites
+
+        for site in available_sites():
+            sub_clients.append(SubscriptionClient(site))
+        if sub_clients:
+            names = ", ".join(c.site for c in sub_clients)
+            typer.echo(f"  Sub    : {names} (trình duyệt, có phanh — chạy khi stock chưa đủ)")
+
+    stock_clients += sub_clients
     stock = stock_clients[0] if len(stock_clients) == 1 else MultiStockClient(stock_clients)
     entity = None
     for client_cls in (SerperEntityClient, GoogleCSEClient):  # Serper chính, CSE legacy
@@ -1102,6 +1122,18 @@ def source(
     except (FileNotFoundError, RuntimeError) as exc:
         typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    finally:
+        # Nguồn subscription giữ cửa sổ trình duyệt — đóng cả khi stage lỗi giữa chừng
+        closer = getattr(stock, "close", None)
+        if callable(closer):
+            closer()
+        for c in sub_clients:
+            c.close()
+        if sub_clients:
+            blocked = [c.site for c in sub_clients if c.blocked]
+            if blocked:
+                typer.secho(f"  ⚠ Nguồn dừng vì bị chặn: {', '.join(blocked)} — "
+                            f"đăng nhập lại rồi chạy sau", fg=typer.colors.YELLOW)
 
     from collections import Counter
 
