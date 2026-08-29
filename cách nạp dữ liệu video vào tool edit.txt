@@ -1,0 +1,37 @@
+CÁCH NẠP DỮ LIỆU PROJECT EDITOR THẬT:
+copy project vào phải có 1 file ghi topic video và các chapter để AI học chính xác hơn
+đặt tên file "topic + chapter video" trong folder của project capcut
+ví dụ:
+
+Topic video:
+Real life in AAAA
+chapter
+01:01 Daily Life in Iran
+05:20 The Captivating and Mysterious Beauty of Iranian Women
+07:49 Sigheh
+09:45 The Qashqai Nomads
+12:07 Magnificent Natural Beauty and Cultural Heritage
+16:10 Strange Customs and Everyday Wonders
+18:38 Unusual and somewhat eerie cuisine
+20:53 The Most Expensive Carpets in the World Come From Iran
+23:04 Iran is the Second Rose Kingdom of the World
+24:55 Cheap travel, expensive survival
+
+
+CÁCH NẠP DỮ LIỆU VIDEO VIRAL :
+Bước 1:
+tải về folder dạng:
+F:\SPACE\MOON VIDEO YOUTUBE THAM KHAO
+
+tên file phải có tên video + ID VIDEO ( id video trên youtube. ). ví dụ link video: "https://www.youtube.com/watch?v=iOxHAKmh43Q" thì ID VIDEO là: "iOxHAKmh43Q"
+Bước 2:
+sau đó import video này vào capcut, chọn tách cảnh, lưu project với tên file
+Bước 3: đưa vào tool báo tool tag vision cho video viral, ghi rõ các folder project capcut cần tag. ví dụ:
+E:\CapCut Drafts\YTDown.com_YouTube_What-China-Found-on-The-Moon_Me
+E:\CapCut Drafts\YTDown.com_YouTube_What-Artemis-II-Saw-On-the-Moon
+
+Bước 3: lưu ý. nếu tốt nhất nhất để tool hiểu topic và chapter video, mình có thể đặt file "topic + chapter video" tương tự cách làm của video project của editor như ở trên
+
+CÁCH NẠP DỮ LIỆU VIDEO Mẫu :
+
+Làm tương tự video viral, nhưng làm khi bước chạy cho từng video, sẽ nhập folder project capcut ở đó.

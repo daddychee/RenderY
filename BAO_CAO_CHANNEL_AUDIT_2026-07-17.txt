@@ -1,0 +1,168 @@
+﻿═══ niche deepsea ═══
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_003  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_003\materials  (162 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_003\subdraft\74EB31FA-0C8B-48fe-90BE-7E0C8DF4A6F8\materials\video  (87 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_004  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_004\materials  (180 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_004\subdraft\AA15204D-2A1C-4794-AE6D-AC35E4BD4013\materials\video  (143 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_006\materials  (348 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_006\subdraft\94197BB3-FD55-477b-AD9F-A07EF3E233B9\materials\video  (49 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_007\materials  (202 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_007\subdraft\000A71AD-1DED-499e-9944-6733201F707E\materials\video  (77 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_008\materials  (448 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_008\subdraft\5A28D34C-AF3D-44ad-92D1-177AD5D505F4\materials\video  (77 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_010\materials  (175 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_010\subdraft\83821686-2C86-4d76-B06A-3A30A9CF2BBC\materials\video  (122 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_011\materials  (251 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_011\subdraft\313A5C41-850D-4090-9441-10D9CA0FE057\materials\video  (26 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_017\materials  (247 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_017\subdraft\43E47D80-58FE-4b86-BB36-9A09FAD168D9\materials\video  (63 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_023  (4 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_023\materials  (233 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 3\DS3_023\subdraft\C775ECEA-AD41-4b5c-829A-7280A40CD673\materials\video  (38 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS-53 v2\Resources\local  (444 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_046  (5 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_046\materials  (427 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_048  (11 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_048\materials  (357 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_049  (41 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_049\materials  (342 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_051  (2 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_051\materials  (510 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_056_v2  (23 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_056_v2\materials  (503 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_059  (13 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_059\materials  (370 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_063  (4 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_063\materials  (473 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_067_v2  (17 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_067_v2\materials  (391 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_069  (6 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS1_069\materials  (308 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_001\materials  (653 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_001\subdraft\CBF09FD3-4975-498d-B24F-E998942D77A6\materials\video  (76 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_002  (3 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_002\materials  (417 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_002\subdraft\C14B191A-DC82-4dd7-A17D-76B506593707\materials\video  (74 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_005\materials  (205 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEP SEA 5\DS5_005\subdraft\3E706742-61D1-4a75-A72B-3F05D1CB050A\materials\video  (40 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\DEEPSEA 1\DS1-050\materials  (332 asset) — CHƯA có kênh
+  ✗ F:\DEEPSEA\VIDEO MAU\DS083  (1637 asset) — CHƯA có kênh
+  ✗ F:\DEEPSEA\VIDEO MAU\DS086  (1548 asset) — CHƯA có kênh
+═══ niche life-in ═══
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AM32\FOOTAFE  (310 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AM32\FOOTAFE\ft  (40 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AM32\materials  (3 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AM32\ẢNH  (11 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 35\materials  (345 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 38\1 ẢNH  (11 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 38\2 FOOTAFE  (334 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 38\2 FOOTAFE\1  (7 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 38\2 FOOTAFE\ft  (54 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 38\materials  (2 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\1 ẢNH  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE  (235 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\1  (7 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\1.1  (9 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\1.2  (10 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\1.3  (6 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\2  (17 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\3  (4 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\3.3  (6 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\3.4  (6 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\4  (8 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\5  (5 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\ARTLIST  (24 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Cắt\Cảnh cắt  (13 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Cắt\ăn cá chích  (6 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Hoa  (2 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Venice, Netherlands  (3 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Xông hơi  (4 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\Bài AMZ06 ( hà Lan )\Xông hơi\New folder  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\ft  (5 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\2 FOOTAFE\GIRL  (3 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 40\materials  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\1 ẢNH  (10 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE  (250 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\2  (7 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\BEACH  (14 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\EVANTO  (20 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\festival  (20 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\ft  (5 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\LIFE IN  (58 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\WC 2026  (28 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\2 FOOTAFE\ẢNH  (8 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ 42\materials  (5 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ33\FOOTAFE  (242 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ33\FOOTAFE\ft  (80 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ33\materials  (4 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\AMZ33\ẢNH  (14 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\Bài AM19\materials  (322 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\Bài AMZ20\materials  (351 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\Bài AMZ31\materials  (254 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\Bài AMZ45\materials  (307 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\AMAZING\Bài AMZ999\materials  (324 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL04\materials  (304 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL06\materials  (47 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL07\materials\video  (372 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL10\materials  (34 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL13\materials  (39 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL18\materials  (44 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL21\materials  (27 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL24\materials  (495 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL27\materials  (46 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL28\materials  (27 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL29\materials  (26 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL32\materials\video  (432 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL35\materials  (93 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL36\materials  (28 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL40\materials  (33 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL41\materials  (56 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL49\materials\video  (396 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL51\materials  (55 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL52\materials  (453 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL53\materials  (3 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL53\materials\video  (445 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL54\materials  (56 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL56\materials  (35 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL57\materials  (62 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL58\materials  (413 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL62\materials  (442 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL63\materials  (40 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL64\materials\video  (405 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL65\materials  (50 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL67\materials  (57 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL70\materials\video  (434 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL71\materials  (501 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL72\materials  (292 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL74\materials\video  (429 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL75\materials  (34 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL76\materials  (39 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL77\materials  (326 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL77a\materials  (326 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL78\materials  (300 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL79\materials  (387 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL81\materials  (345 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL82\materials  (141 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL82\materials\video  (271 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL83\materials  (163 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL83\materials\video  (301 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL84\materials  (15 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL84\materials\video  (392 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL86\materials\video  (393 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL91\materials  (237 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\REAL LIFE\REAL91\materials\video  (207 asset) — CHƯA có kênh
+  ✗ F:\LIFE IN\VIDEO MAU\REAL 89  (1940 asset) — CHƯA có kênh
+═══ niche space ═══
+  ✗ E:\PROJECT NHAN BAN\SPACE 1\SP1 - 001\materials  (125 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\SPACE 1\SP1 - 003  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\SPACE 1\SP1 - 003\materials  (236 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\SPACE 1\SP1 - 004  (1 asset) — CHƯA có kênh
+  ✗ E:\PROJECT NHAN BAN\SPACE 1\SP1 - 004\materials  (256 asset) — CHƯA có kênh
+  ✗ F:\SPACE\MOON VIDEO YOUTUBE THAM KHAO  (488 asset) — CHƯA có kênh
+  ✗ F:\SPACE\Niche space viral  (955 asset) — CHƯA có kênh
+  ✗ F:\SPACE\Niche space viral - lan 2  (254 asset) — CHƯA có kênh
+  ✗ F:\SPACE\VIDEO MAU\SP1-014  (909 asset) — CHƯA có kênh
+  ✗ F:\SPACE\VIDEO MAU\SP1-017  (737 asset) — CHƯA có kênh
+Tổng: 164 folder nguồn, 164 chưa có kênh. Điền: uv run autoedit channel-set "<folder>" "<Tên Kênh>"

@@ -1,0 +1,27 @@
+﻿═══ DNA niche 'space' — 1 draft, timeline 29.6 phút ═══
+
+— d1 PACING —
+  Mật độ cắt: 8.3 cut/phút (244 shot)
+  Độ dài shot: n=244, trung bình 7.53s, trung vị 6.98s, lệch chuẩn 3.11, min 1.1 / max 24.4
+  Hold (≥5s): 198 shot = 81%, trung vị 7.58s
+  Q1 (~hook): trung vị 7.43s (60 shot)
+  Q2 (thân): trung vị 6.68s (64 shot)
+  Q3 (thân/cao trào): trung vị 6.6s (60 shot)
+  Q4 (kết): trung vị 6.92s (60 shot)
+  45s đầu (hook): trung vị 8.75s (6 shot)
+
+— d2 HÌNH THỞ —
+  39 ô thở / 26.6 phút thoại = 1.47 ô/phút
+  Độ dài ô thở: n=39, trung bình 2.24s, trung vị 1.5s, lệch chuẩn 1.72, min 1.0 / max 8.73
+  Footage trong ô thở: {'space': 37, 'sky_cloud': 4, 'interior': 2, 'other': 1, 'abstract_texture': 1, 'nature_forest_field': 1, 'food': 1} · cỡ cảnh {'wide': 40, 'medium': 5, 'close_up': 2}
+  Shot/ô thở: trung bình 1.26, trung vị 1, max 3 (chuỗi nhiều shot hiếm)
+
+— c7 CỠ CẢNH —
+  Phân bố: {'wide': 0.79, 'medium': 0.18, 'close_up': 0.03, 'aerial': 0.0}
+  Nhịp đặc tả: 1 close-up mỗi 39.3 shot
+  Chuỗi 3-shot hay gặp: wide→wide→wide (×128); wide→wide→medium (×21); medium→wide→wide (×19); wide→medium→wide (×18); wide→medium→medium (×10)
+
+— c6 CHỮ KÝ (gợi ý signature/) —
+  Loại cảnh: space×207, sky_cloud×23, nature_forest_field×13, interior×12, mountain_desert×9, people_activity×4, urban_landmark×3, animal_wildlife×3
+  Chủ thể lặp: galaxy×19, spiral galaxy×18, galaxy cluster×14, nebula×9, person stargazing×7, space nebula×7, space telescope×7, starry night sky×7, deep space×6, stargazing×5
+  Hook mở bằng: space/wide×5, sky_cloud/wide×1

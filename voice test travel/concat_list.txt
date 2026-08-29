@@ -1,0 +1,4 @@
+file 'hook.mp3'
+file 'chapter 1 Zurich.mp3'
+file 'chapter 2 Bern.mp3'
+file 'chapter 3 Lucerne.mp3'

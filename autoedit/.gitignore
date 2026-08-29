@@ -1,0 +1,25 @@
+# Secrets — KHÔNG BAO GIỜ commit (quy tắc an toàn KE_HOACH_TRIEN_KHAI 2.3)
+.env
+
+# Output mỗi video — nặng, sinh lại được
+projects/
+assets/
+
+# Media tạm
+*.wav
+*.mp3
+*.mp4
+*.mov
+*.m4a
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# OS
+.DS_Store

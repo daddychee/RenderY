@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secrets — KHÔNG BAO GIỜ commit key
+.env
+
+# Output dựng video (project.json + footage tải về — hàng chục GB, mốc khôi phục = NHAT_KY + backup D:)
+autoedit/projects/
+
+# Tool ME OutlierY — copy tham khảo, user sẽ xóa (tri thức đã hút: ytpeaks.py + memory me-outliery-strategy)
+TOOL CẮT SIÊU DỮ LIỆU/
+
+# A/B mù tag ytref M2 — clip media + kết quả đo (script sinh lại được: scripts_ab_tag_ytref.py)
+AB_TAG_MOON/
+.claude/scheduled_tasks.lock
+
+# Bàn giao máy editor (HUONG_DAN_CAI_DAT_MAY_EDITOR.md): flag chỉ-máy-editor (commit là
+# luật §7 bật nhầm trên máy gốc khi merge) + bundle nhị phân + memory xuất ngày bàn giao
+BAN_GIAO/MAY_EDITOR.flag
+BAN_GIAO/*.bundle
+BAN_GIAO/memory_goc/

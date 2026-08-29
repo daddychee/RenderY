@@ -1,0 +1,15 @@
+Từ giờ, mỗi lần máy gốc nâng cấp xong, quy trình update các máy khác chỉ có 2 bước
+Bước 1 — Máy gốc (anh nói 1 câu với tôi): "làm tươi bộ cài" — tôi chạy A3 (~1 phút): mirror project mới nhất + memory sang F:\BO_CAI_MAY_EDITOR, xóa trắng GLM key.
+
+Bước 2 — Từng máy editor (editor dán 1 câu cho Claude Code bên đó): "Cập nhật tool từ bộ cài theo HUONG_DAN D3" — nó tự copy đè an toàn qua mạng, chạy uv sync (phòng khi có thư viện Python mới), rồi nhắc editor mở phiên Claude Code mới. ~2 phút/máy, không cần cài lại gì.
+
+Tôi vừa viết bước này thành mục D3 chính thức trong HUONG_DAN (commit fa030b1, bộ cài đã làm tươi kèm) — vì bước copy phía editor có 2 bẫy chết người mà lệnh trong D3 đã khóa sẵn:
+
+Copy kiểu "mirror" (/MIR) sẽ xóa sạch folder projects (video đã dựng) của editor — bộ cài không chứa folder đó. D3 dùng /E (chỉ đè + thêm, không xóa).
+Đè nguyên folder sẽ mất BAN_GIAO\ (nhật ký + cờ máy editor) và .env (GLM key riêng đã điền) — D3 loại trừ sẵn 2 thứ đó, editor không phải điền lại key như kiểu copy tay bằng Explorer.
+Vài điểm vận hành:
+
+Không cần update theo từng commit lặt vặt — chỉ khi có tính năng/luật/fix ảnh hưởng máy editor. Anh cứ nâng cấp thoải mái trên máy gốc, gom vài thứ rồi làm tươi 1 lần.
+machine.json (kết nối sổ, kho, donor CapCut) nằm ngoài project — update không bao giờ đụng.
+Chiều ngược lại (editor fix bug/có bài học mới → về máy gốc) vẫn đi kênh BAN_GIAO\ + bundle như D1/D2 đã có.
+Còn 2 việc treo chờ anh quyết: xóa 2 file ghi chú lạc hậu (ket noi database.txt, luu data.txt) trên bộ cài, và nạp bù mẻ DS084 (~1 giờ).

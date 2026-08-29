@@ -1,0 +1,65 @@
+[project]
+name = "autoedit"
+version = "0.1.0"
+description = "Tool tự động dựng video YouTube bán content -> xuất CapCut draft (PADOMA MEDIA)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "pydantic>=2.6",
+    "python-dotenv>=1.0",
+    "pycapcut>=0.0.3",
+    "faster-whisper>=1.2.1",
+    "anthropic>=0.109.1",
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+    "matplotlib>=3.11.0",
+    "librosa>=0.11.0",
+    # ytref điểm nhô (MO_TA_VAN_HANH_YTREF_DIEM_NHO §3c): pin đúng bản smoke M0 —
+    # YouTube đổi format thì bump có chủ đích, không để trôi ngầm
+    "yt-dlp==2026.7.4",
+    # G2 lớp đệm 2 lưng: SỔ chạy được trên Postgres (db_url) — import trong hàm,
+    # máy chỉ dùng SQLite không đụng tới nhưng cài sẵn để flip không thiếu món
+    "psycopg[binary]>=3.2",
+    # NHIP-M4 (user chốt 2026-07-21): downbeat + số phách/ô nhịp bằng RNN — librosa
+    # đo tempo tốt nhưng MÙ pha/downbeat (nhóm cứng 4 beat, sai bài nhịp 3).
+    # PIN git rev: PyPI 0.16.1 chết numpy 2 (np.float); rev này = 0.17.dev0 đã vá.
+    # ⚠ BUILD TỪ NGUỒN — máy cần MSVC C++ Build Tools (HUONG_DAN_CAI_DAT_MAY_EDITOR.md).
+    "madmom @ git+https://github.com/CPJKU/madmom.git@27f032e8947204902c675e5e341a3faf5dc86dae",
+]
+
+# Dependency của các milestone sau, cài dần để M0 nhẹ:
+#   M2 align    : faster-whisper
+#   M3 director : anthropic
+#   M4/M5       : requests, librosa  (ffmpeg là binary hệ thống, không qua pip)
+#   M1/M6 draft : pycapcut
+[project.optional-dependencies]
+align = ["faster-whisper>=1.0"]
+llm = ["anthropic>=0.40"]
+source = ["requests>=2.31"]
+draft = ["pycapcut"]
+
+[project.scripts]
+autoedit = "autoedit.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["autoedit"]
+
+# madmom khai bằng git URL (direct reference) — hatchling mặc định cấm, phải bật
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# madmom setup.py import cython+numpy lúc build nhưng không khai build-system.requires
+# (gói cũ) -> uv phải bơm tay vào env build isolation, nếu không "No module named Cython"
+[tool.uv.extra-build-dependencies]
+madmom = ["cython", "numpy", "setuptools"]

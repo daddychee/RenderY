@@ -1,0 +1,68 @@
+PB8 — ĐỘ KHỚP QUERY DIRECTOR ↔ TAG GLM KHO SPACE (đo 2026-07-07, 0 token)
+==============================================================================
+Kho space: 282 asset (236 từ ống nạp SP1 - 003)
+
+A. VOCAB THẬT TRONG KHO (để hiểu vì sao query trúng/trượt)
+  scene_type: space×186, sky_cloud×13, nature_forest_field×9, mountain_desert×8, interior×8, abstract_texture×3, other×2, animal_wildlife×2, urban_landmark×2, nature_water×1, people_activity×1, food×1
+  từ subject hay gặp: galaxy×76, space×65, nebula×21, spiral×18, night×17, cluster×16, cosmic×13, deep×12, sky×12, telescope×11, map×10, earth×10, starry×9, visualization×9, in×9, milky×8, way×8, galaxies×8, stargazing×6, with×5, starfield×5, planet×5, stars×3, person×3, universe×3
+  tag hay gặp: space×206, stars×170, cosmos×169, galaxy×157, universe×157, astronomy×127, nebula×68, deep space×62, night sky×42, dark×35, science×31, visualization×27, night×21, spiral×21, sky×18, telescope×17, cosmic×16, silhouette×14, spiral galaxy×12, Earth×12, sci-fi×12, grid×12, cluster×11, planet×11, Milky Way×10
+
+B. 24 QUERY GIẢ LẬP (AND mọi từ trên subject/description/tags/category/folder)
+query                        khớp db vào phễu  ví dụ subject trả về
+------------------------------------------------------------------------------
+spiral galaxy                     39        5  galaxy; galaxy
+nebula colorful                   15        5  galaxy; space nebula
+black hole                         6        5  wormhole space; black hole
+night sky                         74        5  galaxy; starry night sky
+stars timelapse                    0        0  —
+earth orbit                        2        2  earth orbit; space telescope
+milky way                         30        5  galaxy supercluster; milky way galaxy
+deep space                        74        5  space nebula; milky way galaxy
+planet surface                     3        3  solar flare; space planet
+moon crater                        0        0  —
+rocket launch                      0        0  —
+astronaut floating                 0        0  —
+space station                      3        3  space station; astronaut spacewalk
+telescope observatory              5        5  observatory night sky; radio telescope night sky
+solar flare                        2        2  solar flare; sun
+meteor shower                      0        0  —
+aurora borealis                    0        0  —
+stargazing person                 10        5  stargazer; stargazing
+galaxy cluster                    27        5  galaxy supercluster; galaxy cluster
+cosmic dust                       15        5  galaxy; milky way galaxy
+spiral galaxy rotating             0        0  —
+earth from space                   5        5  Earth from space; earth from space
+person looking stars               2        2  person stargazing; person stargazing
+universe zoom out                  0        0  —
+------------------------------------------------------------------------------
+Trúng: 16/24 query · trượt hẳn: 8 · mỏng (<3): 3
+  Trượt hẳn: stars timelapse, moon crater, rocket launch, astronaut floating, meteor shower, aurora borealis, spiral galaxy rotating, universe zoom out
+  Mỏng: earth orbit, solar flare, person looking stars
+
+C. NHẬN XÉT (Claude tự đọc số ở trên rồi điền tay sau khi chạy)
+  1. TIN TỐT: kho nạp TÌM ĐƯỢC qua đường phễu thật (find_local_candidates) — các query
+     trúng trả về đúng nghĩa (black hole -> wormhole/black hole; stargazing person ->
+     stargazer). Khối lõi space (galaxy/nebula/night sky/deep space) rất dày: 27-74 khớp.
+  2. 8 query trượt chia 2 loại KHÁC BẢN CHẤT:
+     a) Kho THẬT SỰ không có cảnh đó (moon crater, rocket launch, meteor shower, aurora,
+        astronaut floating — SP1-003 không quay mấy cảnh này). Đây KHÔNG phải lỗi:
+        Pexels đúng vai trò lưới vớt. Sẽ tự dày lên khi nạp thêm draft space.
+     b) TỪ CHUYỂN ĐỘNG/TRỪU TƯỢNG làm AND-match trượt oan: "spiral galaxy rotating"
+        (kho có 39 clip spiral galaxy nhưng GLM không tag "rotating"), "stars timelapse"
+        (170 clip tag stars), "universe zoom out". GLM tag từ 1-2 frame TĨNH -> không bao
+        giờ có từ chuyển động. BÀI HỌC cho bước dựng video space: prompt director tier
+        specific nên ưu tiên DANH TỪ cảnh, tránh động từ chuyển động — hoặc chấp nhận
+        rơi xuống Pexels. KHÔNG đẻ thêm tầng lọc/map mới (luật filter-overload-guard).
+  3. Đề xuất khi user về: chưa cần sửa code. Nếu dựng video space thật mà thấy local
+     hit thấp bất thường -> xem lại mục 2b trước khi nghi ngờ kho.
+
+D. C6 DROP-LIST ĐÃ SỬA (2026-07-09, C đợt 1 — MO_TA_VAN_HANH_C_DOT_1.md §C6)
+  Fix mục 2b bằng drop-list từ chuyển động/camera trong sourcer/local.py
+  (_strip_motion_terms — bỏ từ chuyển động trước AND-match; bỏ sạch -> giữ query gốc).
+  Re-run 24 query trên kho space 1874 asset (kho đã dày hơn 282 hồi đo mục B):
+    spiral galaxy rotating    0 ->  80   (strip 'rotating')
+    stars timelapse           0 -> 604   (strip 'timelapse')
+    universe zoom out         0 -> 742   (strip cụm 'zoom out')
+    astronaut floating        2 ->  19   (strip 'floating' — hồi B xếp nhầm loại 2a)
+  20 query còn lại: TRƯỚC = SAU không đổi một con số (moon crater, rocket launch...
+  vẫn là việc của Pexels khi kho thiếu thật). pytest 304/304.

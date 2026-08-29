@@ -1,0 +1,31 @@
+═══ DNA niche 'space' — 3 draft, timeline 82.6 phút ═══
+
+— d1 PACING —
+  Mật độ cắt: 9.4 cut/phút (643 shot)
+  Mega-segment >30s: 1 khúc (839s) — BỎ khỏi thống kê pacing (luật user 2026-07-07)
+  Độ dài shot: n=643, trung bình 6.65s, trung vị 6.2s, lệch chuẩn 3.09, min 0.83 / max 24.4
+  Hold (≥5s): 431 shot = 67%, trung vị 7.47s
+  Q1 (~hook): trung vị 6.4s (203 shot)
+  Q2 (thân): trung vị 6.2s (187 shot)
+  Q3 (thân/cao trào): trung vị 6.1s (127 shot)
+  Q4 (kết): trung vị 5.75s (126 shot)
+  45s đầu (hook): trung vị 4.8s (25 shot)
+
+— d2 HÌNH THỞ —
+  108 ô thở / 59.8 phút thoại = 1.81 ô/phút
+  Ô thở >60s: 1 khúc (842s) — BỎ khỏi thống kê d2 (luật user 2026-07-07)
+  Độ dài ô thở: n=108, trung bình 3.11s, trung vị 1.55s, lệch chuẩn 5.73, min 1.0 / max 57.73
+  Footage trong ô thở: {'space': 122, 'sky_cloud': 8, 'abstract_texture': 5, 'interior': 5, 'other': 2, 'nature_forest_field': 2, 'food': 1, 'urban_landmark': 1, 'mountain_desert': 1} · cỡ cảnh {'wide': 103, 'medium': 26, 'close_up': 17, 'aerial': 1}
+  Shot/ô thở: trung bình 1.42, trung vị 1, max 11 (chuỗi nhiều shot hiếm)
+
+— c7 CỠ CẢNH —
+  Phân bố: {'wide': 0.59, 'medium': 0.28, 'close_up': 0.12, 'aerial': 0.01, 'extreme_close_up': 0.0}
+  Nhịp đặc tả: 1 close-up mỗi 8.3 shot
+  Chuỗi 3-shot hay gặp: wide→wide→wide (×193); medium→wide→wide (×46); wide→wide→medium (×44); wide→medium→wide (×33); medium→medium→medium (×31)
+
+— c6 CHỮ KÝ (gợi ý signature/) —
+  Loại cảnh: space×492, interior×40, sky_cloud×39, abstract_texture×20, nature_forest_field×18, other×17, mountain_desert×12, urban_landmark×8
+  Chủ thể lặp: sun×29, spiral galaxy×24, solar system×24, galaxy×23, space probe×23, solar flare×22, galaxy cluster×14, sun surface×11, solar eclipse×11, space nebula×10
+  Hook mở bằng: space/wide×13, space/medium×6, space/close_up×2, sky_cloud/wide×1, mountain_desert/aerial×1, space/extreme_close_up×1
+
+✓ dna.json: C:\Users\NBPC\AutoEdit\library\space\dna.json (pacing validator + NÃO direct đọc từ đây)

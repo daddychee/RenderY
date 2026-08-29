@@ -1,0 +1,2 @@
+Tên gọi + tài liệu
+Đặt tên M-LEVEL (cùng họ M-VOL/M-GRID của MUSIC SYNC), 2 vấn đề con: M-LEVEL-THỞ và M-LEVEL-VOICE. Đã ghi MO_TA_VAN_HANH_M_LEVEL.md (kèm mục Rà chồng chéo theo P5: chỉ sửa duy nhất tầng ducking, không đụng hook M-VOL đã qua cổng tai) + memory m-level-nhac-do-db.
