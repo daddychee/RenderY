@@ -195,6 +195,27 @@ PYTHONPATH=. PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -m autoedit.cli --help
   Draft root user dùng thật: `F:\OutlierY Nas 2\Tool Edit\Capcut Draft\CapCut Drafts`.
 - Draft mẫu **ĐÃ CHẠY ĐƯỢC** (mở trong CapCut + render ra MP4 375MB):
   `...\CapCut Drafts\SCRIPT1_20260805_072653` — dùng `materials/`, 18 key/video, version 360000.
+- **Máy này ĐÃ đăng ký sẵn** (`~/.autoedit/machine.json`, 05/08/2026): donor = draft
+  `0805`, CapCut 9.1.0, draft root `F:\OutlierY Nas 2\Tool Edit\Capcut Draft\CapCut Drafts`.
+  Không cần chạy lại `register-machine`.
+
+### ĐO THẬT 30/08/2026 — luật C3 (ghi compact) KHÔNG bắt buộc
+
+Xuất `demo-draft` rồi so 3 bản:
+
+| Draft | Định dạng JSON | Thực tế |
+|---|---|---|
+| `0805` — CapCut tự tạo | compact `,"` | bản gốc |
+| `SCRIPT1` — padoma sinh | **có dấu cách** `, "` | ✅ mở được + render MP4 375MB |
+| `RENDERY_TEST` — vừa sinh | có dấu cách `, "` | cấu trúc giống SCRIPT1 |
+
+`pycapcut` ghi bằng `separators` mặc định của `json.dumps`. **CapCut đọc JSON bình
+thường, không kén khoảng trắng.** → KHÔNG "sửa" cho compact: thứ đang chạy đúng thì
+đừng đụng (Karpathy #3), và luật C3 chỉ đúng ở phần *"CapCut 8.8.0 không đọc
+`draft_info.json`"*.
+
+Đã kiểm chứng trên `RENDERY_TEST`: `materials/` ✓ · placeholder GUID toàn cục ✓ ·
+`check_flag = 62978047` ✓ · 4 track (2 video, 2 audio, 1 text) ✓.
 - Python 3.13.14 · `uv` 0.12.1 · **chưa có Node.js**.
 - venv **không di chuyển được** giữa máy/OS. `.bat` phải CRLF.
 

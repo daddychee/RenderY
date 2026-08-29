@@ -173,6 +173,17 @@ def run_assemble(
         raise
 
     project.draft_path = str(draft_dir)
+
+    # SỔ NGUỒN GỐC (RenderY): xuất cạnh draft để đi cùng khi copy sang máy editor.
+    # Lưới an toàn — sổ hỏng KHÔNG được giết draft đã dựng xong.
+    try:
+        from autoedit.packager.sourcebook import write_sourcebook
+
+        write_sourcebook(project, draft_dir)
+    except Exception as exc:
+        record.warnings.append(f"⚠ Không ghi được sổ nguồn footage ({exc}) — "
+                               "draft vẫn dùng được, tra nguồn trong project.json")
+
     record.status = StageStatus.DONE
     record.completed_at = datetime.now(timezone.utc).isoformat()
     project.save()
