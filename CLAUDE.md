@@ -105,10 +105,16 @@ Padoma đã có `draft_materials` registry — thêm 2 trường.
 
 User chốt: *"công cụ tối thiểu cho kết quả tối đa, hạn chế những thứ cồng kềnh mà không có kết quả."*
 
-**CÀI (7):** `pycapcut` · `typer` · `pydantic` · `python-dotenv` · `pyyaml` · `requests` ·
-`matplotlib` — cộng **ffmpeg** (binary hệ thống, có sẵn `C:\OutlierY\tools\ffmpeg\bin\`).
+**CÀI (9):** `pycapcut` · `typer` · `pydantic` · `python-dotenv` · `pyyaml` · `requests` ·
+`matplotlib` · `yt-dlp==2026.7.4` (R5b: nguồn video mẫu) · `playwright` (R5b: Envato/Vecteezy)
+— cộng **ffmpeg** (binary hệ thống, có sẵn `C:\OutlierY\tools\ffmpeg\bin\`).
 
-**BỎ (5):**
+> `yt-dlp` + `playwright` ban đầu nằm nhóm BỎ, **cài lại ở R5** khi user yêu cầu đa dạng
+> nguồn + video mẫu YouTube. Playwright KHÔNG cần tải Chromium 500MB vì máy đã có
+> **Chrome thật** (`channel="chrome"`), và profile đăng nhập Envato/Vecteezy của
+> Auto Editing tại `D:\App\AE\Auto Editing\.browser_profiles\` tái dùng được.
+
+**BỎ (3):**
 
 | Gói | Lý do |
 |---|---|
@@ -116,7 +122,6 @@ User chốt: *"công cụ tối thiểu cho kết quả tối đa, hạn chế n
 | `librosa` | Chỉ cho MUSIC SYNC — nâng cao, chưa yêu cầu |
 | `psycopg[binary]` | Dựng song song nhiều máy; user 1 máy → SQLite đủ |
 | `faster-whisper` | `.srt` user ĐÃ CÓ timestamp. **Để OPTIONAL**, cài khi gặp chương thiếu |
-| `yt-dlp` | Chỉ cho YTREF điểm nhô — đã cô lập |
 
 **KHÔNG gỡ code PostgreSQL / đa máy** (Karpathy #3): không cài `psycopg` thì nhánh đó
 không chạy, không cản trở gì. Xoá chỉ tạo diff lớn + rủi ro hỏng test. User chốt:
@@ -221,7 +226,20 @@ PYTHONPATH=. PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -m autoedit.cli --help
       714 pass. Parse thật IN002 (434 câu/2850 từ) + geo023 (284 câu/1873 từ), tức thì.
       Không sửa runner/matcher — chỉ implement interface `Aligner` có sẵn.
 - [ ] R4 Mô hình chương: nhận script+voice+srt từng chương
-- [ ] R5 Port connector Envato/Vecteezy/Artlist từ Auto Editing + sổ nguồn gốc
+- [x] R5 **Đa dạng nguồn footage** — 781 pass
+      - R5a Pixabay (kế thừa PexelsClient) + `MultiStockClient` ưu tiên theo thứ tự
+      - R5b-1 **ytref**: tải video mẫu YouTube theo link, cắt tại điểm nhô, trần 15%
+        (gate C8), **sổ nguồn gốc** `ytref:<ID>@t=<start>-<end>` + báo cáo tỉ trọng.
+        KHÔNG port lại tool `me` — padoma đã bê nguyên thuật toán từ đó, cộng 2 luật chặt hơn.
+      - R5b-2 **Envato/Vecteezy có PHANH** (user chốt): trần 20 clip/giờ cửa sổ trượt ·
+        nghỉ ngẫu nhiên 6-18s · gặp captcha DỪNG hẳn · 3 fail liên tiếp DỪNG.
+        Playwright **sync** (padoma đồng bộ) + Chrome **thật** có sẵn trên máy.
+        **BỎ Artlist** — Auto Editing đã kết luận "chỉ tải tay", port sang vô nghĩa.
+      - R5c Nối vào `run_source` mà **không đụng runner.py** — chỉ thêm client vào
+        danh sách ở CLI, vì `MultiStockClient` đã khớp interface `StockClient`.
+
+      **Thứ tự nguồn:** local → Pexels → Pixabay → Envato/Vecteezy.
+      ytref chạy riêng bằng `ytref-harvest`.
 - [ ] R6 Tự chọn clip + chấm 4 tín hiệu không chắc
 - [ ] R7 Gộp dần draft tổng
 - [ ] R8 Web UI + hàng đợi job bền (restart không mất việc)
