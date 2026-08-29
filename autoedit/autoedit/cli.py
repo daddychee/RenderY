@@ -343,11 +343,23 @@ def align(
     project_dir: Path = typer.Argument(..., help="Folder project (chứa project.json)."),
     model: str = typer.Option("small", "--model", help="Cỡ model faster-whisper: tiny/base/small/medium."),
     language: str = typer.Option("auto", "--language", help="Ngôn ngữ voice: auto/en/vi..."),
+    backend: str = typer.Option("auto", "--backend",
+                                help="Nguồn timestamp: auto (có .srt thì đọc, không thì whisper) | srt | whisper."),
+    srt: Optional[Path] = typer.Option(None, "--srt", help="Đường dẫn .srt (mặc định tìm cạnh file voice)."),
 ) -> None:
-    """Stage 1: align voice với script, timestamp từng từ (chạy CPU, vài phút/video 10p)."""
+    """Stage 1: align voice với script, timestamp từng từ.
+
+    Có .srt sẵn -> đọc thẳng (tức thì, chữ là chữ THẬT của kịch bản).
+    Không có -> nhận dạng bằng faster-whisper (chạy CPU, vài phút/video 10p).
+    """
     from autoedit.align.runner import run_align
-    from autoedit.align.whisper_local import FasterWhisperAligner
+    from autoedit.align.srt_file import SrtAligner
     from autoedit.project import Project, Stage
+
+    if backend not in ("auto", "srt", "whisper"):
+        typer.secho(f"Lỗi: --backend phải là auto|srt|whisper (nhận '{backend}')",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
     try:
         project = Project.load(project_dir)
@@ -355,11 +367,31 @@ def align(
         typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
-    aligner = FasterWhisperAligner(model_size=model, language=language)
-    typer.echo(f"Align {project.project_id} (model {model}, lang {language}, CPU "
-               f"{aligner.cpu_threads} luồng, beam {aligner.beam_size})...")
-    typer.echo("  ⏳ Đang nghe audio + khớp từng từ — vài phút (video càng dài càng lâu), đừng tắt cửa sổ.")
-    project = run_align(project, aligner)
+    voice_path = Path(project.project_dir) / project.inputs.voice_path
+    srt_aligner = SrtAligner(srt_path=srt)
+    use_srt = backend == "srt" or (backend == "auto" and srt_aligner.find_srt(voice_path) is not None)
+
+    if use_srt:
+        aligner = srt_aligner
+        typer.echo(f"Align {project.project_id} (đọc .srt có sẵn)...")
+    else:
+        # Import trong nhánh: faster-whisper là dependency OPTIONAL, luồng .srt không cần
+        try:
+            from autoedit.align.whisper_local import FasterWhisperAligner
+        except ImportError as exc:
+            typer.secho(f"Lỗi: cần faster-whisper để nhận dạng ({exc}). Cài `pip install faster-whisper`, "
+                        f"hoặc đặt file .srt cạnh voice rồi chạy lại.", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+        aligner = FasterWhisperAligner(model_size=model, language=language)
+        typer.echo(f"Align {project.project_id} (model {model}, lang {language}, CPU "
+                   f"{aligner.cpu_threads} luồng, beam {aligner.beam_size})...")
+        typer.echo("  ⏳ Đang nghe audio + khớp từng từ — vài phút (video càng dài càng lâu), đừng tắt cửa sổ.")
+
+    try:
+        project = run_align(project, aligner)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.secho(f"Lỗi align: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
     record = project.stages[Stage.ALIGN]
     n_interp = sum(1 for w in project.transcript if w.interpolated)
@@ -1152,6 +1184,9 @@ def run(
     music: Optional[Path] = typer.Option(None, "--music", help="File nhạc nền cho stage assemble."),
     model: str = typer.Option("small", "--whisper-model", help="Model faster-whisper cho align."),
     language: str = typer.Option("auto", "--language", help="Ngôn ngữ voice: auto/en/vi..."),
+    align_backend: str = typer.Option("auto", "--align-backend",
+                                      help="Nguồn timestamp stage align: auto | srt | whisper."),
+    srt: Optional[Path] = typer.Option(None, "--srt", help="Đường dẫn .srt cho stage align."),
     director_model: str = typer.Option("claude-sonnet-4-6", "--director-model", help="Model LLM đạo diễn."),
     with_enrich: bool = typer.Option(False, "--enrich", help="Chèn stage enrich (web-grounded; bổ sung CẦN duyệt mới render)."),
     music_sync: bool = typer.Option(False, "--music-sync", help="MUSIC SYNC: chèn stage music (chọn nhạc + neo accent TRƯỚC assemble). Mặc định TẮT."),
@@ -1205,7 +1240,7 @@ def run(
         elapsed = int(_time.time() - t0)
         typer.secho(f"\n━━ [{si}/{n_stage}] {stage.value}  (đã chạy {elapsed//60}m{elapsed%60:02d}s) ━━", bold=True)
         if stage == Stage.ALIGN:
-            align(project_dir, model=model, language=language)
+            align(project_dir, model=model, language=language, backend=align_backend, srt=srt)
         elif stage == Stage.DIRECT:
             direct(project_dir, model=director_model, engine="claude-code")
         elif stage == Stage.ENRICH:
