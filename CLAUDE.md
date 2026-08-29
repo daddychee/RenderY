@@ -216,8 +216,10 @@ PYTHONPATH=. PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -m autoedit.cli --help
 
 - [x] R0 Khảo sát Auto Editing + chốt spec
 - [x] R1 Khảo sát padoma → chốt padoma làm xương sống
-- [x] R2 **Fork sang `F:\RenderY`** + git init + venv + verify test *(đang làm)*
-- [ ] R3 Voice: đọc `.srt` → align neo script → cắt theo khởi âm *(padoma đã có, cần nối)*
+- [x] R2 **Fork sang `F:\RenderY`** + git init + venv + verify test (697 pass, khớp gốc)
+- [x] R3 **Align đọc `.srt` có sẵn** — `align/srt_file.py` + `--backend auto|srt|whisper`.
+      714 pass. Parse thật IN002 (434 câu/2850 từ) + geo023 (284 câu/1873 từ), tức thì.
+      Không sửa runner/matcher — chỉ implement interface `Aligner` có sẵn.
 - [ ] R4 Mô hình chương: nhận script+voice+srt từng chương
 - [ ] R5 Port connector Envato/Vecteezy/Artlist từ Auto Editing + sổ nguồn gốc
 - [ ] R6 Tự chọn clip + chấm 4 tín hiệu không chắc
