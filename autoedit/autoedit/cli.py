@@ -47,6 +47,7 @@ def new(
     title: Optional[str] = typer.Option(None, "--title", help="Tên video (mặc định: tên file script)."),
     brief: Optional[str] = typer.Option(None, "--brief", help="Creative brief / chỉ đạo hình ảnh."),
     channel: Optional[str] = typer.Option(None, "--channel", help="Tên kênh (channel profile)."),
+    srt: Optional[Path] = typer.Option(None, "--srt", help="File .srt kèm voice (align đọc thẳng, khỏi nhận dạng)."),
 ) -> None:
     """Tạo project mới từ script + voice, ghi project.json (nguồn sự thật)."""
     try:
@@ -57,6 +58,7 @@ def new(
             title=title,
             brief=brief,
             channel=channel,
+            srt=srt,
         )
     except (FileNotFoundError, ValueError) as exc:
         typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
@@ -118,17 +120,20 @@ def _rtf_to_txt(rtf: Path) -> Path:
 
 @app.command()
 def make(
-    folder: Path = typer.Argument(..., help="Folder 1 video: chứa script.txt (hoặc .rtf/.md) + voice.mp3 (hoặc .wav/.m4a)."),
+    folder: Path = typer.Argument(..., help="Folder 1 video/chương: script.txt + voice.mp3 (+ voice.srt nếu có)."),
     channel: str = typer.Option("", "--channel", help="Tên kênh/niche (dùng thư viện footage của kênh)."),
     enrich: bool = typer.Option(False, "--enrich", help="Sinh biểu đồ/thẻ bổ sung (cần duyệt thêm)."),
     whisper_model: str = typer.Option("small", "--whisper-model", help="Model align."),
     director_model: str = typer.Option("claude-sonnet-4-6", "--director-model"),
     language: str = typer.Option("auto", "--language"),
+    align_backend: str = typer.Option("auto", "--align-backend",
+                                      help="Nguồn timestamp: auto (có .srt thì đọc) | srt | whisper."),
     music_sync: bool = typer.Option(False, "--music-sync", help="Bật gói MUSIC SYNC (stage music: nhạc hook to + snap accent + đổi nhạc neo cut)."),
 ) -> None:
-    """1 LỆNH dựng FULL 1 video (cho nhân sự): tạo project + chạy hết pipeline + mở report.html.
+    """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
-    Folder chỉ cần 2 file: script (txt/rtf/md) + voice (mp3/wav/m4a). Nhạc/SFX tự dùng thư viện.
+    Folder cần script (txt/rtf/md) + voice (mp3/wav/m4a). Có thêm .srt thì align đọc
+    thẳng file đó (tức thì) thay vì nhận dạng lại. Nhạc/SFX tự dùng thư viện.
     """
     import subprocess
 
@@ -156,17 +161,24 @@ def make(
             typer.secho(f"Lỗi chuyển .rtf: {exc}", fg=typer.colors.RED, err=True)
             raise typer.Exit(code=1)
 
+    srt_src = _pick_input(folder, (".srt",), voice.stem)[0]
+
     try:
         project = create_project(script=script, voice=voice, out_dir=Path("projects"),
-                                 title=folder.name, channel=channel or None)
+                                 title=folder.name, channel=channel or None, srt=srt_src)
     except (FileNotFoundError, ValueError) as exc:
         typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+    if srt_src is not None:
+        typer.echo(f"  ✓ Thấy {srt_src.name} — align đọc thẳng file này (không nhận dạng lại)")
+
     typer.secho(f"✓ Bắt đầu dựng '{folder.name}' (vài phút — đừng tắt)...", fg=typer.colors.CYAN)
     # chạy hết pipeline (run đã gồm REPORT cuối). Truyền tham số tường minh (bug OptionInfo).
+    # .srt đã copy vào project cạnh voice -> aligner tự tìm, không cần truyền srt=.
     run(Path(project.project_dir), niche=channel, music=None, model=whisper_model,
-        language=language, director_model=director_model, with_enrich=enrich,
+        language=language, align_backend=align_backend,
+        director_model=director_model, with_enrich=enrich,
         music_sync=music_sync if isinstance(music_sync, bool) else False)
 
     project = Project.load(project.project_dir)

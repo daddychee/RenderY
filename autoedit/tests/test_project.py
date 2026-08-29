@@ -39,6 +39,52 @@ def test_create_project_makes_valid_project(tmp_path, sample_inputs):
     assert (project_dir / project.inputs.voice_path).is_file()
 
 
+# --------------------------- .srt kèm voice (RenderY) -----------------------
+def test_srt_duoc_copy_cung_ten_voice(tmp_path, sample_inputs):
+    """.srt copy vào project và ĐỔI TÊN theo voice -> SrtAligner tự tìm thấy,
+    project vẫn self-contained (resume được khi folder gốc đã xoá)."""
+    script, voice = sample_inputs
+    srt = voice.with_suffix(".srt")
+    srt.write_text("1\n00:00:00,000 --> 00:00:02,000\nxin chào\n", encoding="utf-8")
+
+    project = create_project(script, voice, out_dir=tmp_path / "projects", srt=srt)
+
+    dst_voice = Path(project.project_dir) / project.inputs.voice_path
+    assert dst_voice.with_suffix(".srt").is_file()
+
+    from autoedit.align.srt_file import SrtAligner
+    assert SrtAligner().find_srt(dst_voice) == dst_voice.with_suffix(".srt")
+
+
+def test_khong_co_srt_van_tao_duoc_project(tmp_path, sample_inputs):
+    """.srt là tuỳ chọn — thiếu thì project vẫn tạo bình thường (dùng whisper)."""
+    script, voice = sample_inputs
+    project = create_project(script, voice, out_dir=tmp_path / "projects")
+    dst_voice = Path(project.project_dir) / project.inputs.voice_path
+    assert not dst_voice.with_suffix(".srt").exists()
+
+
+def test_srt_sai_duong_dan_bao_loi_som(tmp_path, sample_inputs):
+    """Chỉ .srt không tồn tại -> báo ngay, đừng để tới stage align mới chết."""
+    script, voice = sample_inputs
+    with pytest.raises(FileNotFoundError, match=r"\.srt"):
+        create_project(script, voice, out_dir=tmp_path / "projects",
+                       srt=tmp_path / "khong-co.srt")
+
+
+def test_srt_ten_khac_voice_van_doi_ten_dung(tmp_path, sample_inputs):
+    """User đặt tên .srt tự do (vd 'chuong 1.srt') -> vẫn về đúng tên voice."""
+    script, voice = sample_inputs
+    srt = voice.parent / "chuong 1.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:02,000\nxin chào\n", encoding="utf-8")
+
+    project = create_project(script, voice, out_dir=tmp_path / "projects", srt=srt)
+
+    dst_voice = Path(project.project_dir) / project.inputs.voice_path
+    assert dst_voice.with_suffix(".srt").is_file()
+    assert not (dst_voice.parent / "chuong 1.srt").exists()
+
+
 def test_script_text_loaded(tmp_path, sample_inputs):
     script, voice = sample_inputs
     project = create_project(script, voice, out_dir=tmp_path / "projects")

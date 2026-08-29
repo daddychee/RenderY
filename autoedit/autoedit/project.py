@@ -559,6 +559,7 @@ def create_project(
     brief: Optional[str] = None,
     channel: Optional[str] = None,
     now: Optional[datetime] = None,
+    srt: Optional[Path | str] = None,
 ) -> Project:
     """Tạo folder project mới, copy inputs vào, ghi project.json.
 
@@ -568,6 +569,7 @@ def create_project(
         out_dir: thư mục chứa các project (mặc định ./projects).
         title: tên hiển thị; mặc định suy từ tên file script.
         now: cho test bơm thời gian cố định; mặc định UTC hiện tại.
+        srt: file .srt kèm voice (tuỳ chọn) — copy vào project để align đọc thẳng.
     """
     script_path = Path(script).expanduser().resolve()
     voice_path = Path(voice).expanduser().resolve()
@@ -575,6 +577,9 @@ def create_project(
         raise FileNotFoundError(f"Không thấy file script: {script_path}")
     if not voice_path.is_file():
         raise FileNotFoundError(f"Không thấy file voice: {voice_path}")
+    srt_path = Path(srt).expanduser().resolve() if srt else None
+    if srt_path is not None and not srt_path.is_file():
+        raise FileNotFoundError(f"Không thấy file .srt: {srt_path}")
 
     script_text = _read_script_text(script_path)
 
@@ -591,6 +596,10 @@ def create_project(
     dst_voice = inputs_dir / f"voice{voice_path.suffix.lower()}"
     shutil.copy2(script_path, dst_script)
     shutil.copy2(voice_path, dst_voice)
+    # .srt đặt CÙNG TÊN voice -> SrtAligner tự tìm thấy, project vẫn self-contained
+    # (resume được sau khi folder gốc bị xoá/di chuyển).
+    if srt_path is not None:
+        shutil.copy2(srt_path, dst_voice.with_suffix(".srt"))
 
     inputs = Inputs(
         script_path=str(dst_script.relative_to(project_dir)),
