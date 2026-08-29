@@ -2307,6 +2307,67 @@ def demo_overlay_cmd(
     typer.echo("  KHÔNG bắt relink, không lỗi format. Đây là gate P1.1.")
 
 
+@app.command(name="ytref-harvest")
+def ytref_harvest_cmd(
+    out_dir: Path = typer.Argument(..., help="Thư mục chứa clip cắt ra (vd folder chương)."),
+    links: list[str] = typer.Option(
+        None, "--link", help="Link YouTube video mẫu (lặp nhiều lần cho nhiều video)."),
+    links_file: Optional[Path] = typer.Option(
+        None, "--links-file", help="File text, mỗi dòng 1 link (dòng bắt đầu # là ghi chú)."),
+    budget: float = typer.Option(
+        0.15, "--budget", min=0.0, max=1.0,
+        help="Trần tỉ trọng lấy từ MỖI video mẫu (gate C8: 0.15 nguồn mẫu của bài, 0.08 ref thường)."),
+    include_minor: bool = typer.Option(
+        False, "--include-minor", help="Lấy cả đỉnh phụ (<55%) — mặc định bỏ, y tool ME."),
+) -> None:
+    """Tải video mẫu YouTube (đối thủ) + cắt clip tại ĐIỂM NHÔ (Most Replayed).
+
+    Clip 3-10s, BỎ TIẾNG. Mỗi clip ghi sổ nguồn gốc `ytref:<ID>@t=<start>-<end>` —
+    truy ngược được cắt từ video nào, giây nào. Trần tỉ trọng theo gate C8.
+
+    ⚠ Footage này KHÔNG CÓ QUYỀN — dùng có kiểm soát, xem ytref_ledger.json để đối chiếu.
+    """
+    from autoedit.sourcer.ytref import harvest, parse_links, source_mix, video_ids, write_ledger
+
+    raw: list[str] = list(links or [])
+    if links_file is not None:
+        if not links_file.is_file():
+            typer.secho(f"Lỗi: không thấy {links_file}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+        raw += parse_links(links_file.read_text(encoding="utf-8-sig"))
+    ids = video_ids(raw)
+    if not ids:
+        typer.secho("Lỗi: chưa có link nào (dùng --link hoặc --links-file).",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Video mẫu: {len(ids)} — trần {budget:.0%} thời lượng mỗi nguồn")
+    all_clips = []
+    for vid in ids:
+        typer.echo(f"  ▸ {vid} — đọc điểm nhô + tải (có thể vài phút)...")
+        clips, warn = harvest(vid, out_dir, budget_ratio=budget, include_minor=include_minor)
+        if warn:
+            typer.secho(f"    ⚠ {warn}", fg=typer.colors.YELLOW)
+        if clips:
+            secs = sum(c.duration for c in clips)
+            typer.secho(f"    ✓ {len(clips)} clip ({secs:.0f}s)", fg=typer.colors.GREEN)
+        all_clips += clips
+
+    if not all_clips:
+        typer.secho("Không cắt được clip nào từ các video mẫu.", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1)
+
+    ledger = write_ledger(all_clips, out_dir / "ytref_ledger.json")
+    mix = source_mix([c.asset_key for c in all_clips], [c.duration for c in all_clips])
+    total = sum(c.duration for c in all_clips)
+    typer.secho(f"\n✓ Tổng: {len(all_clips)} clip · {total:.0f}s", fg=typer.colors.GREEN)
+    typer.echo(f"  Sổ nguồn gốc: {ledger}")
+    for group, st in mix.items():
+        typer.echo(f"  {group:6}: {st['clips']:3} clip · {st['seconds']:6.1f}s")
+    typer.secho("  ⚠ Footage cắt từ YouTube — KHÔNG có quyền. Đối chiếu sổ trước khi phát hành.",
+                fg=typer.colors.YELLOW)
+
+
 def main() -> None:
     app()
 
