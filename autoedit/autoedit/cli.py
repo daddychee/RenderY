@@ -1001,7 +1001,7 @@ def source(
              "Chèn cảnh KHO + bonus phễu; cộng với audience_bias của niche. Dính vào "
              "project.json. MO_TA_VAN_HANH_BOOST.md"),
 ) -> None:
-    """Stage 4: tải footage theo sourcing_route — local -> Pexels; entity -> Google CSE.
+    """Stage 4: tải footage theo sourcing_route — local -> Pexels -> Pixabay; entity -> Google CSE.
     Chọn qua PHỄU c5 (2 veto + NÃO chấm + sàn 3 + kill-log — MO_TA_VAN_HANH_PHEU_C5.md)."""
     import os
 
@@ -1012,19 +1012,34 @@ def source(
     from autoedit.project import Project, Stage, StageStatus
     from autoedit.sourcer.entity import GoogleCSEClient, SerperEntityClient
     from autoedit.sourcer.pexels import PexelsClient, collect_pexels_keys
+    from autoedit.sourcer.pixabay import (
+        MultiStockClient,
+        PixabayClient,
+        collect_pixabay_keys,
+    )
     from autoedit.sourcer.runner import run_source
 
     # khi run() gọi trực tiếp, library_root là OptionInfo (không phải str/Path) -> coi như None
     root = resolve_library_root(library_root if isinstance(library_root, (str, Path)) else None)
     load_dotenv()
     pexels_keys = collect_pexels_keys()
-    if not pexels_keys:
-        typer.secho("Lỗi: thiếu PEXELS_API_KEY trong .env", fg=typer.colors.RED, err=True)
+    pixabay_keys = collect_pixabay_keys()
+    if not pexels_keys and not pixabay_keys:
+        typer.secho("Lỗi: thiếu PEXELS_API_KEY (và PIXABAY_API_KEY) trong .env",
+                    fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"  Pexels: {len(pexels_keys)} key (xoay vòng khi hết hạn mức ~200 query/giờ/key)")
 
     conn = db.connect()
-    stock = PexelsClient(pexels_keys, conn=conn)
+    # Thứ tự ưu tiên: Pexels trước (chất lượng ổn định hơn), Pixabay bù khi Pexels nghèo
+    # ứng viên hoặc hết hạn mức. Cả hai đều free dùng thương mại.
+    stock_clients = []
+    if pexels_keys:
+        stock_clients.append(PexelsClient(pexels_keys, conn=conn))
+        typer.echo(f"  Pexels : {len(pexels_keys)} key (xoay vòng khi hết hạn mức ~200 query/giờ/key)")
+    if pixabay_keys:
+        stock_clients.append(PixabayClient(pixabay_keys, conn=conn))
+        typer.echo(f"  Pixabay: {len(pixabay_keys)} key (chạy khi Pexels chưa đủ ứng viên)")
+    stock = stock_clients[0] if len(stock_clients) == 1 else MultiStockClient(stock_clients)
     entity = None
     for client_cls in (SerperEntityClient, GoogleCSEClient):  # Serper chính, CSE legacy
         try:

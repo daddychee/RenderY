@@ -61,6 +61,8 @@ class StockClient(Protocol):
 
 
 class PexelsClient:
+    SOURCE_NAME = "pexels"   # MultiStockClient định tuyến download theo tên này
+
     def __init__(
         self,
         api_key: "str | list[str]",
