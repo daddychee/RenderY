@@ -2368,6 +2368,56 @@ def ytref_harvest_cmd(
                 fg=typer.colors.YELLOW)
 
 
+@app.command(name="sub-status")
+def sub_status_cmd(
+    profiles_root: Optional[Path] = typer.Option(
+        None, "--profiles-root", help="Thư mục chứa .browser_profiles (mặc định: thư mục hiện tại)."),
+) -> None:
+    """Kiểm tra nguồn subscription (Envato/Vecteezy) đã sẵn sàng chưa.
+
+    Cần 2 thứ: khai email trong .env VÀ đã đăng nhập bằng trình duyệt (có profile).
+    """
+    import os
+
+    from dotenv import load_dotenv
+
+    from autoedit.sourcer.subscription import SITES, available_sites, profile_exists, profiles_dir
+
+    load_dotenv()
+    ready = available_sites(profiles_root=profiles_root)
+    typer.echo(f"Thư mục profile: {profiles_dir(profiles_root)}")
+    for site, cfg in SITES.items():
+        has_mail = bool(os.getenv(cfg["env"], "").strip())
+        has_prof = profile_exists(site, profiles_root)
+        if site in ready:
+            typer.secho(f"  ✓ {site:9} sẵn sàng", fg=typer.colors.GREEN)
+        else:
+            thieu = []
+            if not has_mail:
+                thieu.append(f"{cfg['env']} trong .env")
+            if not has_prof:
+                thieu.append(f"đăng nhập ({cfg['login']})")
+            typer.secho(f"  ✗ {site:9} thiếu: {' + '.join(thieu)}", fg=typer.colors.YELLOW)
+    if not ready:
+        typer.echo("\n  Chưa nguồn nào dùng được — pipeline vẫn chạy bằng Pexels/Pixabay.")
+
+
+@app.command(name="sub-links")
+def sub_links_cmd(
+    queries: list[str] = typer.Argument(..., help="Từ khoá tìm footage (mỗi từ khoá 1 dòng link)."),
+    site: str = typer.Option("envato", "--site", help="envato | vecteezy."),
+) -> None:
+    """In link search sẵn query — mở tay khi muốn tự chọn clip (không tốn hạn mức tải)."""
+    from autoedit.sourcer.subscription import search_url
+
+    try:
+        for q in queries:
+            typer.echo(search_url(site, q))
+    except ValueError as exc:
+        typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+
 def main() -> None:
     app()
 
