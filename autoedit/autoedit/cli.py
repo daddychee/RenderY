@@ -173,6 +173,8 @@ def make(
     if srt_src is not None:
         typer.echo(f"  ✓ Thấy {srt_src.name} — align đọc thẳng file này (không nhận dạng lại)")
 
+    # In project_id để worker hàng đợi bắt được (web/worker.py parse dòng này)
+    typer.echo(f"  ✓ Tạo project: {project.project_id}")
     typer.secho(f"✓ Bắt đầu dựng '{folder.name}' (vài phút — đừng tắt)...", fg=typer.colors.CYAN)
     # chạy hết pipeline (run đã gồm REPORT cuối). Truyền tham số tường minh (bug OptionInfo).
     # .srt đã copy vào project cạnh voice -> aligner tự tìm, không cần truyền srt=.
@@ -380,7 +382,8 @@ def align(
         raise typer.Exit(code=1)
 
     voice_path = Path(project.project_dir) / project.inputs.voice_path
-    srt_aligner = SrtAligner(srt_path=srt)
+    # khi run() gọi trực tiếp, srt là OptionInfo (không phải Path) -> coi như None
+    srt_aligner = SrtAligner(srt_path=srt if isinstance(srt, (str, Path)) else None)
     use_srt = backend == "srt" or (backend == "auto" and srt_aligner.find_srt(voice_path) is not None)
 
     if use_srt:

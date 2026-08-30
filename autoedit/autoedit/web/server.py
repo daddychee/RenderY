@@ -18,6 +18,7 @@ import os
 import subprocess
 import sys
 import threading
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -30,6 +31,12 @@ ROOT = Path(__file__).resolve().parents[2]      # thư mục autoedit/ (chứa .
 PROJECTS_DIR = ROOT / "projects"
 JOBS_DIR = ROOT / ".web_jobs"
 
+# Thư mục làm việc trên NAS — nhân sự tạo folder job ở INBOX, lấy kết quả ở OUTBOX.
+# Đổi bằng env RENDERY_NAS (vd khi test trên máy khác).
+NAS_ROOT = Path(os.getenv("RENDERY_NAS", r"\\192.168.1.250\Video\RenderY"))
+INBOX = NAS_ROOT / "_INBOX"
+OUTBOX = NAS_ROOT / "Compose Timeline"
+
 # Key được phép sửa qua web. Whitelist: tránh ai đó ghi biến lạ vào .env.
 SETTINGS_KEYS = [
     "PEXELS_API_KEY", "PIXABAY_API_KEY",
@@ -39,7 +46,18 @@ SETTINGS_KEYS = [
 ]
 SECRET_KEYS = {k for k in SETTINGS_KEYS if k.endswith(("_KEY", "_TOKEN"))}
 
-app = FastAPI(title="RenderY")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Khởi động worker nền + trả job mồ côi về hàng đợi."""
+    from autoedit.web import worker
+
+    n = worker.start(ROOT, JOBS_DIR, ROOT / "jobs.db")
+    print(f"[queue] {n} worker sẵn sàng · NAS: {NAS_ROOT}", flush=True)
+    yield
+    worker.stop()
+
+
+app = FastAPI(title="RenderY", lifespan=_lifespan)
 _jobs: dict[str, dict] = {}          # project_id -> {status, stage, started_at, log}
 _jobs_lock = threading.Lock()
 
@@ -53,6 +71,30 @@ def _require_auth(request: Request) -> None:
     sent = request.headers.get("x-rendery-token") or request.query_params.get("token", "")
     if sent != token:
         raise HTTPException(401, "Sai hoặc thiếu token (đặt RENDERY_WEB_TOKEN trong .env)")
+
+
+def _loopback(request: Request) -> bool:
+    host = (request.client.host if request.client else "") or ""
+    return host in ("127.0.0.1", "::1", "localhost")
+
+
+def current_user(request: Request) -> str:
+    """Tên nhân sự từ SSO của CRM OUTLIERY (header X-Remote-User).
+
+    CHỈ TIN header khi client là loopback — CRM proxy từ 127.0.0.1 và đã tự loại
+    header giả mạo (`app_proxy.py:47` chặn x-remote-user từ ngoài). Truy cập thẳng
+    từ LAN không đi qua CRM thì header là do người gọi tự đặt, không tin được.
+    """
+    if os.getenv("RENDERY_TRUST_PROXY", "").strip() == "1" and _loopback(request):
+        return (request.headers.get("x-remote-user") or "").strip()
+    return ""
+
+
+def current_role(request: Request) -> str:
+    """Vai từ CRM: owner | leader | seo | viewer (xem apps_registry.vai_trong_app)."""
+    if os.getenv("RENDERY_TRUST_PROXY", "").strip() == "1" and _loopback(request):
+        return (request.headers.get("x-remote-role") or "").strip().lower()
+    return ""
 
 
 # ------------------------------ đọc project ---------------------------------
@@ -277,6 +319,159 @@ def api_sources(request: Request):
                     "ready": bool(env.get(cfg["env"], "").strip()) and profile_exists(site),
                     "need": f"{cfg['env']} + đăng nhập trình duyệt"})
     return {"sources": out}
+
+
+# ------------------------------ hàng đợi ------------------------------------
+def _queue_conn():
+    from autoedit.web import queue as q
+
+    return q.connect(ROOT / "jobs.db")
+
+
+@app.get("/api/inbox")
+def api_inbox(request: Request):
+    """Folder job có sẵn trong _INBOX trên NAS — nhân sự chọn từ danh sách này."""
+    _require_auth(request)
+    if not INBOX.is_dir():
+        return {"nas": str(NAS_ROOT), "ready": False,
+                "loi": f"Chưa thấy {INBOX} — tạo thư mục này trên NAS rồi thử lại.",
+                "folders": []}
+    out = []
+    for d in sorted(INBOX.iterdir()):
+        if not d.is_dir() or d.name.startswith("."):
+            continue
+        chuong = sorted(c.name for c in d.iterdir()
+                        if c.is_dir() and not c.name.startswith("."))
+        out.append({"ten": d.name, "path": str(d), "chuong": chuong or [d.name],
+                    "san_sang": _kiem_folder(d)})
+    return {"nas": str(NAS_ROOT), "ready": True, "folders": out}
+
+
+def _kiem_folder(d: Path) -> dict:
+    """Folder job đủ file chưa? Báo TRƯỚC khi xếp hàng, đừng để chạy rồi mới lỗi."""
+    text = {".txt", ".md", ".rtf"}
+    audio = {".mp3", ".wav", ".m4a", ".aac", ".flac"}
+    dirs = [c for c in d.iterdir() if c.is_dir() and not c.name.startswith(".")] or [d]
+    thieu = []
+    for c in dirs:
+        files = [f.suffix.lower() for f in c.iterdir() if f.is_file()]
+        if not any(s in text for s in files):
+            thieu.append(f"{c.name}: thiếu kịch bản (.txt)")
+        if not any(s in audio for s in files):
+            thieu.append(f"{c.name}: thiếu voice (.mp3/.wav)")
+    return {"ok": not thieu, "thieu": thieu[:6], "so_chuong": len(dirs)}
+
+
+@app.get("/api/jobs")
+def api_jobs(request: Request, all_users: bool = False):
+    """Job của mình (hoặc mọi người nếu vai owner + all_users=1)."""
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    nguoi = current_user(request)
+    xem_het = all_users and current_role(request) == "owner"
+    conn = _queue_conn()
+    try:
+        jobs = q.list_jobs(conn, nguoi="" if (xem_het or not nguoi) else nguoi)
+        rows = []
+        for j in jobs:
+            d = j.to_dict()
+            if j.status == "queued":
+                d["wait_ahead"] = q.wait_ahead(conn, j.id)
+            rows.append(d)
+        return {"jobs": rows, "stats": q.stats(conn),
+                "unseen": q.count_unseen(conn, nguoi), "nguoi": nguoi}
+    finally:
+        conn.close()
+
+
+class JobRequest(BaseModel):
+    folder: str
+    niche: str = ""
+    align_backend: str = "auto"
+    no_sub: bool = False
+
+
+@app.post("/api/jobs")
+def api_add_job(req: JobRequest, request: Request):
+    """Xếp 1 folder job vào hàng đợi."""
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    folder = Path(req.folder).expanduser()
+    # Chỉ nhận folder NẰM TRONG _INBOX — chặn ai đó bơm đường dẫn tuỳ ý vào worker
+    try:
+        folder.resolve().relative_to(INBOX.resolve())
+    except (ValueError, OSError):
+        raise HTTPException(422, f"Folder phải nằm trong {INBOX}")
+    if not folder.is_dir():
+        raise HTTPException(404, f"Không thấy folder: {folder}")
+
+    conn = _queue_conn()
+    try:
+        jid = q.add_job(conn, str(folder), nguoi=current_user(request),
+                        opts={"niche": req.niche, "align_backend": req.align_backend,
+                              "no_sub": req.no_sub})
+        job = q.get_job(conn, jid)
+        return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid)}
+    finally:
+        conn.close()
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def api_cancel_job(job_id: int, request: Request):
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    conn = _queue_conn()
+    try:
+        job = q.get_job(conn, job_id)
+        if job is None:
+            raise HTTPException(404, "Không thấy job")
+        nguoi = current_user(request)
+        if nguoi and job.nguoi != nguoi and current_role(request) != "owner":
+            raise HTTPException(403, "Chỉ huỷ được job của mình")
+        if not q.cancel(conn, job_id):
+            raise HTTPException(409, "Job đã chạy — không huỷ được")
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@app.post("/api/jobs/seen")
+def api_mark_seen(request: Request):
+    """User đã xem kết quả -> tắt badge trên CRM."""
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    conn = _queue_conn()
+    try:
+        return {"marked": q.mark_seen(conn, current_user(request))}
+    finally:
+        conn.close()
+
+
+@app.get("/api/badge")
+def api_badge(request: Request, nguoi: str = ""):
+    """CRM gọi để lấy số job xong chưa xem -> hiện badge sidebar."""
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    conn = _queue_conn()
+    try:
+        return {"unseen": q.count_unseen(conn, nguoi or current_user(request))}
+    finally:
+        conn.close()
+
+
+@app.get("/api/joblog/{job_id}", response_class=HTMLResponse)
+def api_job_log(job_id: int, request: Request):
+    _require_auth(request)
+    p = JOBS_DIR / f"job_{job_id}.log"
+    if not p.is_file():
+        return HTMLResponse("(chưa có log)", media_type="text/plain")
+    return HTMLResponse(p.read_text(encoding="utf-8", errors="replace")[-20_000:],
+                        media_type="text/plain")
 
 
 @app.get("/", response_class=HTMLResponse)

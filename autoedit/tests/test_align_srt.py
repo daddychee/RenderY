@@ -7,6 +7,8 @@ dòng), cách tìm file, và thông báo lỗi khi thiếu/hỏng.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from autoedit.align.srt_file import SrtAligner, parse_srt, words_from_captions
@@ -140,3 +142,22 @@ def test_srt_hong_bao_loi_ro_rang(tmp_path):
     (tmp_path / "voice.srt").write_text("không phải srt", encoding="utf-8")
     with pytest.raises(ValueError, match="SRT"):
         SrtAligner().transcribe(voice)
+
+
+def test_bay_OptionInfo_khong_lam_no_align(tmp_path):
+    """Bẫy OptionInfo: `run()` gọi `align()` trực tiếp thì tham số typer CHƯA được
+    giải — `srt` là OptionInfo, `.is_file()` nổ AttributeError. Bắt được khi chạy
+    thật qua worker hàng đợi (30/08/2026); cli.py lọc bằng isinstance(str, Path).
+    """
+    import typer
+
+    voice = tmp_path / "voice.mp3"
+    voice.write_bytes(b"")
+    (tmp_path / "voice.srt").write_text(SRT_MAU, encoding="utf-8")
+
+    srt_raw = typer.Option(None, "--srt")                 # đúng thứ run() truyền xuống
+    assert not isinstance(srt_raw, (str, Path))           # ⇒ cli.py phải coi như None
+    assert SrtAligner(srt_path=None).find_srt(voice) == tmp_path / "voice.srt"
+
+    with pytest.raises(AttributeError):                   # nếu KHÔNG lọc thì nổ đúng chỗ này
+        SrtAligner(srt_path=srt_raw).find_srt(voice)
