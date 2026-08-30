@@ -345,6 +345,15 @@ def api_save_settings(req: SettingsRequest, request: Request):
     return {"saved": _write_env(req.values)}
 
 
+@app.get("/api/ket")
+def api_ket(request: Request):
+    """Két V3 có nối được không, việc nào đã có khoá (KHÔNG lộ giá trị khoá)."""
+    _require_auth(request)
+    from autoedit.web.ket_v3 import trang_thai
+
+    return trang_thai()
+
+
 @app.get("/api/sources")
 def api_sources(request: Request):
     """Nguồn footage nào đang dùng được — cùng dữ liệu với lệnh `sub-status`."""

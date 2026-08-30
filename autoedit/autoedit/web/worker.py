@@ -47,6 +47,14 @@ def chapters_of(folder: Path) -> list[Path]:
 
 def _run_cli(args: list[str], root: Path, log, conn, job_id: int) -> tuple[int, str]:
     """Chạy 1 lệnh CLI, ghi log, bắt stage + project_id. Trả (mã thoát, project_id)."""
+    # Khoá API lấy từ két V3 (General › API Keys) — nguồn sự thật duy nhất; việc nào
+    # két chưa cấp phát thì giữ .env, nên máy dev không cần gateway. Fail-open.
+    try:
+        from autoedit.web.ket_v3 import nap_env
+
+        nap_env()
+    except Exception:
+        pass
     env = dict(os.environ, PYTHONPATH=str(root),
                PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     project_id = ""
