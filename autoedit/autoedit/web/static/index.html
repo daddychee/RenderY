@@ -276,16 +276,47 @@ function jobCard(j) {
     ? `<button onclick="huyJob(${j.id})">Huỷ</button>` : ''
   const log = (j.status !== 'queued')
     ? `<button onclick="xemLog(${j.id})">Log</button>` : ''
+  const kq = j.status === 'done'
+    ? `<button class="primary" onclick="xemKetQua(${j.id})">📁 Lấy kết quả</button>` : ''
 
   return `<div class="card" style="margin-bottom:8px">
     <div class="row">
       <span class="pill ${esc(j.status)}">${NHAN[j.status] || esc(j.status)}</span>
       <b>${esc(ten)}</b>
-      <span class="grow"></span>${phai} ${huy} ${log}
+      <span class="grow"></span>${phai} ${kq} ${huy} ${log}
     </div>
     ${bar}${err}
+    <div id="kq-${j.id}" class="hide" style="margin-top:10px"></div>
     <pre id="jlog-${j.id}" class="hide"></pre>
   </div>`
+}
+
+async function xemKetQua(id) {
+  const el = document.getElementById('kq-' + id)
+  if (!el.classList.contains('hide')) { el.classList.add('hide'); return }
+  el.classList.remove('hide')
+  el.innerHTML = '<span class="muted">đang tải…</span>'
+  try {
+    const d = await api(`/api/ketqua/${id}`)
+    if (!d.san_sang) { el.innerHTML = `<div class="warn">${esc(d.loi)}</div>`; return }
+    const ds = d.chuong.map(c =>
+      `<div class="muted">• <b>${esc(c.ten)}</b> — ${c.co_draft ? 'có draft' : '⚠ chưa có draft'}
+       · ${c.footage} file footage</div>`).join('')
+    el.innerHTML = `
+      <div class="big">Copy thư mục này về máy:</div>
+      <div class="row" style="margin:6px 0">
+        <input id="p-${id}" readonly value="${esc(d.duong_dan)}" style="flex:1">
+        <button onclick="chepPath(${id})">Sao chép</button>
+      </div>
+      ${ds}
+      <pre style="max-height:200px">${esc(d.doc_truoc)}</pre>`
+  } catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>` }
+}
+
+function chepPath(id) {
+  const inp = document.getElementById('p-' + id)
+  inp.select()
+  navigator.clipboard?.writeText(inp.value).catch(() => document.execCommand('copy'))
 }
 
 async function huyJob(id) {

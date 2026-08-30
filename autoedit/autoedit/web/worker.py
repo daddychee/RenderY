@@ -94,6 +94,7 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
 
     log_path = _log_path(logs_dir, job.id)
     ids: list[str] = []
+    canh_bao = ""
     try:
         chapters = chapters_of(folder)
         with open(log_path, "w", encoding="utf-8") as log:
@@ -110,11 +111,35 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
                     q.finish(conn, job.id, ok=False, project_id=",".join(ids),
                              error=f"Chương {ch.name} lỗi (mã {code}). Đuôi log:\n{tail}")
                     return
+
+            # Gom kết quả ra Compose Timeline — bước GIAO cho nhân sự.
+            # Lỗi ở đây KHÔNG huỷ phần dựng đã xong: báo cảnh báo, giữ job là 'done'
+            # để nhân sự còn lấy được từ project gốc.
+            try:
+                q.set_stage(conn, job.id, "compose")
+                log.write(f"\n{'=' * 70}\nGIAO KẾT QUẢ\n{'=' * 70}\n")
+                log.flush()
+                dest = _compose(root, folder, ids, log)
+                log.write(f"✓ Đã giao: {dest}\n")
+            except Exception as exc:
+                canh_bao = f"Dựng xong nhưng chưa giao được ra Compose Timeline: {exc}"
+                log.write(f"⚠ {canh_bao}\n")
     except Exception as exc:                      # spawn hỏng — vẫn phải đóng job
         q.finish(conn, job.id, ok=False, error=f"Không chạy được: {exc}")
         return
 
-    q.finish(conn, job.id, ok=True, project_id=",".join(ids))
+    q.finish(conn, job.id, ok=True, project_id=",".join(ids), error=canh_bao)
+
+
+def _compose(root: Path, folder: Path, project_ids: list[str], log) -> Path:
+    """Gom kết quả các chương ra Compose Timeline trên NAS."""
+    from autoedit.web.compose import compose_job
+    from autoedit.web.server import OUTBOX
+
+    dirs = [root / "projects" / pid for pid in project_ids if pid]
+    if not dirs:
+        raise RuntimeError("không có project nào để giao")
+    return compose_job(folder, dirs, OUTBOX)
 
 
 def _loop(root: Path, logs_dir: Path, db: Optional[Path]) -> None:

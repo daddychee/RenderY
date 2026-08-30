@@ -34,6 +34,7 @@ STALE_AFTER = 4 * 3600   # job 'running' quá 4 tiếng coi như chết (job th�
 STAGE_SECONDS = {
     "align": 2, "direct": 90, "enrich": 30, "cut": 60, "music": 20,
     "source": 900, "rank": 120, "assemble": 240, "report": 5,
+    "compose": 30,   # gom kết quả ra NAS (đo thật: NAS ghi 362 MB/s)
 }
 TOTAL_SECONDS = sum(STAGE_SECONDS.values())
 

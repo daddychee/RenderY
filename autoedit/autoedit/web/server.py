@@ -504,6 +504,38 @@ def api_badge(request: Request, nguoi: str = ""):
         conn.close()
 
 
+@app.get("/api/ketqua/{job_id}")
+def api_ketqua(job_id: int, request: Request):
+    """Thư mục kết quả trên NAS + tóm tắt từng chương — nhân sự copy về máy."""
+    _require_auth(request)
+    from autoedit.web import queue as q
+
+    conn = _queue_conn()
+    try:
+        job = q.get_job(conn, job_id)
+    finally:
+        conn.close()
+    if job is None:
+        raise HTTPException(404, "Không thấy job")
+
+    dest = OUTBOX / Path(job.job_folder).name
+    if not dest.is_dir():
+        return {"san_sang": False, "duong_dan": str(dest),
+                "loi": "Chưa có kết quả (job chưa xong hoặc chưa giao được)."}
+    chuong = []
+    for d in sorted(dest.iterdir()):
+        if d.is_dir():
+            chuong.append({
+                "ten": d.name,
+                "co_draft": (d / "draft").is_dir(),
+                "footage": len(list((d / "footage").rglob("*")))
+                           if (d / "footage").is_dir() else 0,
+            })
+    doc = dest / "DOC_TRUOC.txt"
+    return {"san_sang": True, "duong_dan": str(dest), "chuong": chuong,
+            "doc_truoc": doc.read_text(encoding="utf-8") if doc.is_file() else ""}
+
+
 @app.get("/api/joblog/{job_id}", response_class=HTMLResponse)
 def api_job_log(job_id: int, request: Request):
     _require_auth(request)
