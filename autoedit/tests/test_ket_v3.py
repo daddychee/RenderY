@@ -17,7 +17,7 @@ def _sach(monkeypatch):
     """Xoá cache + biến môi trường giữa các test."""
     ket_v3._cache.update(luc=0.0, data={})
     for b in ("ANTHROPIC_API_KEY", "LLM_API_KEY", "LLM_PROVIDER",
-              "L3_MODEL", "RANK_MODEL"):
+              "L3_MODEL", "RANK_MODEL", "PEXELS_API_KEY", "PIXABAY_API_KEY"):
         monkeypatch.delenv(b, raising=False)
 
 
@@ -144,6 +144,54 @@ def test_khoa_rong_khong_ghi_de(monkeypatch):
     _gia_ket(monkeypatch, {"chia_beat": _muc(key="", nha="anthropic")})
     ket_v3.nap_env()
     assert os.environ["ANTHROPIC_API_KEY"] == "tu-env"
+
+
+# ------------------------------ khoá stock ----------------------------------
+def _stock(*cap):
+    """cap = (nha, key)... -> mục tim_footage."""
+    return {"khoa": [{"id": f"k{i}", "key": k, "loai": "stock", "nha": n}
+                     for i, (n, k) in enumerate(cap)], "che_do": "xoay_vong"}
+
+
+def test_pexels_pixabay_dat_dung_bien(monkeypatch):
+    import os
+
+    _gia_ket(monkeypatch, {"tim_footage": _stock(("pexels", "px-1"),
+                                                 ("pixabay", "pb-1"))})
+    dat = ket_v3.nap_env()
+    assert os.environ["PEXELS_API_KEY"] == "px-1"
+    assert os.environ["PIXABAY_API_KEY"] == "pb-1"
+    assert set(dat) == {"PEXELS_API_KEY", "PIXABAY_API_KEY"}
+
+
+def test_nhieu_khoa_cung_nha_thi_NOI_de_nhan_han_muc(monkeypatch):
+    """Pexels ~200 query/giờ/khoá — nhiều khoá phải nối, không đè lên nhau."""
+    import os
+
+    _gia_ket(monkeypatch, {"tim_footage": _stock(("pexels", "a"), ("pexels", "b"),
+                                                 ("pexels", "c"))})
+    ket_v3.nap_env()
+    assert os.environ["PEXELS_API_KEY"] == "a,b,c"
+
+    from autoedit.sourcer.pexels import collect_pexels_keys
+    assert collect_pexels_keys(os.environ) == ["a", "b", "c"]
+
+
+def test_nha_stock_la_thi_bo_qua(monkeypatch):
+    import os
+
+    _gia_ket(monkeypatch, {"tim_footage": _stock(("unsplash", "u-1"))})
+    assert ket_v3.nap_env() == []
+    assert "PEXELS_API_KEY" not in os.environ
+
+
+def test_chua_cap_khoa_stock_thi_giu_env(monkeypatch):
+    import os
+
+    monkeypatch.setenv("PEXELS_API_KEY", "tu-env")
+    _gia_ket(monkeypatch, {"tim_footage": {"khoa": []}})
+    assert ket_v3.nap_env() == []
+    assert os.environ["PEXELS_API_KEY"] == "tu-env"
 
 
 # ------------------------------ khoa_cua_viec -------------------------------

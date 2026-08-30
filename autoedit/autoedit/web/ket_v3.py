@@ -95,6 +95,22 @@ def nap_env() -> list[str]:
         if muc.get("model"):
             os.environ[bien_model] = muc["model"]
             dat.append(bien_model)
+
+    # tim_footage: kho ảnh/video. NHIỀU khoá cùng nhà = nhân hạn mức (Pexels ~200
+    # query/giờ/khoá) — pipeline nhận danh sách ngăn bằng dấu phẩy.
+    for k in ((ket.get("tim_footage") or {}).get("khoa") or []):
+        nha = (k.get("nha") or "").lower()
+        key = k.get("key") or ""
+        if not key:
+            continue
+        bien = {"pexels": "PEXELS_API_KEY", "pixabay": "PIXABAY_API_KEY"}.get(nha)
+        if not bien:
+            continue
+        cu = os.environ.get(bien, "")
+        # Khoá thứ 2 trở đi NỐI vào, không đè — collect_*_keys tách theo dấu phẩy
+        os.environ[bien] = f"{cu},{key}" if cu and bien in dat else key
+        if bien not in dat:
+            dat.append(bien)
     return dat
 
 
