@@ -33,23 +33,16 @@ def _log_path(logs_dir: Path, job_id: int) -> Path:
     return logs_dir / f"job_{job_id}.log"
 
 
-_TEXT_EXTS = {".txt", ".md", ".rtf"}
-_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac"}
-
-
 def chapters_of(folder: Path) -> list[Path]:
-    """Folder job -> danh sách folder CHƯƠNG, theo thứ tự tên.
+    """Thư mục TẬP -> danh sách thư mục chương, ĐÚNG THỨ TỰ H → C1..Cn → E.
 
-    Hai kiểu nộp đều nhận:
-    - Nhiều chương: `LI070/ch01/`, `LI070/ch02/`...  (mỗi chương 1 draft)
-    - Một chương:   file nằm thẳng trong `LI070/`     (folder job = chương luôn)
+    Quy ước OUTLIERY: `<tập>/RenderY/{H,C1,C2,...,E}`. Sắp theo tên là sai cả hai
+    đầu ("E" trước "H", "C10" trước "C2") nên dùng khoá thứ tự của chapters.py.
     """
-    subs = sorted(d for d in folder.iterdir()
-                  if d.is_dir() and not d.name.startswith("."))
-    co_chuong = [d for d in subs if any(
-        f.suffix.lower() in _TEXT_EXTS or f.suffix.lower() in _AUDIO_EXTS
-        for f in d.iterdir() if f.is_file())]
-    return co_chuong or [folder]
+    from autoedit.web.chapters import doc_chuong
+
+    chuong, _ = doc_chuong(Path(folder))
+    return [c.path for c in chuong]
 
 
 def _run_cli(args: list[str], root: Path, log, conn, job_id: int) -> tuple[int, str]:
@@ -132,14 +125,13 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
 
 
 def _compose(root: Path, folder: Path, project_ids: list[str], log) -> Path:
-    """Gom kết quả các chương ra Compose Timeline trên NAS."""
+    """Gom kết quả các chương về `<tập>/RenderY/Compose Timeline/`."""
     from autoedit.web.compose import compose_job
-    from autoedit.web.server import OUTBOX
 
     dirs = [root / "projects" / pid for pid in project_ids if pid]
     if not dirs:
         raise RuntimeError("không có project nào để giao")
-    return compose_job(folder, dirs, OUTBOX)
+    return compose_job(folder, dirs)
 
 
 def _loop(root: Path, logs_dir: Path, db: Optional[Path]) -> None:

@@ -294,34 +294,29 @@ def _chuong(d, ten, script=True, voice=True):
     return c
 
 
-def test_nhieu_chuong_theo_thu_tu_ten(tmp_path):
-    """Mỗi chương 1 lượt `make` -> 1 draft riêng, đúng mô hình R4."""
+def test_worker_lay_chuong_DUNG_THU_TU_H_C_E(tmp_path):
+    """`chapters_of` phải theo thứ tự H → C1..Cn → E, không phải A-Z.
+
+    Mỗi chương 1 lượt `make` -> 1 draft riêng, rồi gộp theo đúng thứ tự này.
+    Sai thứ tự = dựng lại cả tập. (Chi tiết nhận diện tên: test_chapters.py)
+    """
+    from autoedit.web.chapters import THU_MUC_CON
     from autoedit.web.worker import chapters_of
 
-    job = tmp_path / "LI070"
-    for ten in ("ch02", "ch01", "ch03"):
-        _chuong(job, ten)
-    assert [c.name for c in chapters_of(job)] == ["ch01", "ch02", "ch03"]
+    job = tmp_path / "IN002"
+    for ten in ("E", "C10", "C2", "H", "C1"):
+        _chuong(job / THU_MUC_CON, ten)
+    assert [c.name for c in chapters_of(job)] == ["H", "C1", "C2", "C10", "E"]
 
 
-def test_mot_chuong_file_nam_thang_trong_folder(tmp_path):
-    """Video 1 chương: folder job CHÍNH LÀ chương."""
+def test_worker_bo_qua_thu_muc_sai_quy_uoc(tmp_path):
+    """`footage/`, `.tam/`, tên cũ `ch01` — không phải chương, bỏ qua."""
+    from autoedit.web.chapters import THU_MUC_CON
     from autoedit.web.worker import chapters_of
 
-    job = tmp_path / "MOT"
-    job.mkdir()
-    (job / "script.txt").write_text("x", encoding="utf-8")
-    (job / "voice.mp3").write_bytes(b"\x00")
-    assert chapters_of(job) == [job]
-
-
-def test_bo_qua_thu_muc_khong_co_file_lam_viec(tmp_path):
-    """Folder `footage/` hay `.tam/` không phải chương."""
-    from autoedit.web.worker import chapters_of
-
-    job = tmp_path / "LI070"
-    _chuong(job, "ch01")
-    (job / "footage").mkdir()
-    (job / "footage" / "clip.mp4").write_bytes(b"\x00")
-    (job / ".tam").mkdir()
-    assert [c.name for c in chapters_of(job)] == ["ch01"]
+    job = tmp_path / "IN002"
+    _chuong(job / THU_MUC_CON, "H")
+    _chuong(job / THU_MUC_CON, "ch01")          # tên cũ, sai quy ước
+    (job / THU_MUC_CON / "footage").mkdir()
+    (job / THU_MUC_CON / ".tam").mkdir()
+    assert [c.name for c in chapters_of(job)] == ["H"]

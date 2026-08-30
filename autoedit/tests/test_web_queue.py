@@ -3,8 +3,9 @@
 Khoá 2 thứ dễ thành lỗ hổng:
 - SSO: chỉ tin header X-Remote-User khi client là LOOPBACK (CRM proxy từ 127.0.0.1).
   Tin header từ LAN = ai cũng mạo danh được.
-- Đường dẫn job: chỉ nhận folder NẰM TRONG _INBOX. Không chặn thì bơm được đường dẫn
-  tuỳ ý vào worker (worker chạy lệnh trên folder đó).
+- Đường dẫn job: nhân sự DÁN tự do (mỗi tập một mã, nằm rải theo series) nên rào duy
+  nhất là "phải nằm trong gốc NAS". Không chặn thì bơm được đường dẫn bất kỳ vào
+  worker (worker chạy lệnh trên thư mục đó).
 """
 
 from __future__ import annotations
@@ -18,21 +19,20 @@ from autoedit.web import server as srv
 
 @pytest.fixture
 def nas(tmp_path, monkeypatch):
-    """Trỏ ROOT + NAS sang tmp để không đụng NAS thật."""
-    inbox = tmp_path / "_INBOX"
-    inbox.mkdir()
+    """Trỏ ROOT + gốc NAS sang tmp để không đụng NAS thật."""
     monkeypatch.setattr(srv, "ROOT", tmp_path)
     monkeypatch.setattr(srv, "NAS_ROOT", tmp_path)
-    monkeypatch.setattr(srv, "INBOX", inbox)
-    monkeypatch.setattr(srv, "OUTBOX", tmp_path / "Compose Timeline")
     monkeypatch.setattr(srv, "JOBS_DIR", tmp_path / ".web_jobs")
-    return inbox
+    return tmp_path
 
 
-def _job_folder(inbox: Path, ten: str, chuong=("ch01",), du=True) -> Path:
-    d = inbox / ten
+def _job_folder(nas_root: Path, ten: str, chuong=("H", "C1"), du=True) -> Path:
+    """Thư mục tập đúng quy ước: <tập>/RenderY/{H,C1,...}."""
+    from autoedit.web.chapters import THU_MUC_CON
+
+    d = nas_root / ten
     for c in chuong:
-        cd = d / c
+        cd = d / THU_MUC_CON / c
         cd.mkdir(parents=True)
         (cd / "script.txt").write_text("xin chào", encoding="utf-8")
         if du:
@@ -132,52 +132,71 @@ def test_LOOPBACK_khong_du_de_mien_token(monkeypatch):
 
 def test_api_me_tra_danh_tinh_va_quyen(monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
-    d = srv.api_me(_Req(user="lam", role="owner", fwd_host="crm:8000"))
-    assert d == {"nguoi": "lam", "vai": "owner", "qua_crm": True, "xem_het": True}
+    d = srv.api_me(_Req(user="lam", role="admin", fwd_host="crm:9000"))
+    assert d == {"nguoi": "lam", "vai": "admin", "qua_crm": True, "xem_het": True}
 
     d2 = srv.api_me(_Req(user="hoa", role="viewer"))
     assert d2["xem_het"] is False and d2["qua_crm"] is False
 
 
-# ------------------------------ _INBOX --------------------------------------
-def test_liet_ke_folder_job(nas):
-    _job_folder(nas, "LI070", chuong=("ch01", "ch02"))
-    d = srv.api_inbox(_Req())
-    assert d["ready"] is True
-    assert [f["ten"] for f in d["folders"]] == ["LI070"]
-    assert d["folders"][0]["chuong"] == ["ch01", "ch02"]
-    assert d["folders"][0]["san_sang"]["ok"] is True
+def test_nhan_ca_vai_admin_cua_V3_lan_owner_cua_he_cu(monkeypatch):
+    """OUTLIERY-V3 (`iam.vai_cho_app`) trả admin|manager|leader|viewer — SUY TỪ
+    HÀNH ĐỘNG, không map theo tên. Hệ cũ trả 'owner'. Nhận cả hai."""
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    assert srv.is_admin(_Req(user="a", role="admin")) is True
+    assert srv.is_admin(_Req(user="a", role="owner")) is True
+    for vai in ("manager", "leader", "viewer", ""):
+        assert srv.is_admin(_Req(user="a", role=vai or None)) is False
 
 
-def test_bao_thieu_file_TRUOC_khi_xep_hang(nas):
+# --------------------------- kiểm thư mục tập -------------------------------
+def test_kiem_tap_liet_ke_chuong_dung_thu_tu(nas):
+    """Nhân sự dán đường dẫn tập -> thấy ngay các chương H → C1..Cn → E."""
+    d = _job_folder(nas, "IN002", chuong=("E", "C2", "H", "C1"))
+    r = srv.api_kiem_tap(_Req(), duong_dan=str(d))
+    assert r["san_sang"] is True and r["tap"] == "IN002"
+    assert [c["ma"] for c in r["chuong"]] == ["H", "C1", "C2", "E"]
+
+
+def test_kiem_tap_bao_thieu_file_TRUOC_khi_xep_hang(nas):
     """Đừng để nhân sự chờ 24 phút rồi mới biết thiếu voice."""
-    _job_folder(nas, "THIEU", du=False)
-    f = srv.api_inbox(_Req())["folders"][0]
-    assert f["san_sang"]["ok"] is False
-    assert any("thiếu voice" in t for t in f["san_sang"]["thieu"])
+    d = _job_folder(nas, "THIEU", du=False)
+    r = srv.api_kiem_tap(_Req(), duong_dan=str(d))
+    assert r["san_sang"] is False
+    assert any("thiếu voice" in x for x in r["loi"])
 
 
-def test_inbox_chua_ton_tai_bao_ro(nas, monkeypatch):
-    monkeypatch.setattr(srv, "INBOX", nas.parent / "khong-co")
-    d = srv.api_inbox(_Req())
-    assert d["ready"] is False and "Chưa thấy" in d["loi"]
+def test_kiem_tap_bao_thieu_thu_muc_RenderY(nas):
+    (nas / "LI001").mkdir()
+    r = srv.api_kiem_tap(_Req(), duong_dan=str(nas / "LI001"))
+    assert r["san_sang"] is False
+    assert any("RenderY" in x for x in r["loi"])
 
 
-def test_bo_qua_file_le_va_thu_muc_an(nas):
-    (nas / "ghi-chu.txt").write_text("x", encoding="utf-8")
-    (nas / ".tam").mkdir()
-    _job_folder(nas, "THAT")
-    assert [f["ten"] for f in srv.api_inbox(_Req())["folders"]] == ["THAT"]
+def test_kiem_tap_bao_ten_chuong_sai_quy_uoc(nas):
+    """Tên cũ như 'ch01', 'clue 1' bị từ chối rõ ràng thay vì xếp sai lặng lẽ."""
+    from autoedit.web.chapters import THU_MUC_CON
+
+    d = _job_folder(nas, "LI001", chuong=("H",))
+    (d / THU_MUC_CON / "ch01").mkdir()
+    r = srv.api_kiem_tap(_Req(), duong_dan=str(d))
+    assert any("ch01" in x and "sai quy ước" in x for x in r["loi"])
 
 
-def test_folder_khong_chia_chuong_van_chay_duoc(nas):
-    """Video 1 chương: file nằm thẳng trong folder job."""
-    d = nas / "MOT-CHUONG"
-    d.mkdir()
-    (d / "script.txt").write_text("x", encoding="utf-8")
-    (d / "voice.mp3").write_bytes(b"\x00")
-    f = srv.api_inbox(_Req())["folders"][0]
-    assert f["san_sang"]["ok"] is True and f["san_sang"]["so_chuong"] == 1
+def test_kiem_tap_khong_nhap_gi(nas):
+    r = srv.api_kiem_tap(_Req(), duong_dan="")
+    assert r["san_sang"] is False and r["loi"]
+
+
+def test_kiem_tap_thu_muc_khong_ton_tai(nas):
+    r = srv.api_kiem_tap(_Req(), duong_dan=str(nas / "khong-co"))
+    assert r["san_sang"] is False and any("Không thấy" in x for x in r["loi"])
+
+
+def test_kiem_tap_bo_nhay_kep_khi_copy_tu_Explorer(nas):
+    """Explorer 'Copy as path' cho chuỗi có nháy kép — phải chịu được."""
+    d = _job_folder(nas, "IN002")
+    assert srv.api_kiem_tap(_Req(), duong_dan=f'"{d}"')["san_sang"] is True
 
 
 # ------------------------------ nộp job -------------------------------------
@@ -188,15 +207,19 @@ def test_nop_job_vao_hang_doi(nas):
     assert r["job"]["job_folder"] == str(d)
 
 
-def test_CHAN_duong_dan_ngoai_INBOX(nas, tmp_path):
-    """Không chặn thì bơm được đường dẫn tuỳ ý vào worker."""
-    ngoai = tmp_path / "ngoai"
-    ngoai.mkdir()
+def test_CHAN_duong_dan_ngoai_goc_NAS(nas, monkeypatch, tmp_path_factory):
+    """Nhân sự dán đường dẫn TỰ DO -> rào duy nhất là 'phải nằm trong gốc NAS'.
+    Không chặn thì bơm được đường dẫn bất kỳ vào worker (worker chạy lệnh trên đó).
+    """
     from fastapi import HTTPException
 
+    ngoai = tmp_path_factory.mktemp("ngoai-nas")   # thư mục NGOÀI gốc NAS
     with pytest.raises(HTTPException) as e:
         srv.api_add_job(srv.JobRequest(folder=str(ngoai)), _Req())
     assert e.value.status_code == 422
+    # cả API kiểm cũng phải chặn, đừng để lộ cây thư mục ngoài NAS
+    with pytest.raises(HTTPException):
+        srv.api_kiem_tap(_Req(), duong_dan=str(ngoai))
 
 
 def test_chan_duong_dan_di_len_bang_dotdot(nas):
@@ -239,7 +262,7 @@ def test_chi_thay_job_cua_minh(nas, monkeypatch):
 
     assert len(srv.api_jobs(_Req(user="lam"))["jobs"]) == 1
     # owner xem được hết
-    assert len(srv.api_jobs(_Req(user="sep", role="owner"), all_users=True)["jobs"]) == 2
+    assert len(srv.api_jobs(_Req(user="sep", role="admin"), all_users=True)["jobs"]) == 2
 
 
 def test_khong_huy_job_nguoi_khac(nas, monkeypatch):
@@ -254,11 +277,11 @@ def test_khong_huy_job_nguoi_khac(nas, monkeypatch):
     assert srv.api_cancel_job(jid, _Req(user="lam"))["ok"] is True
 
 
-def test_owner_huy_duoc_job_nguoi_khac(nas, monkeypatch):
+def test_admin_huy_duoc_job_nguoi_khac(nas, monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = _job_folder(nas, "LI070")
     jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
-    assert srv.api_cancel_job(jid, _Req(user="sep", role="owner"))["ok"] is True
+    assert srv.api_cancel_job(jid, _Req(user="sep", role="admin"))["ok"] is True
 
 
 # ------------------------------ badge ---------------------------------------
@@ -270,7 +293,7 @@ def test_badge_dem_job_xong_chua_xem(nas, monkeypatch):
     jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
     assert srv.api_badge(_Req(user="lam"))["unseen"] == 0     # chưa xong
 
-    conn = q.connect(nas.parent / "jobs.db")
+    conn = q.connect(nas / "jobs.db")
     q.finish(conn, jid, ok=True)
     conn.close()
 
@@ -286,7 +309,7 @@ def test_badge_hoi_ho_ten_khac(nas, monkeypatch):
 
     d = _job_folder(nas, "LI070")
     jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
-    conn = q.connect(nas.parent / "jobs.db")
+    conn = q.connect(nas / "jobs.db")
     q.finish(conn, jid, ok=True)
     conn.close()
     assert srv.api_badge(_Req(), nguoi="lam")["unseen"] == 1

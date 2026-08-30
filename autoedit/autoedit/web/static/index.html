@@ -73,16 +73,21 @@
   <div id="tab-dung">
     <div class="card">
       <div class="row">
-        <span class="big">1. Chọn thư mục công việc</span>
+        <span class="big">1. Dán đường dẫn thư mục tập</span>
         <span class="grow"></span>
         <span class="muted" id="nas-path"></span>
-        <button onclick="loadInbox()">↻ Làm mới</button>
       </div>
       <div class="muted" style="margin:6px 0 10px">
-        Tạo thư mục trên NAS, mỗi chương một thư mục con chứa
-        <b>kịch bản (.txt)</b> + <b>voice (.mp3)</b> + <b>phụ đề (.srt)</b> nếu có.
+        Trong thư mục tập, tạo thư mục con <b>RenderY</b>, bên trong là các chương:
+        <b>H</b> (hook) · <b>C1</b>, <b>C2</b>… (chương) · <b>E</b> (kết).
+        Mỗi chương chứa <b>kịch bản .txt</b> + <b>voice .mp3</b> (+ <b>.srt</b> nếu có).
       </div>
-      <div id="inbox">đang tải…</div>
+      <div class="row">
+        <input id="tap-path" placeholder="F:\OutlierY Nas 2\Investigate\IN002"
+               onkeydown="if(event.key==='Enter')kiemTap()">
+        <button onclick="kiemTap()">Kiểm tra</button>
+      </div>
+      <div id="ket-qua-kiem" style="margin-top:10px"></div>
     </div>
 
     <div class="card" id="box-nop" style="display:none">
@@ -167,49 +172,41 @@ function showTab(name) {
   if (name === 'settings') loadSettings()
 }
 
-// ─────────────────────────── chọn thư mục ───────────────────────────
-async function loadInbox() {
-  const el = document.getElementById('inbox')
+// ─────────────────────────── kiểm thư mục tập ───────────────────────────
+async function kiemTap() {
+  const el = document.getElementById('ket-qua-kiem')
+  const p = document.getElementById('tap-path').value.trim()
+  document.getElementById('box-nop').style.display = 'none'
+  chon = null
+  if (!p) { el.innerHTML = '<span class="muted">Chưa nhập đường dẫn.</span>'; return }
+
+  el.innerHTML = '<span class="muted">đang kiểm…</span>'
   let d
-  try { d = await api('/api/inbox') }
+  try { d = await api('/api/kiem-tap?duong_dan=' + encodeURIComponent(p)) }
   catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
 
-  document.getElementById('nas-path').textContent = d.nas
-  if (!d.ready) { el.innerHTML = `<div class="warn">${esc(d.loi)}</div>`; return }
-  if (!d.folders.length) {
-    el.innerHTML = `<div class="muted">Chưa có thư mục nào trong _INBOX.</div>`
-    return
-  }
-  // Không nhúng path vào onclick: đường dẫn Windows có dấu \ và có thể có nháy —
-  // gắn dữ liệu vào dataset rồi bind bằng JS.
-  el.innerHTML = d.folders.map((f, i) => {
-    const s = f.san_sang
-    const thieu = s.ok ? '' :
-      `<div class="warn" style="margin-top:4px">⚠ ${s.thieu.map(esc).join(' · ')}</div>`
-    return `<div class="fold${s.ok ? '' : ' bad'}" data-i="${i}">
+  const loi = (d.loi || []).length
+    ? `<div class="warn" style="margin-top:8px">${
+        d.loi.map(x => '⚠ ' + esc(x)).join('<br>')}</div>` : ''
+  const ds = (d.chuong || []).map(c => `<div class="fold" style="cursor:default">
       <div class="row">
-        <b>${esc(f.ten)}</b>
-        <span class="muted">${s.so_chuong} chương: ${f.chuong.map(esc).join(', ')}</span>
+        <b>${esc(c.ma)}</b>
+        <span class="muted">${esc(c.nhan)} — thư mục ${esc(c.thu_muc)}</span>
         <span class="grow"></span>
-        <span class="muted">${s.ok ? '✓ đủ file' : 'thiếu file'}</span>
-      </div>${thieu}</div>`
-  }).join('')
-  for (const div of el.querySelectorAll('.fold')) {
-    const f = d.folders[+div.dataset.i]
-    div.addEventListener('click', () => pick(div, f))
-  }
-}
+        <span class="muted">${c.srt ? '.srt ✓' : 'không .srt'}
+          ${c.du_file ? '· đủ file' : '· ⚠ thiếu file'}</span>
+      </div></div>`).join('')
 
-function pick(div, f) {
-  if (!f.san_sang.ok) {
-    alert('Thư mục này còn thiếu file — bổ sung rồi bấm ↻ Làm mới.')
-    return
+  el.innerHTML = `<div class="muted" style="margin-bottom:6px">
+      Tập <b>${esc(d.tap || '')}</b> — ${d.so_chuong || 0} chương
+      ${d.san_sang ? '<span style="color:var(--ok)">· sẵn sàng</span>' : ''}
+    </div>${ds}${loi}`
+
+  if (d.san_sang) {
+    chon = {ten: d.tap, path: d.duong_dan}
+    document.getElementById('box-nop').style.display = ''
+    document.getElementById('nop-msg').textContent = ''
   }
-  chon = f
-  for (const e of document.querySelectorAll('.fold')) e.classList.remove('sel')
-  div.classList.add('sel')
-  document.getElementById('box-nop').style.display = ''
-  document.getElementById('nop-msg').textContent = ''
 }
 
 // ─────────────────────────── nộp việc ───────────────────────────
@@ -387,7 +384,11 @@ async function init() {
     document.getElementById('sub').textContent =
       me.nguoi ? `— ${me.nguoi}${me.vai ? ' (' + me.vai + ')' : ''}` : ''
   } catch {}
-  loadInbox()
+  try {
+    const d = await api('/api/kiem-tap')          // chưa nhập gì -> chỉ lấy gốc NAS
+    document.getElementById('nas-path').textContent = 'gốc: ' + d.nas
+    document.getElementById('tap-path').placeholder = d.nas + '\\Investigate\\IN002'
+  } catch {}
   loadJobs()
 }
 init()

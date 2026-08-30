@@ -31,11 +31,13 @@ ROOT = Path(__file__).resolve().parents[2]      # thư mục autoedit/ (chứa .
 PROJECTS_DIR = ROOT / "projects"
 JOBS_DIR = ROOT / ".web_jobs"
 
-# Thư mục làm việc trên NAS — nhân sự tạo folder job ở INBOX, lấy kết quả ở OUTBOX.
-# Đổi bằng env RENDERY_NAS (vd khi test trên máy khác).
-NAS_ROOT = Path(os.getenv("RENDERY_NAS", r"\\192.168.1.250\Video\RenderY"))
-INBOX = NAS_ROOT / "_INBOX"
-OUTBOX = NAS_ROOT / "Compose Timeline"
+# Gốc NAS. Nhân sự DÁN đường dẫn thư mục tập (mỗi tập một mã: LI001, SH042, IN002...)
+# nằm rải theo series, nên không cố định được một INBOX. Chỉ chặn: đường dẫn phải
+# NẰM TRONG gốc này — ngoài ra là tuỳ ý.
+NAS_ROOT = Path(os.getenv("RENDERY_NAS", r"F:\OutlierY Nas 2"))
+# Kết quả giao ngay trong thư mục tập (`<tập>/RenderY/Compose Timeline/`) để nhân sự
+# copy cả cụm về máy — xem compose.thu_muc_giao().
+OUTBOX_TEN = "Compose Timeline"
 
 # Key được phép sửa qua web. Whitelist: tránh ai đó ghi biến lạ vào .env.
 SETTINGS_KEYS = [
@@ -109,10 +111,23 @@ def current_user(request: Request) -> str:
 
 
 def current_role(request: Request) -> str:
-    """Vai từ CRM: owner | leader | seo | viewer (apps_registry.vai_trong_app:299)."""
+    """Vai từ CRM qua X-Remote-Role.
+
+    OUTLIERY-V3 (`nen/iam/iam.py:vai_cho_app`) trả: admin | manager | leader | viewer
+    — SUY TỪ HÀNH ĐỘNG user được phép, không map theo tên. Hệ cũ dùng 'owner'.
+    """
     if _trust_proxy(request):
         return (request.headers.get("x-remote-role") or "").strip().lower()
     return ""
+
+
+# Vai được xem/huỷ việc của MỌI người. 'admin' là V3; 'owner' giữ cho hệ cũ và
+# cho lúc chạy trực tiếp không qua cổng.
+_VAI_TOAN_QUYEN = {"admin", "owner"}
+
+
+def is_admin(request: Request) -> bool:
+    return current_role(request) in _VAI_TOAN_QUYEN
 
 
 def behind_crm(request: Request) -> bool:
@@ -365,41 +380,46 @@ def api_me(request: Request):
     vai = current_role(request)
     return {"nguoi": nguoi, "vai": vai, "qua_crm": behind_crm(request),
             # owner xem/huỷ được job của mọi người; vai khác chỉ job của mình
-            "xem_het": vai == "owner"}
+            "xem_het": is_admin(request)}
 
 
-@app.get("/api/inbox")
-def api_inbox(request: Request):
-    """Folder job có sẵn trong _INBOX trên NAS — nhân sự chọn từ danh sách này."""
+def _trong_nas(p: Path) -> Path:
+    """Ép đường dẫn phải NẰM TRONG gốc NAS. Raise HTTPException nếu không.
+
+    Nhân sự dán đường dẫn tự do nên đây là rào duy nhất — không chặn thì bơm được
+    đường dẫn bất kỳ vào worker (worker chạy lệnh trên thư mục đó).
+    """
+    try:
+        real = Path(p).expanduser().resolve()
+        real.relative_to(NAS_ROOT.resolve())
+    except (ValueError, OSError):
+        raise HTTPException(422, f"Đường dẫn phải nằm trong {NAS_ROOT}")
+    return real
+
+
+@app.get("/api/kiem-tap")
+def api_kiem_tap(request: Request, duong_dan: str = ""):
+    """Kiểm thư mục tập nhân sự vừa dán: có RenderY chưa, mấy chương, thiếu gì.
+
+    Báo TRƯỚC khi xếp hàng — đừng để chờ 24 phút rồi mới biết thiếu voice.
+    """
     _require_auth(request)
-    if not INBOX.is_dir():
-        return {"nas": str(NAS_ROOT), "ready": False,
-                "loi": f"Chưa thấy {INBOX} — tạo thư mục này trên NAS rồi thử lại.",
-                "folders": []}
-    out = []
-    for d in sorted(INBOX.iterdir()):
-        if not d.is_dir() or d.name.startswith("."):
-            continue
-        chuong = sorted(c.name for c in d.iterdir()
-                        if c.is_dir() and not c.name.startswith("."))
-        out.append({"ten": d.name, "path": str(d), "chuong": chuong or [d.name],
-                    "san_sang": _kiem_folder(d)})
-    return {"nas": str(NAS_ROOT), "ready": True, "folders": out}
+    from autoedit.web.chapters import THU_MUC_CON, tom_tat
 
+    duong_dan = (duong_dan or "").strip().strip('"')
+    if not duong_dan:
+        return {"nas": str(NAS_ROOT), "san_sang": False, "chuong": [],
+                "loi": [f"Dán đường dẫn thư mục tập (ví dụ: {NAS_ROOT}\\Investigate\\IN002)"]}
 
-def _kiem_folder(d: Path) -> dict:
-    """Folder job đủ file chưa? Báo TRƯỚC khi xếp hàng, đừng để chạy rồi mới lỗi."""
-    text = {".txt", ".md", ".rtf"}
-    audio = {".mp3", ".wav", ".m4a", ".aac", ".flac"}
-    dirs = [c for c in d.iterdir() if c.is_dir() and not c.name.startswith(".")] or [d]
-    thieu = []
-    for c in dirs:
-        files = [f.suffix.lower() for f in c.iterdir() if f.is_file()]
-        if not any(s in text for s in files):
-            thieu.append(f"{c.name}: thiếu kịch bản (.txt)")
-        if not any(s in audio for s in files):
-            thieu.append(f"{c.name}: thiếu voice (.mp3/.wav)")
-    return {"ok": not thieu, "thieu": thieu[:6], "so_chuong": len(dirs)}
+    tap = _trong_nas(Path(duong_dan))
+    if not tap.is_dir():
+        return {"nas": str(NAS_ROOT), "san_sang": False, "chuong": [],
+                "duong_dan": str(tap), "loi": [f"Không thấy thư mục: {tap}"]}
+
+    d = tom_tat(tap)
+    d["nas"] = str(NAS_ROOT)
+    d["thu_muc_con"] = THU_MUC_CON
+    return d
 
 
 @app.get("/api/jobs")
@@ -409,7 +429,7 @@ def api_jobs(request: Request, all_users: bool = False):
     from autoedit.web import queue as q
 
     nguoi = current_user(request)
-    xem_het = all_users and current_role(request) == "owner"
+    xem_het = all_users and is_admin(request)
     conn = _queue_conn()
     try:
         jobs = q.list_jobs(conn, nguoi="" if (xem_het or not nguoi) else nguoi)
@@ -434,18 +454,21 @@ class JobRequest(BaseModel):
 
 @app.post("/api/jobs")
 def api_add_job(req: JobRequest, request: Request):
-    """Xếp 1 folder job vào hàng đợi."""
+    """Xếp 1 thư mục TẬP vào hàng đợi (job = cả tập, gồm nhiều chương)."""
     _require_auth(request)
     from autoedit.web import queue as q
+    from autoedit.web.chapters import doc_chuong
 
-    folder = Path(req.folder).expanduser()
-    # Chỉ nhận folder NẰM TRONG _INBOX — chặn ai đó bơm đường dẫn tuỳ ý vào worker
-    try:
-        folder.resolve().relative_to(INBOX.resolve())
-    except (ValueError, OSError):
-        raise HTTPException(422, f"Folder phải nằm trong {INBOX}")
+    folder = _trong_nas(Path((req.folder or "").strip().strip('"')))
     if not folder.is_dir():
-        raise HTTPException(404, f"Không thấy folder: {folder}")
+        raise HTTPException(404, f"Không thấy thư mục: {folder}")
+
+    # Chặn ở đây thay vì để worker chạy 24 phút rồi mới báo
+    chuong, loi = doc_chuong(folder)
+    if loi:
+        raise HTTPException(422, " · ".join(loi[:4]))
+    if not chuong:
+        raise HTTPException(422, "Không tìm thấy chương nào (H / C1 / C2 / E)")
 
     conn = _queue_conn()
     try:
@@ -469,7 +492,7 @@ def api_cancel_job(job_id: int, request: Request):
         if job is None:
             raise HTTPException(404, "Không thấy job")
         nguoi = current_user(request)
-        if nguoi and job.nguoi != nguoi and current_role(request) != "owner":
+        if nguoi and job.nguoi != nguoi and not is_admin(request):
             raise HTTPException(403, "Chỉ huỷ được job của mình")
         if not q.cancel(conn, job_id):
             raise HTTPException(409, "Job đã chạy — không huỷ được")
@@ -518,7 +541,9 @@ def api_ketqua(job_id: int, request: Request):
     if job is None:
         raise HTTPException(404, "Không thấy job")
 
-    dest = OUTBOX / Path(job.job_folder).name
+    from autoedit.web.compose import thu_muc_giao
+
+    dest = thu_muc_giao(Path(job.job_folder))
     if not dest.is_dir():
         return {"san_sang": False, "duong_dan": str(dest),
                 "loi": "Chưa có kết quả (job chưa xong hoặc chưa giao được)."}

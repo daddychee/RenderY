@@ -142,14 +142,29 @@ def write_readme(dest: Path, job_folder: str, chapters: list[dict]) -> Path:
     return p
 
 
-def compose_job(job_folder: Path, project_dirs: list[Path], outbox: Path) -> Path:
-    """Gom cả job (nhiều chương) ra `Compose Timeline/<tên công việc>/`.
+def thu_muc_giao(tap: Path, outbox: Optional[Path] = None) -> Path:
+    """Nơi giao kết quả. Mặc định NGAY TRONG thư mục tập: `<tập>/RenderY/Compose Timeline/`.
 
-    `project_dirs` theo ĐÚNG THỨ TỰ chương. Tên thư mục chương lấy từ tên chương
-    trong _INBOX để nhân sự nhận ra ngay, không phải project_id máy sinh.
+    Để cạnh nguồn thay vì gom về một chỗ chung: nhân sự đã mở thư mục tập để đặt
+    kịch bản + voice, lấy kết quả ngay tại đó là ngắn nhất — và mỗi tập tự mang
+    kết quả của mình khi copy/lưu trữ.
+    """
+    from autoedit.web.chapters import thu_muc_rendery
+
+    if outbox is not None:
+        return Path(outbox) / Path(tap).name
+    return thu_muc_rendery(tap) / "Compose Timeline"
+
+
+def compose_job(job_folder: Path, project_dirs: list[Path],
+                outbox: Optional[Path] = None) -> Path:
+    """Gom cả job (nhiều chương) về thư mục giao.
+
+    `project_dirs` theo ĐÚNG THỨ TỰ chương (H → C1..Cn → E). Tên thư mục chương lấy
+    từ MÃ CHƯƠNG nhân sự đặt (H, C1, E) để nhận ra ngay, không phải project_id máy sinh.
     """
     job_folder = Path(job_folder)
-    dest_root = Path(outbox) / job_folder.name
+    dest_root = thu_muc_giao(job_folder, outbox)
     if dest_root.exists():
         # Dựng lại lần 2: dọn sạch để không lẫn kết quả cũ với mới
         shutil.rmtree(dest_root, ignore_errors=True)
