@@ -64,9 +64,17 @@ _jobs_lock = threading.Lock()
 
 # ------------------------------ xác thực ------------------------------------
 def _require_auth(request: Request) -> None:
-    """Bật khi có RENDERY_WEB_TOKEN. Không đặt = mở (hợp lý khi bind 127.0.0.1)."""
+    """Bật khi có RENDERY_WEB_TOKEN. Không đặt = mở (hợp lý khi bind 127.0.0.1).
+
+    Request ĐI QUA CRM đã được CRM xác thực (session cookie ký số + phân quyền
+    app theo bộ phận×level) — không đòi token nữa, vì trong iframe của CRM thì
+    query `?token=` không tồn tại và người dùng cũng không có gì để nhập.
+    """
     token = os.getenv("RENDERY_WEB_TOKEN", "").strip()
-    if not token:
+    # Miễn token cho request ĐI QUA CRM — nhận ra bằng X-Forwarded-Host (CRM luôn gửi),
+    # KHÔNG phải chỉ vì client là loopback: mọi thứ chạy trên máy chủ đều loopback,
+    # miễn theo loopback là mở toang cho bất kỳ tiến trình nào trên máy.
+    if not token or behind_crm(request):
         return
     sent = request.headers.get("x-rendery-token") or request.query_params.get("token", "")
     if sent != token:
@@ -78,23 +86,44 @@ def _loopback(request: Request) -> bool:
     return host in ("127.0.0.1", "::1", "localhost")
 
 
+def _trust_proxy(request: Request) -> bool:
+    """Có được tin header danh tính không?
+
+    CHỈ TIN khi bật cờ VÀ client là loopback — CRM proxy từ 127.0.0.1 và đã tự loại
+    header giả mạo (`app_proxy.py:48` vứt x-remote-user/role do người dùng gửi lên).
+    Truy cập thẳng từ LAN không qua CRM thì header do người gọi tự đặt, không tin được.
+    """
+    return os.getenv("RENDERY_TRUST_PROXY", "").strip() == "1" and _loopback(request)
+
+
 def current_user(request: Request) -> str:
     """Tên nhân sự từ SSO của CRM OUTLIERY (header X-Remote-User).
 
-    CHỈ TIN header khi client là loopback — CRM proxy từ 127.0.0.1 và đã tự loại
-    header giả mạo (`app_proxy.py:47` chặn x-remote-user từ ngoài). Truy cập thẳng
-    từ LAN không đi qua CRM thì header là do người gọi tự đặt, không tin được.
+    CRM gửi tên đã CHUẨN HOÁ ASCII ("Nguyễn Văn A" -> "nguyenvana", app_proxy.py:58)
+    vì header HTTP không nhận tiếng Việt có dấu. Đây là danh tính RenderY dùng để
+    tách job giữa các nhân sự.
     """
-    if os.getenv("RENDERY_TRUST_PROXY", "").strip() == "1" and _loopback(request):
+    if _trust_proxy(request):
         return (request.headers.get("x-remote-user") or "").strip()
     return ""
 
 
 def current_role(request: Request) -> str:
-    """Vai từ CRM: owner | leader | seo | viewer (xem apps_registry.vai_trong_app)."""
-    if os.getenv("RENDERY_TRUST_PROXY", "").strip() == "1" and _loopback(request):
+    """Vai từ CRM: owner | leader | seo | viewer (apps_registry.vai_trong_app:299)."""
+    if _trust_proxy(request):
         return (request.headers.get("x-remote-role") or "").strip().lower()
     return ""
+
+
+def behind_crm(request: Request) -> bool:
+    """Đang chạy sau reverse proxy của CRM OUTLIERY?
+
+    CRM gửi X-Forwarded-Host (app_proxy.py:126) — dùng để biết mình đang nhúng chứ
+    KHÔNG tự dựng tiền tố URL: CRM đã viết lại mọi đường dẫn tuyệt đối trong HTML/JS
+    thành `/app/<slug>/...` cho các tiền tố app khai trong `tien_to` (app_proxy.py:74).
+    Trang chỉ cần dùng đường dẫn tuyệt đối `/api/...` là CRM lo phần còn lại.
+    """
+    return bool(request.headers.get("x-forwarded-host")) and _trust_proxy(request)
 
 
 # ------------------------------ đọc project ---------------------------------
@@ -326,6 +355,17 @@ def _queue_conn():
     from autoedit.web import queue as q
 
     return q.connect(ROOT / "jobs.db")
+
+
+@app.get("/api/me")
+def api_me(request: Request):
+    """Danh tính + quyền hiện tại — frontend dùng để hiện tên và bật/tắt nút."""
+    _require_auth(request)
+    nguoi = current_user(request)
+    vai = current_role(request)
+    return {"nguoi": nguoi, "vai": vai, "qua_crm": behind_crm(request),
+            # owner xem/huỷ được job của mọi người; vai khác chỉ job của mình
+            "xem_het": vai == "owner"}
 
 
 @app.get("/api/inbox")

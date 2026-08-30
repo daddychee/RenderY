@@ -43,7 +43,8 @@ def _job_folder(inbox: Path, ten: str, chuong=("ch01",), du=True) -> Path:
 class _Req:
     """Giả Request đủ dùng cho _require_auth + current_user."""
 
-    def __init__(self, host="127.0.0.1", user=None, role=None, token=None):
+    def __init__(self, host="127.0.0.1", user=None, role=None, token=None,
+                 fwd_host=None, query=None):
         self.client = type("C", (), {"host": host})()
         self.headers = {}
         if user:
@@ -52,7 +53,9 @@ class _Req:
             self.headers["x-remote-role"] = role
         if token:
             self.headers["x-rendery-token"] = token
-        self.query_params = {}
+        if fwd_host:
+            self.headers["x-forwarded-host"] = fwd_host
+        self.query_params = query or {}
 
 
 # ------------------------------ SSO -----------------------------------------
@@ -77,6 +80,63 @@ def test_KHONG_tin_header_khi_chua_bat_co(monkeypatch):
 def test_khong_co_header_tra_rong(monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     assert srv.current_user(_Req()) == ""
+
+
+def test_ten_tieng_viet_da_duoc_CRM_chuyen_ASCII(monkeypatch):
+    """CRM chuẩn hoá "Nguyễn Văn A" -> "nguyenvana" (app_proxy.py:58) vì header HTTP
+    không nhận tiếng Việt có dấu. RenderY nhận đúng chuỗi đã chuẩn hoá đó."""
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    assert srv.current_user(_Req(user="nguyenvana")) == "nguyenvana"
+
+
+# ------------------------------ sau CRM proxy -------------------------------
+def test_nhan_biet_dang_chay_sau_CRM(monkeypatch):
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    assert srv.behind_crm(_Req(fwd_host="192.168.1.23:8000")) is True
+    assert srv.behind_crm(_Req()) is False                    # mở trực tiếp
+    assert srv.behind_crm(_Req(host="192.168.1.99", fwd_host="x")) is False
+
+
+def test_qua_CRM_thi_KHONG_doi_token(monkeypatch):
+    """Trong iframe CRM không có query ?token=, và người dùng cũng không có gì để
+    nhập — CRM đã xác thực bằng session cookie + phân quyền app rồi."""
+    monkeypatch.setenv("RENDERY_WEB_TOKEN", "bimat")
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    srv._require_auth(_Req(user="lam", fwd_host="192.168.1.23:8000"))   # không raise
+
+
+def test_mo_TRUC_TIEP_van_doi_token(monkeypatch):
+    """Truy cập thẳng từ LAN không qua CRM -> vẫn phải có token."""
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("RENDERY_WEB_TOKEN", "bimat")
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    with pytest.raises(HTTPException) as e:
+        srv._require_auth(_Req(host="192.168.1.99"))
+    assert e.value.status_code == 401
+    srv._require_auth(_Req(host="192.168.1.99", token="bimat"))         # đúng token thì qua
+
+
+def test_LOOPBACK_khong_du_de_mien_token(monkeypatch):
+    """Lỗ hổng bắt được khi chạy thật (30/08): miễn token theo _trust_proxy thì
+    MỌI request từ 127.0.0.1 được miễn — mà mọi tiến trình trên máy chủ đều loopback.
+    Phải đòi X-Forwarded-Host (CRM luôn gửi) mới miễn."""
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("RENDERY_WEB_TOKEN", "bimat")
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    with pytest.raises(HTTPException) as e:
+        srv._require_auth(_Req(host="127.0.0.1"))       # loopback nhưng KHÔNG qua CRM
+    assert e.value.status_code == 401
+
+
+def test_api_me_tra_danh_tinh_va_quyen(monkeypatch):
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    d = srv.api_me(_Req(user="lam", role="owner", fwd_host="crm:8000"))
+    assert d == {"nguoi": "lam", "vai": "owner", "qua_crm": True, "xem_het": True}
+
+    d2 = srv.api_me(_Req(user="hoa", role="viewer"))
+    assert d2["xem_het"] is False and d2["qua_crm"] is False
 
 
 # ------------------------------ _INBOX --------------------------------------

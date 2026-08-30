@@ -132,10 +132,13 @@
 </main>
 
 <script>
+// Token chỉ dùng khi mở TRỰC TIẾP. Vào qua CRM thì CRM đã xác thực rồi, và trong
+// iframe cũng không có query ?token= để đọc.
 const TOKEN = new URLSearchParams(location.search).get('token') || ''
 const H = TOKEN ? {'x-rendery-token': TOKEN} : {}
 let chon = null        // folder đang chọn
 let timer = null
+let me = {nguoi: '', vai: '', xem_het: false}
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
@@ -241,7 +244,6 @@ async function loadJobs() {
   const s = d.stats
   document.getElementById('queue-stat').textContent =
     `${s.running}/${s.workers} máy đang chạy · ${s.queued} chờ`
-  document.getElementById('sub').textContent = d.nguoi ? `— ${d.nguoi}` : ''
 
   if (!d.jobs.length) {
     el.innerHTML = `<div class="muted">Chưa có việc nào.</div>`
@@ -348,8 +350,16 @@ async function saveSettings() {
   } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
 }
 
-loadInbox()
-loadJobs()
+async function init() {
+  try {
+    me = await api('/api/me')
+    document.getElementById('sub').textContent =
+      me.nguoi ? `— ${me.nguoi}${me.vai ? ' (' + me.vai + ')' : ''}` : ''
+  } catch {}
+  loadInbox()
+  loadJobs()
+}
+init()
 </script>
 </body>
 </html>
