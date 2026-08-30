@@ -261,10 +261,48 @@ thường, không kén khoảng trắng.** → KHÔNG "sửa" cho compact: thứ
 
       **Thứ tự nguồn:** local → Pexels → Pixabay → Envato/Vecteezy.
       ytref chạy riêng bằng `ytref-harvest`.
-- [ ] R6 Tự chọn clip + chấm 4 tín hiệu không chắc
-- [ ] R7 Gộp dần draft tổng
-- [ ] R8 Web UI + hàng đợi job bền (restart không mất việc)
+- [x] R6 **Draft CapCut + sổ nguồn gốc** — 798 pass
+      - Kiểm chứng packager bằng draft thật: `materials/` ✓ · placeholder GUID ✓ ·
+        `check_flag = 62978047` ✓ · 4 track ✓. Máy ĐÃ đăng ký sẵn (donor `0805`).
+      - `packager/sourcebook.py`: xuất `nguon_footage.json` + `.txt` CẠNH draft —
+        tỉ trọng theo nhóm (stock/sub/**ytref**/local), cảnh báo khi ytref > 15%.
+        Bọc try/except: sổ hỏng KHÔNG giết draft đã dựng xong.
+      - Placeholder câu thiếu clip: **padoma đã có** (`_fill_holes_with_slug`) —
+        lý do kỹ thuật: main track CapCut là track NAM CHÂM, có lỗ hở thì CapCut tự
+        dồn segment và footage sau lỗ lệch voice tích luỹ.
+- [x] R7 **Gộp draft các chương → draft tổng** — 820 pass. `packager/merge.py`.
+      Padoma KHÔNG có sẵn → việc mới thật. Chỗ dễ vỡ nhất: **id material trùng**
+      giữa 2 draft (segment trỏ theo id) → đổi id draft sau + mọi tham chiếu.
+      Chỉ dịch `target_timerange`, KHÔNG đụng `source_timerange`.
+      CLI `merge-drafts <ch01> <ch02> ... --name TONG`.
+- [x] R8 **Bảng điều khiển web** — 836 pass. `autoedit/web/`.
+      KHÔNG dựng lại hàng đợi (`project.json` đã là hàng đợi bền). Job chạy trong
+      **tiến trình con** + log ra file → đóng trình duyệt không giết job; tắt server
+      giữa chừng thì lần sau chạy tiếp từ đúng stage đang dở.
+      An toàn (bind LAN + trang Cài đặt đọc/ghi `.env`): whitelist 8 key · chặn giá trị
+      có xuống dòng · ghi `.env` **atomic** · che secret · `RENDERY_WEB_TOKEN` bật xác thực.
+      CLI `web --host --port`; `web.bat`.
+
+**Còn lại (chưa làm):** tự chọn clip + chấm 4 tín hiệu không chắc (quyết định #2) —
+padoma đã có phễu c5 + Vision Gate, cần đo thật trên chương thật rồi mới quyết có
+thêm gì không.
 
 **Verify từng bước** (Karpathy #4): R3 nghe mép file segment · R5 tải thật 1 clip Envato ·
 R7 mở draft trong CapCut thật · R8 restart server giữa chừng, job vẫn chạy tiếp.
 Không tự nhận "xong" khi chưa chạy.
+
+---
+
+## Lệnh RenderY
+
+```bash
+rendery.bat make <folder>            # 1 lệnh: script + voice (+ .srt) -> draft
+rendery.bat align <proj> --backend srt
+rendery.bat source <proj> --no-sub   # tắt Envato/Vecteezy cho lần chạy này
+rendery.bat ytref-harvest <dir> --link <url> --budget 0.15
+rendery.bat sub-status               # nguồn nào sẵn sàng
+rendery.bat sub-links "rome ruins"   # link mở tay, không tốn hạn mức
+rendery.bat merge-drafts <ch01> <ch02> --name TONG
+web.bat                              # bảng điều khiển http://127.0.0.1:8080
+test.bat                             # 836 pass / 10 fail (librosa) / 14 skip
+```
