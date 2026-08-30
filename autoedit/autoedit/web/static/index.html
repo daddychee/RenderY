@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RenderY</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#252a34; --txt:#e6e9ef; --dim:#8b93a3;
+    --ok:#3fb950; --run:#3b82f6; --fail:#f85149; --warn:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:14px 20px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{font-size:16px;margin:0;letter-spacing:.3px}
+  .grow{flex:1}
+  button{background:#232935;color:var(--txt);border:1px solid var(--line);
+         border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+  button:hover{background:#2c3444}
+  button.primary{background:var(--run);border-color:var(--run);color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  main{padding:20px;max-width:1100px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:14px 16px;margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:12px}
+  .pid{font-weight:600}
+  .muted{color:var(--dim);font-size:12px}
+  .stages{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
+  .st{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);
+      color:var(--dim)}
+  .st.done{background:rgba(63,185,80,.14);border-color:var(--ok);color:var(--ok)}
+  .st.running{background:rgba(59,130,246,.16);border-color:var(--run);color:#8ab4ff}
+  .st.failed{background:rgba(248,81,73,.14);border-color:var(--fail);color:var(--fail)}
+  .warn{color:var(--warn);font-size:12px;margin-top:6px}
+  .err{color:var(--fail);font-size:12px;margin-top:6px;white-space:pre-wrap}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px;
+      max-height:360px;overflow:auto;font-size:12px;margin:10px 0 0}
+  table{width:100%;border-collapse:collapse}
+  td{padding:6px 4px;border-bottom:1px solid var(--line)}
+  input{background:#0b0d11;border:1px solid var(--line);color:var(--txt);
+        border-radius:6px;padding:6px 9px;width:100%;font-size:13px}
+  .hide{display:none}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot.ok{background:var(--ok)} .dot.no{background:#444b58}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 RenderY</h1>
+  <span class="muted" id="sub">bảng điều khiển</span>
+  <span class="grow"></span>
+  <button onclick="showTab('projects')">Dự án</button>
+  <button onclick="showTab('sources')">Nguồn</button>
+  <button onclick="showTab('settings')">⚙ Cài đặt</button>
+</header>
+
+<main>
+  <div id="tab-projects"></div>
+
+  <div id="tab-sources" class="hide">
+    <div class="card"><b>Nguồn footage</b><div id="src-list" class="muted">đang tải…</div></div>
+  </div>
+
+  <div id="tab-settings" class="hide">
+    <div class="card">
+      <b>Cài đặt</b>
+      <div class="muted">Để trống = giữ giá trị cũ. Secret hiển thị dạng che.</div>
+      <table id="set-table"></table>
+      <div style="margin-top:10px">
+        <button class="primary" onclick="saveSettings()">Lưu</button>
+        <span id="set-msg" class="muted"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('token') || ''
+const H = TOKEN ? {'x-rendery-token': TOKEN} : {}
+let timer = null
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {...opts, headers: {...H, ...(opts.headers || {})}})
+  if (!r.ok) throw new Error((await r.text()).slice(0, 200))
+  return r.headers.get('content-type')?.includes('json') ? r.json() : r.text()
+}
+
+function showTab(name) {
+  for (const t of ['projects', 'sources', 'settings'])
+    document.getElementById('tab-' + t).classList.toggle('hide', t !== name)
+  if (name === 'sources') loadSources()
+  if (name === 'settings') loadSettings()
+}
+
+// ------------------------------ dự án --------------------------------------
+async function loadProjects() {
+  let d
+  try { d = await api('/api/projects') }
+  catch (e) {
+    document.getElementById('tab-projects').innerHTML =
+      `<div class="card err">Không tải được: ${esc(e.message)}</div>`
+    return
+  }
+  document.getElementById('sub').textContent = `${d.projects.length} dự án`
+  const el = document.getElementById('tab-projects')
+  if (!d.projects.length) {
+    el.innerHTML = `<div class="card muted">Chưa có dự án nào.<br>
+      Tạo bằng: <code>rendery.bat make &lt;folder chương&gt;</code></div>`
+    return
+  }
+  el.innerHTML = d.projects.map(p => card(p, d.jobs[p.project_id])).join('')
+  // job đang chạy -> tự làm mới
+  const running = Object.values(d.jobs).some(j => j.status === 'running')
+  clearTimeout(timer)
+  if (running) timer = setTimeout(loadProjects, 3000)
+}
+
+function card(p, job) {
+  const running = job && job.status === 'running'
+  const stages = Object.entries(p.stages)
+    .map(([k, v]) => `<span class="st ${esc(v.status)}">${esc(k)}</span>`).join('')
+  const errs = Object.entries(p.stages).filter(([, v]) => v.error)
+    .map(([k, v]) => `<div class="err">✗ ${esc(k)}: ${esc(v.error)}</div>`).join('')
+  const warns = p.warnings.length
+    ? `<div class="warn">⚠ ${p.warnings.length} cảnh báo: ${esc(p.warnings[0])}${
+        p.warnings.length > 1 ? ` (+${p.warnings.length - 1})` : ''}</div>` : ''
+  return `<div class="card">
+    <div class="row">
+      <span class="pid">${esc(p.project_id)}</span>
+      <span class="muted">${p.done}/${p.total} stage · ${p.beats} beat · ${p.shots} shot</span>
+      <span class="grow"></span>
+      <button class="primary" ${running ? 'disabled' : ''}
+              onclick="runPipeline('${esc(p.project_id)}')">
+        ${running ? '⏳ đang chạy…' : '▶ Chạy'}</button>
+      <button onclick="toggleLog('${esc(p.project_id)}')">Log</button>
+    </div>
+    <div class="stages">${stages}</div>
+    ${errs}${warns}
+    ${p.draft_path ? `<div class="muted">draft: ${esc(p.draft_path)}</div>` : ''}
+    <pre id="log-${esc(p.project_id)}" class="hide"></pre>
+  </div>`
+}
+
+async function runPipeline(pid) {
+  try {
+    await api(`/api/run/${pid}`, {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({stage: '', align_backend: 'auto'}),
+    })
+    loadProjects()
+  } catch (e) { alert('Không chạy được: ' + e.message) }
+}
+
+async function toggleLog(pid) {
+  const el = document.getElementById('log-' + pid)
+  if (!el.classList.contains('hide')) { el.classList.add('hide'); return }
+  el.classList.remove('hide')
+  el.textContent = 'đang tải log…'
+  try { el.textContent = await api(`/api/log/${pid}`) }
+  catch (e) { el.textContent = 'Không đọc được log: ' + e.message }
+  el.scrollTop = el.scrollHeight
+}
+
+// ------------------------------ nguồn --------------------------------------
+async function loadSources() {
+  const el = document.getElementById('src-list')
+  try {
+    const d = await api('/api/sources')
+    el.innerHTML = d.sources.map(s => `<div style="margin-top:8px">
+      <span class="dot ${s.ready ? 'ok' : 'no'}"></span>
+      <b>${esc(s.name)}</b>
+      ${s.ready ? '<span class="muted">sẵn sàng</span>'
+                : `<span class="muted">thiếu: ${esc(s.need)}</span>`}
+    </div>`).join('')
+  } catch (e) { el.textContent = 'Lỗi: ' + e.message }
+}
+
+// ------------------------------ cài đặt ------------------------------------
+async function loadSettings() {
+  const t = document.getElementById('set-table')
+  try {
+    const d = await api('/api/settings')
+    t.innerHTML = d.settings.map(s => `<tr>
+      <td style="width:230px">${esc(s.key)}</td>
+      <td><input id="set-${esc(s.key)}" placeholder="${
+        s.set ? esc(s.value) : '(chưa đặt)'}"></td>
+    </tr>`).join('')
+  } catch (e) { t.innerHTML = `<tr><td class="err">${esc(e.message)}</td></tr>` }
+}
+
+async function saveSettings() {
+  const values = {}
+  for (const inp of document.querySelectorAll('[id^="set-"]')) {
+    const v = inp.value.trim()
+    if (v) values[inp.id.slice(4)] = v
+  }
+  const msg = document.getElementById('set-msg')
+  if (!Object.keys(values).length) { msg.textContent = 'Chưa nhập gì.'; return }
+  try {
+    const r = await api('/api/settings', {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({values}),
+    })
+    msg.textContent = `✓ Đã lưu ${r.saved.length} mục.`
+    loadSettings()
+  } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
+}
+
+loadProjects()
+</script>
+</body>
+</html>

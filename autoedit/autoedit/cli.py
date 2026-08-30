@@ -2400,6 +2400,58 @@ def ytref_harvest_cmd(
                 fg=typer.colors.YELLOW)
 
 
+@app.command(name="web")
+def web_cmd(
+    host: str = typer.Option("0.0.0.0", "--host",
+                             help="0.0.0.0 = mở cho LAN · 127.0.0.1 = chỉ máy này."),
+    port: int = typer.Option(8080, "--port"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Tự mở trình duyệt."),
+) -> None:
+    """Bật bảng điều khiển web: xem trạng thái dự án, chạy pipeline, sửa cài đặt.
+
+    Job chạy trong tiến trình con + log ra file, nên đóng trình duyệt KHÔNG giết job.
+    Tắt server giữa chừng cũng không mất việc: project.json là hàng đợi bền, lần sau
+    chạy tiếp từ đúng stage đang dở.
+    """
+    import os
+    import socket
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    try:
+        import uvicorn
+
+        from autoedit.web.server import app as web_app
+    except ImportError as exc:
+        typer.secho(f"Lỗi: thiếu fastapi/uvicorn ({exc}). Cài: pip install fastapi uvicorn",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    if host == "0.0.0.0" and not os.getenv("RENDERY_WEB_TOKEN", "").strip():
+        typer.secho(
+            "⚠ Đang mở cho CẢ MẠNG LAN mà chưa đặt RENDERY_WEB_TOKEN — ai trong mạng cũng\n"
+            "  xem/sửa được API key ở trang Cài đặt. Đặt RENDERY_WEB_TOKEN trong .env rồi\n"
+            "  vào bằng http://<ip>:PORT/?token=<token>, hoặc dùng --host 127.0.0.1.",
+            fg=typer.colors.YELLOW)
+
+    try:
+        lan_ip = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        lan_ip = "127.0.0.1"
+    url = f"http://127.0.0.1:{port}"
+    typer.secho(f"✓ RenderY web: {url}", fg=typer.colors.GREEN)
+    if host == "0.0.0.0":
+        typer.echo(f"  máy khác trong LAN: http://{lan_ip}:{port}")
+    typer.echo("  Ctrl+C để tắt (job đang chạy vẫn tiếp tục ở tiến trình con)")
+
+    if open_browser:
+        import webbrowser
+
+        webbrowser.open(url)
+    uvicorn.run(web_app, host=host, port=port, log_level="warning")
+
+
 @app.command(name="merge-drafts")
 def merge_drafts_cmd(
     drafts: list[Path] = typer.Argument(..., help="Folder draft từng chương, THEO THỨ TỰ."),
