@@ -342,8 +342,9 @@ async function loadSources() {
     const d = await api('/api/sources')
     el.innerHTML = d.sources.map(s => `<div style="margin-top:8px">
       <span class="dot ${s.ready ? 'ok' : 'no'}"></span><b>${esc(s.name)}</b>
-      ${s.ready ? '<span class="muted">sẵn sàng</span>'
-                : `<span class="muted">thiếu: ${esc(s.need)}</span>`}
+      ${s.ready
+        ? `<span class="muted">sẵn sàng${s.nguon ? ' — ' + esc(s.nguon) : ''}</span>`
+        : `<span class="muted">thiếu: ${esc(s.need)}</span>`}
     </div>`).join('')
   } catch (e) { el.textContent = 'Lỗi: ' + e.message }
 }

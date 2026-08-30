@@ -356,21 +356,51 @@ def api_ket(request: Request):
 
 @app.get("/api/sources")
 def api_sources(request: Request):
-    """Nguồn footage nào đang dùng được — cùng dữ liệu với lệnh `sub-status`."""
+    """Nguồn footage nào đang dùng được — cùng dữ liệu với lệnh `sub-status`.
+
+    Nhìn ĐỦ BA nơi khoá có thể đến, đúng thứ tự ưu tiên thật lúc chạy job:
+    két V3 (General › API Keys) -> biến môi trường (start-all.ps1) -> `.env`.
+    Chỉ nhìn `.env` thì báo "thiếu" trong khi job vẫn chạy được — sai lệch nguy
+    hiểm hơn là không báo gì.
+    """
     _require_auth(request)
     from autoedit.sourcer.pexels import collect_pexels_keys
     from autoedit.sourcer.pixabay import collect_pixabay_keys
     from autoedit.sourcer.subscription import SITES, profile_exists
+    from autoedit.web.ket_v3 import nap_env
 
-    env = _read_env()
+    try:
+        nap_env()            # đổ khoá từ két vào os.environ (fail-open)
+    except Exception:
+        pass
+    env = {**_read_env(), **os.environ}
+
+    def _nguon(ten, keys, bien, tu_ket):
+        return {"name": ten, "ready": bool(keys), "need": bien,
+                "nguon": "két V3" if tu_ket else ("cấu hình máy" if keys else "")}
+
+    try:
+        ket_viec = (__import__("autoedit.web.ket_v3", fromlist=["doc_ket"])
+                    .doc_ket().get("tim_footage") or {})
+        nha_ket = {(k.get("nha") or "").lower() for k in (ket_viec.get("khoa") or [])}
+    except Exception:
+        nha_ket = set()
+
     out = [
-        {"name": "pexels", "ready": bool(collect_pexels_keys(env)), "need": "PEXELS_API_KEY"},
-        {"name": "pixabay", "ready": bool(collect_pixabay_keys(env)), "need": "PIXABAY_API_KEY"},
+        _nguon("pexels", collect_pexels_keys(env), "PEXELS_API_KEY", "pexels" in nha_ket),
+        _nguon("pixabay", collect_pixabay_keys(env), "PIXABAY_API_KEY", "pixabay" in nha_ket),
     ]
     for site, cfg in SITES.items():
-        out.append({"name": site,
-                    "ready": bool(env.get(cfg["env"], "").strip()) and profile_exists(site),
-                    "need": f"{cfg['env']} + đăng nhập trình duyệt"})
+        co_mail = bool(env.get(cfg["env"], "").strip())
+        co_phien = profile_exists(site)
+        thieu = []
+        if not co_mail:
+            thieu.append(cfg["env"])
+        if not co_phien:
+            thieu.append("đăng nhập trình duyệt")
+        out.append({"name": site, "ready": co_mail and co_phien,
+                    "need": " + ".join(thieu),
+                    "nguon": "tài khoản (không dùng khoá API)"})
     return {"sources": out}
 
 

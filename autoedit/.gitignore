@@ -26,3 +26,6 @@ dist/
 .web_jobs/
 jobs.db*
 logs/
+
+# Phien dang nhap trinh duyet (Envato/Vecteezy) — COOKIE THAT, khong bao gio commit
+.browser_profiles/
