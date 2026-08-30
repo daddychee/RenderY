@@ -81,6 +81,7 @@
         Trong thư mục tập, tạo thư mục con <b>RenderY</b>, bên trong là các chương:
         <b>H</b> (hook) · <b>C1</b>, <b>C2</b>… (chương) · <b>E</b> (kết).
         Mỗi chương chứa <b>kịch bản .txt</b> + <b>voice .mp3</b> (+ <b>.srt</b> nếu có).
+        <br>Dán đường dẫn từ Explorer — ổ mạng <b>Z:\</b> hay đường máy chủ đều được.
       </div>
       <div class="row">
         <input id="tap-path" placeholder="F:\OutlierY Nas 2\Investigate\IN002"
@@ -387,8 +388,8 @@ async function init() {
   } catch {}
   try {
     const d = await api('/api/kiem-tap')          // chưa nhập gì -> chỉ lấy gốc NAS
-    document.getElementById('nas-path').textContent = 'gốc: ' + d.nas
-    document.getElementById('tap-path').placeholder = d.nas + '\\Investigate\\IN002'
+    document.getElementById('nas-path').textContent = 'gốc: ' + d.nas + ' (= ổ Z:\\)'
+    document.getElementById('tap-path').placeholder = 'Z:\\Life In\\US\\LI093'
   } catch {}
   loadJobs()
 }

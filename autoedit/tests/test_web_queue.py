@@ -199,6 +199,47 @@ def test_kiem_tap_bo_nhay_kep_khi_copy_tu_Explorer(nas):
     assert srv.api_kiem_tap(_Req(), duong_dan=f'"{d}"')["san_sang"] is True
 
 
+# --------------------------- quy đổi ổ mạng ---------------------------------
+def test_doi_o_mang_Z_sang_duong_may_chu(nas):
+    """Nhân sự thấy NAS qua ổ Z:, máy chủ thấy ở F:\\OutlierY Nas 2 — cùng một chỗ.
+    Lỗi thật user gặp 30/08: dán 'Z:\\Life In\\US\\LI093' bị báo ngoài NAS."""
+    _job_folder(nas, "LI093")
+    got = srv.doi_duong_dan(r"Z:\LI093")
+    assert got == nas / "LI093"
+    assert srv.api_kiem_tap(_Req(), duong_dan=r"Z:\LI093")["san_sang"] is True
+
+
+def test_doi_ca_chu_thuong_va_dau_gach_xuoi(nas):
+    _job_folder(nas, "LI093")
+    for tho in (r"z:\LI093", "Z:/LI093", r'"Z:\LI093"'):
+        assert srv.doi_duong_dan(tho) == nas / "LI093", tho
+
+
+def test_doi_duong_UNC(nas):
+    """Có người copy kiểu \\\\192.168.1.250\\Video\\... thay vì ổ đã map."""
+    _job_folder(nas, "LI093")
+    assert srv.doi_duong_dan(r"\\192.168.1.250\Video\LI093") == nas / "LI093"
+
+
+def test_duong_may_chu_giu_nguyen(nas):
+    d = _job_folder(nas, "LI093")
+    assert srv.doi_duong_dan(str(d)) == d
+
+
+def test_chi_rieng_Z_khong_kem_gi(nas):
+    assert srv.doi_duong_dan("Z:") == nas
+    assert srv.doi_duong_dan("Z:\\") == nas
+
+
+def test_o_mang_KHAC_van_bi_chan(nas):
+    """Y: là share NAS1 — KHÔNG phải nơi để tập, vẫn phải chặn."""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as e:
+        srv.api_add_job(srv.JobRequest(folder=r"Y:\gi-do"), _Req())
+    assert e.value.status_code == 422
+
+
 # ------------------------------ nộp job -------------------------------------
 def test_nop_job_vao_hang_doi(nas):
     d = _job_folder(nas, "LI070")

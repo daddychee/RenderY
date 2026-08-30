@@ -422,17 +422,41 @@ def api_me(request: Request):
             "xem_het": is_admin(request)}
 
 
-def _trong_nas(p: Path) -> Path:
+# Nhân sự thấy NAS qua Ổ MẠNG, máy chủ thấy qua ổ đĩa — cùng một chỗ, khác đường.
+# CRM gán chữ ổ theo thứ tự share (`to-chuc/src/main.py:_NAS_CHU_O = "YZXWVU"`):
+# NAS1 = Y:, Video = Z:. Đường UNC cũng nhận vì có người copy kiểu đó.
+_TIEN_TO_NAS = ("z:", r"\\192.168.1.250\video")
+
+
+def doi_duong_dan(tho: str) -> Path:
+    """Đường dẫn nhân sự dán -> đường dẫn máy chủ hiểu.
+
+    `Z:\\Life In\\US\\LI093` -> `F:\\OutlierY Nas 2\\Life In\\US\\LI093`.
+    Đã đúng gốc rồi thì giữ nguyên.
+    """
+    s = (tho or "").strip().strip('"').replace("/", "\\")
+    thap = s.lower()
+    for tien_to in _TIEN_TO_NAS:
+        if thap.startswith(tien_to):
+            con_lai = s[len(tien_to):].lstrip("\\")
+            return NAS_ROOT / con_lai if con_lai else NAS_ROOT
+    return Path(s)
+
+
+def _trong_nas(p: "Path | str") -> Path:
     """Ép đường dẫn phải NẰM TRONG gốc NAS. Raise HTTPException nếu không.
 
     Nhân sự dán đường dẫn tự do nên đây là rào duy nhất — không chặn thì bơm được
     đường dẫn bất kỳ vào worker (worker chạy lệnh trên thư mục đó).
     """
+    duong = doi_duong_dan(str(p))
     try:
-        real = Path(p).expanduser().resolve()
+        real = duong.expanduser().resolve()
         real.relative_to(NAS_ROOT.resolve())
     except (ValueError, OSError):
-        raise HTTPException(422, f"Đường dẫn phải nằm trong {NAS_ROOT}")
+        raise HTTPException(
+            422, f"Đường dẫn phải nằm trong NAS. Máy chủ thấy NAS ở {NAS_ROOT}; "
+                 f"ổ mạng Z:\\ của bạn cũng được (tự quy đổi).")
     return real
 
 
