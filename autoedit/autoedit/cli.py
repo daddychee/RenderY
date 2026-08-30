@@ -128,6 +128,8 @@ def make(
     language: str = typer.Option("auto", "--language"),
     align_backend: str = typer.Option("auto", "--align-backend",
                                       help="Nguồn timestamp: auto (có .srt thì đọc) | srt | whisper."),
+    use_sub: bool = typer.Option(True, "--sub/--no-sub",
+                                 help="Dùng nguồn subscription (Envato/Vecteezy) khi stock free chưa đủ."),
     music_sync: bool = typer.Option(False, "--music-sync", help="Bật gói MUSIC SYNC (stage music: nhạc hook to + snap accent + đổi nhạc neo cut)."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
@@ -181,6 +183,7 @@ def make(
     run(Path(project.project_dir), niche=channel, music=None, model=whisper_model,
         language=language, align_backend=align_backend,
         director_model=director_model, with_enrich=enrich,
+        use_sub=use_sub if isinstance(use_sub, bool) else True,
         music_sync=music_sync if isinstance(music_sync, bool) else False)
 
     project = Project.load(project.project_dir)
@@ -1249,6 +1252,8 @@ def run(
     align_backend: str = typer.Option("auto", "--align-backend",
                                       help="Nguồn timestamp stage align: auto | srt | whisper."),
     srt: Optional[Path] = typer.Option(None, "--srt", help="Đường dẫn .srt cho stage align."),
+    use_sub: bool = typer.Option(True, "--sub/--no-sub",
+                                 help="Dùng nguồn subscription ở stage source (xem `sub-status`)."),
     director_model: str = typer.Option("claude-sonnet-4-6", "--director-model", help="Model LLM đạo diễn."),
     with_enrich: bool = typer.Option(False, "--enrich", help="Chèn stage enrich (web-grounded; bổ sung CẦN duyệt mới render)."),
     music_sync: bool = typer.Option(False, "--music-sync", help="MUSIC SYNC: chèn stage music (chọn nhạc + neo accent TRƯỚC assemble). Mặc định TẮT."),
@@ -1313,7 +1318,8 @@ def run(
             # truyền niche tường minh (bug OptionInfo 13/06) — pool nhạc riêng của niche
             music_cmd(project_dir, lib=None, niche=niche)
         elif stage == Stage.SOURCE:
-            source(project_dir, niche=niche)
+            source(project_dir, niche=niche,
+                   use_sub=use_sub if isinstance(use_sub, bool) else True)
         elif stage == Stage.ASSEMBLE:
             # credit=False tường minh (bug OptionInfo 13/06 — thiếu thì nhận OptionInfo
             # truthy -> bật ghi công VD4 ngoài ý muốn; phát hiện khi rà P5 2026-07-17)

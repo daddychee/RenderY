@@ -12,7 +12,7 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
        font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-  header{display:flex;align-items:center;gap:16px;padding:14px 20px;
+  header{display:flex;align-items:center;gap:14px;padding:14px 20px;
          border-bottom:1px solid var(--line);background:var(--panel)}
   h1{font-size:16px;margin:0;letter-spacing:.3px}
   .grow{flex:1}
@@ -20,53 +20,108 @@
          border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
   button:hover{background:#2c3444}
   button.primary{background:var(--run);border-color:var(--run);color:#fff}
+  button.primary:hover{background:#2f6fd0}
   button:disabled{opacity:.45;cursor:not-allowed}
-  main{padding:20px;max-width:1100px;margin:0 auto}
+  button.tab.on{background:#2c3444;border-color:#3a4352}
+  main{padding:20px;max-width:1080px;margin:0 auto}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
         padding:14px 16px;margin-bottom:12px}
-  .row{display:flex;align-items:center;gap:12px}
-  .pid{font-weight:600}
+  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .muted{color:var(--dim);font-size:12px}
-  .stages{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
-  .st{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);
-      color:var(--dim)}
-  .st.done{background:rgba(63,185,80,.14);border-color:var(--ok);color:var(--ok)}
-  .st.running{background:rgba(59,130,246,.16);border-color:var(--run);color:#8ab4ff}
-  .st.failed{background:rgba(248,81,73,.14);border-color:var(--fail);color:var(--fail)}
-  .warn{color:var(--warn);font-size:12px;margin-top:6px}
-  .err{color:var(--fail);font-size:12px;margin-top:6px;white-space:pre-wrap}
-  pre{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px;
-      max-height:360px;overflow:auto;font-size:12px;margin:10px 0 0}
+  .big{font-size:15px;font-weight:600}
   table{width:100%;border-collapse:collapse}
-  td{padding:6px 4px;border-bottom:1px solid var(--line)}
-  input{background:#0b0d11;border:1px solid var(--line);color:var(--txt);
-        border-radius:6px;padding:6px 9px;width:100%;font-size:13px}
+  td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+  input,select{background:#0b0d11;border:1px solid var(--line);color:var(--txt);
+        border-radius:6px;padding:6px 9px;font-size:13px}
+  input{width:100%}
   .hide{display:none}
+  .bar{height:6px;background:#0b0d11;border-radius:99px;overflow:hidden;margin:8px 0 4px}
+  .bar>i{display:block;height:100%;background:var(--run);transition:width .5s}
+  .pill{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);
+        color:var(--dim)}
+  .pill.done{background:rgba(63,185,80,.14);border-color:var(--ok);color:var(--ok)}
+  .pill.running{background:rgba(59,130,246,.16);border-color:var(--run);color:#8ab4ff}
+  .pill.failed{background:rgba(248,81,73,.14);border-color:var(--fail);color:var(--fail)}
+  .pill.queued{background:rgba(210,153,34,.12);border-color:var(--warn);color:var(--warn)}
+  .pill.canceled{opacity:.6}
+  .err{color:var(--fail);font-size:12px;margin-top:6px;white-space:pre-wrap;
+       max-height:120px;overflow:auto}
+  .warn{color:var(--warn);font-size:12px}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px;
+      max-height:340px;overflow:auto;font-size:12px;margin:10px 0 0}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
   .dot.ok{background:var(--ok)} .dot.no{background:#444b58}
+  .fold{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;
+        cursor:pointer;background:#12151b}
+  .fold:hover{border-color:#39414f}
+  .fold.sel{border-color:var(--run);background:rgba(59,130,246,.08)}
+  .fold.bad{opacity:.65}
 </style>
 </head>
 <body>
 <header>
   <h1>🎬 RenderY</h1>
-  <span class="muted" id="sub">bảng điều khiển</span>
+  <span class="muted" id="sub"></span>
   <span class="grow"></span>
-  <button onclick="showTab('projects')">Dự án</button>
-  <button onclick="showTab('sources')">Nguồn</button>
-  <button onclick="showTab('settings')">⚙ Cài đặt</button>
+  <button class="tab on" id="t-dung" onclick="showTab('dung')">Dựng video</button>
+  <button class="tab" id="t-sources" onclick="showTab('sources')">Nguồn</button>
+  <button class="tab" id="t-settings" onclick="showTab('settings')">⚙ Cài đặt</button>
 </header>
 
 <main>
-  <div id="tab-projects"></div>
+  <!-- ─────────────────────────── DỰNG VIDEO ─────────────────────────── -->
+  <div id="tab-dung">
+    <div class="card">
+      <div class="row">
+        <span class="big">1. Chọn thư mục công việc</span>
+        <span class="grow"></span>
+        <span class="muted" id="nas-path"></span>
+        <button onclick="loadInbox()">↻ Làm mới</button>
+      </div>
+      <div class="muted" style="margin:6px 0 10px">
+        Tạo thư mục trên NAS, mỗi chương một thư mục con chứa
+        <b>kịch bản (.txt)</b> + <b>voice (.mp3)</b> + <b>phụ đề (.srt)</b> nếu có.
+      </div>
+      <div id="inbox">đang tải…</div>
+    </div>
 
+    <div class="card" id="box-nop" style="display:none">
+      <div class="big">2. Nộp việc</div>
+      <table style="margin-top:8px">
+        <tr><td style="width:150px">Kênh / niche</td>
+            <td><input id="opt-niche" placeholder="(tuỳ chọn) vd: life-in"></td></tr>
+        <tr><td>Nguồn footage</td>
+            <td><select id="opt-sub">
+                  <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
+                  <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
+                </select></td></tr>
+      </table>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="btn-nop" onclick="nopJob()">▶ Bắt đầu dựng</button>
+        <span class="muted" id="nop-msg"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="big">3. Việc đang chạy</span>
+        <span class="grow"></span>
+        <span class="muted" id="queue-stat"></span>
+      </div>
+      <div id="jobs" style="margin-top:10px">đang tải…</div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── NGUỒN ─────────────────────────── -->
   <div id="tab-sources" class="hide">
     <div class="card"><b>Nguồn footage</b><div id="src-list" class="muted">đang tải…</div></div>
   </div>
 
+  <!-- ─────────────────────────── CÀI ĐẶT ─────────────────────────── -->
   <div id="tab-settings" class="hide">
     <div class="card">
       <b>Cài đặt</b>
-      <div class="muted">Để trống = giữ giá trị cũ. Secret hiển thị dạng che.</div>
+      <div class="muted">Để trống = giữ giá trị cũ. Khoá bí mật hiển thị dạng che.</div>
       <table id="set-table"></table>
       <div style="margin-top:10px">
         <button class="primary" onclick="saveSettings()">Lưu</button>
@@ -79,108 +134,191 @@
 <script>
 const TOKEN = new URLSearchParams(location.search).get('token') || ''
 const H = TOKEN ? {'x-rendery-token': TOKEN} : {}
+let chon = null        // folder đang chọn
 let timer = null
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
 
+function phut(giay) {
+  if (giay == null) return ''
+  const p = Math.round(giay / 60)
+  if (p < 1) return 'dưới 1 phút'
+  if (p < 60) return `~${p} phút`
+  const h = Math.floor(p / 60)
+  return `~${h} giờ${p % 60 ? ' ' + (p % 60) + ' phút' : ''}`
+}
+
 async function api(path, opts = {}) {
   const r = await fetch(path, {...opts, headers: {...H, ...(opts.headers || {})}})
-  if (!r.ok) throw new Error((await r.text()).slice(0, 200))
+  if (!r.ok) throw new Error((await r.text()).slice(0, 300))
   return r.headers.get('content-type')?.includes('json') ? r.json() : r.text()
 }
 
 function showTab(name) {
-  for (const t of ['projects', 'sources', 'settings'])
+  for (const t of ['dung', 'sources', 'settings']) {
     document.getElementById('tab-' + t).classList.toggle('hide', t !== name)
+    document.getElementById('t-' + t).classList.toggle('on', t === name)
+  }
   if (name === 'sources') loadSources()
   if (name === 'settings') loadSettings()
 }
 
-// ------------------------------ dự án --------------------------------------
-async function loadProjects() {
+// ─────────────────────────── chọn thư mục ───────────────────────────
+async function loadInbox() {
+  const el = document.getElementById('inbox')
   let d
-  try { d = await api('/api/projects') }
-  catch (e) {
-    document.getElementById('tab-projects').innerHTML =
-      `<div class="card err">Không tải được: ${esc(e.message)}</div>`
+  try { d = await api('/api/inbox') }
+  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
+
+  document.getElementById('nas-path').textContent = d.nas
+  if (!d.ready) { el.innerHTML = `<div class="warn">${esc(d.loi)}</div>`; return }
+  if (!d.folders.length) {
+    el.innerHTML = `<div class="muted">Chưa có thư mục nào trong _INBOX.</div>`
     return
   }
-  document.getElementById('sub').textContent = `${d.projects.length} dự án`
-  const el = document.getElementById('tab-projects')
-  if (!d.projects.length) {
-    el.innerHTML = `<div class="card muted">Chưa có dự án nào.<br>
-      Tạo bằng: <code>rendery.bat make &lt;folder chương&gt;</code></div>`
-    return
+  // Không nhúng path vào onclick: đường dẫn Windows có dấu \ và có thể có nháy —
+  // gắn dữ liệu vào dataset rồi bind bằng JS.
+  el.innerHTML = d.folders.map((f, i) => {
+    const s = f.san_sang
+    const thieu = s.ok ? '' :
+      `<div class="warn" style="margin-top:4px">⚠ ${s.thieu.map(esc).join(' · ')}</div>`
+    return `<div class="fold${s.ok ? '' : ' bad'}" data-i="${i}">
+      <div class="row">
+        <b>${esc(f.ten)}</b>
+        <span class="muted">${s.so_chuong} chương: ${f.chuong.map(esc).join(', ')}</span>
+        <span class="grow"></span>
+        <span class="muted">${s.ok ? '✓ đủ file' : 'thiếu file'}</span>
+      </div>${thieu}</div>`
+  }).join('')
+  for (const div of el.querySelectorAll('.fold')) {
+    const f = d.folders[+div.dataset.i]
+    div.addEventListener('click', () => pick(div, f))
   }
-  el.innerHTML = d.projects.map(p => card(p, d.jobs[p.project_id])).join('')
-  // job đang chạy -> tự làm mới
-  const running = Object.values(d.jobs).some(j => j.status === 'running')
-  clearTimeout(timer)
-  if (running) timer = setTimeout(loadProjects, 3000)
 }
 
-function card(p, job) {
-  const running = job && job.status === 'running'
-  const stages = Object.entries(p.stages)
-    .map(([k, v]) => `<span class="st ${esc(v.status)}">${esc(k)}</span>`).join('')
-  const errs = Object.entries(p.stages).filter(([, v]) => v.error)
-    .map(([k, v]) => `<div class="err">✗ ${esc(k)}: ${esc(v.error)}</div>`).join('')
-  const warns = p.warnings.length
-    ? `<div class="warn">⚠ ${p.warnings.length} cảnh báo: ${esc(p.warnings[0])}${
-        p.warnings.length > 1 ? ` (+${p.warnings.length - 1})` : ''}</div>` : ''
-  return `<div class="card">
+function pick(div, f) {
+  if (!f.san_sang.ok) {
+    alert('Thư mục này còn thiếu file — bổ sung rồi bấm ↻ Làm mới.')
+    return
+  }
+  chon = f
+  for (const e of document.querySelectorAll('.fold')) e.classList.remove('sel')
+  div.classList.add('sel')
+  document.getElementById('box-nop').style.display = ''
+  document.getElementById('nop-msg').textContent = ''
+}
+
+// ─────────────────────────── nộp việc ───────────────────────────
+async function nopJob() {
+  if (!chon) return
+  const btn = document.getElementById('btn-nop'), msg = document.getElementById('nop-msg')
+  btn.disabled = true
+  msg.textContent = 'đang xếp hàng…'
+  try {
+    const r = await api('/api/jobs', {
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        folder: chon.path,
+        niche: document.getElementById('opt-niche').value.trim(),
+        no_sub: document.getElementById('opt-sub').value === '1',
+      }),
+    })
+    const cho = r.wait_ahead
+    msg.textContent = cho ? `✓ Đã xếp hàng — bắt đầu sau ${phut(cho)}` : '✓ Bắt đầu ngay'
+    loadJobs()
+  } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
+  btn.disabled = false
+}
+
+// ─────────────────────────── việc đang chạy ───────────────────────────
+async function loadJobs() {
+  const el = document.getElementById('jobs')
+  let d
+  try { d = await api('/api/jobs') }
+  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
+
+  const s = d.stats
+  document.getElementById('queue-stat').textContent =
+    `${s.running}/${s.workers} máy đang chạy · ${s.queued} chờ`
+  document.getElementById('sub').textContent = d.nguoi ? `— ${d.nguoi}` : ''
+
+  if (!d.jobs.length) {
+    el.innerHTML = `<div class="muted">Chưa có việc nào.</div>`
+  } else {
+    el.innerHTML = d.jobs.map(jobCard).join('')
+  }
+  // job đang chạy hoặc đang chờ -> tự làm mới
+  clearTimeout(timer)
+  if (d.jobs.some(j => j.status === 'running' || j.status === 'queued'))
+    timer = setTimeout(loadJobs, 5000)
+  if (d.unseen) markSeen()
+}
+
+const NHAN = {queued: 'đang chờ', running: 'đang chạy', done: 'xong',
+              failed: 'lỗi', canceled: 'đã huỷ'}
+
+function jobCard(j) {
+  const ten = j.job_folder.replace(/\\/g, '/').split('/').filter(Boolean).pop()
+  let phai = ''
+  if (j.status === 'running')
+    phai = `<span class="muted">${esc(j.stage || '')} · còn ${phut(j.eta)}</span>`
+  else if (j.status === 'queued')
+    phai = `<span class="muted">bắt đầu sau ${phut(j.wait_ahead)}</span>`
+
+  const bar = j.status === 'running'
+    ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>` : ''
+  const err = j.error
+    ? `<div class="err">${esc(j.error.slice(0, 600))}</div>` : ''
+  const huy = j.status === 'queued'
+    ? `<button onclick="huyJob(${j.id})">Huỷ</button>` : ''
+  const log = (j.status !== 'queued')
+    ? `<button onclick="xemLog(${j.id})">Log</button>` : ''
+
+  return `<div class="card" style="margin-bottom:8px">
     <div class="row">
-      <span class="pid">${esc(p.project_id)}</span>
-      <span class="muted">${p.done}/${p.total} stage · ${p.beats} beat · ${p.shots} shot</span>
-      <span class="grow"></span>
-      <button class="primary" ${running ? 'disabled' : ''}
-              onclick="runPipeline('${esc(p.project_id)}')">
-        ${running ? '⏳ đang chạy…' : '▶ Chạy'}</button>
-      <button onclick="toggleLog('${esc(p.project_id)}')">Log</button>
+      <span class="pill ${esc(j.status)}">${NHAN[j.status] || esc(j.status)}</span>
+      <b>${esc(ten)}</b>
+      <span class="grow"></span>${phai} ${huy} ${log}
     </div>
-    <div class="stages">${stages}</div>
-    ${errs}${warns}
-    ${p.draft_path ? `<div class="muted">draft: ${esc(p.draft_path)}</div>` : ''}
-    <pre id="log-${esc(p.project_id)}" class="hide"></pre>
+    ${bar}${err}
+    <pre id="jlog-${j.id}" class="hide"></pre>
   </div>`
 }
 
-async function runPipeline(pid) {
-  try {
-    await api(`/api/run/${pid}`, {
-      method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({stage: '', align_backend: 'auto'}),
-    })
-    loadProjects()
-  } catch (e) { alert('Không chạy được: ' + e.message) }
+async function huyJob(id) {
+  try { await api(`/api/jobs/${id}/cancel`, {method: 'POST'}); loadJobs() }
+  catch (e) { alert('Không huỷ được: ' + e.message) }
 }
 
-async function toggleLog(pid) {
-  const el = document.getElementById('log-' + pid)
+async function xemLog(id) {
+  const el = document.getElementById('jlog-' + id)
   if (!el.classList.contains('hide')) { el.classList.add('hide'); return }
   el.classList.remove('hide')
-  el.textContent = 'đang tải log…'
-  try { el.textContent = await api(`/api/log/${pid}`) }
+  el.textContent = 'đang tải…'
+  try { el.textContent = await api(`/api/joblog/${id}`) }
   catch (e) { el.textContent = 'Không đọc được log: ' + e.message }
   el.scrollTop = el.scrollHeight
 }
 
-// ------------------------------ nguồn --------------------------------------
+async function markSeen() {
+  try { await api('/api/jobs/seen', {method: 'POST'}) } catch {}
+}
+
+// ─────────────────────────── nguồn ───────────────────────────
 async function loadSources() {
   const el = document.getElementById('src-list')
   try {
     const d = await api('/api/sources')
     el.innerHTML = d.sources.map(s => `<div style="margin-top:8px">
-      <span class="dot ${s.ready ? 'ok' : 'no'}"></span>
-      <b>${esc(s.name)}</b>
+      <span class="dot ${s.ready ? 'ok' : 'no'}"></span><b>${esc(s.name)}</b>
       ${s.ready ? '<span class="muted">sẵn sàng</span>'
                 : `<span class="muted">thiếu: ${esc(s.need)}</span>`}
     </div>`).join('')
   } catch (e) { el.textContent = 'Lỗi: ' + e.message }
 }
 
-// ------------------------------ cài đặt ------------------------------------
+// ─────────────────────────── cài đặt ───────────────────────────
 async function loadSettings() {
   const t = document.getElementById('set-table')
   try {
@@ -188,8 +326,7 @@ async function loadSettings() {
     t.innerHTML = d.settings.map(s => `<tr>
       <td style="width:230px">${esc(s.key)}</td>
       <td><input id="set-${esc(s.key)}" placeholder="${
-        s.set ? esc(s.value) : '(chưa đặt)'}"></td>
-    </tr>`).join('')
+        s.set ? esc(s.value) : '(chưa đặt)'}"></td></tr>`).join('')
   } catch (e) { t.innerHTML = `<tr><td class="err">${esc(e.message)}</td></tr>` }
 }
 
@@ -211,7 +348,8 @@ async function saveSettings() {
   } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
 }
 
-loadProjects()
+loadInbox()
+loadJobs()
 </script>
 </body>
 </html>
