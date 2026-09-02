@@ -21,6 +21,7 @@ Các lệnh tương lai (làm ở milestone sau):
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +33,41 @@ app = typer.Typer(
     add_completion=False,
     help="AutoEdit — script + voice -> CapCut draft (PADOMA MEDIA).",
 )
+
+
+def _mac_dinh_that(fn):
+    """Cho phép GỌI TRỰC TIẾP một lệnh typer từ Python (vd `make` gọi `run`).
+
+    Typer chỉ thay `typer.Option(x)` bằng `x` khi lệnh chạy QUA dòng lệnh. Gọi thẳng
+    trong Python thì tham số không truyền giữ nguyên đối tượng OptionInfo — code sau
+    đó đem nhân/so sánh là nổ (`unsupported operand *: int and OptionInfo`) hoặc tệ
+    hơn: OptionInfo luôn truthy nên cờ mặc-định-TẮT lại bật.
+
+    Bug này đã tái diễn 3 lần (13/06, 17/07, và 30/08 giết job 47 phút ngay ở
+    assemble) vì mỗi lần chỉ vá bằng `isinstance` TẠI CHỖ DÙNG — vá chỗ này, chỗ
+    khác vẫn hở. Decorator vá ở CỬA VÀO nên bịt cả họ, kể cả tham số thêm sau này.
+    """
+    import functools
+    import inspect
+
+    sig = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        bound = sig.bind_partial(*args, **kwargs)
+        for ten, tham_so in sig.parameters.items():
+            if ten in bound.arguments:
+                continue
+            m = tham_so.default
+            # OptionInfo/ArgumentInfo mang default THẬT ở thuộc tính .default
+            if m.__class__.__name__ in ("OptionInfo", "ArgumentInfo"):
+                that = getattr(m, "default", None)
+                # `...` = bắt buộc: để nguyên cho typer báo lỗi thiếu tham số
+                if that is not ...:
+                    kwargs[ten] = that
+        return fn(*args, **kwargs)
+
+    return wrapper
 
 
 @app.callback()
@@ -78,11 +114,26 @@ _TEXT_EXTS = (".txt", ".md", ".rtf")
 _AUDIO_EXTS = (".mp3", ".wav", ".m4a", ".aac", ".flac")
 
 
+def _la_file_ref(folder: Path, p: Path) -> bool:
+    """File này thuộc về một VIDEO REF (có video cùng tên gốc) hay không.
+
+    'Ref 1.srt' đi kèm 'Ref 1.mp4' -> là phụ đề video tham chiếu. Cùng tên gốc là
+    dấu hiệu chắc chắn, không đoán theo chữ 'ref' trong tên (nhân sự đặt tên tự do).
+    """
+    from autoedit.sourcer.refvideo import VIDEO_EXTS
+
+    return any((folder / (p.stem + e)).is_file() for e in VIDEO_EXTS)
+
+
 def _pick_input(folder: Path, exts: tuple[str, ...], preferred_stem: str):
     """Chọn 1 file theo ĐUÔI (tên bất kỳ): ưu tiên stem chuẩn (script/voice), không thì
     nếu chỉ có 1 file đúng đuôi → lấy luôn. Nhiều file → heuristic (ưu .txt, rồi to nhất).
     Trả (path, lý-do): ok | none | many."""
     files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in exts]
+    # Loại file của VIDEO REF (02/09): 'Ref 1.srt' là phụ đề video tham chiếu, KHÔNG
+    # phải transcript của voice. Chỉ có nó trong thư mục thì nhánh len(files)==1 ở
+    # dưới lấy nhầm -> align voice bằng phụ đề video khác, lệch toàn bộ timeline.
+    files = [p for p in files if not _la_file_ref(folder, p)]
     # Ưu tiên 1: tên chuẩn
     for p in files:
         if p.stem.lower() == preferred_stem:
@@ -118,19 +169,82 @@ def _rtf_to_txt(rtf: Path) -> Path:
     return out
 
 
+def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
+    """Project đã dựng XONG cho đúng thư mục chương này (nếu có).
+
+    31/08: job LI093 chết ở chương cuối vì Pexels trả 504. H/C7/c8 đã có draft nhưng
+    nộp lại là dựng lại CẢ BA từ đầu — mất ~15 phút và tiền API cho việc đã làm xong.
+
+    Điều kiện nhận: cùng script + cùng voice gốc, và ĐÃ CÓ draft thật trên đĩa. Chỉ
+    so đường dẫn là chưa đủ — writer sửa kịch bản rồi nộp lại thì phải dựng lại, nên
+    so cả kích thước + thời điểm sửa của hai file nguồn.
+    """
+    import json
+
+    from autoedit.project import Project
+
+    goc = Path(out_dir)
+    if not goc.is_dir():
+        return None
+    ung_vien = []
+    for f in goc.glob("*/project.json"):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        vao = d.get("inputs") or {}
+        try:
+            sc = Path(vao.get("original_script_path") or "")
+            vo = Path(vao.get("original_voice_path") or "")
+        except (TypeError, ValueError):
+            continue
+        if sc.parent.resolve() != Path(folder).resolve():
+            continue
+        draft = d.get("draft_path")
+        if not draft or not Path(draft).is_dir():
+            continue
+        # Nguồn đổi SAU khi project được tạo (writer sửa kịch bản, gen lại voice)
+        # -> KHÔNG tái dùng. So mtime file nguồn với thời điểm tạo project: dữ liệu
+        # đã có sẵn, khỏi thêm trường mới vào schema.
+        try:
+            if not (sc.is_file() and vo.is_file()):
+                continue
+            tao = datetime.fromisoformat(d.get("created_at") or "").timestamp()
+            if max(sc.stat().st_mtime, vo.stat().st_mtime) > tao + 1:
+                continue
+        except (OSError, ValueError):
+            continue
+        ung_vien.append((f.stat().st_mtime, f.parent))
+    if not ung_vien:
+        return None
+    duong_dan = max(ung_vien)[1]
+    try:
+        return Project.load(duong_dan)
+    except Exception as exc:
+        # Fail-safe: đọc không được thì DỰNG LẠI (an toàn hơn giao bản không chắc),
+        # nhưng phải nói ra — nuốt im thì chương cứ dựng lại mà không ai hiểu vì sao.
+        typer.secho(f"  ⚠ Có project cũ ở {duong_dan.name} nhưng đọc không được "
+                    f"({exc}) — dựng lại từ đầu.", fg=typer.colors.YELLOW)
+        return None
+
+
 @app.command()
 def make(
     folder: Path = typer.Argument(..., help="Folder 1 video/chương: script.txt + voice.mp3 (+ voice.srt nếu có)."),
     channel: str = typer.Option("", "--channel", help="Tên kênh/niche (dùng thư viện footage của kênh)."),
     enrich: bool = typer.Option(False, "--enrich", help="Sinh biểu đồ/thẻ bổ sung (cần duyệt thêm)."),
     whisper_model: str = typer.Option("small", "--whisper-model", help="Model align."),
-    director_model: str = typer.Option("claude-sonnet-4-6", "--director-model"),
+    director_model: str = typer.Option("", "--director-model"),
+    director_engine: str = typer.Option("glm", "--director-engine",
+                                       help="LLM đạo diễn: glm (mặc định) | claude-code | api."),
     language: str = typer.Option("auto", "--language"),
     align_backend: str = typer.Option("auto", "--align-backend",
                                       help="Nguồn timestamp: auto (có .srt thì đọc) | srt | whisper."),
     use_sub: bool = typer.Option(True, "--sub/--no-sub",
                                  help="Dùng nguồn subscription (Envato/Vecteezy) khi stock free chưa đủ."),
     music_sync: bool = typer.Option(False, "--music-sync", help="Bật gói MUSIC SYNC (stage music: nhạc hook to + snap accent + đổi nhạc neo cut)."),
+    lam_lai: bool = typer.Option(False, "--lam-lai",
+                                 help="Dựng MỚI kể cả khi chương này đã có draft xong."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
@@ -165,6 +279,14 @@ def make(
 
     srt_src = _pick_input(folder, (".srt",), voice.stem)[0]
 
+    cu = None if lam_lai else _project_cu_dung_duoc(folder, Path("projects"))
+    if cu is not None:
+        # Chương này đã dựng XONG (có draft, nguồn không đổi) -> giao lại bản cũ.
+        typer.echo(f"  ✓ Tạo project: {cu.project_id}")
+        typer.secho(f"✓ '{folder.name}' đã dựng xong trước đó — dùng lại draft cũ "
+                    f"(thêm --lam-lai để dựng mới).", fg=typer.colors.GREEN)
+        return
+
     try:
         project = create_project(script=script, voice=voice, out_dir=Path("projects"),
                                  title=folder.name, channel=channel or None, srt=srt_src)
@@ -180,11 +302,12 @@ def make(
     typer.secho(f"✓ Bắt đầu dựng '{folder.name}' (vài phút — đừng tắt)...", fg=typer.colors.CYAN)
     # chạy hết pipeline (run đã gồm REPORT cuối). Truyền tham số tường minh (bug OptionInfo).
     # .srt đã copy vào project cạnh voice -> aligner tự tìm, không cần truyền srt=.
+    # Tham so KHONG truyen o day (footage_speed, srt, epidemic, sfx_llm...) duoc
+    # @_mac_dinh_that bom gia tri mac dinh THAT vao — khong con OptionInfo.
     run(Path(project.project_dir), niche=channel, music=None, model=whisper_model,
         language=language, align_backend=align_backend,
-        director_model=director_model, with_enrich=enrich,
-        use_sub=use_sub if isinstance(use_sub, bool) else True,
-        music_sync=music_sync if isinstance(music_sync, bool) else False)
+        director_model=director_model, director_engine=director_engine, with_enrich=enrich,
+        use_sub=use_sub, music_sync=music_sync)
 
     project = Project.load(project.project_dir)
     if project.report_path:
@@ -356,6 +479,7 @@ def demo_draft_cmd(
 
 
 @app.command()
+@_mac_dinh_that
 def align(
     project_dir: Path = typer.Argument(..., help="Folder project (chứa project.json)."),
     model: str = typer.Option("small", "--model", help="Cỡ model faster-whisper: tiny/base/small/medium."),
@@ -420,15 +544,17 @@ def align(
 
 
 @app.command()
+@_mac_dinh_that
 def direct(
     project_dir: Path = typer.Argument(..., help="Folder project (đã align)."),
-    model: str = typer.Option("claude-sonnet-4-6", "--model", help="Model (claude-code: alias 'sonnet'/'opus' hoặc tên đầy đủ)."),
+    model: str = typer.Option("", "--model", help="Model. Bỏ trống = mặc định của engine."),
     engine: str = typer.Option(
-        "claude-code", "--engine",
-        help="claude-code = qua Claude Code subscription (mặc định, không key); api = Anthropic API key.",
+        "glm", "--engine",
+        help="glm = GLM API (mặc định, ~8s/lần); claude-code = qua Claude Code subscription "
+             "(~120s/lần); api = Anthropic API key.",
     ),
 ) -> None:
-    """Stage 2: LLM đạo diễn chia beat — 2 pass. Mặc định qua Claude Code (subscription)."""
+    """Stage 2: LLM đạo diễn chia beat — 2 pass. Mặc định GLM (đo 30/08: nhanh hơn 15x)."""
     from collections import Counter
 
     from autoedit.director.runner import run_direct
@@ -441,12 +567,26 @@ def direct(
         raise typer.Exit(code=1)
 
     log_dir = Path(project_dir) / "llm_log"
-    if engine == "claude-code":
+    if engine == "glm":
+        from autoedit.director.glm_client import DEFAULT_MODEL as GLM_MD
+        from autoedit.director.glm_client import GLMDirectorClient
+        try:
+            client = GLMDirectorClient(model=model or GLM_MD, log_dir=log_dir)
+        except RuntimeError as exc:
+            typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+    elif engine == "claude-code":
         from autoedit.director.cc_client import ClaudeCodeDirectorClient
-        client = ClaudeCodeDirectorClient(model=model, log_dir=log_dir)
-    else:
+        client = ClaudeCodeDirectorClient(model=model or "sonnet", log_dir=log_dir)
+    elif engine == "api":
+        from autoedit.director.client import DEFAULT_MODEL as CL_MD
         from autoedit.director.client import ClaudeDirectorClient
-        client = ClaudeDirectorClient(model=model, log_dir=log_dir)
+        client = ClaudeDirectorClient(model=model or CL_MD, log_dir=log_dir)
+    else:
+        typer.secho(f"Lỗi: --engine phải là glm | claude-code | api (nhận '{engine}')",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    model = client.model
     typer.echo(f"Direct {project.project_id} (engine={engine}, {model}, 2 pass)...")
     n_cost = len(project.cost_log)
 
@@ -566,6 +706,7 @@ def direct_ingest_cmd(
 
 
 @app.command()
+@_mac_dinh_that
 def enrich(
     project_dir: Path = typer.Argument(..., help="Folder project (đã direct)."),
     model: str = typer.Option("claude-sonnet-4-6", "--model", help="Model Claude API."),
@@ -651,6 +792,7 @@ def enrich_approve(
 
 
 @app.command()
+@_mac_dinh_that
 def cut(
     project_dir: Path = typer.Argument(..., help="Folder project (đã direct)."),
 ) -> None:
@@ -938,6 +1080,7 @@ def insert_cmd(
 
 
 @app.command(name="music")
+@_mac_dinh_that
 def music_cmd(
     project_dir: Path = typer.Argument(..., help="Folder project (đã cut)."),
     lib: Optional[Path] = typer.Option(None, "--lib", help="Thư viện nhạc (mặc định ~/AutoEdit/music)."),
@@ -985,6 +1128,7 @@ def music_cmd(
 
 
 @app.command()
+@_mac_dinh_that
 def source(
     project_dir: Path = typer.Argument(..., help="Folder project (đã cut)."),
     niche: str = typer.Option("", "--niche", help="Niche thư viện local (P6), vd retirement-abroad."),
@@ -993,8 +1137,11 @@ def source(
     rank: bool = typer.Option(
         True, "--rank/--no-rank",
         help="Phễu c5: NÃO chấm ứng viên (1 call/beat, qua Claude Code). --no-rank = heuristic cũ."),
+    # Bỏ TRỐNG để két quyết (RANK_MODEL). Đặt mặc định cứng "claude-sonnet-4-6" ở
+    # đây thì nó CHE cấu hình két: 02/09 két ghi glm-5.3 mà tool vẫn gửi tên model
+    # Claude sang endpoint GLM -> HTTP 400 "modelCode: does not exist".
     rank_model: str = typer.Option(
-        "claude-sonnet-4-6", "--rank-model", help="Model NÃO chấm phễu (alias 'sonnet'/'opus' được)."),
+        "", "--rank-model", help="Model NÃO chấm phễu. Bỏ trống = theo két (RANK_MODEL)."),
     ref: Optional[list[Path]] = typer.Option(
         None, "--ref",
         help="Folder/video NGUỒN MẪU CỦA BÀI (lặp được) — cảnh từ nguồn này được chèn "
@@ -1035,8 +1182,18 @@ def source(
     pexels_keys = collect_pexels_keys()
     pixabay_keys = collect_pixabay_keys()
     if not pexels_keys and not pixabay_keys:
-        typer.secho("Lỗi: thiếu PEXELS_API_KEY (và PIXABAY_API_KEY) trong .env",
-                    fg=typer.colors.RED, err=True)
+        # Trên máy chủ, khoá đến từ KÉT V3 chứ không phải .env — báo ".env" ở đây
+        # khiến người đã nhập đủ khoá tưởng mình nhập thiếu (30/08).
+        typer.secho(
+            "Lỗi: không có khoá kho footage nào (Pexels/Pixabay).",
+            fg=typer.colors.RED, err=True)
+        typer.secho(
+            "  • Chạy qua CRM: kiểm tra General › API Keys › rendery › tim_footage — "
+            "khoá có thể đã nhập nhưng gateway không gọi được lúc chạy.",
+            fg=typer.colors.RED, err=True)
+        typer.secho(
+            "  • Chạy tay: đặt PEXELS_API_KEY / PIXABAY_API_KEY trong .env.",
+            fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
     conn = db.connect()
@@ -1079,17 +1236,33 @@ def source(
             "— beat entity sẽ là needs_human", fg=typer.colors.YELLOW,
         )
 
-    # khi run() gọi trực tiếp, rank/rank_model là OptionInfo -> lấy mặc định (bug B2)
     use_rank = rank if isinstance(rank, bool) else True
-    rmodel = rank_model if isinstance(rank_model, str) else "claude-sonnet-4-6"
+    # Model chấm footage lấy từ KÉT (General › API Keys › rendery › cham_footage,
+    # đổ ra RANK_MODEL). 31/08: két ghi RANK_MODEL nhưng KHÔNG nơi nào đọc, nên
+    # cấu hình 'cham_footage = glm-5.3' bị bỏ qua và stage này vẫn chạy Claude Code.
+    rmodel = rank_model if isinstance(rank_model, str) and rank_model else \
+        os.environ.get("RANK_MODEL", "")
     brain = None
     gate = None
     if use_rank:
-        from autoedit.director.cc_client import ClaudeCodeDirectorClient
-        # PA-1+2 (2026-07-07): batch ~10 beat/call + tắt thinking — sonnet là trần model
-        brain = ClaudeCodeDirectorClient(model=rmodel, log_dir=Path(project_dir) / "llm_log",
-                                         thinking=False)
-        typer.echo(f"  Phễu c5: NÃO chấm qua Claude Code ({rmodel}), batch ~10 beat/call, thinking OFF")
+        log_dir = Path(project_dir) / "llm_log"
+        di_glm = rmodel.lower().startswith("glm") or (
+            not rmodel and bool(os.environ.get("GLM_API_KEY")))
+        if di_glm:
+            from autoedit.director.glm_client import DEFAULT_MODEL as GLM_MD
+            from autoedit.director.glm_client import GLMDirectorClient
+            # Tên model phải HỢP với nhà cung cấp: gửi "claude-sonnet-4-6" sang
+            # endpoint GLM là HTTP 400 "modelCode: does not exist" (02/09).
+            brain = GLMDirectorClient(model=rmodel if rmodel.lower().startswith("glm")
+                                      else GLM_MD, log_dir=log_dir)
+            typer.echo(f"  Phễu c5: NÃO chấm qua GLM ({brain.model}), batch ~10 beat/call")
+        else:
+            from autoedit.director.cc_client import ClaudeCodeDirectorClient
+            # PA-1+2 (2026-07-07): batch ~10 beat/call + tắt thinking — sonnet là trần model
+            brain = ClaudeCodeDirectorClient(model=rmodel or "claude-sonnet-4-6",
+                                             log_dir=log_dir, thinking=False)
+            typer.echo(f"  Phễu c5: NÃO chấm qua Claude Code ({brain.model}), "
+                       f"batch ~10 beat/call, thinking OFF")
         # C5 đợt 5: mắt vision soi lead-pick mọi beat qua phễu (fail-open, tắt khi thiếu key)
         try:
             from autoedit.ranker.visiongate import VisionGate
@@ -1162,6 +1335,7 @@ def source(
 
 
 @app.command()
+@_mac_dinh_that
 def assemble(
     project_dir: Path = typer.Argument(..., help="Folder project (đã source)."),
     music: Optional[Path] = typer.Option(None, "--music", help="1 file nhạc cố định (override tay)."),
@@ -1226,6 +1400,7 @@ def assemble(
 
 
 @app.command()
+@_mac_dinh_that
 def report(
     project_dir: Path = typer.Argument(..., help="Folder project (đã source/assemble)."),
 ) -> None:
@@ -1243,6 +1418,7 @@ def report(
 
 
 @app.command()
+@_mac_dinh_that
 def run(
     project_dir: Path = typer.Argument(..., help="Folder project (tạo bằng `new`)."),
     niche: str = typer.Option("", "--niche", help="Niche thư viện local cho stage source."),
@@ -1254,7 +1430,9 @@ def run(
     srt: Optional[Path] = typer.Option(None, "--srt", help="Đường dẫn .srt cho stage align."),
     use_sub: bool = typer.Option(True, "--sub/--no-sub",
                                  help="Dùng nguồn subscription ở stage source (xem `sub-status`)."),
-    director_model: str = typer.Option("claude-sonnet-4-6", "--director-model", help="Model LLM đạo diễn."),
+    director_model: str = typer.Option("", "--director-model", help="Model LLM đạo diễn."),
+    director_engine: str = typer.Option("glm", "--director-engine",
+                                       help="LLM đạo diễn: glm (mặc định) | claude-code | api."),
     with_enrich: bool = typer.Option(False, "--enrich", help="Chèn stage enrich (web-grounded; bổ sung CẦN duyệt mới render)."),
     music_sync: bool = typer.Option(False, "--music-sync", help="MUSIC SYNC: chèn stage music (chọn nhạc + neo accent TRƯỚC assemble). Mặc định TẮT."),
     footage_speed: Optional[float] = typer.Option(
@@ -1309,7 +1487,7 @@ def run(
         if stage == Stage.ALIGN:
             align(project_dir, model=model, language=language, backend=align_backend, srt=srt)
         elif stage == Stage.DIRECT:
-            direct(project_dir, model=director_model, engine="claude-code")
+            direct(project_dir, model=director_model, engine=director_engine)
         elif stage == Stage.ENRICH:
             enrich(project_dir, model=director_model)
         elif stage == Stage.CUT:
