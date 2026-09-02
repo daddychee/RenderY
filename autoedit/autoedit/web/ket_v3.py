@@ -90,6 +90,20 @@ def nap_env() -> list[str]:
             dat.append("LLM_API_KEY")
             if "glm" in nha or "z.ai" in nha or "zhipu" in nha:
                 os.environ.setdefault("LLM_PROVIDER", "glm")
+                # Mọi code GLM trong repo (director/glm_client, library/vision,
+                # ranker/visiongate, library/stock_tags) đọc GLM_API_KEY chứ KHÔNG
+                # đọc LLM_API_KEY — thiếu dòng này thì két có khoá mà job vẫn báo
+                # "Thiếu GLM_API_KEY" rồi lặng lẽ TẮT vision gate (sự cố 30/08).
+                os.environ["GLM_API_KEY"] = key
+                dat.append("GLM_API_KEY")
+                # Nhiều khoá GLM = nhiều luồng song song (vision/tag chạy
+                # 3 luồng/khoá — quá thì bigmodel cắt kết nối). Khoá phụ đi
+                # GLM_API_KEY_2..9 đúng khuôn library/vision.glm_api_keys().
+                for i, phu in enumerate(ds[1:9], start=2):
+                    kp = phu.get("key") or ""
+                    if kp and (phu.get("nha") or "").lower() == nha:
+                        os.environ[f"GLM_API_KEY_{i}"] = kp
+                        dat.append(f"GLM_API_KEY_{i}")
             elif "deepseek" in nha:
                 os.environ.setdefault("LLM_PROVIDER", "deepseek")
         if muc.get("model"):

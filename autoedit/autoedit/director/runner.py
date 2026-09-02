@@ -27,11 +27,39 @@ from autoedit.project import (
 )
 
 
+# Voice ngắn hơn ngưỡng này -> GỘP outline về MỘT chương trước khi sang pass 2.
+# Hook/End thường 20-60s: chia 3-4 chương là logic của video 20 phút áp nhầm, tốn
+# 3-4 lượt LLM cho cùng một ý và làm tempo phẳng (chính validator kêu "các chương
+# cùng một nhịp"). Đo 30/08 trên hook LI093 34s: 3 chương -> 6 lượt gọi.
+NGUONG_MOT_CHUONG_GIAY = 120.0
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def run_direct(project: Project, client: DirectorClient, on_progress=None) -> Project:
+def _gop_mot_chuong(outline: Outline, words) -> Outline:
+    """Gộp mọi chương của outline thành 1, giữ nguyên tone/motif/chủ thể toàn cục.
+
+    Không bỏ pass 1: nó cho tone, motifs, video_subject — thứ pass 2 cần. Chỉ bỏ
+    việc CẮT VỤN một đoạn ngắn thành nhiều chương.
+    """
+    chs = outline.chapters
+    if len(chs) <= 1:
+        return outline
+    dau = chs[0]
+    gop = dau.model_copy(update={
+        "chapter_id": dau.chapter_id,
+        "start_word": min(c.start_word for c in chs),
+        "end_word": max(c.end_word for c in chs),
+        # tiêu đề chương đầu thường đã là tiêu đề của cả đoạn ngắn
+        "title": dau.title,
+    })
+    return outline.model_copy(update={"chapters": [gop]})
+
+
+def run_direct(project: Project, client: DirectorClient, on_progress=None,
+               gop_chuong_ngan: bool = True) -> Project:
     """on_progress(done, total, label): gọi theo tiến độ (pass 1 + mỗi chương) cho CLI in."""
     align = project.stages.get(Stage.ALIGN)
     if align is None or align.status != StageStatus.DONE or not project.transcript:
@@ -84,6 +112,17 @@ def run_direct(project: Project, client: DirectorClient, on_progress=None) -> Pr
         # ------------------- Pass 1: outline -------------------------------
         _progress(0, 1, "đọc toàn script, chia chương")
         outline = _pass1_outline(client, words, brief, channel, track, record)
+
+        # Đoạn NGẮN (hook/end): gộp về 1 chương — xem NGUONG_MOT_CHUONG_GIAY.
+        thoi_luong = float(getattr(words[-1], "end", 0) or 0) if words else 0.0
+        if (gop_chuong_ngan and thoi_luong
+                and thoi_luong < NGUONG_MOT_CHUONG_GIAY and len(outline.chapters) > 1):
+            cu = len(outline.chapters)
+            outline = _gop_mot_chuong(outline, words)
+            record.warnings.append(
+                f"voice {thoi_luong:.0f}s < {NGUONG_MOT_CHUONG_GIAY:.0f}s — gộp "
+                f"{cu} chương về 1 (đỡ {cu - 1} lượt gọi LLM, tránh tempo phẳng)"
+            )
 
         # ------------------- Pass 2: beats từng chương ---------------------
         outline_json = outline.model_dump_json(indent=1)

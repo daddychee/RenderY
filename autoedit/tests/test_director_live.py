@@ -329,7 +329,9 @@ def test_ingest_clean_draft_matches_old_direct_path(tmp_path):
 
     ch1, ch2 = _drafts((0, 2), (3, 5)), _drafts((6, 8), (9, 11))
     client = FakeClient([GOOD_OUTLINE, ch1, ch2])
-    run_direct(p_old, client)
+    # transcript giả 6 giây -> sẽ bị gộp 1 chương; test so 2 ĐƯỜNG với cùng
+    # outline 2 chương nên tắt gộp (xem NGUONG_MOT_CHUONG_GIAY).
+    run_direct(p_old, client, gop_chuong_ngan=False)
 
     _write_draft(p_new, [(1, list(ch1.beats)), (2, list(ch2.beats))])
     p_new, errors = live.run_direct_ingest(p_new)

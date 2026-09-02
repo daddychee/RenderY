@@ -54,14 +54,20 @@ class Usage:
     web_searches: int = 0      # số lượt web search (tính phí riêng ngoài token)
     cache_read_input_tokens: int = 0       # token đọc từ cache (rẻ ~0.1x)
     cache_creation_input_tokens: int = 0   # token ghi vào cache (~1.25x)
+    # Đơn giá của CHÍNH backend đã gọi (USD/1M token). Bỏ trống = giá Claude.
+    # Backend khác (GLM rẻ hơn ~30x) tự khai giá của mình, nếu không thì báo cáo chi
+    # phí sai cả bậc — 30/08 hook chạy GLM hết $0.046 mà log ghi $0.2488.
+    price_input_per_m: float = PRICE_INPUT_PER_M
+    price_output_per_m: float = PRICE_OUTPUT_PER_M
 
     @property
     def usd(self) -> float:
+        gia_in = self.price_input_per_m
         return (
-            self.input_tokens * PRICE_INPUT_PER_M
-            + self.cache_read_input_tokens * PRICE_INPUT_PER_M * 0.1      # đọc cache: 10% giá input
-            + self.cache_creation_input_tokens * PRICE_INPUT_PER_M * 1.25  # ghi cache: 125% giá input
-            + self.output_tokens * PRICE_OUTPUT_PER_M
+            self.input_tokens * gia_in
+            + self.cache_read_input_tokens * gia_in * 0.1      # đọc cache: 10% giá input
+            + self.cache_creation_input_tokens * gia_in * 1.25  # ghi cache: 125% giá input
+            + self.output_tokens * self.price_output_per_m
         ) / 1_000_000 + self.web_searches * WEB_SEARCH_USD
 
 

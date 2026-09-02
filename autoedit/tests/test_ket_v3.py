@@ -93,6 +93,36 @@ def test_glm_di_duong_openai_compatible(monkeypatch):
     assert os.environ["LLM_API_KEY"] == "glm-key"
     assert os.environ["LLM_PROVIDER"] == "glm"
     assert os.environ["RANK_MODEL"] == "glm-4.6"
+    # Mọi code GLM trong repo đọc GLM_API_KEY, KHÔNG đọc LLM_API_KEY. Thiếu biến này
+    # thì két có khoá mà job vẫn báo "Thiếu GLM_API_KEY" và tắt vision gate (30/08).
+    assert os.environ["GLM_API_KEY"] == "glm-key"
+
+
+def test_nhieu_khoa_glm_thanh_key_phu(monkeypatch):
+    """Khoá thứ 2+ đi GLM_API_KEY_2..9 — nhiều khoá = nhiều luồng song song."""
+    import os
+
+    for b in ("GLM_API_KEY_2", "GLM_API_KEY_3"):
+        os.environ.pop(b, None)
+    muc = _muc(key="k1", nha="glm", model="glm-5.3")
+    muc["khoa"] = [{"nha": "glm", "key": "k1"}, {"nha": "glm", "key": "k2"}]
+    _gia_ket(monkeypatch, {"chia_beat": muc})
+    ket_v3.nap_env()
+    assert os.environ["GLM_API_KEY"] == "k1"
+    assert os.environ["GLM_API_KEY_2"] == "k2"
+    assert "GLM_API_KEY_3" not in os.environ
+
+
+def test_khoa_phu_khac_nha_thi_bo_qua(monkeypatch):
+    """Trộn nhà khác vào cùng việc -> không nhét nhầm key nhà khác vào GLM_API_KEY_n."""
+    import os
+
+    os.environ.pop("GLM_API_KEY_2", None)
+    muc = _muc(key="k1", nha="glm")
+    muc["khoa"] = [{"nha": "glm", "key": "k1"}, {"nha": "deepseek", "key": "ds"}]
+    _gia_ket(monkeypatch, {"chia_beat": muc})
+    ket_v3.nap_env()
+    assert "GLM_API_KEY_2" not in os.environ
 
 
 def test_deepseek_nhan_dung_provider(monkeypatch):

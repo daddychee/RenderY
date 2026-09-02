@@ -419,7 +419,9 @@ def project(tmp_path):
 
 def test_run_direct_happy_path(project):
     client = FakeClient([GOOD_OUTLINE, _drafts((0, 2), (3, 5)), _drafts((6, 8), (9, 11))])
-    run_direct(project, client)
+    # transcript giả chỉ 6 giây -> sẽ bị gộp về 1 chương; test này kiểm
+    # tra luồng NHIỀU chương nên tắt gộp (xem NGUONG_MOT_CHUONG_GIAY).
+    run_direct(project, client, gop_chuong_ngan=False)
 
     from autoedit.project import Project
 
@@ -463,7 +465,9 @@ def test_run_direct_retries_bad_chapter_beats(project):
         bad, _drafts((0, 2), (3, 5)),          # chương 1: lỗi rồi sửa
         _drafts((6, 8), (9, 11)),               # chương 2: sạch
     ])
-    run_direct(project, client)
+    # transcript giả chỉ 6 giây -> sẽ bị gộp về 1 chương; test này kiểm
+    # tra luồng NHIỀU chương nên tắt gộp (xem NGUONG_MOT_CHUONG_GIAY).
+    run_direct(project, client, gop_chuong_ngan=False)
     assert client.calls == ["Outline", "ChapterBeats", "ChapterBeats", "ChapterBeats"]
 
     from autoedit.project import Project
