@@ -151,13 +151,24 @@ def tom_tat(tap: Path) -> dict:
     try:
         from autoedit.sourcer.refvideo import doc_ref
 
-        co_ref, loi_ref = 0, []
+        # Ref của CẢ TẬP (đặt ở RenderY/, mọi chương dùng chung) và ref RIÊNG từng
+        # chương. Đếm tách bạch: gộp chung thì 1 video của tập bị đếm 5 lần cho 5
+        # chương, nhân sự tưởng mình đặt thừa file.
+        goc = thu_muc_rendery(tap)
+        ref_tap, loi_ref = doc_ref(goc)
+        ref_rieng = 0
         for c in chuong:
             refs, cb = doc_ref(c.path)
-            co_ref += len(refs)
+            ref_rieng += len(refs)
             loi_ref += [f"{c.nhan}: {x}" for x in cb]
-        if co_ref:
-            nhac.append(f"{co_ref} video ref sẽ được cắt vào timeline theo khớp ngữ nghĩa.")
+        phan = []
+        if ref_tap:
+            phan.append(f"{len(ref_tap)} video ref cho CẢ TẬP")
+        if ref_rieng:
+            phan.append(f"{ref_rieng} video ref riêng của chương")
+        if phan:
+            nhac.append(" · ".join(phan) +
+                        " — tool khớp nội dung rồi cắt vào timeline.")
         # Video ref thiếu .srt là NHẮC chứ không CHẶN: chương vẫn dựng được bằng
         # Pexels/kho như thường, chỉ mất phần footage từ video đó.
         nhac.extend(loi_ref[:4])

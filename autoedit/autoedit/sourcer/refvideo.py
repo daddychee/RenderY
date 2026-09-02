@@ -138,8 +138,33 @@ def chia_segment(captions: list[tuple[float, float, str]], video: Path,
             for g in gon if g]
 
 
+def doc_ref_tap(thu_muc_chuong: Path) -> tuple[list[RefVideo], list[str]]:
+    """Ref dùng được cho MỘT chương = ref của CẢ TẬP + ref riêng của chương đó.
+
+    Video ref thường phủ cả tập chứ không riêng chương nào (user chốt 02/09), nên
+    đặt một lần ở `RenderY/` là mọi chương đều thấy:
+
+    ```
+    RenderY/
+    ├── Ref 1.mp4 + Ref 1.srt   ← CẢ TẬP dùng chung
+    ├── H/
+    ├── C1/
+    │   └── Ref 2.mp4 + .srt    ← chỉ riêng C1 (tuỳ chọn)
+    └── E/
+    ```
+
+    Ref riêng của chương đứng TRƯỚC ref chung: cùng điểm khớp thì cái cụ thể hơn
+    thắng. Trùng tên (cả hai cấp đều có "Ref 1") thì bản của CHƯƠNG được giữ.
+    """
+    chuong = Path(thu_muc_chuong)
+    rieng, cb1 = doc_ref(chuong)
+    chung, cb2 = doc_ref(chuong.parent)
+    ten_rieng = {r.ten for r in rieng}
+    return rieng + [r for r in chung if r.ten not in ten_rieng], cb1 + cb2
+
+
 def doc_ref(thu_muc: Path) -> tuple[list[RefVideo], list[str]]:
-    """Quét thư mục chương -> (danh sách ref đã ghép, cảnh báo).
+    """Quét MỘT thư mục -> (danh sách ref đã ghép, cảnh báo).
 
     Không có video nào -> trả rỗng, chương chạy y như trước. Có video mà THIẾU .srt
     thì cảnh báo rõ tên file: phải bắt ở bước Kiểm tra, không để chạy 20 phút rồi

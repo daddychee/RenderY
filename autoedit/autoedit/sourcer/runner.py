@@ -287,14 +287,16 @@ def run_source(
     # C8 gói CHỌN: gate pháp lý viral (liền kề + trần 8%; nguồn khai --ref trần 15%)
     ledger = ViralLedger(ref_sources=ref_sources)
 
-    # NGUỒN REF VIDEO (02/09): video có sẵn + .srt user đặt THẲNG trong thư mục chương.
+    # NGUỒN REF VIDEO (02/09): video có sẵn + .srt của user. Đặt ở `RenderY/` thì CẢ
+    # TẬP dùng chung (video ref thường phủ cả tập, không riêng chương nào — user chốt);
+    # đặt trong thư mục chương thì chỉ chương đó dùng.
     # Đọc từ thư mục kịch bản GỐC trên NAS (project chỉ giữ bản sao script/voice).
     refs, matcher = [], None
     try:
         from autoedit.sourcer import refvideo as _rv
 
         goc = Path(project.inputs.original_script_path or "").parent
-        refs, rv_canh_bao = _rv.doc_ref(goc)
+        refs, rv_canh_bao = _rv.doc_ref_tap(goc)
         for w in rv_canh_bao:
             record.warnings.append(f"ref video — {w}")
         if refs:

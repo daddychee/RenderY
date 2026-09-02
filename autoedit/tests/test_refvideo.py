@@ -393,3 +393,72 @@ def test_ung_vien_stock_van_di_duong_download(tmp_path, monkeypatch):
             "url": "https://x/v.mp4", "media_type": "video"}
     runner._materialize(cand, B(), StockGia(), tmp_path / "assets", tmp_path)
     assert da_tai == ["pexels:123"]
+
+
+# --------------- ref của CẢ TẬP (đặt ở RenderY/, cạnh các chương) ------------
+def _mk_tap(tmp_path, *, ref_tap=True, ref_chuong=False):
+    """Cây thư mục thật: RenderY/{Ref chung, H/, C1/}."""
+    goc = tmp_path / "LI104" / "RenderY"
+    for ten in ("H", "C1"):
+        d = goc / ten
+        d.mkdir(parents=True)
+        (d / "script.txt").write_text("kịch bản", encoding="utf-8")
+        (d / "voice.mp3").write_bytes(b"fake")
+    if ref_tap:
+        (goc / "Ref 1.mp4").write_bytes(b"fake")
+        (goc / "Ref 1.srt").write_text(SRT, encoding="utf-8")
+    if ref_chuong:
+        (goc / "C1" / "Ref 2.mp4").write_bytes(b"fake")
+        (goc / "C1" / "Ref 2.srt").write_text(SRT, encoding="utf-8")
+    return goc
+
+
+def test_ref_cua_tap_dung_cho_moi_chuong(tmp_path):
+    """Video ref thường phủ CẢ TẬP chứ không riêng chương nào (user chốt 02/09):
+    đặt một lần ở RenderY/ là mọi chương đều thấy."""
+    from autoedit.sourcer.refvideo import doc_ref_tap
+
+    goc = _mk_tap(tmp_path)
+    for ten in ("H", "C1"):
+        refs, cb = doc_ref_tap(goc / ten)
+        assert [r.ten for r in refs] == ["Ref 1"], ten
+        assert not cb
+
+
+def test_ref_rieng_cua_chuong_dung_TRUOC_ref_chung(tmp_path):
+    """Cùng điểm khớp thì cái CỤ THỂ hơn thắng — ref riêng đứng trước trong pool."""
+    from autoedit.sourcer.refvideo import doc_ref_tap
+
+    goc = _mk_tap(tmp_path, ref_chuong=True)
+    refs, _ = doc_ref_tap(goc / "C1")
+    assert [r.ten for r in refs] == ["Ref 2", "Ref 1"]
+    # chương khác KHÔNG thấy ref riêng của C1
+    assert [r.ten for r in doc_ref_tap(goc / "H")[0]] == ["Ref 1"]
+
+
+def test_trung_ten_thi_ban_cua_chuong_thang(tmp_path):
+    """Cả hai cấp đều có 'Ref 1' -> chương đè tập, không nhân đôi ứng viên."""
+    from autoedit.sourcer.refvideo import doc_ref_tap
+
+    goc = _mk_tap(tmp_path)
+    (goc / "C1" / "Ref 1.mp4").write_bytes(b"fake")
+    (goc / "C1" / "Ref 1.srt").write_text(SRT, encoding="utf-8")
+    refs, _ = doc_ref_tap(goc / "C1")
+    assert len(refs) == 1
+    assert refs[0].video.parent.name == "C1"
+
+
+def test_khong_co_ref_nao_thi_van_chay_binh_thuong(tmp_path):
+    from autoedit.sourcer.refvideo import doc_ref_tap
+
+    goc = _mk_tap(tmp_path, ref_tap=False)
+    assert doc_ref_tap(goc / "H") == ([], [])
+
+
+def test_khong_nhat_nham_thu_muc_chuong_lam_ref(tmp_path):
+    """Quét cấp RenderY/ có các THƯ MỤC chương — chỉ lấy FILE, không lấy thư mục."""
+    from autoedit.sourcer.refvideo import doc_ref_tap
+
+    goc = _mk_tap(tmp_path)
+    refs, _ = doc_ref_tap(goc / "H")
+    assert all(r.video.is_file() for r in refs)
