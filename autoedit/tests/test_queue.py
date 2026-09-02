@@ -320,3 +320,62 @@ def test_worker_bo_qua_thu_muc_sai_quy_uoc(tmp_path):
     (job / THU_MUC_CON / "footage").mkdir()
     (job / THU_MUC_CON / ".tam").mkdir()
     assert [c.name for c in chapters_of(job)] == ["H"]
+
+
+def test_hai_worker_cung_luc_khong_vuot_tran(tmp_path):
+    """RÀ 02/09 (hệ kiểm logic OUTLIERY): đếm running và UPDATE nằm NGOÀI một
+    câu lệnh → hai worker cùng đọc running=1, cả hai thấy còn suất, cùng claim
+    hai job KHÁC nhau = 3 job chạy song song, vượt trần MAX_WORKERS.
+
+    Hậu quả thật: mỗi job dựng cả tập (ffmpeg + LLM). Vượt trần là máy chủ
+    nghẽn — nhìn từ ngoài chỉ thấy "dựng chậm", không ai truy ra nguyên nhân.
+
+    Test ép ĐÚNG khoảnh khắc đó (hai connection cùng đọc trước khi ai ghi),
+    không dựa vào may rủi của thread — race hiếm khi lộ nếu chạy tự nhiên.
+    """
+    duong = tmp_path / "jobs.db"
+    c0 = q.connect(duong)
+    for i in range(4):
+        q.add_job(c0, f"/tap{i}")
+    c0.execute("UPDATE jobs SET status='running', started_at=? WHERE id=1",
+               (q._now(),))          # đã 1 job chạy → còn đúng 1 suất
+    c0.commit()
+    c0.close()
+
+    # Ép ĐÚNG khoảnh khắc: cả hai worker ĐỌC trước khi bất kỳ ai GHI.
+    # Chèn rào vào giữa bước đếm và bước UPDATE của claim_next.
+    ca, cb = q.connect(duong), q.connect(duong)
+    rao_doc = threading.Barrier(2)
+    ket = []
+
+    def worker(conn):
+        goc = conn.execute
+
+        def execute_cham(sql, *a, **k):
+            r = goc(sql, *a, **k)
+            if "COUNT(*)" in sql and "running" in sql:
+                rao_doc.wait(timeout=5)   # cả hai đọc xong mới cho ai ghi
+            return r
+
+        conn.execute = execute_cham
+        try:
+            ket.append(q.claim_next(conn))
+        finally:
+            conn.execute = goc
+
+    ts = [threading.Thread(target=worker, args=(c,)) for c in (ca, cb)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(timeout=10)
+    try:
+        dang_chay = ca.execute(
+            "SELECT COUNT(*) c FROM jobs WHERE status='running'").fetchone()["c"]
+    finally:
+        ca.close()
+        cb.close()
+    assert dang_chay <= q.MAX_WORKERS, (
+        f"{dang_chay} job running > trần {q.MAX_WORKERS} — claim_next có race")
+    # Điều quan trọng là KHÔNG VƯỢT TRẦN. Worker thua cuộc trả None và sẽ gọi
+    # lại ở vòng sau — chấp nhận được, rẻ hơn nhiều so với khoá tường minh.
+    assert sum(1 for x in ket if x is not None) <= 1

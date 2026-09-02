@@ -193,17 +193,19 @@ def claim_next(conn: sqlite3.Connection) -> Optional[Job]:
     Nhận bằng UPDATE...WHERE status='queued' — SQLite serialize ghi nên 2 worker
     không thể cùng nhận 1 job; `cursor.rowcount` cho biết ai thắng.
     """
-    running = conn.execute(
-        "SELECT COUNT(*) c FROM jobs WHERE status='running'").fetchone()["c"]
-    if running >= MAX_WORKERS:
-        return None
     row = conn.execute(
         "SELECT id FROM jobs WHERE status='queued' ORDER BY id LIMIT 1").fetchone()
     if row is None:
         return None
+    # Trần MAX_WORKERS nằm TRONG chính câu UPDATE (sửa 02/09): trước đây đếm
+    # running rồi mới UPDATE ở câu khác — hai worker cùng đọc running=1 thì cả
+    # hai đều thấy "còn suất" và cùng claim hai job khác nhau = vượt trần. Gộp
+    # vào một câu để SQLite đánh giá nguyên tử; test ép đúng khoảnh khắc đó.
     cur = conn.execute(
-        "UPDATE jobs SET status='running', started_at=? WHERE id=? AND status='queued'",
-        (_now(), row["id"]))
+        "UPDATE jobs SET status='running', started_at=? WHERE id=? "
+        "AND status='queued' "
+        "AND (SELECT COUNT(*) FROM jobs WHERE status='running') < ?",
+        (_now(), row["id"], MAX_WORKERS))
     conn.commit()
     if cur.rowcount == 0:
         return None            # worker khác nhận trước
