@@ -17,6 +17,9 @@ import requests
 from autoedit.project import SearchQueries, ffprobe_duration
 
 PEXELS_VIDEO_URL = "https://api.pexels.com/videos/search"
+
+from autoedit.httpx_ma import nen_thu_lai
+
 MIN_CANDIDATES_PER_TIER = 5   # 4.2: tier sau chỉ chạy khi tier trước < ngưỡng này
 PER_PAGE = 10
 MAX_DOWNLOAD_SEC = 75   # trần WALL-CLOCK 1 lần tải — chặn stream "nhỏ giọt" treo vô hạn
@@ -168,7 +171,7 @@ class PexelsClient:
                 if resp.status_code == 429:                  # hết hạn mức key này
                     got_429 = True
                     break
-                if resp.status_code in (500, 502, 503):      # lỗi server tạm -> chờ rồi thử lại
+                if nen_thu_lai(resp.status_code):           # lỗi server tạm -> chờ rồi thử lại
                     time.sleep(2 ** attempt)
                     continue
                 resp.raise_for_status()

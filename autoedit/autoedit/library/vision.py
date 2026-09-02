@@ -29,6 +29,8 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from autoedit.music.library import MOOD  # vocabulary mood ĐÓNG 19 từ — footage/chương/nhạc chung
 from autoedit.project import ffprobe_duration
 
+from autoedit.httpx_ma import nen_thu_lai
+
 DEFAULT_VISION_MODEL = "claude-haiku-4-5"
 DEFAULT_GLM_VISION_MODEL = "glm-4.6v"
 # Bài học nhan ban (memory glm-api-lessons): vision PHẢI đi endpoint NATIVE — endpoint
@@ -368,7 +370,7 @@ class GLMVisionTagger:
                 return AssetTags.model_validate_json(_clean_json(text))
             except urllib.error.HTTPError as exc:
                 last = exc
-                if exc.code in (429, 500, 502, 503, 529) and attempt < 3:
+                if nen_thu_lai(exc.code) and attempt < 3:
                     time.sleep(1.5 * (attempt + 1))
                     continue
                 # 400 kèm body nói rõ lý do (PB4: contentFilter 1301 chặn frame "nhạy

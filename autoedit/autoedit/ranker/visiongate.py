@@ -32,6 +32,8 @@ from autoedit.library.vision import (
 )
 from autoedit.project import Beat
 
+from autoedit.httpx_ma import nen_thu_lai
+
 GATE_BUDGET = 2  # tối đa 2 verdict/beat: top-pick + đúng 1 ứng viên kế (user chốt V123 §3c)
 # User chốt 2026-07-10 (sau đo tốc độ V11): CHỈ soi pick KHO LOCAL — đúng lớp lỗi đã
 # chứng minh (tag GLM tự sinh lúc nạp: b60/b68); stock Pexels mô tả người viết, rủi ro
@@ -146,7 +148,7 @@ class VisionGate:
                 return GateVerdict.model_validate_json(_clean_json(text))
             except urllib.error.HTTPError as exc:
                 last = exc
-                if exc.code in (429, 500, 502, 503, 529) and attempt < 3:
+                if nen_thu_lai(exc.code) and attempt < 3:
                     # 429/1305 "service busy" cần nguội LÂU hơn lỗi thường (V11 lần 1:
                     # 1.5-4.5s không đủ, chết cả 4 attempt) — key kế tiếp + 4/8/12s
                     time.sleep(4.0 * (attempt + 1))
