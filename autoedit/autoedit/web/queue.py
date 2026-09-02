@@ -29,10 +29,14 @@ from typing import Optional
 MAX_WORKERS = 2          # đo thật — xem docstring
 STALE_AFTER = 4 * 3600   # job 'running' quá 4 tiếng coi như chết (job thường ~24 phút)
 
-# Ước tính thời gian từng stage (giây) cho ĐẾM NGƯỢC — đo trên video 20 phút/434 câu.
-# Dùng làm mốc ban đầu; sau vài job thật thì lấy trung bình lịch sử thay vào.
+# Ước tính thời gian từng stage (giây) cho ĐẾM NGƯỢC — video 20 phút/434 câu.
+# Cập nhật 30/08 theo đo thật (hook 34s, quy đổi tuyến tính theo độ dài voice):
+#   align  : Whisper nhận dạng khi chương thiếu .srt — 10s cho 34s voice, ~1 phút/10
+#            phút voice. Có .srt thì gần như tức thì (số này là trường hợp XẤU).
+#   direct : GLM 17s cho hook. Video dài chia nhiều chương -> ~2 lượt/chương.
+#            (Trước 30/08 chạy claude -p mất 15 PHÚT — xem director/glm_client.py.)
 STAGE_SECONDS = {
-    "align": 2, "direct": 90, "enrich": 30, "cut": 60, "music": 20,
+    "align": 90, "direct": 120, "enrich": 30, "cut": 60, "music": 20,
     "source": 900, "rank": 120, "assemble": 240, "report": 5,
     "compose": 30,   # gom kết quả ra NAS (đo thật: NAS ghi 362 MB/s)
 }
@@ -51,7 +55,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at  TEXT,
     error        TEXT,
     seen         INTEGER NOT NULL DEFAULT 0, -- 0 = xong mà user CHƯA XEM -> badge CRM
-    opts         TEXT NOT NULL DEFAULT '{}'  -- JSON tuỳ chọn (niche, align_backend...)
+    opts         TEXT NOT NULL DEFAULT '{}', -- JSON tuỳ chọn (niche, align_backend...)
+    chuong       TEXT NOT NULL DEFAULT '',   -- chương đang dựng, vd 'C2 (2/5)'
+    dong_cuoi    TEXT NOT NULL DEFAULT ''    -- dòng log gần nhất, hiện thẳng trên UI
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_nguoi ON jobs(nguoi, seen);
@@ -70,8 +76,18 @@ def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(_SCHEMA)
+    _them_cot_thieu(conn)
     conn.commit()
     return conn
+
+
+def _them_cot_thieu(conn: sqlite3.Connection) -> None:
+    """Thêm cột mới vào DB ĐÃ CÓ dữ liệu. CREATE TABLE IF NOT EXISTS không đụng bảng
+    cũ, nên thêm cột vào _SCHEMA thôi là chưa đủ — máy chủ đang chạy sẽ vỡ ở SELECT."""
+    co = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    for ten in ("chuong", "dong_cuoi"):
+        if ten not in co:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
 
 
 def _now() -> str:
@@ -92,6 +108,8 @@ class Job:
     error: Optional[str]
     seen: int
     opts: dict
+    chuong: str = ""
+    dong_cuoi: str = ""
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Job":
@@ -194,6 +212,20 @@ def claim_next(conn: sqlite3.Connection) -> Optional[Job]:
 
 def set_stage(conn: sqlite3.Connection, job_id: int, stage: str) -> None:
     conn.execute("UPDATE jobs SET stage=? WHERE id=?", (stage, job_id))
+    conn.commit()
+
+
+def set_chuong(conn: sqlite3.Connection, job_id: int, chuong: str) -> None:
+    """Chương đang dựng, vd 'C2 (2/5)'. Job nhiều chương chạy tuần tự nên không có
+    dòng này thì nhân sự thấy thanh tiến trình lùi về 0 mỗi chương mà không hiểu vì sao."""
+    conn.execute("UPDATE jobs SET chuong=? WHERE id=?", (chuong, job_id))
+    conn.commit()
+
+
+def set_dong_cuoi(conn: sqlite3.Connection, job_id: int, dong: str) -> None:
+    """Dòng log gần nhất, hiện thẳng trên UI. 30/08 user hỏi 'chạy 20 phút chưa xong'
+    mà chính tôi cũng phải mở file log mới biết nó đang làm gì — thế là UI thiếu."""
+    conn.execute("UPDATE jobs SET dong_cuoi=? WHERE id=?", ((dong or "")[:300], job_id))
     conn.commit()
 
 

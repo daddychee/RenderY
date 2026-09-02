@@ -4,11 +4,61 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RenderY</title>
+<script>
+// Theo THEME CỦA CRM. App chạy trong iframe CÙNG ORIGIN (qua proxy /app/rendery/)
+// nên đọc thẳng localStorage["outliery_theme"] — cùng khoá nen_khung_app.html dùng.
+// Đặt trước khi vẽ để không nháy màu. Nút Theme của CRM chỉ đổi khung ngoài và ghi
+// localStorage, KHÔNG báo iframe, nên phải tự nghe 'storage' + hỏi lại khi quay lại tab.
+(function () {
+  var d = document.documentElement;
+  function doc() {
+    var t = null;
+    try { t = new URLSearchParams(location.search).get("theme")
+              || localStorage.getItem("outliery_theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark")
+      t = (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches)
+          ? "light" : "dark";
+    return t;
+  }
+  function dat(t) { d.setAttribute("data-theme", t); }
+  dat(doc());
+  // 'storage' chỉ bắn sang TAB KHÁC, không bắn trong cùng tab -> iframe không nhận
+  // khi bấm nút Theme ở khung ngoài. Nên soi lại mỗi khi tab hoạt động trở lại.
+  addEventListener("storage", function (e) {
+    if (e.key === "outliery_theme" && (e.newValue === "light" || e.newValue === "dark"))
+      dat(e.newValue);
+  });
+  addEventListener("focus", function () { dat(doc()); });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) dat(doc());
+  });
+  // Khung ngoài đổi theme trong CÙNG tab: 'storage' im, focus có thể không đổi ->
+  // soi định kỳ, rất rẻ (1 lần đọc localStorage/giây).
+  setInterval(function () {
+    var t = doc();
+    if (d.getAttribute("data-theme") !== t) dat(t);
+  }, 1000);
+})();
+</script>
 <style>
+  /* Màu bám theo CRM (nen_khung_app.html). MỌI màu phải đi qua biến — màu cứng
+     trong thân CSS là chỗ theme sáng vỡ: nền đổi mà chữ vẫn trắng thì không đọc nổi. */
   :root{
     --bg:#0f1115; --panel:#171a21; --line:#252a34; --txt:#e6e9ef; --dim:#8b93a3;
     --ok:#3fb950; --run:#3b82f6; --fail:#f85149; --warn:#d29922;
+    --nut:#232935; --nut-hover:#2c3444; --run-hover:#2f6fd0; --run-nhat:#8ab4ff;
+    --o-nhap:#0b0d11; --the:#12151b; --vien-dam:#39414f; --tab-vien:#3a4352;
+    --cham-tat:#444b58;
   }
+  :root[data-theme="light"]{
+    --bg:#ffffff; --panel:#f5f7fa; --line:#dfe3ea; --txt:#16181c; --dim:#6c6c72;
+    --ok:#1a7f37; --run:#2c6fc4; --fail:#b14a3c; --warn:#8a6100;
+    --nut:#eef1f5; --nut-hover:#e2e6ec; --run-hover:#1b5fb2; --run-nhat:#1b5fb2;
+    --o-nhap:#ffffff; --the:#f0f2f6; --vien-dam:#c4cad4; --tab-vien:#b8c0cc;
+    --cham-tat:#b8c0cc;
+  }
+  html{color-scheme:dark}
+  html[data-theme="light"]{color-scheme:light}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
        font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -16,13 +66,13 @@
          border-bottom:1px solid var(--line);background:var(--panel)}
   h1{font-size:16px;margin:0;letter-spacing:.3px}
   .grow{flex:1}
-  button{background:#232935;color:var(--txt);border:1px solid var(--line);
+  button{background:var(--nut);color:var(--txt);border:1px solid var(--line);
          border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
-  button:hover{background:#2c3444}
+  button:hover{background:var(--nut-hover)}
   button.primary{background:var(--run);border-color:var(--run);color:#fff}
-  button.primary:hover{background:#2f6fd0}
+  button.primary:hover{background:var(--run-hover)}
   button:disabled{opacity:.45;cursor:not-allowed}
-  button.tab.on{background:#2c3444;border-color:#3a4352}
+  button.tab.on{background:var(--nut-hover);border-color:var(--tab-vien)}
   main{padding:20px;max-width:1080px;margin:0 auto}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
         padding:14px 16px;margin-bottom:12px}
@@ -31,29 +81,29 @@
   .big{font-size:15px;font-weight:600}
   table{width:100%;border-collapse:collapse}
   td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
-  input,select{background:#0b0d11;border:1px solid var(--line);color:var(--txt);
+  input,select{background:var(--o-nhap);border:1px solid var(--line);color:var(--txt);
         border-radius:6px;padding:6px 9px;font-size:13px}
   input{width:100%}
   .hide{display:none}
-  .bar{height:6px;background:#0b0d11;border-radius:99px;overflow:hidden;margin:8px 0 4px}
+  .bar{height:6px;background:var(--o-nhap);border-radius:99px;overflow:hidden;margin:8px 0 4px}
   .bar>i{display:block;height:100%;background:var(--run);transition:width .5s}
   .pill{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);
         color:var(--dim)}
   .pill.done{background:rgba(63,185,80,.14);border-color:var(--ok);color:var(--ok)}
-  .pill.running{background:rgba(59,130,246,.16);border-color:var(--run);color:#8ab4ff}
+  .pill.running{background:rgba(59,130,246,.16);border-color:var(--run);color:var(--run-nhat)}
   .pill.failed{background:rgba(248,81,73,.14);border-color:var(--fail);color:var(--fail)}
   .pill.queued{background:rgba(210,153,34,.12);border-color:var(--warn);color:var(--warn)}
   .pill.canceled{opacity:.6}
   .err{color:var(--fail);font-size:12px;margin-top:6px;white-space:pre-wrap;
        max-height:120px;overflow:auto}
   .warn{color:var(--warn);font-size:12px}
-  pre{background:#0b0d11;border:1px solid var(--line);border-radius:8px;padding:12px;
+  pre{background:var(--o-nhap);border:1px solid var(--line);border-radius:8px;padding:12px;
       max-height:340px;overflow:auto;font-size:12px;margin:10px 0 0}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
-  .dot.ok{background:var(--ok)} .dot.no{background:#444b58}
+  .dot.ok{background:var(--ok)} .dot.no{background:var(--cham-tat)}
   .fold{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;
-        cursor:pointer;background:#12151b}
-  .fold:hover{border-color:#39414f}
+        cursor:pointer;background:var(--the)}
+  .fold:hover{border-color:var(--vien-dam)}
   .fold.sel{border-color:var(--run);background:rgba(59,130,246,.08)}
   .fold.bad{opacity:.65}
 </style>
@@ -81,6 +131,8 @@
         Trong thư mục tập, tạo thư mục con <b>RenderY</b>, bên trong là các chương:
         <b>H</b> (hook) · <b>C1</b>, <b>C2</b>… (chương) · <b>E</b> (kết).
         Mỗi chương chứa <b>kịch bản .txt</b> + <b>voice .mp3</b> (+ <b>.srt</b> nếu có).
+        <br>Muốn dùng <b>video có sẵn</b>: đặt thêm <b>Ref 1.mp4</b> + <b>Ref 1.srt</b>
+        (cùng số) vào thư mục chương — tool tự khớp nội dung rồi cắt vào timeline.
         <br>Dán đường dẫn từ Explorer — ổ mạng <b>Z:\</b> hay đường máy chủ đều được.
       </div>
       <div class="row">
@@ -112,6 +164,9 @@
       <div class="row">
         <span class="big">3. Việc đang chạy</span>
         <span class="grow"></span>
+        <label class="muted hide" id="lb-moi-nguoi" style="cursor:pointer">
+          <input type="checkbox" id="cb-moi-nguoi" checked onchange="loadJobs()"
+                 style="vertical-align:-2px"> việc của mọi người</label>
         <span class="muted" id="queue-stat"></span>
       </div>
       <div id="jobs" style="margin-top:10px">đang tải…</div>
@@ -189,6 +244,9 @@ async function kiemTap() {
   const loi = (d.loi || []).length
     ? `<div class="warn" style="margin-top:8px">${
         d.loi.map(x => '⚠ ' + esc(x)).join('<br>')}</div>` : ''
+  const nhac = (d.nhac || []).length
+    ? `<div class="muted" style="margin-top:8px">${
+        d.nhac.map(x => 'ℹ ' + esc(x)).join('<br>')}</div>` : ''
   const ds = (d.chuong || []).map(c => `<div class="fold" style="cursor:default">
       <div class="row">
         <b>${esc(c.ma)}</b>
@@ -201,7 +259,7 @@ async function kiemTap() {
   el.innerHTML = `<div class="muted" style="margin-bottom:6px">
       Tập <b>${esc(d.tap || '')}</b> — ${d.so_chuong || 0} chương
       ${d.san_sang ? '<span style="color:var(--ok)">· sẵn sàng</span>' : ''}
-    </div>${ds}${loi}`
+    </div>${ds}${loi}${nhac}`
 
   if (d.san_sang) {
     chon = {ten: d.tap, path: d.duong_dan}
@@ -235,8 +293,13 @@ async function nopJob() {
 // ─────────────────────────── việc đang chạy ───────────────────────────
 async function loadJobs() {
   const el = document.getElementById('jobs')
+  // Quản trị: MẶC ĐỊNH xem việc của mọi người. 31/08 user (đăng nhập 'bot') mở app
+  // thấy "Chưa có việc nào" trong khi 5 job của 'thanhtran' đang chạy — API lọc theo
+  // người nộp, phải có all_users=1 mới thấy, mà UI không hề truyền.
+  const moiNguoi = document.getElementById('cb-moi-nguoi')
+  const q = (me.xem_het && moiNguoi && moiNguoi.checked) ? '?all_users=1' : ''
   let d
-  try { d = await api('/api/jobs') }
+  try { d = await api('/api/jobs' + q) }
   catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
 
   const s = d.stats
@@ -250,24 +313,43 @@ async function loadJobs() {
   }
   // job đang chạy hoặc đang chờ -> tự làm mới
   clearTimeout(timer)
-  if (d.jobs.some(j => j.status === 'running' || j.status === 'queued'))
-    timer = setTimeout(loadJobs, 5000)
+  // 2s khi có job CHẠY (dòng log phải nhúc nhích thì mới biết là còn sống),
+  // 5s khi chỉ có job đang chờ — chờ thì không có gì đổi để mà xem.
+  const dangChay = d.jobs.some(j => j.status === 'running')
+  if (dangChay || d.jobs.some(j => j.status === 'queued'))
+    timer = setTimeout(loadJobs, dangChay ? 2000 : 5000)
   if (d.unseen) markSeen()
 }
 
 const NHAN = {queued: 'đang chờ', running: 'đang chạy', done: 'xong',
               failed: 'lỗi', canceled: 'đã huỷ'}
 
+// Tên stage bằng tiếng người — nhân sự không cần biết 'direct' hay 'assemble' là gì.
+const NHAN_STAGE = {
+  align: 'khớp lời với voice', direct: 'chia cảnh', enrich: 'dựng bổ sung',
+  cut: 'cắt đoạn', music: 'chọn nhạc', source: 'tìm & tải footage',
+  rank: 'chấm footage', assemble: 'ghép timeline', report: 'làm báo cáo',
+  compose: 'gom kết quả ra NAS',
+}
+
 function jobCard(j) {
   const ten = j.job_folder.replace(/\\/g, '/').split('/').filter(Boolean).pop()
   let phai = ''
-  if (j.status === 'running')
-    phai = `<span class="muted">${esc(j.stage || '')} · còn ${phut(j.eta)}</span>`
+  if (j.status === 'running') {
+    const ten_stage = NHAN_STAGE[j.stage] || j.stage || ''
+    const ch = j.chuong ? esc(j.chuong) + ' · ' : ''
+    phai = `<span class="muted">${ch}${esc(ten_stage)} · còn ${phut(j.eta)}</span>`
+  }
   else if (j.status === 'queued')
     phai = `<span class="muted">bắt đầu sau ${phut(j.wait_ahead)}</span>`
 
   const bar = j.status === 'running'
     ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>` : ''
+  // 30/08: job chạy 20 phút mà UI chỉ ghi 'đang chạy' -> không phân biệt được
+  // CHẬM với TREO. Dòng log gần nhất trả lời đúng câu hỏi đó.
+  const nhip = (j.status === 'running' && j.dong_cuoi)
+    ? `<div class="muted" style="margin-top:6px;font-size:12px;overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap">${esc(j.dong_cuoi)}</div>` : ''
   const err = j.error
     ? `<div class="err">${esc(j.error.slice(0, 600))}</div>` : ''
   const huy = j.status === 'queued'
@@ -276,14 +358,17 @@ function jobCard(j) {
     ? `<button onclick="xemLog(${j.id})">Log</button>` : ''
   const kq = j.status === 'done'
     ? `<button class="primary" onclick="xemKetQua(${j.id})">📁 Lấy kết quả</button>` : ''
+  // Xem việc chung thì phải biết của ai — không thì 5 job giống hệt nhau.
+  const nguoi = (j.nguoi && j.nguoi !== me.nguoi)
+    ? `<span class="muted" style="font-size:12px">· ${esc(j.nguoi)}</span>` : ''
 
   return `<div class="card" style="margin-bottom:8px">
     <div class="row">
       <span class="pill ${esc(j.status)}">${NHAN[j.status] || esc(j.status)}</span>
-      <b>${esc(ten)}</b>
+      <b>${esc(ten)}</b>${nguoi}
       <span class="grow"></span>${phai} ${kq} ${huy} ${log}
     </div>
-    ${bar}${err}
+    ${bar}${nhip}${err}
     <div id="kq-${j.id}" class="hide" style="margin-top:10px"></div>
     <pre id="jlog-${j.id}" class="hide"></pre>
   </div>`
@@ -385,6 +470,8 @@ async function init() {
     me = await api('/api/me')
     document.getElementById('sub').textContent =
       me.nguoi ? `— ${me.nguoi}${me.vai ? ' (' + me.vai + ')' : ''}` : ''
+    // Chỉ quản trị mới có ô 'việc của mọi người' — người thường chỉ thấy việc mình.
+    if (me.xem_het) document.getElementById('lb-moi-nguoi').classList.remove('hide')
   } catch {}
   try {
     const d = await api('/api/kiem-tap')          // chưa nhập gì -> chỉ lấy gốc NAS

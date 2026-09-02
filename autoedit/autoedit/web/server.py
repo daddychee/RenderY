@@ -411,6 +411,49 @@ def _queue_conn():
     return q.connect(ROOT / "jobs.db")
 
 
+@app.get("/health")
+def health():
+    """Liveness cho trang sức khỏe nền (B1 giám sát 31/08) — tách khỏi /api/me
+    (endpoint auth). Không đụng dữ liệu, không cần danh tính."""
+    return {"trang_thai": "ok", "app": "rendery"}
+
+
+@app.get("/api/suc-khoe")
+def api_suc_khoe():
+    """Sức khỏe SÂU (B3 giám sát nền 31/08) — khuôn JSON của tầng nền
+    {app, trang_thai, mo_dun[]}; check nổ thành module 'loi', không 500."""
+    mo_dun = []
+
+    def them(ten, ham):
+        try:
+            tt, ct = ham()
+        except Exception as e:  # noqa: BLE001 — lỗi check là dữ liệu
+            tt, ct = "loi", f"{type(e).__name__}: {e}"
+        mo_dun.append({"ten": ten, "trang_thai": tt, "chi_tiet": ct})
+
+    def _hang_doi():
+        conn = _queue_conn()
+        try:
+            dem = dict(conn.execute(
+                "SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
+        finally:
+            conn.close()
+        chay, cho = dem.get("running", 0), dem.get("queued", 0)
+        return "ok", (f"{chay} đang dựng / {cho} chờ / {dem.get('done', 0)} xong "
+                      f"/ {dem.get('failed', 0)} lỗi")
+
+    def _nas():
+        if not NAS_ROOT.is_dir():
+            return "loi", f"gốc NAS {NAS_ROOT} không đọc được — nộp/dựng job chết"
+        return "ok", f"gốc NAS đọc được ({NAS_ROOT})"
+
+    them("hang-doi", _hang_doi)
+    them("nas", _nas)
+    nang = {"ok": 0, "canh_bao": 1, "loi": 2}
+    tong = max((m["trang_thai"] for m in mo_dun), key=nang.get)
+    return {"app": "rendery", "trang_thai": tong, "mo_dun": mo_dun}
+
+
 @app.get("/api/me")
 def api_me(request: Request):
     """Danh tính + quyền hiện tại — frontend dùng để hiện tên và bật/tắt nút."""

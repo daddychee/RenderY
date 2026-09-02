@@ -354,3 +354,75 @@ def test_badge_hoi_ho_ten_khac(nas, monkeypatch):
     q.finish(conn, jid, ok=True)
     conn.close()
     assert srv.api_badge(_Req(), nguoi="lam")["unseen"] == 1
+
+
+# ------------------------- tiến trình hiện trên UI ---------------------------
+def test_ghi_chuong_dang_dung(tmp_path):
+    """Job nhiều chương chạy tuần tự — không ghi chương thì thanh tiến trình lùi
+    về 0 mỗi chương mà nhân sự không hiểu vì sao."""
+    from autoedit.web import queue as q
+
+    conn = q.connect(tmp_path / "j.db")
+    jid = q.add_job(conn, "F:/x", nguoi="a")
+    q.set_chuong(conn, jid, "C2 (2/5)")
+    assert q.get_job(conn, jid).chuong == "C2 (2/5)"
+    assert q.get_job(conn, jid).to_dict()["chuong"] == "C2 (2/5)"
+
+
+def test_ghi_dong_log_cuoi(tmp_path):
+    """30/08: job chạy 20 phút mà UI chỉ ghi 'đang chạy' — không phân biệt được
+    CHẬM với TREO. Dòng log gần nhất trả lời đúng câu hỏi đó."""
+    from autoedit.web import queue as q
+
+    conn = q.connect(tmp_path / "j.db")
+    jid = q.add_job(conn, "F:/x", nguoi="a")
+    q.set_dong_cuoi(conn, jid, "  [3/10] beat 2 [stock] steaming plov")
+    conn.commit()
+    assert "beat 2" in q.get_job(conn, jid).dong_cuoi
+
+
+def test_dong_log_qua_dai_bi_cat(tmp_path):
+    from autoedit.web import queue as q
+
+    conn = q.connect(tmp_path / "j.db")
+    jid = q.add_job(conn, "F:/x", nguoi="a")
+    q.set_dong_cuoi(conn, jid, "x" * 5000)
+    conn.commit()
+    assert len(q.get_job(conn, jid).dong_cuoi) <= 300
+
+
+def test_them_cot_vao_db_cu(tmp_path):
+    """DB đang chạy trên máy chủ ĐÃ CÓ dữ liệu: CREATE TABLE IF NOT EXISTS không
+    đụng bảng cũ, nên thiếu ALTER là máy chủ vỡ ngay ở SELECT sau khi cập nhật."""
+    from autoedit.web import queue as q
+
+    import sqlite3
+
+    p = tmp_path / "cu.db"
+    cu = sqlite3.connect(str(p))
+    cu.executescript("""
+        CREATE TABLE jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, job_folder TEXT NOT NULL,
+            project_id TEXT NOT NULL DEFAULT '', nguoi TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'queued', stage TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, error TEXT,
+            seen INTEGER NOT NULL DEFAULT 0, opts TEXT NOT NULL DEFAULT '{}');
+        INSERT INTO jobs (job_folder, created_at) VALUES ('F:/cu', '2026-08-30T00:00:00Z');
+    """)
+    cu.commit()
+    cu.close()
+
+    conn = q.connect(p)          # phải migrate được, không vỡ
+    job = q.get_job(conn, 1)
+    assert job.job_folder == "F:/cu"      # dữ liệu cũ còn nguyên
+    assert job.chuong == "" and job.dong_cuoi == ""
+    q.set_chuong(conn, 1, "H (1/3)")
+    assert q.get_job(conn, 1).chuong == "H (1/3)"
+
+
+def test_uoc_tinh_align_tinh_ca_whisper():
+    """Chương thiếu .srt thì align phải nhận dạng giọng — trước 30/08 ước tính 2 giây
+    là của đường đọc .srt, đếm ngược sẽ hứa sai với nhân sự."""
+    from autoedit.web import queue as q
+
+    assert q.STAGE_SECONDS["align"] >= 60
