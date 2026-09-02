@@ -179,3 +179,53 @@ def test_doc_truoc_khong_thieu_gi_thi_khong_canh_bao(tmp_path):
     p = write_readme(tmp_path / "out", "/nas/LI070", [
         {"ten": "ch01", "thieu_clip": 0, "so_beat": 5, "footage": 9, "canh_bao": []}])
     assert "chưa có footage" not in p.read_text(encoding="utf-8")
+
+
+# --------------------- giao dần: README phải nói rõ trạng thái ----------------
+def test_readme_bao_dang_chay_khi_chua_giao_het(tmp_path):
+    """Giao dần: thư mục có file nhưng CHƯA đủ chương. Thấy file mà tưởng xong rồi
+    copy về thì thiếu chương lúc nào không hay."""
+    from autoedit.web.compose import write_readme
+
+    p = write_readme(tmp_path, "F:/tap/LI104", [{"ten": "C7"}, {"ten": "c8"}],
+                     xong_het=False)
+    txt = p.read_text(encoding="utf-8")
+    assert "ĐANG CHẠY" in txt
+    assert "CÒN CHƯƠNG ĐANG DỰNG" in txt
+
+
+def test_readme_bao_xong_khi_du_chuong(tmp_path):
+    from autoedit.web.compose import write_readme
+
+    p = write_readme(tmp_path, "F:/tap/LI104", [{"ten": "C7"}], xong_het=True)
+    txt = p.read_text(encoding="utf-8")
+    assert "Xong lúc" in txt and "ĐANG CHẠY" not in txt
+
+
+def test_readme_mac_dinh_van_la_xong(tmp_path):
+    """Đường gọi cũ (compose_job) không truyền cờ -> phải giữ nguyên hành vi cũ."""
+    from autoedit.web.compose import write_readme
+
+    p = write_readme(tmp_path, "F:/tap", [{"ten": "H"}])
+    assert "Xong lúc" in p.read_text(encoding="utf-8")
+
+
+def test_don_thu_muc_giao_xoa_ket_qua_cu(tmp_path):
+    from autoedit.web.compose import don_thu_muc_giao, thu_muc_giao
+
+    tap = tmp_path / "LI104"
+    (tap / "RenderY").mkdir(parents=True)
+    dest = thu_muc_giao(tap)
+    (dest / "C7").mkdir(parents=True)
+    (dest / "C7" / "cu.txt").write_text("cũ", encoding="utf-8")
+
+    don_thu_muc_giao(tap)
+    assert not dest.exists()
+
+
+def test_don_thu_muc_giao_khong_vo_khi_chua_co(tmp_path):
+    from autoedit.web.compose import don_thu_muc_giao
+
+    tap = tmp_path / "LI104"
+    (tap / "RenderY").mkdir(parents=True)
+    don_thu_muc_giao(tap)      # không ném lỗi

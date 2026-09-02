@@ -28,6 +28,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 THU_MUC_CON = "RenderY"          # tên thư mục con trong thư mục tập
+# Thư mục KẾT QUẢ do chính tool tạo ra, nằm cạnh các chương. Không loại trừ thì nộp
+# lại tập đã dựng bị chặn ngay ở bước Kiểm tra: "'Compose Timeline' sai quy ước"
+# (31/08). Tên phải khớp compose.thu_muc_giao().
+THU_MUC_GIAO = "Compose Timeline"
 
 _HOOK = re.compile(r"^H$", re.IGNORECASE)
 _CHAP = re.compile(r"^C(\d+)$", re.IGNORECASE)
@@ -103,6 +107,8 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
     for d in sorted(goc.iterdir()):
         if not d.is_dir() or d.name.startswith("."):
             continue
+        if d.name.lower() == THU_MUC_GIAO.lower():
+            continue          # thư mục KẾT QUẢ của chính tool, không phải chương
         pt = phan_tich_ten(d.name)
         if pt is None:
             loi.append(f"'{d.name}' sai quy ước — chỉ nhận H (hook), C1/C2/... (chương), E (kết)")
@@ -136,6 +142,31 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
 def tom_tat(tap: Path) -> dict:
     """Tóm tắt cho UI: sẵn sàng chưa, mấy chương, thiếu gì."""
     chuong, loi = doc_chuong(tap)
+    # Thiếu .srt KHÔNG chặn (Whisper nhận dạng được) nhưng phải báo trước: chậm hơn
+    # và timestamp kém chính xác hơn .srt trích thẳng từ kịch bản.
+    thieu_srt = [c.nhan for c in chuong if c.du_file and not c.co_srt]
+    nhac = []
+    # Video ref (02/09): báo TRƯỚC có mấy video, thiếu .srt cái nào. Bắt ở đây chứ
+    # không để chạy 20 phút rồi mới biết (bài học 30/08).
+    try:
+        from autoedit.sourcer.refvideo import doc_ref
+
+        co_ref, loi_ref = 0, []
+        for c in chuong:
+            refs, cb = doc_ref(c.path)
+            co_ref += len(refs)
+            loi_ref += [f"{c.nhan}: {x}" for x in cb]
+        if co_ref:
+            nhac.append(f"{co_ref} video ref sẽ được cắt vào timeline theo khớp ngữ nghĩa.")
+        # Video ref thiếu .srt là NHẮC chứ không CHẶN: chương vẫn dựng được bằng
+        # Pexels/kho như thường, chỉ mất phần footage từ video đó.
+        nhac.extend(loi_ref[:4])
+    except Exception:
+        pass          # fail-open: hỏng phần ref KHÔNG chặn việc nộp
+    if thieu_srt:
+        nhac.append(f"{', '.join(thieu_srt)} chưa có .srt — tool sẽ tự nhận dạng "
+                    f"giọng (chậm hơn ~1 phút/10 phút voice). Có .srt thì nhanh và "
+                    f"khớp chữ chính xác hơn.")
     return {
         "tap": Path(tap).name,
         "duong_dan": str(Path(tap)),
@@ -145,4 +176,5 @@ def tom_tat(tap: Path) -> dict:
         "so_chuong": len(chuong),
         "san_sang": bool(chuong) and not loi,
         "loi": loi[:8],
+        "nhac": nhac,
     }

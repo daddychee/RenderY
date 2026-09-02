@@ -89,6 +89,21 @@ def compose_chapter(project_dir: Path, dest: Path) -> dict:
     # 2) Footage đã tải — phân theo chương (chính là assets/ của project)
     out["footage"] = _copytree(Path(project_dir) / "assets", dest / "footage")
 
+    # 3) Bản Premiere/Resolve — dịch từ CHÍNH draft vừa copy ở trên, nên đường dẫn
+    # media trỏ vào `draft/materials/` NGAY TRONG thư mục giao. Dịch từ draft gốc
+    # trên ổ local thì nhân sự mang thư mục về máy là mất sạch media.
+    if out["draft"]:
+        try:
+            from autoedit.packager.fcpxml import xuat_fcpxml
+
+            cb = xuat_fcpxml(dest / "draft", dest / f"{dest.name}.fcpxml",
+                             ten_seq=dest.name)
+            out["fcpxml"] = 1
+            out["canh_bao"].extend(cb)
+        except Exception as exc:
+            # Không xuất được bản Premiere KHÔNG huỷ bản CapCut — chỉ báo.
+            out["canh_bao"].append(f"chưa xuất được bản Premiere (.fcpxml): {exc}")
+
     # 3) Report cho editor duyệt
     report = proj.get("report_path") or ""
     if report and Path(report).is_file():
@@ -105,22 +120,36 @@ def compose_chapter(project_dir: Path, dest: Path) -> dict:
     return out
 
 
-def write_readme(dest: Path, job_folder: str, chapters: list[dict]) -> Path:
-    """DOC_TRUOC.txt — thứ nhân sự mở đầu tiên khi lấy thư mục về."""
+def write_readme(dest: Path, job_folder: str, chapters: list[dict],
+                 xong_het: bool = True) -> Path:
+    """DOC_TRUOC.txt — thứ nhân sự mở đầu tiên khi lấy thư mục về.
+
+    `xong_het=False`: đang giao dần, tập CHƯA đủ chương. Phải ghi rõ ở dòng đầu —
+    thấy thư mục có file mà tưởng xong rồi copy về thì thiếu chương lúc nào không hay.
+    """
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y %H:%M")
     lines = [
         f"KẾT QUẢ DỰNG — {Path(job_folder).name}",
-        f"Xong lúc: {now}",
+        f"Xong lúc: {now}" if xong_het else
+        f"⏳ ĐANG CHẠY — cập nhật {now}. Đã xong {len(chapters)} chương, "
+        f"CÒN CHƯƠNG ĐANG DỰNG. Chương nào có thư mục là dùng được ngay; "
+        f"đợi dòng này đổi thành 'Xong lúc' rồi hãy copy CẢ TẬP về.",
         "",
         "CÁCH DÙNG",
         "  1. Copy CẢ THƯ MỤC này về máy cá nhân.",
-        "  2. Mỗi chương có thư mục riêng. Trong đó:",
-        "       draft/     -> copy vào thư mục draft của CapCut rồi mở CapCut",
+        "  2. Mỗi chương có thư mục riêng. Chọn MỘT trong hai cách mở:",
+        "       • CapCut   -> copy thư mục draft/ vào thư mục draft của CapCut rồi mở",
+        "       • Premiere -> mở file .fcpxml (File > Import). DaVinci Resolve cũng mở được.",
+        "     Hai bản CÙNG một timeline, dùng bản nào cũng được.",
+        "  3. Còn lại trong thư mục chương:",
         "       footage/   -> clip đã tải sẵn cho chương này",
         "       report.html-> bảng duyệt: xem nhanh chương này dùng clip gì",
         "       nguon_footage.txt -> nguồn gốc từng clip (dùng khi cần đối chiếu bản quyền)",
+        "",
+        "  LƯU Ý bản Premiere: chữ trên màn hình thành MARKER (không phải title có",
+        "  kiểu dáng) và hiệu ứng Ken Burns không mang sang — bản CapCut mới đủ.",
         "",
         "TỪNG CHƯƠNG",
     ]
@@ -149,11 +178,11 @@ def thu_muc_giao(tap: Path, outbox: Optional[Path] = None) -> Path:
     kịch bản + voice, lấy kết quả ngay tại đó là ngắn nhất — và mỗi tập tự mang
     kết quả của mình khi copy/lưu trữ.
     """
-    from autoedit.web.chapters import thu_muc_rendery
+    from autoedit.web.chapters import THU_MUC_GIAO, thu_muc_rendery
 
     if outbox is not None:
         return Path(outbox) / Path(tap).name
-    return thu_muc_rendery(tap) / "Compose Timeline"
+    return thu_muc_rendery(tap) / THU_MUC_GIAO
 
 
 def compose_job(job_folder: Path, project_dirs: list[Path],
@@ -176,13 +205,45 @@ def compose_job(job_folder: Path, project_dirs: list[Path],
     tom_tat: list[dict] = []
     for i, pdir in enumerate(project_dirs):
         ten = ten_chuong[i] if i < len(ten_chuong) else f"ch{i + 1:02d}"
-        try:
-            info = compose_chapter(Path(pdir), dest_root / ten)
-        except ComposeError as exc:
-            info = {"draft": 0, "footage": 0, "thieu_clip": 0,
-                    "so_beat": 0, "canh_bao": [str(exc)]}
-        info["ten"] = ten
-        tom_tat.append(info)
+        tom_tat.append(_giao_mot(Path(pdir), dest_root, ten))
 
     write_readme(dest_root, str(job_folder), tom_tat)
     return dest_root
+
+
+def _giao_mot(pdir: Path, dest_root: Path, ten: str) -> dict:
+    """Đổ 1 chương ra thư mục giao. Lỗi -> ghi vào tóm tắt, KHÔNG ném lên."""
+    try:
+        info = compose_chapter(Path(pdir), dest_root / ten)
+    except ComposeError as exc:
+        info = {"draft": 0, "footage": 0, "thieu_clip": 0,
+                "so_beat": 0, "canh_bao": [str(exc)]}
+    info["ten"] = ten
+    return info
+
+
+def compose_dan(job_folder: Path, ten_chuong: str, project_dir: Path,
+                tom_tat: list[dict], xong_het: bool = False,
+                outbox: Optional[Path] = None) -> Path:
+    """Giao NGAY một chương vừa dựng xong, không đợi cả tập.
+
+    31/08 (user hỏi "C7 C8 đã trả ra kết quả chưa?"): C7/c8 dựng xong từ lâu nhưng
+    bước giao chỉ chạy MỘT LẦN ở cuối job, nên nhân sự phải ngồi chờ chương chậm
+    nhất mới lấy được thứ đã xong. Giao dần thì mở C7 làm ngay trong khi C9 còn chạy.
+
+    `tom_tat` là danh sách tích luỹ qua các lần gọi — README viết lại mỗi lần để luôn
+    khớp với những gì ĐANG có trong thư mục. Chưa xong hết thì README ghi rõ còn chạy,
+    tránh cảnh nhân sự tưởng tập đã đủ chương.
+    """
+    dest_root = thu_muc_giao(Path(job_folder), outbox)
+    dest_root.mkdir(parents=True, exist_ok=True)
+    tom_tat.append(_giao_mot(Path(project_dir), dest_root, ten_chuong))
+    write_readme(dest_root, str(job_folder), tom_tat, xong_het=xong_het)
+    return dest_root / ten_chuong
+
+
+def don_thu_muc_giao(job_folder: Path, outbox: Optional[Path] = None) -> None:
+    """Xoá thư mục giao cũ trước khi bắt đầu giao dần (khỏi lẫn kết quả lần trước)."""
+    dest_root = thu_muc_giao(Path(job_folder), outbox)
+    if dest_root.exists():
+        shutil.rmtree(dest_root, ignore_errors=True)

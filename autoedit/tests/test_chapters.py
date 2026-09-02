@@ -161,3 +161,42 @@ def test_tom_tat_khong_co_srt_van_san_sang(tmp_path):
     d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=False))
     assert d["san_sang"] is True
     assert all(c["srt"] is False for c in d["chuong"])
+
+
+def test_tom_tat_nhac_khi_thieu_srt(tmp_path):
+    """Thiếu .srt KHÔNG chặn nhưng phải báo TRƯỚC khi nộp: whisper chậm hơn và
+    khớp chữ kém hơn. Job từng chết 24 phút sau vì lỗi này không hiện sớm."""
+    d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=False))
+    assert d["san_sang"] is True
+    assert len(d["nhac"]) == 1
+    assert "Hook" in d["nhac"][0] and "Chương 1" in d["nhac"][0]
+
+
+def test_tom_tat_khong_nhac_khi_du_srt(tmp_path):
+    d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=True))
+    assert d["nhac"] == []
+
+
+def test_bo_qua_thu_muc_ket_qua_cua_chinh_tool(tmp_path):
+    """Tool giao kết quả vào `RenderY/Compose Timeline/` — nằm CẠNH các chương.
+    Không loại trừ thì nộp lại tập đã dựng bị chặn ngay ở bước Kiểm tra:
+    "'Compose Timeline' sai quy ước" (31/08, job LI093 lần 2)."""
+    from autoedit.web.chapters import THU_MUC_GIAO
+
+    tap = _tap(tmp_path, chuong=("H", "C1"))
+    (tap / "RenderY" / THU_MUC_GIAO / "H" / "draft").mkdir(parents=True)
+    d = tom_tat(tap)
+    assert d["san_sang"] is True, d["loi"]
+    assert d["so_chuong"] == 2
+    assert [c["ma"] for c in d["chuong"]] == ["H", "C1"]
+
+
+def test_ten_thu_muc_giao_khop_giua_hai_module():
+    """chapters.THU_MUC_GIAO phải đúng thư mục compose thật sự ghi ra — lệch một
+    ký tự là bộ lọc vô dụng và lỗi trên quay lại."""
+    from pathlib import Path
+
+    from autoedit.web.chapters import THU_MUC_GIAO
+    from autoedit.web.compose import thu_muc_giao
+
+    assert thu_muc_giao(Path("X:/tap")).name == THU_MUC_GIAO
