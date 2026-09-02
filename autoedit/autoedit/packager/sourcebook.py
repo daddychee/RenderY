@@ -27,11 +27,15 @@ _GROUP_OF = {
     "pexels": "stock", "pixabay": "stock",
     "envato": "sub", "vecteezy": "sub", "artlist": "sub",
     "ytref": "ytref", "local": "local",
+    # refvid: video CÓ SẴN của user, đặt thẳng trong thư mục chương (02/09).
+    # Tách khỏi ytref vì tình trạng pháp lý KHÁC HẲN — đây là tư liệu của mình.
+    "refvid": "refvid",
 }
 _GROUP_LABEL = {
     "stock": "Stock free (dùng thương mại được)",
     "sub": "Subscription (đã trả tiền)",
     "ytref": "CẮT từ YouTube (KHÔNG có quyền)",
+    "refvid": "Video có sẵn của bạn (cắt theo transcript)",
     "local": "Kho riêng",
     "other": "Khác",
 }

@@ -286,6 +286,35 @@ def run_source(
     local_stats: dict[int, bool] = {}  # C4 đo local-first: beat_id -> pool có ứng viên KHO?
     # C8 gói CHỌN: gate pháp lý viral (liền kề + trần 8%; nguồn khai --ref trần 15%)
     ledger = ViralLedger(ref_sources=ref_sources)
+
+    # NGUỒN REF VIDEO (02/09): video có sẵn + .srt user đặt THẲNG trong thư mục chương.
+    # Đọc từ thư mục kịch bản GỐC trên NAS (project chỉ giữ bản sao script/voice).
+    refs, matcher = [], None
+    try:
+        from autoedit.sourcer import refvideo as _rv
+
+        goc = Path(project.inputs.original_script_path or "").parent
+        refs, rv_canh_bao = _rv.doc_ref(goc)
+        for w in rv_canh_bao:
+            record.warnings.append(f"ref video — {w}")
+        if refs:
+            from autoedit.sourcer.refembed import Matcher
+
+            matcher = Matcher()
+            if not matcher.san_sang:
+                record.warnings.append(
+                    "ref video: thiếu sentence-transformers -> TẮT nguồn này "
+                    "(pip install sentence-transformers)")
+                refs = []
+            else:
+                n_seg = sum(len(r.segments) for r in refs)
+                record.warnings.append(
+                    f"ref video: {len(refs)} video ({n_seg} đoạn transcript) — "
+                    f"khớp ngữ nghĩa, trần tỉ trọng như mọi nguồn mượn")
+    except Exception as exc:      # fail-open: hỏng nguồn ref KHÔNG giết cả stage
+        record.warnings.append(f"ref video: bỏ qua ({exc})")
+        refs, matcher = [], None
+
     if ledger.ref_prefixes:
         record.warnings.append(
             f"REF ưu tiên nguồn mẫu của bài: {len(ledger.ref_prefixes)} prefix — "
@@ -393,7 +422,8 @@ def run_source(
                     rank_next = _pump_rank(
                         rank_exec, rank_chunks, chunk_prev_ch, rank_pending, rank_next,
                         n_par, ctx, conn, stock, niche, used_in_video, script_text,
-                        hook_ch, central_by_ch, brain, local_stats, ledger, boost_specs)
+                        hook_ch, central_by_ch, brain, local_stats, ledger, boost_specs,
+                        refs=refs, matcher=matcher)
                     ci = chunk_idx_of.get(beat.beat_id)
                     if ci is not None and beat.beat_id not in ctx["batch_cache"]:
                         entry = rank_pending.pop(ci, None)
@@ -419,7 +449,8 @@ def run_source(
                 pick = _source_stock(beat, conn, stock, niche, used_in_video,
                                      channel, assets_dir, project_dir, record, script_text,
                                      brain=brain, ctx=ctx, local_stats=local_stats,
-                                     ledger=ledger, boost_terms=bterms)
+                                     ledger=ledger, boost_terms=bterms,
+                                     refs=refs, matcher=matcher)
             if pick.status == "needs_human":  # SÀN NICHE: mọi route đầu hàng -> tự đắp
                 floor = _floor_pick(beat, conn, niche, used_in_video, channel, stock,
                                     assets_dir, project_dir, record,
@@ -671,7 +702,7 @@ def _matches_boost(c: dict, boost_terms) -> bool:
 
 def _pump_rank(exec_, chunks, chunk_prev_ch, pending, next_idx, n_par, ctx, conn, stock,
                niche, used_in_video, script_text, hook_ch, central_by_ch, brain,
-               local_stats, ledger, boost_specs=()) -> int:
+               local_stats, ledger, boost_specs=(), refs=(), matcher=None) -> int:
     """TOC-2: giữ tối đa n_par call NÃO batch bay trước (lookahead). Gather ứng viên ở
     MAIN thread (sqlite conn + used_in_video không thread-safe); worker CHỈ chạy
     rank_batch (thuần + subprocess claude). Trả next_idx mới.
@@ -691,7 +722,8 @@ def _pump_rank(exec_, chunks, chunk_prev_ch, pending, next_idx, n_par, ctx, conn
                                                 sig_first, script_text,
                                                 local_stats=local_stats, ledger=ledger,
                                                 boost_terms=_boost_terms_for(
-                                                    boost_specs, b.chapter, hook_ch))
+                                                    boost_specs, b.chapter, hook_ch),
+                                                refs=refs, matcher=matcher)
             items.append((b, cands))
             gathered[b.beat_id] = (cands, queries)
         prev_ch = chunk_prev_ch[next_idx]
@@ -731,8 +763,13 @@ def _resolve_rank(entry, ctx, record, perf) -> None:
 
 def _gather_candidates(beat, conn, stock, niche, used_in_video, signature_first,
                        script_text="", local_stats=None,
-                       ledger=None, boost_terms=()) -> tuple[list[dict], SearchQueries]:
-    """B1 THU cho 1 beat (dùng chung đường per-beat lẫn batch PA-1)."""
+                       ledger=None, boost_terms=(),
+                       refs=(), matcher=None) -> tuple[list[dict], SearchQueries]:
+    """B1 THU cho 1 beat (dùng chung đường per-beat lẫn batch PA-1).
+
+    `refs`/`matcher`: video có sẵn của user + transcript (nguồn refvideo, 02/09).
+    Rỗng = không có ref -> chương chạy y như trước.
+    """
     queries = SearchQueries.model_validate(
         beat.search_queries if isinstance(beat.search_queries, dict)
         else beat.search_queries.model_dump()
@@ -763,6 +800,13 @@ def _gather_candidates(beat, conn, stock, niche, used_in_video, signature_first,
         extra = find_boost_candidates(conn, niche, boost_terms,
                                       script_text=script_text, used_keys=used_in_video)
         candidates += ledger.gate(extra) if ledger is not None else extra
+    # REF VIDEO của user: đặt TRƯỚC stock để khi điểm ngang nhau thì thắng —
+    # user đưa video vào là muốn dùng nó. Ledger vẫn gác trần tỉ trọng như ytref.
+    if refs:
+        from autoedit.sourcer import refvideo as _rv
+
+        rc = _rv.tim_ung_vien(beat, refs, matcher, used_keys=used_in_video)
+        candidates += ledger.gate(rc) if ledger is not None else rc
     candidates += stock.search_tiered(queries)
     seen: set[str] = set(used_in_video)  # luật cứng P7 + khử trùng signature/local
     uniq: list[dict] = []
@@ -888,7 +932,7 @@ def _floor_pick(beat, conn, niche, used_in_video, channel, stock,
 def _source_stock(beat, conn, stock, niche, used_in_video, channel,
                   assets_dir, project_dir, record, script_text="",
                   brain=None, ctx=None, local_stats=None, ledger=None,
-                  boost_terms=()) -> ShotPick:
+                  boost_terms=(), refs=(), matcher=None) -> ShotPick:
     # PA-1: chunk đã chấm batch -> dùng lại ứng viên + verdict cache, không gather/call lại
     cached = (ctx or {}).get("batch_cache", {}).pop(beat.beat_id, None) if ctx else None
     if cached is not None:
@@ -897,13 +941,23 @@ def _source_stock(beat, conn, stock, niche, used_in_video, channel,
         sig_first = bool(ctx is not None and ctx.get("signature_first"))
         candidates, queries = _gather_candidates(
             beat, conn, stock, niche, used_in_video, sig_first, script_text,
-            local_stats=local_stats, ledger=ledger, boost_terms=boost_terms)
+            local_stats=local_stats, ledger=ledger, boost_terms=boost_terms,
+            refs=refs, matcher=matcher)
         prescored = None
 
     if brain is not None:
-        return _pick_by_funnel(beat, candidates, brain, ctx, conn, channel,
-                               stock, assets_dir, project_dir, record, queries, used_in_video,
-                               prescored=prescored, ledger=ledger)
+        try:
+            return _pick_by_funnel(beat, candidates, brain, ctx, conn, channel,
+                                   stock, assets_dir, project_dir, record, queries,
+                                   used_in_video, prescored=prescored, ledger=ledger)
+        except (ValueError, RuntimeError) as exc:
+            # LLM lỗi ở MỘT beat KHÔNG được giết cả stage: 02/09 GLM trả verdicts[7]
+            # rỗng -> hỏng lượt chấm -> chết job sau 8 phút, mất luôn 19 beat đã chấm
+            # xong. Rơi xuống heuristic ngay dưới: chọn kém tinh hơn nhưng CÓ footage,
+            # và ghi rõ beat nào để người còn biết mà xem lại.
+            record.warnings.append(
+                f"beat {beat.beat_id}: phễu c5 lỗi ({str(exc)[:120]}) — "
+                f"dùng heuristic cho beat này")
 
     # ---- đường heuristic Phase 0 (không brain) ------------------------------
     # 4.4: ưu tiên clip đủ dài (sort ổn định — relevance bảo toàn trong nhóm)
@@ -1310,6 +1364,19 @@ def _materialize(candidate: dict, beat: Beat, stock, assets_dir: Path, project_d
     if candidate["source"] == "local":
         return _copy_to_assets(Path(candidate["path"]), beat, assets_dir, project_dir)
     dest = _stock_dest(candidate, beat, assets_dir)
+    # REF VIDEO: file đã nằm sẵn trên đĩa — "tải" ở đây là CẮT bằng ffmpeg.
+    # Phân nhánh phải ở ĐÂY (đường DUY NHẤT mọi ứng viên đi qua), không phải trong
+    # MultiStockClient: chỉ có 1 nguồn stock thì `stock` là PexelsClient trực tiếp,
+    # MultiStockClient bị bỏ qua và nhánh refvideo không bao giờ chạy — đo thật
+    # 02/09: 8 beat chọn ref, cả 8 đều "Tải hỏng sau 3 lần" vì Pexels đi tải một
+    # đường dẫn file local.
+    if candidate["source"] == "refvideo":
+        from autoedit.sourcer.refvideo import cat_clip
+
+        cat_clip(Path(candidate["url"]),
+                 float(candidate.get("src_in") or 0.0),
+                 float(candidate.get("duration") or 0.0), dest)
+        return str(dest.relative_to(project_dir))
     stock.download(candidate, dest)
     return str(dest.relative_to(project_dir))
 

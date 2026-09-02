@@ -18,6 +18,10 @@ dependencies = [
     # ytref điểm nhô (MO_TA_VAN_HANH_YTREF_DIEM_NHO §3c): pin đúng bản smoke M0 —
     # YouTube đổi format thì bump có chủ đích, không để trôi ngầm
     "yt-dlp==2026.7.4",
+    # Nguồn REF VIDEO (02/09): khớp câu beat ↔ câu transcript video có sẵn bằng
+    # bge-small (~130MB, chạy CPU vài giây/chương, KHÔNG tốn token API). Thiếu thư
+    # viện này thì nguồn ref TỰ TẮT — chương vẫn dựng bằng Pexels/kho như thường.
+    "sentence-transformers>=2.7.0",
     # G2 lớp đệm 2 lưng: SỔ chạy được trên Postgres (db_url) — import trong hàm,
     # máy chỉ dùng SQLite không đụng tới nhưng cài sẵn để flip không thiếu món
     "psycopg[binary]>=3.2",

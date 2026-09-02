@@ -1953,3 +1953,19 @@ def test_audience_bias_loaded_todo_filtered_fail_open(tmp_path):
     assert _audience_bias("lifein", tmp_path) == ["beautiful woman"]
     assert _audience_bias("khongco", tmp_path) == []
     assert _audience_bias("", tmp_path) == []
+
+
+def test_phieu_c5_loi_thi_roi_ve_heuristic_khong_giet_stage():
+    """02/09: GLM trả verdicts[7] rỗng -> hỏng 1 lượt chấm -> CHẾT cả job sau 8 phút,
+    mất luôn 19 beat đã chấm xong. Một beat hỏng chỉ được mất beat đó."""
+    import inspect
+
+    from autoedit.sourcer import runner
+
+    src = inspect.getsource(runner._source_stock)
+    i = src.index("_pick_by_funnel(")
+    truoc = src[:i]
+    assert "try:" in truoc, "_pick_by_funnel phải nằm trong try — LLM lỗi là chết stage"
+    sau = src[i:]
+    assert "except (ValueError, RuntimeError)" in sau
+    assert "heuristic" in sau.lower(), "phải nói rõ beat nào rơi về heuristic"
