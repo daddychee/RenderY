@@ -628,7 +628,22 @@ def api_aigen_chot(project_id: str, request: Request):
         raise HTTPException(400, ly_do)
     phien.trang_thai = "da_chot"
     phien.ghi(pdir)
-    return {"ok": True, "trang_thai": phien.trang_thai}
+    # Chuỗi sau-chốt (gen video Seedance -> vào shots -> dựng lại assemble) chạy
+    # NỀN — editor đóng tab được, kết quả là draft mới + trạng thái da_gen_video.
+    import threading
+
+    from autoedit.aigen.hoan_thien import chay_sau_chot
+
+    def _chay():
+        try:
+            msg = chay_sau_chot(pdir)
+            print(f"[aigen] {project_id}: {msg}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[aigen] {project_id} LỖI: {exc}", flush=True)
+
+    threading.Thread(target=_chay, daemon=True, name=f"aigen-{project_id}").start()
+    return {"ok": True, "trang_thai": phien.trang_thai,
+            "ghi_chu": "đang gen video nền — theo dõi trạng thái phiên"}
 
 
 @app.get("/api/kiem-tap")
@@ -670,6 +685,20 @@ def api_jobs(request: Request, all_users: bool = False):
         rows = []
         for j in jobs:
             d = j.to_dict()
+            # V2: job có phiên duyệt ảnh AI? -> UI hiện nút Duyệt trên thẻ job
+            duyet = []
+            for pid in (j.project_id or "").split(","):
+                pid = pid.strip()
+                if pid and (PROJECTS_DIR / pid / "aigen_duyet.json").is_file():
+                    try:
+                        import json as _json
+
+                        tt = _json.loads((PROJECTS_DIR / pid / "aigen_duyet.json")
+                                         .read_text(encoding="utf-8")).get("trang_thai")
+                        duyet.append({"project_id": pid, "trang_thai": tt})
+                    except Exception:  # noqa: BLE001
+                        pass
+            d["duyet"] = duyet
             if j.status == "queued":
                 d["wait_ahead"] = q.wait_ahead(conn, j.id)
             rows.append(d)

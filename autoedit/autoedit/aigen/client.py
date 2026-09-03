@@ -28,7 +28,12 @@ from autoedit.httpx_ma import nen_thu_lai
 ARK_URL = os.getenv("ARK_API_URL", "https://ark.ap-southeast.bytepluses.com/api/v3")
 # Thử theo thứ tự chất lượng/giá hợp lý; ID nào key không có quyền thì bỏ qua.
 THU_MODEL_ANH = ("seedream-4-5-251128", "seedream-4-0-250828", "seedream-3-0-t2i-250415")
-THU_MODEL_VIDEO = ("seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428")
+# Thứ tự RẺ -> ĐẮT (danh mục /models tra 04/09; model phải được KÍCH HOẠT trong
+# console BytePlus mới gọi được — danh mục có ≠ có quyền, probe 04/09 dính 404
+# "do not have access" với lite dù nó nằm trong danh mục).
+THU_MODEL_VIDEO = ("seedance-1-0-lite-i2v-250428", "dreamina-seedance-2-0-mini-260615",
+                   "seedance-1-0-pro-fast-251015", "seedance-1-0-pro-250528",
+                   "seedance-1-5-pro-251215")
 
 
 class AigenError(RuntimeError):
@@ -124,7 +129,8 @@ class ArkClient:
                 return r["id"]
             except AigenError as exc:
                 loi_cuoi = exc
-                if "HTTP 404" in str(exc) or "ModelNotOpen" in str(exc):
+                if ("HTTP 404" in str(exc) or "ModelNotOpen" in str(exc)
+        or "not have access" in str(exc)):
                     continue
                 raise
         raise AigenError(f"Không model video nào chạy được ({loi_cuoi})")

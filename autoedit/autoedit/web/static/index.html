@@ -359,6 +359,14 @@ function jobCard(j) {
     ? `<button onclick="xemLog(${j.id})">Log</button>` : ''
   const kq = j.status === 'done'
     ? `<button class="primary" onclick="xemKetQua(${j.id})">📁 Lấy kết quả</button>` : ''
+  // V2: phiên duyệt ảnh AI của job — nút mở gallery /duyet (giữ token trên URL)
+  const tk = new URLSearchParams(location.search).get('token')
+  const duyet = (j.duyet || []).map(x => {
+    const nhan = x.trang_thai === 'cho_duyet' ? '🖼 Duyệt ảnh AI'
+               : x.trang_thai === 'da_chot' ? '⏳ Đang gen video…' : '🖼 Ảnh AI ✓'
+    return `<a href="/duyet?p=${encodeURIComponent(x.project_id)}${tk ? '&token='+tk : ''}"
+              target="_blank"><button ${x.trang_thai==='da_chot' ? 'disabled' : ''}>${nhan}</button></a>`
+  }).join(' ')
   // Xem việc chung thì phải biết của ai — không thì 5 job giống hệt nhau.
   const nguoi = (j.nguoi && j.nguoi !== me.nguoi)
     ? `<span class="muted" style="font-size:12px">· ${esc(j.nguoi)}</span>` : ''
@@ -367,7 +375,7 @@ function jobCard(j) {
     <div class="row">
       <span class="pill ${esc(j.status)}">${NHAN[j.status] || esc(j.status)}</span>
       <b>${esc(ten)}</b>${nguoi}
-      <span class="grow"></span>${phai} ${kq} ${huy} ${log}
+      <span class="grow"></span>${phai} ${duyet} ${kq} ${huy} ${log}
     </div>
     ${bar}${nhip}${err}
     <div id="kq-${j.id}" class="hide" style="margin-top:10px"></div>
