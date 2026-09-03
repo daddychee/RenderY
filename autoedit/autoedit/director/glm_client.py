@@ -45,6 +45,9 @@ GLM_URL = os.getenv("GLM_API_URL", "https://api.z.ai/api/paas/v4/chat/completion
 PRICE_INPUT_PER_M = 0.6
 PRICE_OUTPUT_PER_M = 2.2
 
+# z.ai tra HET TIEN duoi dang HTTP 429 (nhu qua tai) kem ma 1113 trong body.
+HET_TIEN = "Insufficient balance"
+
 _YEU_CAU_JSON = (
     "\n\n## BẮT BUỘC ĐỊNH DẠNG\n"
     "Trả về DUY NHẤT một object JSON hợp lệ đúng schema dưới đây. Không thiếu trường "

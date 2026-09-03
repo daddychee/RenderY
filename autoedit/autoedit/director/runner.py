@@ -38,6 +38,50 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class _So:
+    """Sổ tạm: draft beat của từng chương, ghi ra đĩa NGAY khi chương đó xong.
+
+    03/09: GLM hết tiền ở chương 10/12 — 9 chương đã chia beat bị vứt sạch, nộp lại
+    phải gọi LLM lại từ đầu (tốn tiền + thời gian cho việc đã làm xong). Sổ này để
+    lần chạy sau chỉ làm phần còn thiếu.
+
+    Ghi từng chương một (không gom cuối) vì đúng lúc chết mới cần: gom cuối thì
+    chết giữa chừng là mất trắng, y như cũ.
+    """
+
+    def __init__(self, duong: Path) -> None:
+        self.duong = Path(duong)
+
+    def doc(self) -> dict[int, list[BeatDraft]]:
+        """Draft đã lưu, theo chapter_id. Hỏng/không có -> {} (chạy lại từ đầu)."""
+        if not self.duong.is_file():
+            return {}
+        try:
+            raw = json.loads(self.duong.read_text(encoding="utf-8"))
+            return {int(k): [BeatDraft.model_validate(x) for x in v]
+                    for k, v in raw.items()}
+        except Exception:
+            # Sổ hỏng thì BỎ, không giết stage: chạy lại tốn tiền còn hơn dựng sai.
+            return {}
+
+    def ghi(self, chapter_id: int, drafts: list[BeatDraft]) -> None:
+        try:
+            cu = {}
+            if self.duong.is_file():
+                cu = json.loads(self.duong.read_text(encoding="utf-8"))
+            cu[str(chapter_id)] = [d.model_dump(mode="json") for d in drafts]
+            self.duong.write_text(json.dumps(cu, ensure_ascii=False),
+                                  encoding="utf-8")
+        except OSError:
+            pass          # không ghi được sổ KHÔNG được giết stage đang chạy
+
+    def xoa(self) -> None:
+        try:
+            self.duong.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _gop_mot_chuong(outline: Outline, words) -> Outline:
     """Gộp mọi chương của outline thành 1, giữ nguyên tone/motif/chủ thể toàn cục.
 
@@ -134,22 +178,35 @@ def run_direct(project: Project, client: DirectorClient, on_progress=None,
         prev_summary: str | None = None
         hook_id = outline.chapters[0].chapter_id
         n_ch = len(outline.chapters)
+        # Draft từng chương lưu ra đĩa NGAY khi xong. 03/09: GLM hết tiền ở chương
+        # 10/12 -> 9 chương đã chia beat bị vứt sạch, nộp lại phải gọi LLM lại từ
+        # đầu. Có sổ này thì lần sau chỉ chạy phần còn thiếu.
+        so_draft = _So(Path(project.project_dir) / "beats_tam.json")
+        da_luu = so_draft.doc()
+        if da_luu:
+            record.warnings.append(
+                f"dùng lại {len(da_luu)} chương đã chia beat lần trước — "
+                f"chỉ chạy chương còn thiếu")
         for ci, ch in enumerate(outline.chapters, start=1):
             title = (ch.title or f"chương {ch.chapter_id}")[:40]
             _progress(ci, n_ch, f"chia beat: {title}")
-            drafts = _pass2_chapter(
-                client, words, outline_json, ch.chapter_id, ch.start_word, ch.end_word,
-                prev_summary, brief, channel, track, record,
-                is_hook=(ch.chapter_id == hook_id),
-                central_subject=ch.central_subject, script_context=script_context,
-                library_context=library_context,
-            )
+            drafts = da_luu.get(ch.chapter_id)
+            if drafts is None:
+                drafts = _pass2_chapter(
+                    client, words, outline_json, ch.chapter_id, ch.start_word, ch.end_word,
+                    prev_summary, brief, channel, track, record,
+                    is_hook=(ch.chapter_id == hook_id),
+                    central_subject=ch.central_subject, script_context=script_context,
+                    library_context=library_context,
+                )
+                so_draft.ghi(ch.chapter_id, drafts)
             all_drafts.extend((ch.chapter_id, d) for d in drafts)
             last = drafts[-1]
             prev_summary = (
                 f'text: "{_text_of(words, last.start_word, last.end_word)}" | '
                 f"concept: {last.visual_concept} | shot_size: {last.shot_size}"
             )
+        so_draft.xoa()          # đủ chương rồi -> sổ tạm hết việc
     except Exception as exc:
         record.status = StageStatus.FAILED
         record.error = str(exc)

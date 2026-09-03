@@ -591,3 +591,111 @@ def test_prompts_carry_ban_thuoc_rules():
     assert "central_subject must name the REAL subject ONLY" in s1
     assert "poisons every downstream" in s1  # phản-ví-dụ Jenga trong central_subject
     assert "ONLY for PLAIN lines" in s1
+
+
+# ---------- GLM het tien + so tam giu tien do (su co 03/09) -------------------
+def test_het_tien_bao_ngay_khong_thu_lai(monkeypatch):
+    """z.ai tra HET TIEN duoi dang HTTP 429 (nhu qua tai) kem ma 1113. Cho bao lau
+    cung vay — chi nap tien moi het. 03/09: nhan su chi thay 'GLM HTTP 429' roi tu
+    chuyen sang lam tay, khong biet la het tien."""
+    import urllib.error
+
+    from autoedit.director.glm_client import GLMDirectorClient
+
+    lan = {"n": 0}
+
+    def gia_urlopen(req, timeout=None):
+        lan["n"] += 1
+        raise urllib.error.HTTPError(
+            req.full_url, 429, "Too Many Requests", {},
+            __import__("io").BytesIO(
+                b'{"error":{"code":"1113","message":"Insufficient balance or no '
+                b'resource package. Please recharge."}}'))
+
+    monkeypatch.setattr("urllib.request.urlopen", gia_urlopen)
+    c = GLMDirectorClient(api_key="k", retries=3)
+    with pytest.raises(RuntimeError, match="HẾT TIỀN"):
+        c._goi([{"role": "user", "content": "x"}])
+    assert lan["n"] == 1, "hết tiền thì KHÔNG thử lại — chờ vô ích"
+
+
+def test_429_qua_tai_van_thu_lai(monkeypatch):
+    """Phân biệt với 429 THẬT (quá tải): cái đó chờ rồi gọi lại là qua."""
+    import urllib.error
+
+    from autoedit.director.glm_client import GLMDirectorClient
+
+    lan = {"n": 0}
+
+    def gia_urlopen(req, timeout=None):
+        lan["n"] += 1
+        raise urllib.error.HTTPError(
+            req.full_url, 429, "Too Many Requests", {},
+            __import__("io").BytesIO(b'{"error":{"message":"rate limit"}}'))
+
+    monkeypatch.setattr("urllib.request.urlopen", gia_urlopen)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    c = GLMDirectorClient(api_key="k", retries=3)
+    with pytest.raises(RuntimeError):
+        c._goi([{"role": "user", "content": "x"}])
+    assert lan["n"] == 3
+
+
+def test_so_tam_giu_draft_tung_chuong(tmp_path):
+    """03/09: GLM het tien o chuong 10/12 -> 9 chuong da chia beat bi vut sach."""
+    from autoedit.director.runner import _So
+
+    so = _So(tmp_path / "beats_tam.json")
+    assert so.doc() == {}
+    d = _drafts((0, 2), (3, 5)).beats
+    so.ghi(1, list(d))
+    so.ghi(2, list(d))
+    lai = so.doc()
+    assert set(lai) == {1, 2}
+    assert [b.start_word for b in lai[1]] == [b.start_word for b in d]
+
+
+def test_so_tam_hong_thi_chay_lai_tu_dau(tmp_path):
+    """So hong thi BO, khong giet stage: chay lai ton tien con hon dung sai."""
+    from autoedit.director.runner import _So
+
+    p = tmp_path / "beats_tam.json"
+    p.write_text("{ khong phai json", encoding="utf-8")
+    assert _So(p).doc() == {}
+
+
+def test_so_tam_xoa_duoc(tmp_path):
+    from autoedit.director.runner import _So
+
+    so = _So(tmp_path / "beats_tam.json")
+    so.ghi(1, list(_drafts((0, 2)).beats))
+    so.xoa()
+    assert not (tmp_path / "beats_tam.json").exists()
+    so.xoa()          # xoá lần hai không nổ
+
+
+def test_chay_lai_chi_goi_LLM_cho_chuong_CON_THIEU(project, monkeypatch):
+    """Vế QUAN TRỌNG NHẤT: nộp lại sau khi hết tiền phải BỎ QUA chương đã xong."""
+    from autoedit.director.runner import _So
+
+    # lần 1: chương 1 xong, chương 2 chết
+    so = _So(Path(project.project_dir) / "beats_tam.json")
+    so.ghi(1, list(_drafts((0, 2), (3, 5)).beats))
+
+    goi = []
+
+    class DemClient(FakeClient):
+        def complete(self, system, user, output_model, context=None):
+            goi.append(output_model.__name__)
+            return super().complete(system, user, output_model, context)
+
+    # chỉ còn Outline + ĐÚNG 1 lượt ChapterBeats cho chương 2
+    client = DemClient([GOOD_OUTLINE, _drafts((6, 8), (9, 11))])
+    run_direct(project, client, gop_chuong_ngan=False)
+
+    assert goi.count("ChapterBeats") == 1, f"gọi lại chương đã xong: {goi}"
+    from autoedit.project import Project
+
+    saved = Project.load(project.project_dir)
+    assert len(saved.beats) == 4          # đủ cả 2 chương
+    assert not (Path(project.project_dir) / "beats_tam.json").exists()
