@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duyệt ảnh AI — RenderY V2</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--line:#252a34;--txt:#e6e9ef;--dim:#8b93a3;
+        --ok:#3fb950;--run:#3b82f6;--fail:#f85149;--warn:#d29922}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:14px 20px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{font-size:16px;margin:0}
+  main{padding:20px;max-width:1180px;margin:0 auto}
+  .muted{color:var(--dim);font-size:12px}
+  .grow{flex:1}
+  button{background:#232935;color:var(--txt);border:1px solid var(--line);
+         border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+  button.primary{background:var(--run);border-color:var(--run);color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .motif{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         padding:14px 16px;margin-bottom:16px}
+  .hang-anh{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
+  .the-anh{width:calc(50% - 7px);min-width:320px;border:2px solid var(--line);
+           border-radius:10px;overflow:hidden;background:#0b0d11}
+  .the-anh img{width:100%;display:block;cursor:zoom-in}
+  .the-anh.chot{border-color:var(--ok)}
+  .the-anh.loai{border-color:var(--fail);opacity:.55}
+  .thanh{display:flex;gap:8px;align-items:center;padding:8px 10px}
+  .thanh input{flex:1;background:#0b0d11;border:1px solid var(--line);
+               color:var(--txt);border-radius:6px;padding:5px 8px;font-size:12px}
+  .nhan{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);
+        color:var(--dim)}
+  .nhan.chot{border-color:var(--ok);color:var(--ok)}
+  #zoom{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;
+        align-items:center;justify-content:center;cursor:zoom-out;z-index:9}
+  #zoom img{max-width:96vw;max-height:96vh}
+  .err{color:var(--fail)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🖼 Duyệt ảnh AI</h1>
+  <span class="muted" id="sub">đang tải…</span>
+  <span class="grow"></span>
+  <button class="primary" id="btn-chot" onclick="chotPhien()">✓ Chốt phiên → gen video</button>
+</header>
+<main>
+  <div class="muted" style="margin-bottom:14px">
+    Mỗi cảnh chủ (motif) dùng lại ở nhiều beat — <b>chọn đúng MỘT ảnh</b> mỗi motif.
+    Ảnh chưa ưng: ✗ loại + ghi chú vì sao (ghi chú thành feedback khi gen lại).
+    Chốt xong tool mới sinh video (Seedance) từ ảnh đã chọn — tiền video chỉ đốt sau bước này.
+  </div>
+  <div id="ds"></div>
+</main>
+<div id="zoom" onclick="this.style.display='none'"><img id="zoom-img"></div>
+<script>
+const q = new URLSearchParams(location.search)
+const PID = q.get('p') || ''
+const TOKEN = q.get('token') || ''
+const H = TOKEN ? {'x-rendery-token': TOKEN} : {}
+let phien = null
+
+async function api(path, opts) {
+  const r = await fetch(path, Object.assign({headers: Object.assign(
+    {'Content-Type': 'application/json'}, H)}, opts))
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status)
+  return r.json()
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+
+function veAnh(m, p) {
+  const lop = p.chon === true ? 'chot' : p.chon === false ? 'loai' : ''
+  const src = `/api/aigen/${PID}/anh/${encodeURIComponent(p.file)}` +
+              (TOKEN ? `?token=${TOKEN}` : '')
+  return `<div class="the-anh ${lop}" id="a-${m.ma}-${esc(p.file)}">
+    <img src="${src}" onclick="zoom('${src}')">
+    <div class="thanh">
+      <button onclick="quyet('${m.ma}','${esc(p.file)}',true)">✓ Chọn</button>
+      <button onclick="quyet('${m.ma}','${esc(p.file)}',false)">✗ Loại</button>
+      <input id="gc-${m.ma}-${esc(p.file)}" placeholder="ghi chú regen (vd: bớt sương, thêm người)"
+             value="${esc(p.ghi_chu)}"
+             onchange="quyet('${m.ma}','${esc(p.file)}',null,this.value)">
+      ${p.chon === true ? '<span class="nhan chot">ĐÃ CHỌN</span>'
+        : p.chon === false ? '<span class="nhan">loại</span>' : ''}
+    </div></div>`
+}
+
+function ve() {
+  document.getElementById('sub').textContent =
+    `${PID} · ${phien.motif.length} motif · trạng thái: ${phien.trang_thai}`
+  document.getElementById('btn-chot').disabled = phien.trang_thai !== 'cho_duyet'
+  document.getElementById('ds').innerHTML = phien.motif.map(m => `
+    <div class="motif">
+      <b>${esc(m.ma.toUpperCase())} — ${esc(m.mo_ta)}</b>
+      <span class="muted"> · dùng lại tại beat ${m.beat_ids.join(', ')}</span>
+      <div class="muted" style="margin-top:4px">prompt: ${esc(m.prompt).slice(0, 220)}</div>
+      <div class="hang-anh">${m.phuong_an.map(p => veAnh(m, p)).join('')}</div>
+    </div>`).join('')
+}
+
+function zoom(src) {
+  document.getElementById('zoom-img').src = src
+  document.getElementById('zoom').style.display = 'flex'
+}
+
+async function quyet(ma, file, chon, ghi_chu) {
+  try {
+    await api(`/api/aigen/${PID}/chon`, {method: 'POST', body: JSON.stringify(
+      {ma_motif: ma, file, chon, ghi_chu: ghi_chu || ''})})
+    if (chon !== null) { phien = await api(`/api/aigen/${PID}` + (TOKEN ? `?token=${TOKEN}` : '')); ve() }
+  } catch (e) { alert('Lỗi: ' + e.message) }
+}
+
+async function chotPhien() {
+  try {
+    const r = await api(`/api/aigen/${PID}/chot`, {method: 'POST', body: '{}'})
+    phien.trang_thai = r.trang_thai; ve()
+    alert('Đã chốt! Bước gen video sẽ chạy từ các ảnh đã chọn.')
+  } catch (e) { alert('Chưa chốt được: ' + e.message) }
+}
+
+(async () => {
+  try {
+    phien = await api(`/api/aigen/${PID}` + (TOKEN ? `?token=${TOKEN}` : ''))
+    ve()
+  } catch (e) {
+    document.getElementById('ds').innerHTML =
+      `<div class="err">Không tải được phiên duyệt: ${esc(e.message)} — kiểm tra ?p=&lt;project_id&gt;</div>`
+  }
+})()
+</script>
+</body>
+</html>

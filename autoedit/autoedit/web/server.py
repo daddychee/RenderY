@@ -552,6 +552,85 @@ def _trong_nas(p: "Path | str") -> Path:
     return real
 
 
+# ------------------------- AIGEN: cổng duyệt ảnh (V2 Đợt 2) -------------------
+def _aigen_pdir(project_id: str) -> Path:
+    pdir = PROJECTS_DIR / project_id
+    if not (pdir / "project.json").is_file() and not (pdir / "aigen_duyet.json").is_file():
+        raise HTTPException(404, f"Không thấy project {project_id}")
+    return pdir
+
+
+@app.get("/duyet")
+def trang_duyet(request: Request):
+    _require_auth(request)
+    return FileResponse(Path(__file__).parent / "static" / "duyet.html")
+
+
+@app.get("/api/aigen/{project_id}")
+def api_aigen_phien(project_id: str, request: Request):
+    _require_auth(request)
+    from autoedit.aigen.duyet import PhienDuyet
+
+    phien = PhienDuyet.doc(_aigen_pdir(project_id))
+    if phien is None:
+        raise HTTPException(404, "Project này không có phiên duyệt aigen")
+    from dataclasses import asdict
+
+    return asdict(phien)
+
+
+@app.get("/api/aigen/{project_id}/anh/{ten_file}")
+def api_aigen_anh(project_id: str, ten_file: str, request: Request):
+    _require_auth(request)
+    # chặn ../ — chỉ file NẰM TRONG projects/<id>/aigen/
+    if "/" in ten_file or "\\" in ten_file or ".." in ten_file:
+        raise HTTPException(400, "Tên file không hợp lệ")
+    f = _aigen_pdir(project_id) / "aigen" / ten_file
+    if not f.is_file():
+        raise HTTPException(404, "Không thấy ảnh")
+    return FileResponse(f)
+
+
+class ChonAnh(BaseModel):
+    ma_motif: str
+    file: str
+    chon: Optional[bool] = None
+    ghi_chu: str = ""
+
+
+@app.post("/api/aigen/{project_id}/chon")
+def api_aigen_chon(project_id: str, req: ChonAnh, request: Request):
+    _require_auth(request)
+    from autoedit.aigen.duyet import PhienDuyet
+
+    pdir = _aigen_pdir(project_id)
+    phien = PhienDuyet.doc(pdir)
+    if phien is None:
+        raise HTTPException(404, "Không có phiên duyệt")
+    if not phien.chon(req.ma_motif, req.file, req.chon, req.ghi_chu):
+        raise HTTPException(404, f"Không thấy motif {req.ma_motif}")
+    phien.ghi(pdir)
+    return {"ok": True}
+
+
+@app.post("/api/aigen/{project_id}/chot")
+def api_aigen_chot(project_id: str, request: Request):
+    """Chốt phiên -> trạng thái da_chot. Bước gen video đọc trạng thái này."""
+    _require_auth(request)
+    from autoedit.aigen.duyet import PhienDuyet
+
+    pdir = _aigen_pdir(project_id)
+    phien = PhienDuyet.doc(pdir)
+    if phien is None:
+        raise HTTPException(404, "Không có phiên duyệt")
+    ok, ly_do = phien.du_de_chot()
+    if not ok:
+        raise HTTPException(400, ly_do)
+    phien.trang_thai = "da_chot"
+    phien.ghi(pdir)
+    return {"ok": True, "trang_thai": phien.trang_thai}
+
+
 @app.get("/api/kiem-tap")
 def api_kiem_tap(request: Request, duong_dan: str = ""):
     """Kiểm thư mục tập nhân sự vừa dán: có RenderY chưa, mấy chương, thiếu gì.
