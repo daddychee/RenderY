@@ -431,7 +431,25 @@ def api_suc_khoe():
             tt, ct = "loi", f"{type(e).__name__}: {e}"
         mo_dun.append({"ten": ten, "trang_thai": tt, "chi_tiet": ct})
 
-    def _hang_doi():
+    def _so_hang_doi():
+        """SỔ có đọc được không — hạ tầng, KHÔNG dính tới job nào hỏng.
+
+        Tách khỏi `viec-hong` (03/09) vì gộp làm một thì lẫn hai chuyện khác hẳn:
+        sổ hỏng = nộp việc không vào, cả app đứng, phải sửa ngay; job hỏng = nhân
+        sự nhập sai / hết tiền API / mạng chập — chuyện thường ngày, không phải
+        app hỏng. Gộp chung thì GLM hết tiền cũng kéo module hạ tầng sang đỏ, và
+        canary kiểm "sổ đọc được" báo SAI trong khi sổ vẫn đọc tốt.
+        """
+        conn = _queue_conn()
+        try:
+            dem = dict(conn.execute(
+                "SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
+        finally:
+            conn.close()
+        return "ok", (f"{dem.get('running', 0)} đang dựng / {dem.get('queued', 0)} chờ "
+                      f"/ {dem.get('done', 0)} xong / {dem.get('failed', 0)} lỗi")
+
+    def _viec_hong():
         """Job hỏng phải NÂNG TRẠNG THÁI, không chỉ in ra con số.
 
         LỖI THẬT 03/09 (Owner hỏi "sao rendery lỗi mà app không báo"): nhân sự
@@ -477,7 +495,8 @@ def api_suc_khoe():
             return "loi", f"gốc NAS {NAS_ROOT} không đọc được — nộp/dựng job chết"
         return "ok", f"gốc NAS đọc được ({NAS_ROOT})"
 
-    them("hang-doi", _hang_doi)
+    them("hang-doi", _so_hang_doi)     # hạ tầng: sổ đọc được không
+    them("viec-hong", _viec_hong)      # vận hành: job của người dùng có hỏng không
     them("nas", _nas)
     nang = {"ok": 0, "canh_bao": 1, "loi": 2}
     tong = max((m["trang_thai"] for m in mo_dun), key=nang.get)

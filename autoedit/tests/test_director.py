@@ -605,6 +605,9 @@ def test_het_tien_bao_ngay_khong_thu_lai(monkeypatch):
     lan = {"n": 0}
 
     def gia_urlopen(req, timeout=None):
+        # so_goi_nen.ghi() cũng gọi urlopen để ghi nhật ký — chỉ đếm lần gọi TỚI GLM
+        if "/api/so-goi" in str(getattr(req, "full_url", req)):
+            raise OSError("bo qua so ghi")
         lan["n"] += 1
         raise urllib.error.HTTPError(
             req.full_url, 429, "Too Many Requests", {},
@@ -628,6 +631,9 @@ def test_429_qua_tai_van_thu_lai(monkeypatch):
     lan = {"n": 0}
 
     def gia_urlopen(req, timeout=None):
+        # so_goi_nen.ghi() cũng gọi urlopen để ghi nhật ký — chỉ đếm lần gọi TỚI GLM
+        if "/api/so-goi" in str(getattr(req, "full_url", req)):
+            raise OSError("bo qua so ghi")
         lan["n"] += 1
         raise urllib.error.HTTPError(
             req.full_url, 429, "Too Many Requests", {},

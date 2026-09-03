@@ -455,7 +455,7 @@ def test_health_job_hong_phai_NANG_TRANG_THAI_khong_chi_in_so(nas):
 
     def _hd():
         b = tc.get("/api/suc-khoe").json()
-        return next(m for m in b["mo_dun"] if m["ten"] == "hang-doi")
+        return next(m for m in b["mo_dun"] if m["ten"] == "viec-hong")
 
     _dat_job(nas, "done")
     assert _hd()["trang_thai"] == "ok"
@@ -481,6 +481,41 @@ def test_health_job_hong_CU_khong_keu_mai(nas):
     tc = TestClient(srv.app)
     _dat_job(nas, "failed", error="lỗi cũ", tuoi_ngay=5)
     b = tc.get("/api/suc-khoe").json()
-    m = next(x for x in b["mo_dun"] if x["ten"] == "hang-doi")
+    m = next(x for x in b["mo_dun"] if x["ten"] == "viec-hong")
     assert m["trang_thai"] == "ok", m
-    assert "1 lỗi" in m["chi_tiet"], "vẫn hiện tổng tích lũy để tra cứu"
+    so = next(x for x in b["mo_dun"] if x["ten"] == "hang-doi")
+    assert "1 lỗi" in so["chi_tiet"], "vẫn hiện tổng tích lũy để tra cứu"
+
+
+def test_so_hang_doi_KHONG_do_khi_job_nguoi_dung_hong(nas):
+    """Hai chuyện KHÁC HẲN, phải là hai module:
+      · sổ hỏng   = nộp việc không vào, cả app đứng — hạ tầng, sửa ngay
+      · job hỏng  = nhân sự nhập sai / hết tiền API / mạng chập — chuyện thường
+
+    Gộp làm một thì GLM hết tiền cũng kéo module hạ tầng sang đỏ, và canary kiểm
+    'sổ đọc được' báo SAI trong khi sổ vẫn đọc tốt (sự cố 03/09)."""
+    from fastapi.testclient import TestClient
+    tc = TestClient(srv.app)
+
+    _dat_job(nas, "failed", error="GLM HẾT TIỀN (mã 1113)")
+    b = tc.get("/api/suc-khoe").json()
+    mods = {m["ten"]: m for m in b["mo_dun"]}
+
+    assert mods["hang-doi"]["trang_thai"] == "ok", \
+        "sổ vẫn đọc được — job hỏng KHÔNG được kéo hạ tầng sang đỏ"
+    assert mods["viec-hong"]["trang_thai"] != "ok", \
+        "job hỏng phải nâng trạng thái ở module vận hành"
+
+
+def test_so_hang_doi_do_khi_db_that_su_hong(nas, monkeypatch):
+    """Ngược lại: sổ hỏng THẬT thì module hạ tầng phải đỏ."""
+    from fastapi.testclient import TestClient
+    tc = TestClient(srv.app)
+
+    def vo(*a, **k):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(srv, "_queue_conn", vo)
+    b = tc.get("/api/suc-khoe").json()
+    m = next(x for x in b["mo_dun"] if x["ten"] == "hang-doi")
+    assert m["trang_thai"] == "loi", m

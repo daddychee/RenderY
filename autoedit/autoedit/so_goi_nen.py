@@ -18,12 +18,15 @@ import urllib.request
 
 
 def ghi(dich_vu, duoi="", units=0, ok=True, ma_loi="", model="", viec="",
-        ms=None):
+        ms=None, token_vao=None, token_ra=None):
+    """token_vao/token_ra = None nghĩa là CHƯA ĐO (khác 0 = đo được và bằng 0)."""
     try:
         goc = os.environ.get("GATEWAY_URL", "http://127.0.0.1:9000")
         body = json.dumps({"app": "rendery", "dich_vu": dich_vu, "duoi": duoi,
                            "units": units, "ok": ok, "ma_loi": ma_loi,
-                           "model": model, "viec": viec, "ms": ms}).encode()
+                           "model": model, "viec": viec, "ms": ms,
+                           "token_vao": token_vao,
+                           "token_ra": token_ra}).encode()
         req = urllib.request.Request(goc + "/api/so-goi", data=body,
                                      headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=2).close()

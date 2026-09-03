@@ -135,6 +135,9 @@ def test_khong_thu_lai_khi_loi_4xx(monkeypatch):
     lan = {"n": 0}
 
     def gia_urlopen(req, timeout=None):
+        # so_goi_nen.ghi() cũng gọi urlopen để ghi nhật ký — chỉ đếm lần gọi TỚI GLM
+        if "/api/so-goi" in str(getattr(req, "full_url", req)):
+            raise OSError("bo qua so ghi")
         lan["n"] += 1
         raise urllib.error.HTTPError(req.full_url, 400, "Bad", {}, None)
 
@@ -149,6 +152,9 @@ def test_co_thu_lai_khi_loi_mang(monkeypatch):
     lan = {"n": 0}
 
     def gia_urlopen(req, timeout=None):
+        # so_goi_nen.ghi() cũng gọi urlopen để ghi nhật ký — chỉ đếm lần gọi TỚI GLM
+        if "/api/so-goi" in str(getattr(req, "full_url", req)):
+            raise OSError("bo qua so ghi")
         lan["n"] += 1
         raise OSError("mạng chập chờn")
 

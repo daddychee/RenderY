@@ -119,8 +119,14 @@ class GLMDirectorClient:
                            ma_loi=str(e)[:200], model=self.model,
                            viec="chia_beat", ms=(_t.time() - t0) * 1000)
             raise
+        # TOKEN (03/09, Owner: "tính chi phí sử dụng cho từng app"): usage nằm
+        # sẵn trong body trả về — chỉ chuyển tiếp, không ước lượng. Thiếu khối
+        # usage thì gửi None để sổ biết là CHƯA ĐO, khác hẳn "0 token".
+        u = r.get("usage") or {}
         so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=True, model=self.model,
-                       viec="chia_beat", ms=(_t.time() - t0) * 1000)
+                       viec="chia_beat", ms=(_t.time() - t0) * 1000,
+                       token_vao=u.get("prompt_tokens"),
+                       token_ra=u.get("completion_tokens"))
         return r
 
     def _goi_that(self, messages: list[dict]) -> dict:
