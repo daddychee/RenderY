@@ -228,6 +228,41 @@ def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
         return None
 
 
+@app.command(name="nhip-do")
+def nhip_do_cmd(
+    videos: list[Path] = typer.Argument(..., help="Video cần đo nhịp (1+ file)."),
+) -> None:
+    """Đo NHỊP DỰNG video tham chiếu — 2 thước độc lập, tách hook/thân, đợt bùng.
+
+    Dùng để HỌC nhịp từ video mẫu (Fern/WUFO/đối thủ) trước khi chỉnh hồ sơ
+    nhịp trong autoedit/nhip/profiles/. Số là CẬN DƯỚI (xem nhip/do.py).
+    """
+    from autoedit.nhip.do import DoNhipError, do_video
+
+    for v in videos:
+        try:
+            kq = do_video(Path(v))
+        except DoNhipError as exc:
+            typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
+            continue
+        typer.echo("")
+        typer.secho(f"== {kq.video} — {kq.tong_s/60:.1f} phút ==", bold=True)
+        for doan, ten in (("hook", "HOOK (90s đầu)"), ("than", "THÂN")):
+            for thuoc in ("select", "scdet"):
+                tk = getattr(kq, doan)[thuoc]
+                if tk:
+                    typer.echo(f"  {ten:15} [{thuoc:6}] {tk.so_shot:4} shot"
+                               f" · trung vị {tk.trung_vi:5.2f}s"
+                               f" · ≤2s {tk.ty_le_nhanh:.0%} · ≥5s {tk.ty_le_hold:.0%}")
+        if not kq.hoi_tu():
+            typer.secho("  ⚠ 2 thước KHÔNG hội tụ — video đánh lừa được thước "
+                        "(đồ hoạ nhấp nháy?), số không đáng tin", fg=typer.colors.YELLOW)
+        if kq.bung:
+            moc_bung = ", ".join(f"{int(t//60)}:{int(t%60):02d}" for t, _ in kq.bung)
+            ck = f" · chu kỳ ~{kq.chu_ky_bung_s/60:.1f} phút" if kq.chu_ky_bung_s else ""
+            typer.echo(f"  ĐỢT BÙNG: {len(kq.bung)} ({moc_bung}){ck}")
+
+
 @app.command()
 def make(
     folder: Path = typer.Argument(..., help="Folder 1 video/chương: script.txt + voice.mp3 (+ voice.srt nếu có)."),
