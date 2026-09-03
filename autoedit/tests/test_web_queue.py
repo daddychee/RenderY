@@ -426,3 +426,61 @@ def test_uoc_tinh_align_tinh_ca_whisper():
     from autoedit.web import queue as q
 
     assert q.STAGE_SECONDS["align"] >= 60
+
+
+def _dat_job(nas_root, status, error="", tuoi_ngay=0):
+    """Nhét một job vào hàng đợi với tuổi tự chọn (ngày trước hôm nay)."""
+    from autoedit.web import queue as q
+    conn = q.connect(nas_root / "jobs.db")
+    with conn:
+        conn.execute(
+            "INSERT INTO jobs (job_folder, project_id, nguoi, status, stage, "
+            "created_at, error) VALUES (?,?,?,?,?, datetime('now', ?), ?)",
+            (str(nas_root / "tap"), "p1", "tt", status, "",
+             f"-{tuoi_ngay} day", error))
+    conn.close()
+
+
+def test_health_job_hong_phai_NANG_TRANG_THAI_khong_chi_in_so(nas):
+    """SỰ CỐ 03/09 (Owner hỏi "sao rendery lỗi mà app không báo").
+
+    Nhân sự phải nhắn tay qua chat báo job dựng chết vì GLM hết tiền, trong khi
+    tab giám sát vẫn xanh — vì `_hang_doi` ĐỌC RA số job `failed` rồi vẫn trả
+    "ok" cứng. Lúc đó DB có 4/7 job hỏng (57%) mà hệ im lặng suốt.
+
+    Ghim ba mức: không hỏng → ok · hỏng nhưng vẫn có job xong → cảnh báo ·
+    hỏng mà KHÔNG job nào xong → lỗi (hệ đứt, không phải một job xấu)."""
+    from fastapi.testclient import TestClient
+    tc = TestClient(srv.app)
+
+    def _hd():
+        b = tc.get("/api/suc-khoe").json()
+        return next(m for m in b["mo_dun"] if m["ten"] == "hang-doi")
+
+    _dat_job(nas, "done")
+    assert _hd()["trang_thai"] == "ok"
+
+    _dat_job(nas, "failed", error="GLM HẾT TIỀN (mã 1113)")
+    m = _hd()
+    assert m["trang_thai"] == "canh_bao", m
+    assert "1113" in m["chi_tiet"], "phải nói LÝ DO, không chỉ đếm số"
+
+    # xóa job done → chỉ còn hỏng
+    from autoedit.web import queue as q
+    conn = q.connect(nas / "jobs.db")
+    with conn:
+        conn.execute("DELETE FROM jobs WHERE status='done'")
+    conn.close()
+    assert _hd()["trang_thai"] == "loi", "hỏng hết mà không báo lỗi = hệ đứt lặng lẽ"
+
+
+def test_health_job_hong_CU_khong_keu_mai(nas):
+    """Job hỏng tuần trước đã xử lý xong thì không được kêu mãi — nếu không,
+    người trực quen mắt với màu đỏ và bỏ qua lỗi THẬT hôm nay."""
+    from fastapi.testclient import TestClient
+    tc = TestClient(srv.app)
+    _dat_job(nas, "failed", error="lỗi cũ", tuoi_ngay=5)
+    b = tc.get("/api/suc-khoe").json()
+    m = next(x for x in b["mo_dun"] if x["ten"] == "hang-doi")
+    assert m["trang_thai"] == "ok", m
+    assert "1 lỗi" in m["chi_tiet"], "vẫn hiện tổng tích lũy để tra cứu"

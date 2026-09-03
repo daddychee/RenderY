@@ -96,6 +96,31 @@ class GLMDirectorClient:
 
     # ---------------------------------------------------------------- gọi API
     def _goi(self, messages: list[dict]) -> dict:
+        """Ghi SỔ GỌI quanh lời gọi thật (03/09) rồi ủy cho _goi_that.
+
+        Sự cố 03/09: job chết hàng loạt vì GLM hết tiền, nhân sự phải nhắn tay
+        báo "tool đang lỗi" — hệ giám sát mù vì rendery là app DUY NHẤT gọi LLM
+        mà chưa ghi sổ (tab Quota & Calls thấy 0 call trong khi đang gọi và hỏng
+        hàng chục lần). Bọc ở ĐÂY, ngoài vòng retry, nên một dòng sổ = một việc
+        thật của người dùng, không phải mỗi lần thử lại.
+
+        Sổ chết không được hỏng việc thật: so_goi_nen.ghi đã nuốt mọi lỗi."""
+        import time as _t
+
+        from .. import so_goi_nen
+        t0 = _t.time()
+        try:
+            r = self._goi_that(messages)
+        except Exception as e:      # noqa: BLE001 — ghi sổ rồi ném tiếp nguyên vẹn
+            so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=False,
+                           ma_loi=str(e)[:200], model=self.model,
+                           viec="chia_beat", ms=(_t.time() - t0) * 1000)
+            raise
+        so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=True, model=self.model,
+                       viec="chia_beat", ms=(_t.time() - t0) * 1000)
+        return r
+
+    def _goi_that(self, messages: list[dict]) -> dict:
         body = {
             "model": self.model,
             "messages": messages,
@@ -118,6 +143,15 @@ class GLMDirectorClient:
                     return json.loads(r.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 chi_tiet = exc.read().decode("utf-8", "replace")[:300]
+                # HẾT TIỀN (mã 1113) tới dưới dạng 429 nhưng KHÔNG phải quá tải:
+                # chờ bao lâu cũng vậy, chỉ nạp tiền mới hết. Báo NGAY bằng lời
+                # người đọc hiểu thay vì thử lại 3 lần rồi ném JSON tiếng Anh
+                # (sự cố 03/09: nhân sự chỉ thấy "GLM HTTP 429" rồi tự chuyển tay).
+                if HET_TIEN in chi_tiet or '"code":"1113"' in chi_tiet:
+                    raise RuntimeError(
+                        "GLM HẾT TIỀN (mã 1113) — nạp tiền tại z.ai rồi nộp lại việc. "
+                        "Chương đã dựng xong sẽ được giữ, không phải làm lại."
+                    ) from exc
                 loi = RuntimeError(f"GLM HTTP {exc.code}: {chi_tiet}")
                 # 4xx (trừ 429) là lỗi yêu cầu — thử lại cũng vậy
                 if 400 <= exc.code < 500 and exc.code != 429:

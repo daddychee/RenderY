@@ -432,15 +432,45 @@ def api_suc_khoe():
         mo_dun.append({"ten": ten, "trang_thai": tt, "chi_tiet": ct})
 
     def _hang_doi():
+        """Job hỏng phải NÂNG TRẠNG THÁI, không chỉ in ra con số.
+
+        LỖI THẬT 03/09 (Owner hỏi "sao rendery lỗi mà app không báo"): nhân sự
+        nhắn tay qua chat là job dựng chết vì GLM hết tiền, trong khi health vẫn
+        xanh — vì hàm này ĐỌC RA `failed` rồi vẫn trả "ok" cứng. Lúc đó DB có
+        4/7 job hỏng (57%) mà tab giám sát im lặng suốt.
+
+        Xét job MỚI (24h) chứ không phải tổng tích lũy: job hỏng tuần trước đã
+        xử lý xong thì không được kêu mãi, còn hỏng hôm nay là chuyện đang cần
+        người nhìn. Có hỏng mà vẫn còn job chạy được → cảnh báo; hỏng HẾT (không
+        job nào xong) → lỗi, vì đó là hệ đứt chứ không phải một job xấu.
+        """
         conn = _queue_conn()
         try:
             dem = dict(conn.execute(
                 "SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
+            moi = dict(conn.execute(
+                "SELECT status, COUNT(*) FROM jobs "
+                "WHERE created_at >= datetime('now', '-1 day') "
+                "GROUP BY status").fetchall())
+            loi_cuoi = conn.execute(
+                "SELECT substr(COALESCE(error, ''), 1, 120) FROM jobs "
+                "WHERE status = 'failed' ORDER BY id DESC LIMIT 1").fetchone()
         finally:
             conn.close()
         chay, cho = dem.get("running", 0), dem.get("queued", 0)
-        return "ok", (f"{chay} đang dựng / {cho} chờ / {dem.get('done', 0)} xong "
-                      f"/ {dem.get('failed', 0)} lỗi")
+        chung = (f"{chay} đang dựng / {cho} chờ / {dem.get('done', 0)} xong "
+                 f"/ {dem.get('failed', 0)} lỗi")
+        hong, xong = moi.get("failed", 0), moi.get("done", 0)
+        if not hong:
+            return "ok", chung
+        # lý do gọn một dòng — người trực nhìn là biết đi sửa cái gì
+        vi_sao = " ".join((loi_cuoi[0] if loi_cuoi else "").split())[:90]
+        muc = "loi" if xong == 0 else "canh_bao"
+        ct = f"{hong} job hỏng trong 24h"
+        ct += " (không job nào xong)" if xong == 0 else f" / {xong} xong"
+        if vi_sao:
+            ct += f" — {vi_sao}"
+        return muc, ct
 
     def _nas():
         if not NAS_ROOT.is_dir():
