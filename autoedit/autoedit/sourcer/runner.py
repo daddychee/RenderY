@@ -545,6 +545,18 @@ def run_source(
     n_human = sum(1 for s in shots if s.status == "needs_human")
     if n_human:
         record.warnings.append(f"{n_human} beat cần người chọn footage (xem shots)")
+        # AIGEN 2c: gom beat thiếu hình thành motif + sinh ảnh cho editor duyệt trên
+        # UI (/duyet) — video chỉ gen SAU chốt. Fail-open: thiếu khoá/API chết thì
+        # beat giữ needs_human như cũ, chỉ ghi warning cho minh bạch.
+        try:
+            from autoedit.aigen.motif import gom_motif
+            phien = gom_motif(project, log=record.warnings.append)
+            if phien is not None:
+                record.warnings.append(
+                    f"🖼 AIGEN: {len(phien.motif)} motif chờ DUYỆT ẢNH — mở "
+                    f"/duyet?p={project.project_id} chọn ảnh rồi Chốt để gen video")
+        except Exception as exc:  # noqa: BLE001 — aigen không được giết stage source
+            record.warnings.append(f"AIGEN bỏ qua ({str(exc)[:160]})")
     n_floor = sum(1 for s in shots if s.source == "floor")
     if n_floor:
         record.warnings.append(
