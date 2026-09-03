@@ -1187,20 +1187,30 @@ def _add_hook_sfx(script, project, record, cuts, accents=None,
     variants = {k: list_variants(k, npath, skip) for k in HOOK_SFX_KINDS}
     if not any(variants.values()):
         return  # kho niche chưa có tiếng hook -> tầng tắt
-    chs = _chapters_with_time(project)
-    if len(chs) < 2:
-        record.warnings.append("HOOK SFX S3: không có mốc chương 2 — tầng tắt")
-        return
-    hook_end = chs[1]["timeline_start"]
-    busy = [e["start"] for e in project.subject_sfx_log
-            if e.get("file") and e["start"] < hook_end]
-    busy += [e["start"] for e in project.ambient_log
-             if e.get("file") and e["start"] < hook_end]
+    # V2 Đợt 1b (user duyệt hướng 03/09): VÙNG NHẤN từ nhịp — chương H trọn
+    # (trước đây flow từng-chương không có "mốc chương 2" nên tầng này TẮT hẳn)
+    # + cửa sổ beat BÙNG ở chương thân/kết. Nhịp lỗi -> rơi về mốc chương cũ.
+    vung: list[tuple[float, float]] = []
+    try:
+        from autoedit.nhip.ep import vung_nhan as _vung_nhan
+        from autoedit.nhip.profile import nap as _nhip_nap
+
+        vung = _vung_nhan(project.beats, _nhip_nap(project.niche or ""),
+                          title=getattr(project, "title", ""))
+    except Exception as exc:  # noqa: BLE001
+        record.warnings.append(f"S3 nhấn: nhịp lỗi ({exc}) — dùng mốc chương cũ")
+    if not vung:
+        chs = _chapters_with_time(project)
+        if len(chs) < 2:
+            record.warnings.append("HOOK SFX S3: không có vùng nhấn/mốc chương — tầng tắt")
+            return
+        vung = [(0.0, chs[1]["timeline_start"])]
+    busy = [e["start"] for e in project.subject_sfx_log if e.get("file")]
+    busy += [e["start"] for e in project.ambient_log if e.get("file")]
     sfx_track = script.tracks.get("sfx")
     if sfx_track is not None:
-        busy += [s.target_timerange.start / SEC for s in sfx_track.segments
-                 if s.target_timerange.start / SEC < hook_end]
-    slots = amb.hook_sfx_slots(cuts, hook_end, busy=busy, accents=accents or ())
+        busy += [s.target_timerange.start / SEC for s in sfx_track.segments]
+    slots = amb.nhan_sfx_slots(cuts, vung, busy=busy, accents=accents or ())
     slots = [s for s in slots if variants.get(s.kind)]  # kind thiếu file -> bỏ loại đó
     if not slots:
         record.warnings.append(
@@ -1238,8 +1248,9 @@ def _add_hook_sfx(script, project, record, cuts, accents=None,
     ]
     if placed:
         kinds = {k: sum(1 for s in slots if s.kind == k and s.file) for k in HOOK_SFX_KINDS}
+        mo_ta_vung = " + ".join(f"{t0:.0f}-{t1:.0f}s" for t0, t1 in vung[:4])
         record.warnings.append(
-            f"HOOK SFX S3: {placed} tiếng tại cut hook ≤{hook_end:.0f}s "
+            f"SFX NHẤN S3: {placed} tiếng tại cut trong {len(vung)} vùng ({mo_ta_vung}) "
             f"(impact {kinds['impact']} · whoosh {kinds['whoosh']} · click {kinds['click']}, "
             f"vol {amb.HOOK_SFX_VOL} 🔸 · mật độ còn 30% số editor — cổng tai V4)"
         )

@@ -108,7 +108,9 @@ SUBJ_MAX = 10.0      # 🔸 trần giây 1 tiếng
 # (48% ±0.25s, text 3% — PHAN_TICH_HOOK_SFX_EDITOR_DEEPSEA) -> luật per-niche.
 # 📌 space BẬT 2026-07-14 (user chốt): MƯỢN số deepsea 🔸 vì 2 niche gần giống —
 # đo lại theo QUY_TRINH_LAY_MAU_SFX_NICHE_MOI.md khi space có số riêng thì thay.
-HOOK_SFX_NICHES: tuple[str, ...] = ("deepsea", "space", "life-in")
+HOOK_SFX_NICHES: tuple[str, ...] = ("deepsea", "space", "life-in", "investigate")
+# 📌 investigate BẬT 03/09 (V2 Đợt 1b, user duyệt hướng SFX-tại-bùng): MƯỢN số
+#    deepsea như space/life-in — đo lại riêng khi niche có số.
 # 📌 life-in BẬT 2026-07-15 (user chốt): đối chiếu 48 draft editor — hook có nhấn
 # (whoosh/impact bám cut). MƯỢN số deepsea (PM 1.44) như space; đo lại riêng khi có số.
 HOOK_SFX_PM = 1.44         # 📌 CỔNG TAI V4 DS5-083 (2026-07-14): user chê whoosh+impact
@@ -121,6 +123,49 @@ HOOK_CLICK_CAP = 4         # trần click/video (editor ~1.3 click/hook, đỉnh
 HOOK_WHOOSH_LEAD = 0.08    # whoosh vào TRƯỚC cut 80ms (13% tiếng editor lead 0-200ms;
                            # cùng triết lý SNAP_LEAD của M-SNAP)
 _HOOK_ACCENT_TOL = 0.35    # cut cách accent target ≤ tol -> coi là cut-accent (impact)
+
+
+def nhan_sfx_slots(cuts: list[tuple[float, bool]],
+                   vung: list[tuple[float, float]],
+                   busy: list[float] | tuple[float, ...] = (),
+                   accents: list[float] | tuple[float, ...] = (),
+                   ) -> list[HookSfxSlot]:
+    """S3 trên NHIỀU CỬA SỔ NHẤN — V2 Đợt 1b (user duyệt hướng 03/09).
+
+    Vùng nhấn = chương H trọn (hook thật) + cửa sổ BEAT BÙNG ở chương thân/kết
+    (nhip/ep.py quyết — đợt bùng là hook thu nhỏ). KHÔNG lật PB12: đây vẫn là
+    tiếng bám CUT trong vùng mật độ cao (số 23 draft DEEPSEA), không phải whoosh
+    rải tự do khắp thân — cái đó đã đo 0/88 và bỏ.
+
+    Tái dùng NGUYÊN hook_sfx_slots (PM 1.44 · gap 3s · các luật đã qua cổng tai
+    V4) bằng cách dịch mốc mỗi vùng về 0 rồi dịch slot trả về — không đụng một
+    hằng số nào đã hiệu chỉnh.
+    """
+    ra: list[HookSfxSlot] = []
+    for t0, t1 in vung:
+        if t1 <= t0:
+            continue
+        cuts_v = [(t - t0, anh) for t, anh in cuts if t0 <= t <= t1]
+        if not cuts_v:
+            continue
+        busy_v = [b - t0 for b in busy if t0 - HOOK_SFX_GAP <= b <= t1 + HOOK_SFX_GAP]
+        acc_v = [a - t0 for a in accents if t0 <= a <= t1]
+        slots_v = hook_sfx_slots(cuts_v, t1 - t0, busy=busy_v, accents=acc_v)
+        if not slots_v and cuts_v:
+            # Vùng bùng NGẮN (7-10s): ngân sách PM 1.44/phút làm tròn về 0 —
+            # vùng câm lặng, mất luôn ý nghĩa "đánh dấu đợt bùng". Luật tối
+            # thiểu: MỘT whoosh tại cut đầu vùng (vẫn giữ gap với tiếng đã có).
+            t_dau = cuts_v[0][0] - HOOK_WHOOSH_LEAD
+            if all(abs(t_dau - b) >= HOOK_SFX_GAP for b in busy_v):
+                slots_v = [HookSfxSlot(t=t_dau, kind="whoosh",
+                                       note="tối thiểu 1 tiếng/vùng bùng")]
+        for slot in slots_v:
+            slot.t += t0
+            ra.append(slot)
+        # tiếng vừa đặt trong vùng này thành busy của vùng sau (giữ gap toàn cục)
+        busy = list(busy) + [x.t for x in ra]
+    ra.sort(key=lambda x: x.t)
+    return ra
 
 
 def hook_sfx_niches() -> tuple[str, ...]:

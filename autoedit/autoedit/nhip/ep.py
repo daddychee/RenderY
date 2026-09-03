@@ -146,6 +146,42 @@ def lap_ke_hoach(beats: list, hs: HoSoNhip, title: str = "") -> KeHoachNhip:
     return kh
 
 
+def vung_nhan(beats: list, hs: HoSoNhip, title: str = "") -> list[tuple[float, float]]:
+    """Cửa sổ NHẤN trên timeline — nơi tầng SFX-bám-cut (S3) được phép nổ.
+
+    Hook (chương H) = trọn chương (hook thật, đúng phạm vi S3-HOOK gốc).
+    Thân/kết = cửa sổ các BEAT BÙNG (kèm ô thở sau beat) — đợt bùng là hook thu
+    nhỏ, tiếng bám cut ở đó theo số 23 draft DEEPSEA; NGOÀI vùng thì im (PB12:
+    whoosh rải tự do thân video đo 0/88, đã bỏ — không lặp lại).
+
+    Tính lại từ lap_ke_hoach (tất định: cùng beats+hồ sơ+title ra cùng kết quả)
+    thay vì lưu thêm trường vào project — YAGNI tới khi có nhu cầu thật.
+    """
+    if not beats:
+        return []
+    if vai_tro_chuong(title) == "hook":
+        t0 = min(float(getattr(b, "timeline_start", 0) or 0) for b in beats)
+        t1 = max(float(getattr(b, "timeline_end", 0) or 0)
+                 + float(getattr(b, "breathing_after", 0) or 0) for b in beats)
+        return [(t0, t1)] if t1 > t0 else []
+    kh = lap_ke_hoach(beats, hs, title=title)
+    by_id = {b.beat_id: b for b in beats}
+    ra: list[tuple[float, float]] = []
+    for bid in kh.bung_beat_ids:
+        b = by_id.get(bid)
+        if b is None:
+            continue
+        t0 = float(getattr(b, "timeline_start", 0) or 0)
+        t1 = float(getattr(b, "timeline_end", 0) or 0) + float(getattr(b, "breathing_after", 0) or 0)
+        if t1 > t0:
+            # gộp cửa sổ kề nhau (<2s) thành một vùng liền
+            if ra and t0 - ra[-1][1] < 2.0:
+                ra[-1] = (ra[-1][0], t1)
+            else:
+                ra.append((t0, t1))
+    return ra
+
+
 def ap_dung(project, hs: HoSoNhip) -> list[str]:
     """Ghi kế hoạch vào project.beats (shot_count). Trả cảnh báo để cut ghi sổ.
 
