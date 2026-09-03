@@ -188,6 +188,17 @@ def run_cut(project: Project) -> Project:
     stale_msg = mark_music_stale(project)
     if stale_msg:
         record.warnings.append(stale_msg)
+    # NHỊP (V2 Đợt 1c): ép phân bố shot theo hồ sơ niche — timeline vừa điền xong
+    # là lúc duy nhất biết thoại từng beat dài bao nhiêu. Fail-open: nhịp lỗi thì
+    # ghi cảnh báo, KHÔNG giết cut (video đều còn hơn không có video).
+    try:
+        from autoedit.nhip.ep import ap_dung as _nhip_ap_dung
+        from autoedit.nhip.profile import nap as _nhip_nap
+
+        hs = _nhip_nap(project.inputs.channel or "")
+        record.warnings.extend(_nhip_ap_dung(project, hs))
+    except Exception as exc:  # noqa: BLE001
+        record.warnings.append(f"nhịp: bỏ qua ép ({exc})")
     record.status = StageStatus.DONE
     record.completed_at = datetime.now(timezone.utc).isoformat()
     project.save()
