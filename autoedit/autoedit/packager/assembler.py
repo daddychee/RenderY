@@ -759,12 +759,26 @@ def _add_music_by_chapter(script, project, record, project_dir: Path, music_lib:
     # không có Δ-nhạc -> đúng 1 span, tọa độ Y HỆT đường cũ. Track music/music2 luân
     # phiên theo CHỈ SỐ SPAN (không phải chỉ số chương) — span lẻ chèn giữa mà vẫn đếm
     # theo chương thì 2 đoạn liền nhau rơi cùng track -> crossfade đè -> SegmentOverlap.
-    from autoedit.music.plan import music_spans
+    from autoedit.music.plan import bung_music_spans, music_spans
     ch_by_id = {c["chapter_id"]: c for c in chapters}
     spans = music_spans(project, chapters, bounds, total_end)
+    # N2 (04/09): nhảy đoạn CHÍNH bài đang phát tại mốc bùng (lap_ke_hoach.
+    # bung_beat_ids — mở/kết chương; hiệu lực thật chỉ ở chương KẾT, mở chương luôn
+    # dính đầu span nên bị luật biên lọc) — fail-open, thiếu hồ sơ/index thì giữ
+    # spans cũ, KHÔNG hỏng nhạc.
+    try:
+        from autoedit.nhip.profile import nap as _nhip_nap
+        hs = _nhip_nap(project.niche or "")
+        idx_by_file = {row["file"]: row for row in index}
+        spans, bung_log = bung_music_spans(spans, project.beats, hs,
+                                           getattr(project, "title", ""), idx_by_file)
+        if bung_log:
+            record.warnings.append("nhạc N2: " + " · ".join(bung_log))
+    except Exception as exc:  # noqa: BLE001 — nhảy bùng không được giết stage nhạc
+        record.warnings.append(f"nhạc N2: bỏ qua nâng bùng ({exc})")
     for i, sp in enumerate(spans):
         ch = ch_by_id[sp["chapter_id"]]
-        if sp["is_insert"]:
+        if sp["is_insert"] and not sp.get("is_bung"):
             pick = {"file": sp["file"], "start_offset": sp["start_offset"]}
             src = Path(sp["file"])                    # bài editor: đường dẫn TUYỆT ĐỐI
         else:
@@ -772,6 +786,8 @@ def _add_music_by_chapter(script, project, record, project_dir: Path, music_lib:
             if pick is None:
                 continue
             src = tracks_dir / pick["file"]
+            if sp.get("is_bung"):                     # bùng: GIỮ bài, đổi offset nhảy đoạn
+                pick = {**pick, "start_offset": sp["start_offset"]}
         bnd = sp["seg_start"]
         # span đầu video vào từ 0; span sau vào sớm XFADE để crossfade (kể cả span Δ)
         seg_start = 0.0 if bnd <= 0 else max(0.0, bnd - xf)

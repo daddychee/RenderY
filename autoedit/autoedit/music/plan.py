@@ -227,6 +227,71 @@ def music_spans(project: Project, chapters: list[dict],
     return [s for s in spans if s["seg_end"] - s["seg_start"] > 0.2]
 
 
+# NHỚ: bung_chu_ky_s ~4 phút đo thật 03/09 (5/5 video Fern/WUFO, 2 thước hội tụ).
+# Đây là mắt xích N2 còn treo — nối chu kỳ bùng đã đo vào nhạc: KHÔNG đổi bài (rủi
+# ro lệch mood/tone giữa 2 bài), chỉ NHẢY ĐOẠN trong CHÍNH bài đang phát tới
+# sections.drop (năng lượng đỉnh, đã có sẵn từ analyze.py) — user chốt 04/09.
+def bung_music_spans(spans: list[dict], beats: list, hs, title: str,
+                     index_by_file: dict[str, dict]) -> tuple[list[dict], list[str]]:
+    """Chèn điểm NHẢY ĐOẠN (không đổi file) vào các span thân/kết tại mốc bùng.
+
+    1 project RenderY = 1 CHƯƠNG file (H/C1../E, title="H"/"C1"...) — KHÔNG map
+    chapter_id -> title (mỗi project chỉ có 1 outline-chapter nội bộ, b.chapter
+    luôn 0). `title` ở đây là project.title, y hệt cách vung_nhan/S3-HOOK đọc
+    (packager/assembler.py:1215) — không suy nhầm thành tên video.
+
+    Mỗi beat bùng (lap_ke_hoach.bung_beat_ids) rơi trong 1 span đang mở -> chẻ
+    span đó tại mép ĐẦU vùng bùng; nửa sau nhảy tới track["sections"]["drop"]
+    của CHÍNH bài span đó (không có drop -> bỏ qua, giữ nguyên bài phát liên
+    tục — thà im còn hơn nhảy về 0.0 tụt năng lượng).
+    Chương H (vai_tro_chuong=="hook") không qua đây — N2 chỉ lo thân/kết.
+    Trả (spans mới, log dòng cho record.warnings)."""
+    from autoedit.nhip.ep import vai_tro_chuong, lap_ke_hoach
+
+    if vai_tro_chuong(title) == "hook":
+        return spans, []
+    kh = lap_ke_hoach(beats, hs, title=title)
+    by_id = {b.beat_id: b for b in beats}
+    tho: list[float] = []
+    for bid in kh.bung_beat_ids:
+        b = by_id.get(bid)
+        if b is None or b.timeline_start is None:
+            continue
+        tho.append(float(b.timeline_start))
+    if not tho:
+        return spans, []
+    tho.sort()
+    # bung_beat_ids là 1-2 CỤM liền kề (mở chương + kết chương ~15% mỗi đầu) — gộp
+    # theo khoảng cách tới ĐẦU CỤM (không phải mốc liền trước) nên cả cụm chỉ ra
+    # 1 điểm nhảy dù trải qua nhiều beat/giây; cụm mới (>90s so gốc cụm) mới mở.
+    moc: list[float] = [tho[0]]
+    goc_cum = tho[0]
+    for t in tho[1:]:
+        if t - goc_cum >= 90.0:
+            moc.append(t)
+            goc_cum = t
+
+    ra: list[dict] = []
+    log: list[str] = []
+    for sp in spans:
+        cac_moc = sorted(m for m in moc if sp["seg_start"] + 20.0 < m < sp["seg_end"] - 5.0)
+        cur = dict(sp)
+        for m in cac_moc:
+            track = index_by_file.get(cur.get("file") or "")
+            drop = (track or {}).get("sections", {}).get("drop")
+            if not drop:
+                continue                      # bài không đo được drop -> bỏ mốc này
+            truoc = dict(cur)
+            truoc["seg_end"] = m
+            ra.append(truoc)
+            cur = {**cur, "seg_start": m, "start_offset": float(drop[0]),
+                  "is_insert": True, "is_bung": True}
+            log.append(f"bùng {m:.0f}s: nhảy '{Path(cur.get('file') or '').stem}' "
+                       f"-> drop {drop[0]:.0f}s")
+        ra.append(cur)
+    return ra, log
+
+
 def _span_specs(project: Project, chs: list[dict],
                 bounds: list[float]) -> tuple[list[dict], dict]:
     """(spans nhạc, {file: InsertSpec}) cho timeline_accents/timeline_beats (M4c).
