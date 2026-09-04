@@ -114,6 +114,29 @@ def test_doc_env_bo_qua_comment(env_file):
     assert srv._read_env() == {"A": "1", "B": "2"}
 
 
+def test_doc_tooltip_hop_le():
+    assert srv._doc_tooltip(["0:00=119", "0:31=71%", "4:19=40"]) == [
+        (0.0, 119.0), (31.0, 71.0), (259.0, 40.0)]
+
+
+def test_doc_tooltip_rong_tra_rong():
+    assert srv._doc_tooltip([]) == []
+
+
+def test_doc_tooltip_thieu_dau_bang_bao_loi():
+    with pytest.raises(ValueError, match="thiếu dấu"):
+        srv._doc_tooltip(["0:31 71"])
+
+
+def test_doc_tooltip_phan_tram_khong_hop_le_bao_loi():
+    with pytest.raises(ValueError, match="phần trăm"):
+        srv._doc_tooltip(["0:31=abc"])
+
+
+def test_doc_tooltip_gio_phut_giay():
+    assert srv._doc_tooltip(["1:02:15=50"]) == [(3735.0, 50.0)]
+
+
 def test_che_secret():
     assert srv._mask("PEXELS_API_KEY", "abcdefghijklmnop") == "abcd…nop"
     assert srv._mask("PEXELS_API_KEY", "ngan") == "…"

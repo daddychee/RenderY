@@ -101,6 +101,29 @@ def test_doc_duong_cong_ocr_khong_doc_duoc_thi_roi_ve_fallback(tmp_path):
     assert dc[0][1] > 0.9                              # fallback vẫn hoạt động
 
 
+def test_doc_duong_cong_tooltip_thay_the_khi_khong_co_nhan(tmp_path):
+    """Ảnh không có nhãn trục (OCR không đọc gì) NHƯNG editor cung cấp tooltip
+    ("giây → %" đọc trực tiếp trên YouTube Studio, đúng như tình huống thật
+    04/09) -> phải neo đúng như trường hợp có nhãn, KHÔNG rơi về fallback
+    'đầu~100%' kém chính xác — mô phỏng đúng ca vượt 100% (ảnh Hải thứ 2: 119%)."""
+    ham = lambda f: 1.04 * math.exp(-5 * f) + 0.15    # ham(0)=1.19 đúng "119%"
+    dai_s = 100.0
+    tooltip_giay = [(0.0, 119.0), (25.0, ham(0.25) * 100)]
+    dc = doc_duong_cong(_ve_anh(tmp_path, ham),
+                        tooltip=[(g / dai_s, p) for g, p in tooltip_giay])
+    assert dc[0][1] > 1.10, f"phải đo được VƯỢT 100% nhờ tooltip: {dc[0][1]:.2%}"
+    sai = [abs(p - ham(x)) for x, p in dc]
+    assert max(sai) < 0.08
+
+
+def test_doc_duong_cong_tooltip_1_diem_khong_du_thi_bo_qua(tmp_path):
+    """Chỉ 1 tooltip (không đủ 2 điểm khác % để suy tỷ lệ) -> bỏ qua, rơi về
+    fallback cũ — không crash, không tự bịa tỷ lệ từ 1 điểm."""
+    ham = lambda f: 0.30 + 0.70 * math.exp(-6 * f)
+    dc = doc_duong_cong(_ve_anh(tmp_path, ham), tooltip=[(0.0, 119.0)])
+    assert dc[0][1] > 0.9                               # vẫn chạy được (fallback)
+
+
 def test_doc_duong_cong_khop_ham_goc(tmp_path):
     ham = lambda f: 0.30 + 0.70 * math.exp(-6 * f)        # decay kiểu YouTube
     dc = doc_duong_cong(_ve_anh(tmp_path, ham))

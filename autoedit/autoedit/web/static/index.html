@@ -226,7 +226,16 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
             <input type="text" id="ns-ret-dai" placeholder="thời lượng, vd 28:25" style="max-width:150px">
           </div>
           <div class="note">(tuỳ chọn) ảnh chụp biểu đồ giữ chân YouTube Studio của tập trước —
-            tool đo ngay lúc nộp và chỉnh nhịp tập này.</div>
+            tool đo ngay lúc nộp và chỉnh nhịp tập này.
+            <a onclick="document.getElementById('ns-ret-tooltip-box').hidden=false;this.hidden=true">
+              Ảnh không có nhãn %/trục?</a></div>
+          <div id="ns-ret-tooltip-box" hidden style="margin-top:8px">
+            <textarea id="ns-ret-tooltip" rows="2" style="width:100%;background:var(--bg);
+              color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+              font:12.5px ui-monospace,monospace"
+              placeholder="mỗi dòng 1 điểm bạn di chuột đọc được trên YouTube Studio, dạng mm:ss=%&#10;vd:&#10;0:00=119&#10;0:31=71"></textarea>
+            <div class="note">Cần ít nhất 2 điểm để đo chính xác thay cho nhãn trục thiếu.</div>
+          </div>
         </div></div>
       <div class="chan">
         <button class="btn" id="ns-nut" onclick="nopTap()" disabled>▶ Start sequence</button>
@@ -501,6 +510,8 @@ async function nopTap() {
       aigen: document.getElementById('ns-aigen').checked,
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
+      retention_tooltip: document.getElementById('ns-ret-tooltip').value
+        .split('\n').map(s => s.trim()).filter(Boolean),
     })})
     msg.textContent = (r.wait_ahead ? `✓ Đã xếp hàng — bắt đầu sau ~${Math.round(r.wait_ahead / 60)} phút`
       : '✓ Bắt đầu ngay') + (r.retention ? ' · 📉 ' + r.retention : '')

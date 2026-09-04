@@ -887,16 +887,32 @@ def api_jobs(request: Request, all_users: bool = False):
         conn.close()
 
 
-def _doc_mmss(chuoi: str) -> float:
+def _doc_mmss(chuoi: str, toi_thieu: float = 60.0) -> float:
     """'28:25' -> 1705s; '1:02:15' -> 3735s. Sai định dạng thì ValueError tiếng Việt."""
     phan = (chuoi or "").strip().split(":")
     if not (2 <= len(phan) <= 3) or not all(p.isdigit() for p in phan):
-        raise ValueError("nhập thời lượng tập cũ dạng mm:ss (vd 28:25)")
+        raise ValueError("nhập thời lượng dạng mm:ss (vd 28:25)")
     phan = [int(p) for p in phan]
     giay = phan[-1] + phan[-2] * 60 + (phan[0] * 3600 if len(phan) == 3 else 0)
-    if giay <= 60:
-        raise ValueError("thời lượng tập cũ phải > 1 phút")
+    if giay < toi_thieu:
+        raise ValueError(f"thời lượng phải >= {toi_thieu:.0f}s")
     return float(giay)
+
+
+def _doc_tooltip(dong: list[str]) -> list[tuple[float, float]]:
+    """["0:31=71", "0:00=119%"] -> [(giay, phan_tram)] — editor gõ tay khi di
+    chuột đọc tooltip trên YouTube Studio (ảnh không có nhãn trục để OCR)."""
+    ra: list[tuple[float, float]] = []
+    for d in dong:
+        if "=" not in d:
+            raise ValueError(f"tooltip '{d}' thiếu dấu '=' (vd 0:31=71)")
+        mmss, pct = d.split("=", 1)
+        giay = _doc_mmss(mmss, toi_thieu=0.0)
+        pct = pct.strip().rstrip("%")
+        if not pct.replace(".", "", 1).isdigit():
+            raise ValueError(f"tooltip '{d}': phần trăm không hợp lệ")
+        ra.append((giay, float(pct)))
+    return ra
 
 
 class JobRequest(BaseModel):
@@ -908,6 +924,10 @@ class JobRequest(BaseModel):
     # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
     retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
     retention_dai: str = ""        # "28:25" hoặc "1:02:15"
+    # TOOLTIP (04/09): editor di chuột đọc thêm 1-2 điểm "mm:ss=phần_trăm" khi
+    # ảnh KHÔNG có nhãn trục để OCR đọc (vd ảnh gốc bị crop) — mỗi phần tử
+    # "0:31=71" hoặc "0:31=71%". Rỗng = không dùng, OCR/fallback cũ tự lo.
+    retention_tooltip: list[str] = []
 
 
 @app.post("/api/jobs")
@@ -940,10 +960,11 @@ def api_add_job(req: JobRequest, request: Request):
         from autoedit.retention.phan_tich import TEN_FILE as _RET, phan_tich_anh
         try:
             dai_s = _doc_mmss(req.retention_dai)
+            tooltip_giay = _doc_tooltip(req.retention_tooltip)
             raw = req.retention_anh_b64.split(",", 1)[-1]   # bỏ đầu dataURL nếu có
             anh = folder / "retention.png"
             anh.write_bytes(_b64.b64decode(raw))
-            kq = phan_tich_anh(anh, dai_s)
+            kq = phan_tich_anh(anh, dai_s, tooltip_giay=tooltip_giay or None)
             (folder / _RET).write_text(
                 _json.dumps(kq, ensure_ascii=False, indent=1), encoding="utf-8")
             bao_cao_ret = " · ".join(kq["bao_cao"])

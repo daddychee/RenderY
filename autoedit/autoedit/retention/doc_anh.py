@@ -166,8 +166,21 @@ def _doc_nhan_truc(a: np.ndarray, x_r: int) -> dict[int, float]:
     return ra
 
 
-def doc_duong_cong(anh: Path, so_diem: int = 200) -> list[tuple[float, float]]:
-    """Ảnh chụp -> [(x_frac 0..1, retention 0..1)] đã resample đều so_diem điểm."""
+def doc_duong_cong(anh: Path, so_diem: int = 200,
+                   tooltip: list[tuple[float, float]] | None = None
+                   ) -> list[tuple[float, float]]:
+    """Ảnh chụp -> [(x_frac 0..1, retention 0..1)] đã resample đều so_diem điểm.
+
+    tooltip: [(x_frac 0..1, giá_trị_%)] — neo THAY THẾ khi OCR không đọc được
+    nhãn trục (ảnh không có nhãn hoặc bị crop mất, như ảnh gốc Trịnh Ngọc Hải)
+    — editor chụp thêm tooltip khi di chuột qua đường cong (vd tại giây 0 đọc
+    "119%" -> (0.0, 119.0); tại giây 31/tổng-thời-lượng đọc "71%"), server quy
+    đổi giây/thời-lượng thành x_frac trước khi gọi. giá_trị_% đơn vị PHẦN
+    TRĂM SỐ NGUYÊN (119.0, không phải 1.19) — khớp đơn vị OCR đọc từ nhãn
+    trục. Cần ≥2 điểm KHÁC pct để suy px_per_pct chính xác — giống hệt cách
+    OCR neo bằng 2 nhãn trục, chỉ
+    khác nguồn dữ liệu (editor gõ tay thay vì đọc nhãn). 1 điểm hoặc rỗng thì
+    bỏ qua, không đủ để suy tỷ lệ."""
     from PIL import Image
 
     a = np.asarray(Image.open(anh).convert("RGB"))
@@ -234,9 +247,28 @@ def doc_duong_cong(anh: Path, so_diem: int = 200) -> list[tuple[float, float]]:
         # dịch quy chiếu về gridline y_0pct_that (giá trị pct_0 đọc được từ OCR,
         # KHÔNG giả định là 0) — mọi điểm quy đổi qua đúng mốc đã xác nhận này.
         y_0pct, offset_pct = y_0pct_that, pct_0
+    elif tooltip and len(tooltip) >= 2 and len({p for _, p in tooltip}) >= 2:
+        # OCR thất bại (ảnh không có nhãn trục) nhưng editor cung cấp tooltip
+        # thay thế — quy đổi mỗi (x_frac, pct) sang y_pixel bằng nội suy trên
+        # đúng đường cong đã đo (y_bruta), rồi suy px_per_pct/offset_pct từ
+        # 2 điểm CHÊNH % xa nhau nhất (giảm sai số nội suy/đọc tooltip).
+        xs_bruta = np.array([x for x, _ in y_bruta], dtype=float)
+        ys_bruta = np.array([y for _, y in y_bruta], dtype=float)
+        diem = [(np.interp(tf * (x1 - x0) + x0, xs_bruta, ys_bruta), pct)
+               for tf, pct in tooltip]
+        (y_a, p_a), (y_b, p_b) = min(
+            ((diem[i], diem[j]) for i in range(len(diem)) for j in range(i + 1, len(diem))),
+            key=lambda ab: -abs(ab[0][1] - ab[1][1]))
+        if p_a == p_b:
+            y_dinh_dau = y_bruta[0][1]
+            px_per_pct = max(1e-6, (y_0pct - y_dinh_dau) / 100.0)
+            offset_pct = 0.0
+        else:
+            px_per_pct = abs(y_a - y_b) / abs(p_a - p_b)
+            y_0pct, offset_pct = y_a, p_a
     else:
-        # fallback: neo đầu ~100% (đường cũ, kém chính xác hơn với ảnh vượt 100%
-        # nhưng vẫn đúng hình dạng đường cong — chỉ sai biên trên/dưới)
+        # fallback cuối: neo đầu ~100% (đường cũ, kém chính xác hơn với ảnh
+        # vượt 100% nhưng vẫn đúng hình dạng đường cong — chỉ sai biên trên/dưới)
         y_dinh_dau = y_bruta[0][1]
         px_per_pct = max(1e-6, (y_0pct - y_dinh_dau) / 100.0)
         offset_pct = 0.0

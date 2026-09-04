@@ -80,11 +80,18 @@ def phan_tich(duong_cong: list[tuple[float, float]], dai_s: float) -> dict:
             "dieu_chinh": dieu_chinh, "bao_cao": bao_cao}
 
 
-def phan_tich_anh(anh: Path, dai_s: float) -> dict:
-    """Ảnh chụp + thời lượng -> kết quả phan_tich (tiện cho server gọi 1 phát)."""
+def phan_tich_anh(anh: Path, dai_s: float,
+                 tooltip_giay: list[tuple[float, float]] | None = None) -> dict:
+    """Ảnh chụp + thời lượng -> kết quả phan_tich (tiện cho server gọi 1 phát).
+
+    tooltip_giay: [(giây, giá_trị_%)] editor đọc trực tiếp trên YouTube Studio
+    (di chuột qua đường cong) — dùng khi OCR không đọc được nhãn trục (ảnh
+    thiếu/crop mất nhãn). Quy đổi giây -> x_frac bằng dai_s rồi giao cho
+    doc_duong_cong (đơn vị %/x_frac y hệt cách OCR neo bằng nhãn trục)."""
     from autoedit.retention.doc_anh import doc_duong_cong
 
-    return phan_tich(doc_duong_cong(Path(anh)), dai_s)
+    tooltip = ([(g / dai_s, p) for g, p in tooltip_giay] if tooltip_giay else None)
+    return phan_tich(doc_duong_cong(Path(anh), tooltip=tooltip), dai_s)
 
 
 def ap_vao_ho_so(project, hs) -> list[str]:
