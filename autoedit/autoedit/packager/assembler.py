@@ -184,6 +184,16 @@ def run_assemble(
         record.warnings.append(f"⚠ Không ghi được sổ nguồn footage ({exc}) — "
                                "draft vẫn dùng được, tra nguồn trong project.json")
 
+    # ĐO LẠI SAU DỰNG (user duyệt 05/09): draft tự chấm nhịp của chính nó —
+    # so với hồ sơ hiệu lực, chênh >50% cảnh báo to (bug ép-nhịp-chết-im-lặng
+    # kiểu LI095 04/09 sẽ hiện ngay ở đây thay vì đợi người mở CapCut).
+    try:
+        from autoedit.nhip.do_draft import do_nhip_draft, doi_chieu_hs
+
+        record.warnings.append(doi_chieu_hs(project, do_nhip_draft(draft_dir)))
+    except Exception as exc:  # noqa: BLE001 — thước hỏng không được giết draft
+        record.warnings.append(f"đo lại sau dựng: bỏ qua ({str(exc)[:120]})")
+
     record.status = StageStatus.DONE
     record.completed_at = datetime.now(timezone.utc).isoformat()
     project.save()

@@ -375,6 +375,10 @@ def make(
         typer.secho(f"Lỗi: --phuong-an phải là stock|ai|tu_quay (nhận '{phuong_an}')",
                     fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    if not channel:
+        typer.secho("  ⚠ Chưa khai --channel (niche): SFX + tiếng nền sẽ TẮT (kho tiếng "
+                    "tra theo niche), nhịp dùng hồ sơ mặc định — LI103 04/09 dính lỗi này.",
+                    fg=typer.colors.YELLOW)
     project.inputs.phuong_an = phuong_an
     project.inputs.kenh_ref = kenh_ref.strip()
     # PA2 (ai) kéo aigen bật; cờ --aigen cũ vẫn tôn trọng (đường gọi tay/script cũ)

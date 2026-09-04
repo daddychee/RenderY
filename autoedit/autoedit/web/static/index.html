@@ -205,9 +205,15 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
     <div class="panel" id="ns-opts">
       <h2>Tuỳ chọn dựng</h2>
       <div class="formrow"><label>Kênh / niche</label>
-        <input type="text" id="ns-niche" list="ds-niche" placeholder="(tuỳ chọn) vd: investigate"
-               style="max-width:240px">
-        <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist></div>
+        <div>
+          <input type="text" id="ns-niche" list="ds-niche" placeholder="vd: life-in"
+                 style="max-width:240px" oninput="canhBaoNiche()">
+          <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist>
+          <div class="note" id="ns-niche-canh-bao" style="color:var(--bad)" hidden>
+            ⚠ Bỏ trống niche: SFX + tiếng nền sẽ TẮT HẲN (kho tiếng tra theo niche) và
+            nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
+            lỗi này, 0 tiếng động nào vào draft.</div>
+        </div></div>
       <div class="formrow"><label>Nguồn footage</label>
         <select id="ns-sub" style="max-width:280px">
           <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
@@ -501,6 +507,7 @@ async function kiemTap() {
     TAP_OK = d.duong_dan || p
     document.getElementById('ns-nut').disabled = false
     document.getElementById('ns-msg').textContent = ''
+    canhBaoNiche()          // niche trống = mất SFX — báo NGAY khi form lộ ra
   }
 }
 async function nopTap() {
@@ -540,6 +547,11 @@ async function nopTap() {
 }
 
 /* ── 3 phương án dựng: nhớ kênh ref lần cuối THEO TỪNG PA (localStorage) ── */
+function canhBaoNiche() {
+  const trong = !document.getElementById('ns-niche').value.trim()
+  document.getElementById('ns-niche-canh-bao').hidden = !trong
+}
+
 function paDangChon() {
   return document.querySelector('input[name="ns-pa"]:checked').value
 }
