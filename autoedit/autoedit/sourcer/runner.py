@@ -548,6 +548,24 @@ def run_source(
         # AIGEN 2c: gom beat thiếu hình thành motif + sinh ảnh cho editor duyệt trên
         # UI (/duyet) — video chỉ gen SAU chốt. Fail-open: thiếu khoá/API chết thì
         # beat giữ needs_human như cũ, chỉ ghi warning cho minh bạch.
+        # PA3 tu_quay (user 05/09): kênh ref đo được tỷ trọng tự-quay -> nhắc
+        # editor mức dùng Ref*.mp4 kênh mẫu đạt (refvideo vốn đã xếp trước stock
+        # trong _gather_candidates — đây là minh bạch số, không chặn cứng).
+        if getattr(project.inputs, "phuong_an", "") == "tu_quay":
+            try:
+                from autoedit.kenh.do_kenh import slug_tu_link
+                from autoedit.kenh.hoso import HoSoKenh
+                _hk = (HoSoKenh.doc(slug_tu_link(project.inputs.kenh_ref))
+                       if getattr(project.inputs, "kenh_ref", "") else None)
+                tu_quay = (_hk.loai_canh or {}).get("tu_quay", 0) if _hk else 0
+                n_ref = sum(1 for x in shots if x.source == "refvideo")
+                if tu_quay:
+                    record.warnings.append(
+                        f"PA3 tự quay: kênh mẫu dùng {tu_quay:.0%} cảnh tự quay — "
+                        f"tập này {n_ref}/{len(shots)} beat từ Ref*.mp4 "
+                        f"({n_ref / max(1, len(shots)):.0%})")
+            except Exception:  # noqa: BLE001
+                pass
         if getattr(project.inputs, "aigen", False):   # công tắc user 04/09: bật mới chạy
             try:
                 from autoedit.aigen.motif import de_xuat_motif

@@ -111,6 +111,10 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         extra += ["--no-sub"]
     if opts.get("aigen"):
         extra += ["--aigen"]
+    if opts.get("phuong_an"):
+        extra += ["--phuong-an", str(opts["phuong_an"])]
+    if opts.get("kenh_ref"):
+        extra += ["--kenh-ref", str(opts["kenh_ref"])]
 
     log_path = _log_path(logs_dir, job.id)
     ids: list[str] = []

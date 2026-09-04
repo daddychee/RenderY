@@ -196,6 +196,22 @@ def run_cut(project: Project) -> Project:
         from autoedit.nhip.profile import nap as _nhip_nap
 
         hs = _nhip_nap(project.inputs.channel or "")
+        # KÊNH REF (user 05/09): học nhịp từ kênh ref thay luật cứng — áp TRƯỚC
+        # retention (retention là số của CHÍNH kênh mình, sát thực tế nhất nên
+        # đè sau cùng). Kênh chưa đo được (make đo lỗi) -> giữ hồ sơ niche.
+        if getattr(project.inputs, "kenh_ref", ""):
+            try:
+                from autoedit.kenh.do_kenh import slug_tu_link
+                from autoedit.kenh.hoso import HoSoKenh
+                hk = HoSoKenh.doc(slug_tu_link(project.inputs.kenh_ref))
+                if hk is not None:
+                    hs, _kenh_log = hk.ap_vao_nhip(hs)
+                    record.warnings.extend(_kenh_log)
+                else:
+                    record.warnings.append(
+                        f"kênh ref «{project.inputs.kenh_ref}» chưa có hồ sơ — dùng niche")
+            except Exception as exc:  # noqa: BLE001 — kênh lỗi không giết cut
+                record.warnings.append(f"kênh ref: bỏ qua ({str(exc)[:120]})")
         # RETENTION (user 04/09): tập cũ tụt ở đâu -> chỉnh hồ sơ nhịp tập này
         # (server ghi retention.json ở folder tập lúc nộp job; không có = như cũ)
         from autoedit.retention.phan_tich import ap_vao_ho_so as _ret_ap

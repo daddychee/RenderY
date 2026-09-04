@@ -112,6 +112,12 @@ class Inputs(BaseModel):
     # AIGEN (user 2026-09-04): editor CHỌN khi nộp job — bật mới gom motif/gen ảnh
     # (mặc định TẮT: dựng thuần V1, beat thiếu hình để needs_human như cũ).
     aigen: bool = False
+    # 3 PHƯƠNG ÁN DỰNG (user 2026-09-05): stock (PA1, thuần footage thật) |
+    # ai (PA2, AI bù chỗ thiếu — kéo aigen=True) | tu_quay (PA3, Ref*.mp4 editor).
+    phuong_an: str = "stock"
+    # Kênh YouTube ref của phương án — hồ sơ kênh (nhịp/nhạc/loại cảnh) đo từ đây
+    # thay luật cứng. Rỗng = dùng hồ sơ niche như cũ.
+    kenh_ref: str = ""
 
 
 # --------------------------------------------------------------------------- #

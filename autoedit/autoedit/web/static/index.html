@@ -213,12 +213,30 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
           <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
           <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
         </select></div>
-      <div class="formrow"><label>Cảnh AI</label>
-        <label class="optbox"><input type="checkbox" id="ns-aigen">
-          <span><b>Bật đề xuất cảnh AI</b> cho beat không tìm được footage
-            <span class="note" style="display:block">Bước này chưa tốn tiền. Mỗi cảnh bạn sẽ chọn:
-            gen ảnh AI ($0.06) / tự đưa ảnh ref ($0) / bỏ. Video chỉ gen sau khi chốt (~$0.05/cảnh).</span></span>
-        </label></div>
+      <div class="formrow"><label>Phương án dựng</label>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="optbox"><input type="radio" name="ns-pa" value="stock" checked onchange="doiPA()">
+            <span><b>1 · Toàn footage thật</b>
+              <span class="note" style="display:block">Stock + kho có sẵn — không AI,
+              không cần video tự quay. Nhanh và rẻ nhất.</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-pa" value="ai" onchange="doiPA()">
+            <span><b>2 · AI bù chỗ thiếu</b>
+              <span class="note" style="display:block">Beat không tìm được footage sẽ có
+              đề xuất cảnh AI (bạn duyệt mới tốn tiền: ảnh $0.06/cảnh, video ~$0.05/cảnh).</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay" onchange="doiPA()">
+            <span><b>3 · Footage tôi tự quay</b>
+              <span class="note" style="display:block">Đặt sẵn <b>Ref 1.mp4 + Ref 1.srt</b>
+              (video + transcript) vào folder chương TRƯỚC khi nộp — tool tự khớp câu và
+              cắt clip từ video của bạn, ưu tiên trước stock.</span></span></label>
+        </div></div>
+      <div class="formrow"><label>Kênh ref học nhịp</label>
+        <div>
+          <input type="text" id="ns-kenh-ref" class="mono" placeholder="https://www.youtube.com/@fern-tv"
+                 style="width:100%;max-width:420px" onchange="nhoKenhRef()">
+          <div class="note">(tuỳ chọn) tool đo kênh này (nhịp cắt · nhạc · tỷ trọng loại cảnh)
+            làm chuẩn dựng cho phương án đã chọn — thay cho luật cứng. Kênh chỉ tải/đo
+            LẦN ĐẦU (~vài phút trong job), các lần sau dùng lại kết quả.</div>
+        </div></div>
       <div class="formrow"><label>Retention tập trước</label>
         <div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -507,7 +525,8 @@ async function nopTap() {
       folder: TAP_OK,
       niche: document.getElementById('ns-niche').value.trim(),
       no_sub: document.getElementById('ns-sub').value === '1',
-      aigen: document.getElementById('ns-aigen').checked,
+      phuong_an: document.querySelector('input[name="ns-pa"]:checked').value,
+      kenh_ref: document.getElementById('ns-kenh-ref').value.trim(),
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
       retention_tooltip: document.getElementById('ns-ret-tooltip').value
@@ -518,6 +537,22 @@ async function nopTap() {
     loadJobs(); doiTab('proc')
   } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>` }
   nut.disabled = false
+}
+
+/* ── 3 phương án dựng: nhớ kênh ref lần cuối THEO TỪNG PA (localStorage) ── */
+function paDangChon() {
+  return document.querySelector('input[name="ns-pa"]:checked').value
+}
+function doiPA() {
+  let luu = {}
+  try { luu = JSON.parse(localStorage.getItem('rendery_kenh_ref') || '{}') } catch { }
+  document.getElementById('ns-kenh-ref').value = luu[paDangChon()] || ''
+}
+function nhoKenhRef() {
+  let luu = {}
+  try { luu = JSON.parse(localStorage.getItem('rendery_kenh_ref') || '{}') } catch { }
+  luu[paDangChon()] = document.getElementById('ns-kenh-ref').value.trim()
+  try { localStorage.setItem('rendery_kenh_ref', JSON.stringify(luu)) } catch { }
 }
 
 /* ══════════ Generation ══════════ */

@@ -114,6 +114,15 @@ def test_doc_env_bo_qua_comment(env_file):
     assert srv._read_env() == {"A": "1", "B": "2"}
 
 
+def test_job_request_3_phuong_an_mac_dinh_stock():
+    """User 05/09: 3 phuong an dung — mac dinh PA1 stock (khong AI, khong ref),
+    hanh vi y het truoc khi co tinh nang (khong doi gi voi team dang dung)."""
+    r = srv.JobRequest(folder="x")
+    assert r.phuong_an == "stock"
+    assert r.kenh_ref == ""
+    assert r.aigen is False
+
+
 def test_doc_tooltip_hop_le():
     assert srv._doc_tooltip(["0:00=119", "0:31=71%", "4:19=40"]) == [
         (0.0, 119.0), (31.0, 71.0), (259.0, 40.0)]

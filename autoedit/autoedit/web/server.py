@@ -921,6 +921,10 @@ class JobRequest(BaseModel):
     align_backend: str = "auto"
     no_sub: bool = False
     aigen: bool = False        # user 04/09: cổng tắt/bật AI gen khi nộp job
+    # 3 PHƯƠNG ÁN DỰNG (user 05/09): stock | ai | tu_quay — logic/phong cách khác
+    # nhau, học từ kênh ref thay luật cứng. PA "ai" tự kéo aigen bật ở make.
+    phuong_an: str = "stock"
+    kenh_ref: str = ""         # link kênh YouTube ref (đo trong worker, cache theo kênh)
     # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
     retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
     retention_dai: str = ""        # "28:25" hoặc "1:02:15"
@@ -975,7 +979,8 @@ def api_add_job(req: JobRequest, request: Request):
     try:
         jid = q.add_job(conn, str(folder), nguoi=current_user(request),
                         opts={"niche": req.niche, "align_backend": req.align_backend,
-                              "no_sub": req.no_sub, "aigen": req.aigen})
+                              "no_sub": req.no_sub, "aigen": req.aigen,
+                              "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref})
         job = q.get_job(conn, jid)
         return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid),
                 "retention": bao_cao_ret}

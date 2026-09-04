@@ -315,6 +315,10 @@ def make(
                                  help="Dựng MỚI kể cả khi chương này đã có draft xong."),
     aigen: bool = typer.Option(False, "--aigen",
                                help="Bật AI gen cảnh cho beat thiếu hình (gom motif + ảnh duyệt; mặc định TẮT)."),
+    phuong_an: str = typer.Option("stock", "--phuong-an",
+                                  help="Phương án dựng: stock | ai | tu_quay (user 05/09)."),
+    kenh_ref: str = typer.Option("", "--kenh-ref",
+                                 help="Link kênh YouTube ref — học nhịp/phong cách thay luật cứng."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
@@ -367,9 +371,26 @@ def make(
     if srt_src is not None:
         typer.echo(f"  ✓ Thấy {srt_src.name} — align đọc thẳng file này (không nhận dạng lại)")
 
-    if aigen:   # công tắc AIGEN dính theo project — run_source đọc inputs.aigen
+    if phuong_an not in ("stock", "ai", "tu_quay"):
+        typer.secho(f"Lỗi: --phuong-an phải là stock|ai|tu_quay (nhận '{phuong_an}')",
+                    fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    project.inputs.phuong_an = phuong_an
+    project.inputs.kenh_ref = kenh_ref.strip()
+    # PA2 (ai) kéo aigen bật; cờ --aigen cũ vẫn tôn trọng (đường gọi tay/script cũ)
+    if aigen or phuong_an == "ai":
         project.inputs.aigen = True
-        project.save()
+    project.save()
+    # Đo KÊNH REF ngay trong make (job vốn chạy nền hàng chục phút — vài phút đo
+    # kênh MỚI chấp nhận được; kênh đã cache thì tức thì). Fail-open: đo lỗi thì
+    # dựng bằng hồ sơ niche như cũ, KHÔNG chết job.
+    if project.inputs.kenh_ref:
+        try:
+            from autoedit.kenh.do_kenh import do_kenh
+            do_kenh(project.inputs.kenh_ref, log=lambda m: typer.echo("  " + m))
+        except Exception as exc:  # noqa: BLE001
+            typer.secho(f"  ⚠ kênh ref đo lỗi ({str(exc)[:120]}) — dùng hồ sơ niche",
+                        fg=typer.colors.YELLOW)
     # In project_id để worker hàng đợi bắt được (web/worker.py parse dòng này)
     typer.echo(f"  ✓ Tạo project: {project.project_id}")
     typer.secho(f"✓ Bắt đầu dựng '{folder.name}' (vài phút — đừng tắt)...", fg=typer.colors.CYAN)
