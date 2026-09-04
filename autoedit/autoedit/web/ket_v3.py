@@ -110,6 +110,14 @@ def nap_env() -> list[str]:
             os.environ[bien_model] = muc["model"]
             dat.append(bien_model)
 
+    # gen_canh: sinh cảnh AI (Seedream ảnh + Seedance video) — một khoá ARK dùng
+    # chung cả hai model (aigen/client.py đọc ARK_API_KEY).
+    for k in ((ket.get("gen_canh") or {}).get("khoa") or []):
+        if k.get("key"):
+            os.environ["ARK_API_KEY"] = k["key"]
+            dat.append("ARK_API_KEY")
+            break
+
     # tim_footage: kho ảnh/video. NHIỀU khoá cùng nhà = nhân hạn mức (Pexels ~200
     # query/giờ/khoá) — pipeline nhận danh sách ngăn bằng dấu phẩy.
     for k in ((ket.get("tim_footage") or {}).get("khoa") or []):

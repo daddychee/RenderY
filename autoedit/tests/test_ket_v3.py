@@ -73,6 +73,35 @@ def test_cache_khong_goi_lai_trong_TTL(monkeypatch):
 
 
 # ------------------------------ nap_env -------------------------------------
+def test_gen_canh_dat_ark_key(monkeypatch):
+    import os
+
+    monkeypatch.delenv("ARK_API_KEY", raising=False)
+    _gia_ket(monkeypatch, {"gen_canh": _muc(key="ark-xyz", nha="seedream")})
+    dat = ket_v3.nap_env()
+    assert "ARK_API_KEY" in dat
+    assert os.environ["ARK_API_KEY"] == "ark-xyz"
+
+
+def test_arkclient_hoi_ket_truoc_env(monkeypatch):
+    """ArkClient: két là nguồn sự thật — có két thì .env/env không được thắng."""
+    import autoedit.aigen.client as mc
+
+    monkeypatch.setenv("ARK_API_KEY", "ark-cu-trong-env")
+    monkeypatch.setattr("autoedit.web.ket_v3.khoa_cua_viec",
+                        lambda viec: ("ark-tu-ket", "") if viec == "gen_canh" else ("", ""))
+    assert mc.ArkClient()._key == "ark-tu-ket"
+
+
+def test_arkclient_ket_tat_roi_ve_env(monkeypatch):
+    import autoedit.aigen.client as mc
+
+    monkeypatch.setenv("ARK_API_KEY", "ark-tu-env")
+    monkeypatch.setattr("autoedit.web.ket_v3.khoa_cua_viec",
+                        lambda viec: ("", ""))
+    assert mc.ArkClient()._key == "ark-tu-env"
+
+
 def test_anthropic_dat_dung_bien(monkeypatch):
     import os
 

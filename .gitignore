@@ -24,3 +24,7 @@ AB_TAG_MOON/
 BAN_GIAO/MAY_EDITOR.flag
 BAN_GIAO/*.bundle
 BAN_GIAO/memory_goc/
+
+# worktree dev + file tam .env — khong bao gio vao repo
+autoedit-v2/
+.env.tmp

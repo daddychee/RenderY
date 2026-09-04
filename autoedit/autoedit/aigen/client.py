@@ -43,15 +43,25 @@ class AigenError(RuntimeError):
 class ArkClient:
     def __init__(self, api_key: Optional[str] = None, timeout: int = 180,
                  retries: int = 3) -> None:
+        # KÉT V3 là nguồn sự thật (việc gen_canh, cấp phát ở General › API Keys) —
+        # Owner đổi/thu hồi khoá trên CRM là app thấy trong 1 phút, không đụng máy.
+        # Fail-open: gateway tắt (dev ngoài V3) -> rơi về env/.env như cũ.
+        if not api_key:
+            try:
+                from autoedit.web.ket_v3 import khoa_cua_viec
+
+                api_key = khoa_cua_viec("gen_canh")[0]
+            except Exception:  # noqa: BLE001 — két không với được thì thôi
+                api_key = ""
         key = api_key or os.getenv("ARK_API_KEY", "")
         if not key:
-            # .env của V2 (worktree) — python-dotenv chỉ nạp khi CLI gọi load_dotenv
             from dotenv import load_dotenv
 
             load_dotenv()
             key = os.getenv("ARK_API_KEY", "")
         if not key:
-            raise AigenError("Thiếu ARK_API_KEY (.env V2 hoặc két General › generate).")
+            raise AigenError("Thiếu khoá ARK — cấp phát việc gen_canh ở "
+                             "General › API Keys (CRM), hoặc ARK_API_KEY trong .env dev.")
         self._key = key
         self.timeout = timeout
         self.retries = retries
@@ -59,6 +69,23 @@ class ArkClient:
 
     # ------------------------------------------------------------- HTTP
     def _goi(self, path: str, body: dict, method: str = "POST") -> dict:
+        """Ghi SỔ GỌI nền quanh lời gọi thật — bài học 03/09 (GLM hết tiền mà
+        hệ giám sát mù vì rendery không ghi sổ). Một dòng sổ = một lượt việc
+        (retry nằm trong); sổ chết không hỏng việc (so_goi_nen nuốt lỗi)."""
+        from autoedit import so_goi_nen
+        t0 = time.time()
+        try:
+            r = self._goi_that(path, body, method)
+        except Exception as e:  # noqa: BLE001 — ghi sổ rồi ném nguyên vẹn
+            so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=False,
+                           ma_loi=str(e)[:200], viec="gen_canh",
+                           ms=(time.time() - t0) * 1000)
+            raise
+        so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=True, viec="gen_canh",
+                       ms=(time.time() - t0) * 1000)
+        return r
+
+    def _goi_that(self, path: str, body: dict, method: str = "POST") -> dict:
         data = json.dumps(body).encode("utf-8") if body is not None else None
         loi: Exception | None = None
         for lan in range(self.retries):
