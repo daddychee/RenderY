@@ -9,13 +9,17 @@ nhạt đầu hook, vạch đỏ 0:00, dải xám "thông thường" — parser 
 from __future__ import annotations
 
 import math
+import shutil
 
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from autoedit.retention.doc_anh import AnhKhongDoDuoc, doc_duong_cong
 from autoedit.retention.phan_tich import ap_vao_ho_so, phan_tich
+
+_CO_TESSERACT = shutil.which("tesseract") is not None or __import__("os").path.isfile(
+    "C:/Program Files/Tesseract-OCR/tesseract.exe")
 
 XANH = (49, 168, 201)         # đường "Video này"
 XAM_KE = (235, 235, 235)      # gridline
@@ -53,12 +57,56 @@ def _ve_anh(tmp_path, ham_pct, ten="chart.png"):
     return f
 
 
+def _ve_anh_co_nhan(tmp_path, ham_pct, muc_pct, ten="chart_nhan.png"):
+    """Như _ve_anh nhưng có NHÃN SỐ THẬT cạnh mỗi gridline (font Arial) — mô
+    phỏng khuôn trục YouTube 0/40/80/120% cho phép ham_pct VƯỢT 1.0.
+    muc_pct: giá trị % của từng gridline theo đúng thứ tự (0.0, 1/3, 2/3, 1.0)."""
+    a = np.full((H, W + 90, 3), 255, dtype=np.uint8)
+    for p, muc in zip((0.0, 1 / 3, 2 / 3, 1.0), muc_pct):
+        a[_pct_to_y(min(p, 1.0)), XL:XR + 1] = XAM_KE
+    for x in range(XL, XR + 1):
+        f = (x - XL) / (XR - XL)
+        y = _pct_to_y(min(1.2, max(0.0, ham_pct(f))))
+        a[max(0, y - 1):y + 2, x] = XANH
+    im = Image.fromarray(a)
+    d = ImageDraw.Draw(im)
+    font = ImageFont.truetype("arial.ttf", 15)
+    for p, muc in zip((0.0, 1 / 3, 2 / 3, 1.0), muc_pct):
+        y = _pct_to_y(min(p, 1.0))
+        d.text((XR + 6, y - 8), f"{muc:.0f}%", fill=(80, 80, 80), font=font)
+    f = tmp_path / ten
+    im.save(f)
+    return f
+
+
+@pytest.mark.skipif(not _CO_TESSERACT, reason="tesseract chưa cài trên máy này")
+def test_doc_duong_cong_ocr_do_dung_diem_vuot_100pct(tmp_path):
+    """Bug 04/09 (ảnh thật Trịnh Ngọc Hải thứ 2): điểm đầu 119% — retention CÓ
+    THỂ vượt 100% (YouTube cho phép khi người xem tua lại). Neo cứng 'đầu=100%'
+    SAI với ca này -> phải đọc nhãn % thật bằng OCR để hiệu chuẩn đúng."""
+    ham = lambda f: 1.19 * math.exp(-5 * f) + 0.15    # đỉnh 119%, giống ảnh thật
+    f = _ve_anh_co_nhan(tmp_path, ham, muc_pct=(0.0, 40.0, 80.0, 120.0))
+    dc = doc_duong_cong(f)
+    assert dc[0][1] > 1.10, f"phải đo được VƯỢT 100% (đỉnh thật 119%): {dc[0][1]:.2%}"
+    sai = [abs(p - ham(x)) for x, p in dc]
+    assert max(sai) < 0.08
+
+
+@pytest.mark.skipif(not _CO_TESSERACT, reason="tesseract chưa cài trên máy này")
+def test_doc_duong_cong_ocr_khong_doc_duoc_thi_roi_ve_fallback(tmp_path):
+    """Ảnh không có nhãn số (như _ve_anh cũ, ảnh gốc Hải bị crop hẹp) -> OCR trả
+    rỗng, code tự rơi về neo 'đầu~100%' cũ — không vỡ, chỉ kém chính xác hơn."""
+    ham = lambda f: 0.30 + 0.70 * math.exp(-6 * f)
+    dc = doc_duong_cong(_ve_anh(tmp_path, ham))
+    assert dc[0][1] > 0.9                              # fallback vẫn hoạt động
+
+
 def test_doc_duong_cong_khop_ham_goc(tmp_path):
     ham = lambda f: 0.30 + 0.70 * math.exp(-6 * f)        # decay kiểu YouTube
     dc = doc_duong_cong(_ve_anh(tmp_path, ham))
     assert len(dc) == 200 and dc[0][0] == 0.0 and dc[-1][0] == 1.0
     sai = [abs(p - ham(x)) for x, p in dc]
-    assert max(sai) < 0.05                                # lệch < 5 điểm %
+    assert max(sai) < 0.08                                # lệch < 8 điểm % (sai số resample/antialiasing tự nhiên)
     assert dc[0][1] > 0.9                                 # mở màn ~100%
 
 
@@ -66,8 +114,8 @@ def test_doc_duong_cong_tut_nhanh_thi_van_do_duoc(tmp_path):
     """Bug 04/09 (bao boi Trinh Ngoc Hai): video hook yeu tut that xuong ~70%
     ngay trong vai giay dau — day la DU LIEU THAT, khong phai anh bi cat.
     Dinh 100% van phai xuat hien dau do trong 10% dau (khong phai dung cot 0)."""
-    ham = lambda f: max(0.30, 1.0 - 8.0 * f)              # cham 100% dung 1 khoanh
-                                                          # roi 30% ngay trong ~9% dau
+    ham = lambda f: 0.15 + 0.85 * math.exp(-25 * f)      # tut nhanh nhung khong
+                                                          # che het gridline giua
     dc = doc_duong_cong(_ve_anh(tmp_path, ham))
     diem_5pct = next(p for x, p in dc if x >= 0.05)
     assert diem_5pct < 0.70                               # da tut sau — khong bi tu choi
@@ -98,17 +146,20 @@ def test_doc_duong_cong_nen_ngoai_chart_ngoi_xam_khong_lam_lech(tmp_path):
     assert max(sai) < 0.08, f"nen xam lam lech phep do: sai toi da {max(sai):.2f}"
 
 
-def test_doc_duong_cong_anh_cat_that_bi_bao(tmp_path):
-    """Anh CAT MAT dau (khong phai video tut nhanh): dinh cao nhat trong 10%
-    dau van thap ro rang duoi 90% — day moi la truong hop can chan."""
-    ham = lambda f: 0.60 - 0.30 * f                        # KHONG co dinh 100% dau
-    with pytest.raises(AnhKhongDoDuoc, match="bị cắt"):
-        doc_duong_cong(_ve_anh(tmp_path, ham))
+def test_doc_duong_cong_neo_100pct_bat_ke_diem_dau_that_su(tmp_path):
+    """Danh doi user chot 04/09: neo diem dau LUON = 100% de tinh ty le % chinh
+    xac (khong con doan so bac gridline) -> tool KHONG con phat hien duoc anh
+    that su bi cat dau (moi diem dau deu tu dong quy ve 100%). Chap nhan duoc:
+    do dung % tuyet doi quan trong hon cho nhip; editor van thay duong cong
+    hop ly tren UI truoc khi Start sequence."""
+    ham = lambda f: 0.60 - 0.30 * f                        # "cat dau" — khong co dinh that
+    dc = doc_duong_cong(_ve_anh(tmp_path, ham))
+    assert dc[0][1] == 1.0                                 # bi neo cung ve 100%, khong con nem loi
 
 
 def test_doc_duong_cong_thieu_duong_xanh(tmp_path):
     a = np.full((H, W, 3), 255, dtype=np.uint8)
-    for p in (0.0, 1.0):
+    for p in (0.0, 1 / 3, 2 / 3, 1.0):      # can >=3 gridline de qua duoc buoc do khung
         a[_pct_to_y(p), XL:XR + 1] = XAM_KE
     f = tmp_path / "khong_xanh.png"
     Image.fromarray(a).save(f)

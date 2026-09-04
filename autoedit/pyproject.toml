@@ -30,6 +30,12 @@ dependencies = [
     # PIN git rev: PyPI 0.16.1 chết numpy 2 (np.float); rev này = 0.17.dev0 đã vá.
     # ⚠ BUILD TỪ NGUỒN — máy cần MSVC C++ Build Tools (HUONG_DAN_CAI_DAT_MAY_EDITOR.md).
     "madmom @ git+https://github.com/CPJKU/madmom.git@27f032e8947204902c675e5e341a3faf5dc86dae",
+    # RETENTION OCR (04/09): đọc nhãn % thật cạnh trục biểu đồ YouTube Studio —
+    # phát hiện điểm đầu video CÓ THỂ vượt 100% (tua lại) nên không neo cứng
+    # "đầu=100%" được nữa. ⚠ CẦN CÀI THÊM binary Tesseract-OCR ngoài pip package
+    # (Windows: `winget install --id UB-Mannheim.TesseractOCR -e`) — thiếu binary
+    # thì retention/doc_anh.py tự rơi về neo "đầu~100%" cũ, KHÔNG chết luồng đo.
+    "pytesseract>=0.3.10",
 ]
 
 # Dependency của các milestone sau, cài dần để M0 nhẹ:
