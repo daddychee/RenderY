@@ -149,3 +149,55 @@ def test_ap_vao_nhip_chi_de_truong_co_so():
     assert hs_moi.bung_chu_ky_s == goc_chu_ky             # 0 = giữ số niche, không đè
     assert hs_nhip.than_trung_vi == 2.5                    # bản gốc frozen giữ nguyên
     assert log and "«t»" in log[0]
+
+
+# ------------------------------------------------------------ Đợt B: loại cảnh
+def _tra_glm(phan_loai):
+    return {"choices": [{"message": {"content":
+        __import__("json").dumps({"phan_loai": phan_loai})}}]}
+
+
+def test_cham_loai_canh_ra_ty_trong():
+    from autoedit.kenh.loai_canh import cham_loai_canh
+    goi = lambda body: _tra_glm(["tu_quay", "tu_quay", "b_roll", "do_hoa"])
+    kq = cham_loai_canh([b"jpg1", b"jpg2", b"jpg3", b"jpg4"], goi=goi)
+    assert kq == {"tu_quay": 0.5, "b_roll": 0.25, "do_hoa": 0.25, "ai_render": 0.0}
+
+
+def test_cham_loai_canh_loai_la_bi_bo_qua():
+    from autoedit.kenh.loai_canh import cham_loai_canh
+    goi = lambda body: _tra_glm(["tu_quay", "bay_ba", "b_roll"])
+    kq = cham_loai_canh([b"a", b"b", b"c"], goi=goi)
+    assert kq["tu_quay"] == 0.5 and kq["b_roll"] == 0.5   # chỉ đếm loại hợp lệ
+
+
+def test_cham_loai_canh_glm_chet_tra_rong():
+    from autoedit.kenh.loai_canh import cham_loai_canh
+
+    def goi_chet(body):
+        raise RuntimeError("gia lap GLM chet")
+
+    assert cham_loai_canh([b"a"], goi=goi_chet) == {}     # fail-open, khong no
+
+
+def test_do_kenh_kem_loai_canh(cache_rieng, tmp_path):
+    """do_kenh với goi_vision stub -> hồ sơ có đủ 3 tầng, cache giữ nguyên tầng 3."""
+    video_dir = tmp_path / "vids2"
+    video_dir.mkdir()
+    _video_cat_cung(video_dir, "v1.mp4")
+
+    def tai_gia(link, dich, so_video=3, log=None):
+        import shutil
+        ra = []
+        for f in video_dir.glob("*.mp4"):
+            d = dich / f.name
+            shutil.copy2(f, d)
+            ra.append(d)
+        return ra
+
+    goi = lambda body: _tra_glm(["do_hoa"] * 6 + ["b_roll"] * 2)
+    hs = do_kenh("https://www.youtube.com/@kenh-vision", tai=tai_gia, goi_vision=goi)
+    assert hs.loai_canh["do_hoa"] == 0.75
+    assert hs.loai_canh["b_roll"] == 0.25
+    doc_lai = HoSoKenh.doc("kenh-vision")
+    assert doc_lai.loai_canh == hs.loai_canh              # tầng 3 vào cache

@@ -138,7 +138,7 @@ def _median(vals: list[float]) -> float:
 
 
 def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
-            do_lai: bool = False, log=None, tai=None) -> HoSoKenh:
+            do_lai: bool = False, log=None, tai=None, goi_vision=None) -> HoSoKenh:
     """Link → HoSoKenh (cache theo kênh). `tai` tiêm được để test không mạng."""
     def ghi(m):
         if log:
@@ -159,6 +159,7 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
         hooks, hooks_nhanh, thans, thans_nhanh, thans_hold = [], [], [], [], []
         chu_kys, drops, do_dongs = [], [], []
         curve_tong: list[list[float]] = []
+        video_hoi_tu: list[Path] = []
         hoi_tu = 0
         for f in files:
             ghi(f"kenh: đo {f.name}...")
@@ -171,6 +172,7 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
                 ghi(f"kenh: {f.name} hai thước KHÔNG hội tụ — bỏ (video đánh lừa thước)")
                 continue
             hoi_tu += 1
+            video_hoi_tu.append(f)
             h, t = kq.hook.get("select"), kq.than.get("select")
             if h:
                 hooks.append(h.trung_vi)
@@ -203,6 +205,14 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
             n = len(curve_tong[0])
             hs.nhac_energy_curve = [
                 round(statistics.fmean(c[i] for c in curve_tong), 3) for i in range(n)]
+        # Tầng 3 (Đợt B): tỷ trọng loại cảnh — GLM vision, fail-open (thiếu key/
+        # API chết -> {} + log, hồ sơ vẫn có 2 tầng nhịp+nhạc). Đo TRƯỚC khi xoá
+        # video tạm; goi_vision tiêm được cho test.
+        from autoedit.kenh.loai_canh import do_loai_canh
+        hs.loai_canh = do_loai_canh(video_hoi_tu, goi=goi_vision, log=log)
+        if hs.loai_canh:
+            ghi("kenh: loại cảnh — " + " · ".join(
+                f"{k} {v:.0%}" for k, v in hs.loai_canh.items() if v > 0))
         hs.ghi()
         ghi(f"kenh: «{ten}» đo xong — {hoi_tu}/{len(files)} video hội tụ, hồ sơ đã cache")
         return hs
