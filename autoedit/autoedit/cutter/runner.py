@@ -196,6 +196,10 @@ def run_cut(project: Project) -> Project:
         from autoedit.nhip.profile import nap as _nhip_nap
 
         hs = _nhip_nap(project.inputs.channel or "")
+        # RETENTION (user 04/09): tập cũ tụt ở đâu -> chỉnh hồ sơ nhịp tập này
+        # (server ghi retention.json ở folder tập lúc nộp job; không có = như cũ)
+        from autoedit.retention.phan_tich import ap_vao_ho_so as _ret_ap
+        record.warnings.extend(_ret_ap(project, hs))
         record.warnings.extend(_nhip_ap_dung(project, hs))
     except Exception as exc:  # noqa: BLE001
         record.warnings.append(f"nhịp: bỏ qua ép ({exc})")

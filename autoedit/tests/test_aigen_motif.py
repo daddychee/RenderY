@@ -11,7 +11,8 @@ from types import SimpleNamespace
 
 from autoedit.aigen.duyet import PhienDuyet
 from autoedit.aigen.motif import (GIAN_CACH_S, SO_MOTIF_TOI_DA, KetQuaGom,
-                                  MotifDeXuat, _hop_le, gom_motif)
+                                  MotifDeXuat, _hop_le, de_xuat_motif,
+                                  gen_anh_phuong_an)
 
 
 def _kq(*motif):
@@ -82,42 +83,71 @@ def _project(tmp_path, thieu=(1, 2), t=(0.0, 100.0)):
                            beats=beats, shots=shots)
 
 
-def test_gom_motif_tao_phien_du_anh(tmp_path):
+def test_de_xuat_tao_phien_cong1_khong_ton_anh(tmp_path):
     p = _project(tmp_path)
     llm = _LLMGia(_kq(("cinematic scene", [1, 2])))
-    phien = gom_motif(p, llm=llm, ark=_ArkGia())
+    phien = de_xuat_motif(p, llm=llm)
     assert phien is not None and llm.goi == 1
     assert [m.ma for m in phien.motif] == ["m1"]
     assert phien.motif[0].beat_ids == [1, 2]
-    assert len(phien.motif[0].phuong_an) == 2          # 2 phương án/motif
-    doc = PhienDuyet.doc(tmp_path)                     # đã ghi JSON + trạng thái
+    assert phien.motif[0].phuong_an == []              # CỔNG 1: chưa ảnh, 0 đồng
+    assert PhienDuyet.doc(tmp_path).trang_thai == "cho_gen_anh"
+
+
+def test_de_xuat_khong_de_phien_dang_duyet(tmp_path):
+    p = _project(tmp_path)
+    PhienDuyet(project_id="p-test").ghi(tmp_path)
+    llm = _LLMGia(_kq(("x", [1])))
+    assert de_xuat_motif(p, llm=llm) is None
+    assert llm.goi == 0                                # không đốt lượt LLM nào
+
+
+def test_de_xuat_khong_thieu_hinh_thi_thoi(tmp_path):
+    p = _project(tmp_path, thieu=())
+    assert de_xuat_motif(p, llm=_LLMGia(_kq())) is None
+
+
+def _phien_cong1(tmp_path, p):
+    de_xuat_motif(p, llm=_LLMGia(_kq(("scene A", [1, 2]), ("scene B", [3]))))
+
+
+def test_gen_anh_chi_motif_duoc_tick(tmp_path):
+    p = _project(tmp_path, thieu=(1, 2, 3), t=(0.0, 100.0, 300.0))
+    _phien_cong1(tmp_path, p)
+    ark = _ArkGia()
+    gen_anh_phuong_an(tmp_path, giu=["m1"], ark=ark)   # m2 KHÔNG tick
+    doc = PhienDuyet.doc(tmp_path)
     assert doc.trang_thai == "cho_duyet"
+    assert [m.ma for m in doc.motif] == ["m1"]         # m2 bị bỏ — beat tự lo
+    assert len(doc.motif[0].phuong_an) == 2
+    assert all(f.startswith("m1_") for f in ark.goi)   # không đốt tiền cho m2
     assert all((tmp_path / "aigen" / pa.file).is_file()
                for pa in doc.motif[0].phuong_an)
 
 
-def test_gom_motif_khong_de_phien_dang_duyet(tmp_path):
+def test_gen_anh_mot_anh_hong_van_giu_motif(tmp_path):
     p = _project(tmp_path)
-    PhienDuyet(project_id="p-test").ghi(tmp_path)
-    llm = _LLMGia(_kq(("x", [1])))
-    assert gom_motif(p, llm=llm, ark=_ArkGia()) is None
-    assert llm.goi == 0                                # không đốt lượt LLM nào
+    _phien_cong1(tmp_path, p)
+    gen_anh_phuong_an(tmp_path, giu=["m1"], ark=_ArkGia(hong={"m1_pa2.png"}))
+    doc = PhienDuyet.doc(tmp_path)
+    assert doc.trang_thai == "cho_duyet"
+    assert len(doc.motif[0].phuong_an) == 1            # còn 1 phương án vẫn duyệt được
 
 
-def test_gom_motif_khong_thieu_hinh_thi_thoi(tmp_path):
-    p = _project(tmp_path, thieu=())
-    assert gom_motif(p, llm=_LLMGia(_kq()), ark=_ArkGia()) is None
-
-
-def test_gom_motif_mot_anh_hong_van_giu_motif(tmp_path):
+def test_gen_anh_moi_anh_hong_quay_ve_cong1(tmp_path):
     p = _project(tmp_path)
-    phien = gom_motif(p, llm=_LLMGia(_kq(("scene", [1, 2]))),
-                      ark=_ArkGia(hong={"m1_pa2.png"}))
-    assert len(phien.motif[0].phuong_an) == 1          # còn 1 phương án vẫn duyệt được
+    _phien_cong1(tmp_path, p)
+    gen_anh_phuong_an(tmp_path, giu=["m1"],
+                      ark=_ArkGia(hong={"m1_pa1.png", "m1_pa2.png"}))
+    assert PhienDuyet.doc(tmp_path).trang_thai == "cho_gen_anh"   # tick lại được
 
 
-def test_gom_motif_moi_anh_hong_tra_none(tmp_path):
+def test_gen_anh_sai_trang_thai_bo_qua(tmp_path):
     p = _project(tmp_path)
-    ark = _ArkGia(hong={"m1_pa1.png", "m1_pa2.png"})
-    assert gom_motif(p, llm=_LLMGia(_kq(("scene", [1, 2]))), ark=ark) is None
-    assert not PhienDuyet.duong(tmp_path).is_file()    # không ghi phiên rỗng
+    _phien_cong1(tmp_path, p)
+    doc = PhienDuyet.doc(tmp_path)
+    doc.trang_thai = "da_chot"
+    doc.ghi(tmp_path)
+    ark = _ArkGia()
+    msg = gen_anh_phuong_an(tmp_path, giu=["m1"], ark=ark)
+    assert "bỏ qua" in msg and ark.goi == []           # không đốt tiền sai cửa

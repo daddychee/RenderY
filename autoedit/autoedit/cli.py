@@ -280,6 +280,8 @@ def make(
     music_sync: bool = typer.Option(False, "--music-sync", help="Bật gói MUSIC SYNC (stage music: nhạc hook to + snap accent + đổi nhạc neo cut)."),
     lam_lai: bool = typer.Option(False, "--lam-lai",
                                  help="Dựng MỚI kể cả khi chương này đã có draft xong."),
+    aigen: bool = typer.Option(False, "--aigen",
+                               help="Bật AI gen cảnh cho beat thiếu hình (gom motif + ảnh duyệt; mặc định TẮT)."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
@@ -332,6 +334,9 @@ def make(
     if srt_src is not None:
         typer.echo(f"  ✓ Thấy {srt_src.name} — align đọc thẳng file này (không nhận dạng lại)")
 
+    if aigen:   # công tắc AIGEN dính theo project — run_source đọc inputs.aigen
+        project.inputs.aigen = True
+        project.save()
     # In project_id để worker hàng đợi bắt được (web/worker.py parse dòng này)
     typer.echo(f"  ✓ Tạo project: {project.project_id}")
     typer.secho(f"✓ Bắt đầu dựng '{folder.name}' (vài phút — đừng tắt)...", fg=typer.colors.CYAN)

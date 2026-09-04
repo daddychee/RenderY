@@ -154,6 +154,15 @@
                   <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
                   <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
                 </select></td></tr>
+        <tr><td>AI gen cảnh</td>
+            <td><label style="cursor:pointer"><input type="checkbox" id="opt-aigen">
+                Bật — beat thiếu hình sẽ có đề xuất cảnh AI (bạn duyệt mới tốn tiền)</label></td></tr>
+        <tr><td>Retention tập cũ</td>
+            <td class="row" style="gap:8px">
+              <input type="file" id="opt-ret" accept="image/*" style="width:auto">
+              <input id="opt-ret-dai" placeholder="thời lượng tập cũ, vd 28:25" style="width:180px">
+              <span class="muted">(tuỳ chọn — ảnh chụp biểu đồ giữ chân YouTube Studio)</span>
+            </td></tr>
       </table>
       <div class="row" style="margin-top:12px">
         <button class="primary" id="btn-nop" onclick="nopJob()">▶ Bắt đầu dựng</button>
@@ -275,6 +284,19 @@ async function nopJob() {
   const btn = document.getElementById('btn-nop'), msg = document.getElementById('nop-msg')
   btn.disabled = true
   msg.textContent = 'đang xếp hàng…'
+  let retB64 = ''
+  const retFile = document.getElementById('opt-ret').files[0]
+  if (retFile) {
+    if (!document.getElementById('opt-ret-dai').value.trim()) {
+      msg.textContent = 'Nhập thời lượng tập cũ (vd 28:25) kèm ảnh retention'
+      btn.disabled = false; return
+    }
+    retB64 = await new Promise((ok, loi) => {
+      const r = new FileReader()
+      r.onload = () => ok(r.result); r.onerror = loi
+      r.readAsDataURL(retFile)
+    })
+  }
   try {
     const r = await api('/api/jobs', {
       method: 'POST', headers: {'content-type': 'application/json'},
@@ -282,10 +304,14 @@ async function nopJob() {
         folder: chon.path,
         niche: document.getElementById('opt-niche').value.trim(),
         no_sub: document.getElementById('opt-sub').value === '1',
+        aigen: document.getElementById('opt-aigen').checked,
+        retention_anh_b64: retB64,
+        retention_dai: document.getElementById('opt-ret-dai').value.trim(),
       }),
     })
     const cho = r.wait_ahead
     msg.textContent = cho ? `✓ Đã xếp hàng — bắt đầu sau ${phut(cho)}` : '✓ Bắt đầu ngay'
+    if (r.retention) msg.textContent += ' · 📉 ' + r.retention
     loadJobs()
   } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
   btn.disabled = false
@@ -362,7 +388,9 @@ function jobCard(j) {
   // V2: phiên duyệt ảnh AI của job — nút mở gallery /duyet (giữ token trên URL)
   const tk = new URLSearchParams(location.search).get('token')
   const duyet = (j.duyet || []).map(x => {
-    const nhan = x.trang_thai === 'cho_duyet' ? '🖼 Duyệt ảnh AI'
+    const nhan = x.trang_thai === 'cho_gen_anh' ? '🎬 Chọn cảnh đáng gen'
+               : x.trang_thai === 'dang_gen_anh' ? '⏳ Đang gen ảnh…'
+               : x.trang_thai === 'cho_duyet' ? '🖼 Duyệt ảnh AI'
                : x.trang_thai === 'da_chot' ? '⏳ Đang gen video…' : '🖼 Ảnh AI ✓'
     return `<a href="/duyet?p=${encodeURIComponent(x.project_id)}${tk ? '&token='+tk : ''}"
               target="_blank"><button ${x.trang_thai==='da_chot' ? 'disabled' : ''}>${nhan}</button></a>`

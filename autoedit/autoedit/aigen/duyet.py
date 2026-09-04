@@ -46,7 +46,9 @@ class Motif:
 @dataclass
 class PhienDuyet:
     project_id: str
-    trang_thai: str = "cho_duyet"   # cho_duyet | da_chot | da_gen_video
+    # cho_gen_anh (CỔNG 1: tick motif đáng gen) | dang_gen_anh | cho_duyet
+    # (CỔNG 2: chọn ảnh) | da_chot | da_gen_video
+    trang_thai: str = "cho_duyet"
     motif: list[Motif] = field(default_factory=list)
 
     # ------------------------------------------------------------- io

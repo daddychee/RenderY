@@ -109,6 +109,9 @@ class Inputs(BaseModel):
     # all|hook|ch<N>, mặc định all) — per-video, cộng với audience_bias của niche
     # (niche_profile.yaml). Dính theo project như ref_sources. MO_TA_VAN_HANH_BOOST.md
     boosts: list[str] = []
+    # AIGEN (user 2026-09-04): editor CHỌN khi nộp job — bật mới gom motif/gen ảnh
+    # (mặc định TẮT: dựng thuần V1, beat thiếu hình để needs_human như cũ).
+    aigen: bool = False
 
 
 # --------------------------------------------------------------------------- #

@@ -109,6 +109,8 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         extra += ["--align-backend", str(opts["align_backend"])]
     if opts.get("no_sub"):
         extra += ["--no-sub"]
+    if opts.get("aigen"):
+        extra += ["--aigen"]
 
     log_path = _log_path(logs_dir, job.id)
     ids: list[str] = []

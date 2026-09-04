@@ -613,6 +613,46 @@ def api_aigen_chon(project_id: str, req: ChonAnh, request: Request):
     return {"ok": True}
 
 
+class GenAnhReq(BaseModel):
+    giu: list[str] = []            # ma các motif được tick (CỔNG 1)
+
+
+@app.post("/api/aigen/{project_id}/gen-anh")
+def api_aigen_gen_anh(project_id: str, req: GenAnhReq, request: Request):
+    """CỔNG 1 -> 2: editor tick motif đáng tiền, bấm Gen ảnh. Chạy NỀN (~20s/ảnh)."""
+    _require_auth(request)
+    from autoedit.aigen.duyet import PhienDuyet
+
+    pdir = _aigen_pdir(project_id)
+    phien = PhienDuyet.doc(pdir)
+    if phien is None:
+        raise HTTPException(404, "Không có phiên duyệt")
+    if phien.trang_thai != "cho_gen_anh":
+        raise HTTPException(400, f"Phiên đang ở {phien.trang_thai} — không gen ảnh được")
+    if not req.giu:
+        raise HTTPException(400, "Chưa tick motif nào — tick ít nhất 1 cảnh đáng gen")
+    phien.trang_thai = "dang_gen_anh"
+    phien.ghi(pdir)
+    import threading
+
+    from autoedit.aigen.motif import gen_anh_phuong_an
+
+    def _chay():
+        try:
+            msg = gen_anh_phuong_an(pdir, req.giu)
+            print(f"[aigen] {project_id}: {msg}", flush=True)
+        except Exception as exc:  # noqa: BLE001 — quay về cho_gen_anh cho tick lại
+            print(f"[aigen] {project_id} LỖI gen ảnh: {exc}", flush=True)
+            p2 = PhienDuyet.doc(pdir)
+            if p2 is not None and p2.trang_thai == "dang_gen_anh":
+                p2.trang_thai = "cho_gen_anh"
+                p2.ghi(pdir)
+
+    threading.Thread(target=_chay, daemon=True, name=f"aigen-anh-{project_id}").start()
+    return {"ok": True, "trang_thai": phien.trang_thai,
+            "ghi_chu": f"đang gen ảnh cho {len(req.giu)} motif (~20s/ảnh) — F5 trang này"}
+
+
 @app.post("/api/aigen/{project_id}/chot")
 def api_aigen_chot(project_id: str, request: Request):
     """Chốt phiên -> trạng thái da_chot. Bước gen video đọc trạng thái này."""
@@ -623,6 +663,8 @@ def api_aigen_chot(project_id: str, request: Request):
     phien = PhienDuyet.doc(pdir)
     if phien is None:
         raise HTTPException(404, "Không có phiên duyệt")
+    if phien.trang_thai != "cho_duyet":
+        raise HTTPException(400, f"Phiên đang ở {phien.trang_thai} — chưa chốt được")
     ok, ly_do = phien.du_de_chot()
     if not ok:
         raise HTTPException(400, ly_do)
@@ -708,11 +750,27 @@ def api_jobs(request: Request, all_users: bool = False):
         conn.close()
 
 
+def _doc_mmss(chuoi: str) -> float:
+    """'28:25' -> 1705s; '1:02:15' -> 3735s. Sai định dạng thì ValueError tiếng Việt."""
+    phan = (chuoi or "").strip().split(":")
+    if not (2 <= len(phan) <= 3) or not all(p.isdigit() for p in phan):
+        raise ValueError("nhập thời lượng tập cũ dạng mm:ss (vd 28:25)")
+    phan = [int(p) for p in phan]
+    giay = phan[-1] + phan[-2] * 60 + (phan[0] * 3600 if len(phan) == 3 else 0)
+    if giay <= 60:
+        raise ValueError("thời lượng tập cũ phải > 1 phút")
+    return float(giay)
+
+
 class JobRequest(BaseModel):
     folder: str
     niche: str = ""
     align_backend: str = "auto"
     no_sub: bool = False
+    aigen: bool = False        # user 04/09: cổng tắt/bật AI gen khi nộp job
+    # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
+    retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
+    retention_dai: str = ""        # "28:25" hoặc "1:02:15"
 
 
 @app.post("/api/jobs")
@@ -733,13 +791,36 @@ def api_add_job(req: JobRequest, request: Request):
     if not chuong:
         raise HTTPException(422, "Không tìm thấy chương nào (H / C1 / C2 / E)")
 
+    # RETENTION: đo ảnh NGAY lúc nộp — ảnh hỏng thì báo liền cho người đứng đó,
+    # không để 20 phút sau worker mới kêu. Kết quả ghi retention.json ở folder
+    # TẬP: mọi chương cùng đọc khi ép nhịp (cutter -> ap_vao_ho_so).
+    bao_cao_ret = ""
+    if req.retention_anh_b64:
+        import base64 as _b64
+        import json as _json
+
+        from autoedit.retention.doc_anh import AnhKhongDoDuoc
+        from autoedit.retention.phan_tich import TEN_FILE as _RET, phan_tich_anh
+        try:
+            dai_s = _doc_mmss(req.retention_dai)
+            raw = req.retention_anh_b64.split(",", 1)[-1]   # bỏ đầu dataURL nếu có
+            anh = folder / "retention.png"
+            anh.write_bytes(_b64.b64decode(raw))
+            kq = phan_tich_anh(anh, dai_s)
+            (folder / _RET).write_text(
+                _json.dumps(kq, ensure_ascii=False, indent=1), encoding="utf-8")
+            bao_cao_ret = " · ".join(kq["bao_cao"])
+        except (AnhKhongDoDuoc, ValueError) as exc:
+            raise HTTPException(422, f"Ảnh retention không đo được: {exc}")
+
     conn = _queue_conn()
     try:
         jid = q.add_job(conn, str(folder), nguoi=current_user(request),
                         opts={"niche": req.niche, "align_backend": req.align_backend,
-                              "no_sub": req.no_sub})
+                              "no_sub": req.no_sub, "aigen": req.aigen})
         job = q.get_job(conn, jid)
-        return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid)}
+        return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid),
+                "retention": bao_cao_ret}
     finally:
         conn.close()
 

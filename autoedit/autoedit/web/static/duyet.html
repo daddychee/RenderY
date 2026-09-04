@@ -93,6 +93,15 @@ function ve() {
   document.getElementById('sub').textContent =
     `${PID} · ${phien.motif.length} motif · trạng thái: ${phien.trang_thai}`
   document.getElementById('btn-chot').disabled = phien.trang_thai !== 'cho_duyet'
+  if (phien.trang_thai === 'cho_gen_anh') { veCong1(); return }
+  if (phien.trang_thai === 'dang_gen_anh') {
+    document.getElementById('ds').innerHTML =
+      '<div class="motif">⏳ Đang gen ảnh (~20 giây/ảnh) — trang tự tải lại…</div>'
+    setTimeout(async () => { try {
+      phien = await api(`/api/aigen/${PID}` + (TOKEN ? `?token=${TOKEN}` : '')); ve()
+    } catch {} }, 8000)
+    return
+  }
   document.getElementById('ds').innerHTML = phien.motif.map(m => `
     <div class="motif">
       <b>${esc(m.ma.toUpperCase())} — ${esc(m.mo_ta)}</b>
@@ -100,6 +109,46 @@ function ve() {
       <div class="muted" style="margin-top:4px">prompt: ${esc(m.prompt).slice(0, 220)}</div>
       <div class="hang-anh">${m.phuong_an.map(p => veAnh(m, p)).join('')}</div>
     </div>`).join('')
+}
+
+// ---- CỔNG 1: danh sách motif đề xuất, tick cảnh đáng tiền — CHƯA tốn đồng nào ----
+function veCong1() {
+  const gia = n => (n * 2 * 0.03).toFixed(2)
+  document.getElementById('ds').innerHTML = `
+    <div class="muted" style="margin-bottom:12px">
+      <b>CỔNG 1 — chốt cảnh nào ĐÁNG GEN.</b> Danh sách dưới là đề xuất của máy cho các
+      beat không tìm được footage. Tick cảnh đáng tiền; cảnh bỏ tick sẽ KHÔNG gen —
+      beat đó bạn tự lo bằng kho/stock. Bấm Gen ảnh mới bắt đầu tốn tiền.
+    </div>
+    ${phien.motif.map(m => `
+    <div class="motif">
+      <label style="display:flex;gap:10px;align-items:baseline;cursor:pointer">
+        <input type="checkbox" class="tick-motif" value="${esc(m.ma)}" checked>
+        <div>
+          <b>${esc(m.ma.toUpperCase())} — ${esc(m.mo_ta)}</b>
+          <span class="muted"> · dùng lại tại beat ${m.beat_ids.join(', ')}</span>
+          <div class="muted" style="margin-top:4px">prompt: ${esc(m.prompt).slice(0, 260)}</div>
+        </div>
+      </label>
+    </div>`).join('')}
+    <button class="primary" onclick="genAnh()">🎨 Gen ảnh phương án
+      (<span id="dem">${phien.motif.length}</span> motif × 2 ảnh ≈ $<span id="gia">${gia(phien.motif.length)}</span>)</button>
+    <span class="muted" id="gen-msg"></span>`
+  document.querySelectorAll('.tick-motif').forEach(cb => cb.onchange = () => {
+    const n = document.querySelectorAll('.tick-motif:checked').length
+    document.getElementById('dem').textContent = n
+    document.getElementById('gia').textContent = gia(n)
+  })
+}
+
+async function genAnh() {
+  const giu = [...document.querySelectorAll('.tick-motif:checked')].map(c => c.value)
+  if (!giu.length) { alert('Tick ít nhất 1 cảnh — hoặc đóng tab nếu không cần AI.'); return }
+  try {
+    const r = await api(`/api/aigen/${PID}/gen-anh`, {method: 'POST',
+      body: JSON.stringify({giu})})
+    phien.trang_thai = r.trang_thai; ve()
+  } catch (e) { alert('Lỗi: ' + e.message) }
 }
 
 function zoom(src) {

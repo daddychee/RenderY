@@ -9,6 +9,12 @@ beat (user 03/09: "điểm giá trị nhất", giãn cách ≥60s) — rồi See
 Trần tiền (user chê $0.03/ảnh đắt, chưa chốt cách hạ — trần giữ hoá đơn nhỏ):
 SO_MOTIF_TOI_DA=5 x SO_PHUONG_AN=2 = tối đa 10 ảnh ~ $0.30/job.
 
+Luồng 2 CỔNG (user 04/09 — "cần cửa rõ ràng chốt cảnh nào đáng gen"):
+  CỔNG 1  de_xuat_motif()      — GLM đề xuất DANH SÁCH motif, 0 đồng tiền ảnh.
+          Phiên trạng thái cho_gen_anh; editor tick motif đáng tiền trên UI.
+  CỔNG 2  gen_anh_phuong_an()  — CHỈ motif được tick mới gen ảnh -> cho_duyet
+          (gallery chọn ảnh như cũ) -> chốt -> gen video (hoan_thien).
+
 Fail-open: caller (run_source) bọc try/except — thiếu khoá, GLM chết, Seedream
 chết đều KHÔNG hỏng stage; beat giữ needs_human như cũ, editor tự lo.
 """
@@ -75,8 +81,8 @@ def _hop_le(kq: KetQuaGom, t_cua: dict[int, float]) -> list[MotifDeXuat]:
     return ra
 
 
-def gom_motif(project, llm=None, ark: ArkClient | None = None, log=None):
-    """needs_human -> phiên duyệt cho_duyet (đã có ảnh). Trả PhienDuyet | None.
+def de_xuat_motif(project, llm=None, log=None):
+    """CỔNG 1: needs_human -> phiên cho_gen_anh (danh sách motif, CHƯA ảnh — 0 đồng).
 
     None = không có gì để làm (0 beat thiếu hình, hoặc đã có phiên — không đè
     quyết định editor đang duyệt dở). Lỗi khoá/API thì NÉM — caller fail-open.
@@ -106,7 +112,35 @@ def gom_motif(project, llm=None, ark: ArkClient | None = None, log=None):
     cac = _hop_le(kq, t_cua)
     if not cac:
         return None
-    ghi_log(f"aigen: GLM gom {len(thieu)} beat thiếu hình -> {len(cac)} motif")
+    phien = PhienDuyet(project_id=project.project_id, trang_thai="cho_gen_anh",
+                       motif=[Motif(ma=f"m{i}", mo_ta=mx.mo_ta, prompt=mx.prompt,
+                                    beat_ids=mx.beat_ids)
+                              for i, mx in enumerate(cac, start=1)])
+    phien.ghi(pdir)
+    ghi_log(f"aigen: GLM gom {len(thieu)} beat thiếu hình -> {len(cac)} motif "
+            f"chờ editor TICK (chưa tốn tiền ảnh)")
+    return phien
+
+
+def gen_anh_phuong_an(project_dir: Path, giu: list[str],
+                      ark: ArkClient | None = None, log=None) -> str:
+    """CỔNG 2: gen ảnh CHỈ cho motif được tick (`giu` = danh sách ma).
+
+    Motif không tick bị BỎ khỏi phiên — beat của nó vẫn needs_human trong shots
+    (chưa từng đổi), editor tự lo bằng kho/stock. Trả thông điệp kết quả."""
+    def ghi_log(msg: str) -> None:
+        if log:
+            log(msg)
+
+    pdir = Path(project_dir)
+    phien = PhienDuyet.doc(pdir)
+    if phien is None or phien.trang_thai not in ("cho_gen_anh", "dang_gen_anh"):
+        return "phiên không ở trạng thái cho_gen_anh — bỏ qua"
+    chon = [mx for mx in phien.motif if mx.ma in set(giu)]
+    if not chon:
+        phien.trang_thai = "cho_gen_anh"
+        phien.ghi(pdir)
+        return "không motif nào được tick — phiên giữ nguyên"
 
     # ---- sinh ảnh phương án (song song 4 luồng — ~18s/tấm đo 03/09) ----
     ark = ark or ArkClient()
@@ -122,30 +156,32 @@ def gom_motif(project, llm=None, ark: ArkClient | None = None, log=None):
             ghi_log(f"aigen: ảnh {ma} phương án {i + 1} lỗi: {exc}")
             return None
 
-    phien = PhienDuyet(project_id=project.project_id)
     with ThreadPoolExecutor(max_workers=4) as pool:
         viec = []
-        for idx, m in enumerate(cac, start=1):
-            ma = f"m{idx}"
+        for mx in chon:
             for i in range(SO_PHUONG_AN):
-                viec.append((ma, m, pool.submit(_mot_tam, ma, m.prompt, i)))
+                viec.append((mx.ma, pool.submit(_mot_tam, mx.ma, mx.prompt, i)))
         anh_theo_ma: dict[str, list[str]] = {}
-        for ma, _m, fut in viec:
+        for ma, fut in viec:
             ten = fut.result()
             if ten:
                 anh_theo_ma.setdefault(ma, []).append(ten)
-    for idx, m in enumerate(cac, start=1):
-        ma = f"m{idx}"
-        ten_anh = anh_theo_ma.get(ma, [])
+    con: list[Motif] = []
+    for mx in chon:
+        ten_anh = anh_theo_ma.get(mx.ma, [])
         if not ten_anh:
-            ghi_log(f"aigen: motif {ma} không sinh được ảnh nào — bỏ, beat giữ needs_human")
+            ghi_log(f"aigen: motif {mx.ma} không sinh được ảnh nào — bỏ, beat giữ needs_human")
             continue
-        phien.motif.append(Motif(ma=ma, mo_ta=m.mo_ta, prompt=m.prompt,
-                                 beat_ids=m.beat_ids,
-                                 phuong_an=[PhuongAn(file=t) for t in sorted(ten_anh)]))
-    if not phien.motif:
-        return None
+        mx.phuong_an = [PhuongAn(file=t) for t in sorted(ten_anh)]
+        con.append(mx)
+    if not con:
+        phien.trang_thai = "cho_gen_anh"     # cho editor tick lại/thử lại
+        phien.ghi(pdir)
+        return "mọi ảnh đều lỗi — phiên quay về cho_gen_anh, thử lại sau"
+    phien.motif = con
+    phien.trang_thai = "cho_duyet"
     phien.ghi(pdir)
-    ghi_log(f"aigen: phiên duyệt sẵn sàng — {len(phien.motif)} motif, "
-            f"{sum(len(m.phuong_an) for m in phien.motif)} ảnh")
-    return phien
+    msg = (f"{len(con)} motif, {sum(len(mx.phuong_an) for mx in con)} ảnh sẵn sàng "
+           f"cho gallery duyệt")
+    ghi_log("aigen: " + msg)
+    return msg
