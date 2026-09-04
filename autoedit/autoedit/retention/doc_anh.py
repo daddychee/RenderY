@@ -86,11 +86,18 @@ def doc_duong_cong(anh: Path, so_diem: int = 200) -> list[tuple[float, float]]:
         y_mid = float(np.median(yy))
         pct = (y_bot - y_mid) / max(1.0, (y_bot - y_top))
         ra.append(((x - x0) / max(1, x1 - x0), min(1.0, max(0.0, pct))))
-    # kiểm chân lý: retention LUÔN bắt đầu ~100%
-    if ra[0][1] < 0.80:
+    # kiểm chân lý: retention chạm 100% Ở ĐÂU ĐÓ rất gần đầu (giây đầu tiên) —
+    # KHÔNG đòi cột đầu tiên đo được phải cao (bug 04/09, báo bởi Trịnh Ngọc Hải:
+    # video hook yếu tụt thật xuống ~70% chỉ trong vài giây, đây là DỮ LIỆU THẬT
+    # chứ không phải ảnh bị cắt — ép ngưỡng 80% từ chối đúng ca cần đo nhất).
+    # Ảnh THỰC SỰ cắt mất đầu thì đỉnh cao nhất trong 10% đầu vẫn thấp hẳn dưới
+    # mốc chuẩn 95% (YouTube luôn vẽ đúng 100% tại t=0, kể cả khi tụt ngay sau đó).
+    dinh_dau = max(p for x, p in ra if x <= 0.10)
+    if dinh_dau < 0.90:
         raise AnhKhongDoDuoc(
-            f"điểm đầu đường cong chỉ {ra[0][1]:.0%} — retention phải bắt đầu "
-            "100%; ảnh có lẽ bị cắt mất đoạn mở đầu")
+            f"đỉnh cao nhất trong 10% đầu chỉ {dinh_dau:.0%} — retention luôn "
+            "chạm 100% ngay tại 0:00; ảnh có lẽ bị cắt mất đoạn mở đầu hoặc "
+            "chụp thiếu góc trên bên trái")
     # resample đều: nội suy tuyến tính trên lưới so_diem điểm
     xs = np.array([p[0] for p in ra])
     ps = np.array([p[1] for p in ra])

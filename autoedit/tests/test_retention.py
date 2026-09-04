@@ -62,11 +62,31 @@ def test_doc_duong_cong_khop_ham_goc(tmp_path):
     assert dc[0][1] > 0.9                                 # mở màn ~100%
 
 
+def test_doc_duong_cong_tut_nhanh_thi_van_do_duoc(tmp_path):
+    """Bug 04/09 (bao boi Trinh Ngoc Hai): video hook yeu tut that xuong ~70%
+    ngay trong vai giay dau — day la DU LIEU THAT, khong phai anh bi cat.
+    Dinh 100% van phai xuat hien dau do trong 10% dau (khong phai dung cot 0)."""
+    ham = lambda f: max(0.30, 1.0 - 8.0 * f)              # cham 100% dung 1 khoanh
+                                                          # roi 30% ngay trong ~9% dau
+    dc = doc_duong_cong(_ve_anh(tmp_path, ham))
+    diem_5pct = next(p for x, p in dc if x >= 0.05)
+    assert diem_5pct < 0.70                               # da tut sau — khong bi tu choi
+    assert max(p for x, p in dc if x <= 0.10) > 0.90       # nhung dinh 100% van co trong 10% dau
+
+
 def test_doc_duong_cong_anh_trang_bao_ro(tmp_path):
     f = tmp_path / "trang.png"
     Image.fromarray(np.full((100, 200, 3), 255, dtype=np.uint8)).save(f)
     with pytest.raises(AnhKhongDoDuoc, match="đường kẻ ngang"):
         doc_duong_cong(f)
+
+
+def test_doc_duong_cong_anh_cat_that_bi_bao(tmp_path):
+    """Anh CAT MAT dau (khong phai video tut nhanh): dinh cao nhat trong 10%
+    dau van thap ro rang duoi 90% — day moi la truong hop can chan."""
+    ham = lambda f: 0.60 - 0.30 * f                        # KHONG co dinh 100% dau
+    with pytest.raises(AnhKhongDoDuoc, match="bị cắt"):
+        doc_duong_cong(_ve_anh(tmp_path, ham))
 
 
 def test_doc_duong_cong_thieu_duong_xanh(tmp_path):
