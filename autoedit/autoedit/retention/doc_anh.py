@@ -31,17 +31,34 @@ class AnhKhongDoDuoc(ValueError):
 def _gridlines(a: np.ndarray) -> tuple[int, int, int, int]:
     """Tìm khung gridline: (y_top, y_bottom, x_left, x_right).
 
-    Gridline = hàng có nhiều pixel xám nhạt (kênh gần bằng nhau, sáng) trải rộng.
+    Gridline = HÀNG NGANG MẢNH (đường kẻ, không phải diện tích nền) màu xám nhạt,
+    trải rộng LIÊN TỤC — khác nền trắng/xám nhạt của cả ảnh chụp (bug 04/09, ảnh
+    thật Trịnh Ngọc Hải: nền JPG hơi ngả xám lọt đúng ngưỡng r<=248 cũ, hàng nền
+    dưới ảnh bị nhận nhầm là gridline 0%, x_r kéo dài hết chiều rộng ẢNH thay vì
+    chiều rộng CHART thật -> tỉ lệ phủ đường xanh bị tính hụt còn 32%).
+
+    Phân biệt bằng ĐỘ DÀY: gridline thật dày 1-3px xen giữa các hàng KHÔNG xám
+    (nền trắng thật của ô biểu đồ, hoặc đường cong/chữ) phía trên và dưới nó.
+    Hàng xám của cả một VÙNG NỀN thì hàng liền kề cũng xám -> bị loại.
     """
     r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
     xam = ((np.abs(r - g) < 14) & (np.abs(g - b) < 14)
            & (r >= 190) & (r <= 248))
     tyle = xam.mean(axis=1)
-    hang = np.where(tyle > 0.5)[0]
+    la_hang_xam = tyle > 0.5
+    # mảnh: hàng xám mà hàng NGAY TRÊN và NGAY DƯỚI (cách 4px, qua khỏi nét dày
+    # nhất 3px của đường kẻ) không xám — tức nó nổi giữa nền không-xám thật.
+    n = len(la_hang_xam)
+    manh = np.zeros(n, dtype=bool)
+    for y in np.where(la_hang_xam)[0]:
+        tren = tyle[max(0, y - 4)] <= 0.5
+        duoi = tyle[min(n - 1, y + 4)] <= 0.5
+        manh[y] = tren or duoi
+    hang = np.where(manh)[0]
     if len(hang) < 2:
         raise AnhKhongDoDuoc(
             "không thấy đường kẻ ngang của biểu đồ — chụp đủ khung retention "
-            "(cả vạch 100% trên cùng lẫn 0% dưới cùng)")
+            "(cả vạch 100% trên cùng lẫn 0% dưới cùng), không lẫn nền trang")
     # gom hàng liền kề thành từng đường
     duong = [int(hang[0])]
     for y in hang[1:]:
@@ -52,9 +69,17 @@ def _gridlines(a: np.ndarray) -> tuple[int, int, int, int]:
     if len(duong) < 2:
         raise AnhKhongDoDuoc("chỉ thấy 1 đường kẻ ngang — ảnh cắt mất khung")
     y_top, y_bot = duong[0], duong[-1]
-    # bề ngang khung: đoạn x mà đường 0% thực sự kẻ (tránh lề trắng 2 bên)
-    cot = np.where(xam[y_bot if y_bot < a.shape[0] else -1])[0]
-    return y_top, y_bot, int(cot.min()), int(cot.max())
+    # bề ngang khung: đoạn LIÊN TỤC dài nhất mà đường 0% thực sự kẻ (tránh lề/
+    # chữ số trục hoành cũng lọt ngưỡng xám nằm rời rạc ngoài đoạn kẻ liền mạch).
+    cot_xam = np.where(xam[y_bot if y_bot < a.shape[0] else -1])[0]
+    if len(cot_xam) == 0:
+        raise AnhKhongDoDuoc("đường kẻ 0% quá mờ/đứt đoạn — chụp lại rõ hơn")
+    ngat = np.where(np.diff(cot_xam) > 3)[0]
+    bien = [0, *(ngat + 1).tolist(), len(cot_xam)]
+    doan = max(((bien[i], bien[i + 1]) for i in range(len(bien) - 1)),
+              key=lambda ab: cot_xam[ab[1] - 1] - cot_xam[ab[0]])
+    x_l, x_r = int(cot_xam[doan[0]]), int(cot_xam[doan[1] - 1])
+    return y_top, y_bot, x_l, x_r
 
 
 def doc_duong_cong(anh: Path, so_diem: int = 200) -> list[tuple[float, float]]:

@@ -81,6 +81,23 @@ def test_doc_duong_cong_anh_trang_bao_ro(tmp_path):
         doc_duong_cong(f)
 
 
+def test_doc_duong_cong_nen_ngoai_chart_ngoi_xam_khong_lam_lech(tmp_path):
+    """Bug 04/09 (bao boi Trinh Ngoc Hai): anh JPG that nen ngoai chart hoi nga
+    xam (khong trang thuan 255) — code cu nhan nham CA VUNG NEN la 'gridline
+    0%', keo x_r het chieu rong ANH thay vi chieu rong CHART, ty le phu duong
+    xanh bi tinh hut con ~32% -> tu choi oan anh do duoc that su."""
+    ham = lambda f: 1.0 - 0.7 * f
+    a = np.full((H + 80, W + 200, 3), 238, dtype=np.uint8)   # nen NGOAI hoi xam
+    ve = _ve_anh(tmp_path, ham, ten="tam.png")
+    chart = np.asarray(Image.open(ve).convert("RGB"))
+    a[40:40 + H, 100:100 + W] = chart                        # dan chart vao giua nen xam
+    f = tmp_path / "that.png"
+    Image.fromarray(a).save(f)
+    dc = doc_duong_cong(f)
+    sai = [abs(p - ham(x)) for x, p in dc]
+    assert max(sai) < 0.08, f"nen xam lam lech phep do: sai toi da {max(sai):.2f}"
+
+
 def test_doc_duong_cong_anh_cat_that_bi_bao(tmp_path):
     """Anh CAT MAT dau (khong phai video tut nhanh): dinh cao nhat trong 10%
     dau van thap ro rang duoi 90% — day moi la truong hop can chan."""
