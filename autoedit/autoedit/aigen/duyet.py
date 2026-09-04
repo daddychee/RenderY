@@ -84,7 +84,10 @@ class PhienDuyet:
                 continue
             for p in m.phuong_an:
                 if p.file == file:
-                    p.chon = chon
+                    # chon=None = CHI sua ghi chu — khong duoc xoa lua chon cu
+                    # (bug 04/09: go ghi chu len anh da chon lam mat "da chon")
+                    if chon is not None:
+                        p.chon = chon
                     if ghi_chu:
                         p.ghi_chu = ghi_chu
                 elif chon:               # chốt ảnh này -> ảnh khác thôi chốt

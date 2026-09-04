@@ -142,6 +142,18 @@ def test_gen_anh_moi_anh_hong_quay_ve_cong1(tmp_path):
     assert PhienDuyet.doc(tmp_path).trang_thai == "cho_gen_anh"   # tick lại được
 
 
+def test_ghi_chu_khong_xoa_lua_chon(tmp_path):
+    """Bug 04/09: UI gửi chon=None khi sửa ghi chú — không được xoá 'đã chọn'."""
+    from autoedit.aigen.duyet import Motif, PhuongAn
+    phien = PhienDuyet(project_id="p", motif=[Motif(
+        ma="m1", mo_ta="x", prompt="p",
+        phuong_an=[PhuongAn(file="a.png", chon=True), PhuongAn(file="b.png")])])
+    phien.chon("m1", "a.png", None, "bớt sương")
+    assert phien.motif[0].phuong_an[0].chon is True        # lựa chọn còn nguyên
+    assert phien.motif[0].phuong_an[0].ghi_chu == "bớt sương"
+    assert phien.du_de_chot()[0]
+
+
 def test_gen_anh_giu_motif_anh_ref(tmp_path):
     """Motif editor tự đưa ảnh ref ($0) phải SỐNG SÓT qua lượt gen của motif khác."""
     from autoedit.aigen.duyet import PhuongAn

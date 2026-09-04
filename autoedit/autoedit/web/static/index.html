@@ -204,12 +204,17 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
       <div id="ns-kiem" style="margin-top:10px"></div>
     </div>
 
-    <div class="panel" id="ns-opts" hidden>
+    <div class="panel" id="ns-opts">
       <h2>Tuỳ chọn dựng</h2>
       <div class="formrow"><label>Kênh / niche</label>
         <input type="text" id="ns-niche" list="ds-niche" placeholder="(tuỳ chọn) vd: investigate"
                style="max-width:240px">
         <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist></div>
+      <div class="formrow"><label>Nguồn footage</label>
+        <select id="ns-sub" style="max-width:280px">
+          <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
+          <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
+        </select></div>
       <div class="formrow"><label>Cảnh AI</label>
         <label class="optbox"><input type="checkbox" id="ns-aigen">
           <span><b>Bật đề xuất cảnh AI</b> cho beat không tìm được footage
@@ -226,8 +231,9 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
             tool đo ngay lúc nộp và chỉnh nhịp tập này.</div>
         </div></div>
       <div class="chan">
-        <button class="btn" id="ns-nut" onclick="nopTap()">▶ Start sequence</button>
-        <span class="note" style="margin:0" id="ns-msg"></span>
+        <button class="btn" id="ns-nut" onclick="nopTap()" disabled>▶ Start sequence</button>
+        <span class="note" style="margin:0" id="ns-msg">Kiểm tra thư mục tập trước — nút mở khi
+          tập sẵn sàng.</span>
       </div>
     </div>
   </div>
@@ -359,7 +365,7 @@ function veProcessing() {
       <span><b>${esc(tenTap(j))} · ${esc(c.ten)}</b> — ${la1
         ? `${n} cảnh trắng footage: gen ảnh AI / tự đưa ảnh ref / bỏ`
         : 'ảnh phương án đã về, chọn 1 ảnh/cảnh rồi chốt'}</span>
-      <span class="gia tien mono">${la1 ? 'tối đa' : 'chốt tiêu'} $${se.toFixed(2)} →</span></div>`
+      <span class="gia tien mono">${se > 0 ? `${la1 ? 'tối đa' : 'chốt tiêu'} $${se.toFixed(2)} ` : ''}→</span></div>`
   }).join('')
 
   const hien = JOBS.filter(j => j.status !== 'done'
@@ -441,7 +447,7 @@ async function xemKetQua(id) {
     modal('Kết quả trên NAS', `
       <div style="display:flex;gap:8px"><input type="text" class="mono" readonly
         value="${esc(d.duong_dan)}" style="flex:1" onclick="this.select()">
-        <button class="btn small ghost" onclick="navigator.clipboard.writeText(${JSON.stringify('')} + this.parentNode.querySelector('input').value)">Copy</button></div>
+        <button class="btn small ghost" onclick="const i=this.parentNode.querySelector('input');i.select();document.execCommand('copy');this.textContent='Đã copy'">Copy</button></div>
       <div class="note">${(d.chuong || []).map(c =>
         `${esc(c.ten)}: ${c.co_draft ? 'draft ✓' : 'chưa draft'} · ${c.footage} footage`).join('<br>')}</div>
       ${d.doc_truoc ? `<pre style="margin-top:10px">${esc(d.doc_truoc)}</pre>` : ''}`)
@@ -453,7 +459,7 @@ let TAP_OK = null
 async function kiemTap() {
   const el = document.getElementById('ns-kiem')
   const p = document.getElementById('ns-folder').value.trim()
-  document.getElementById('ns-opts').hidden = true
+  document.getElementById('ns-nut').disabled = true
   TAP_OK = null
   if (!p) { el.innerHTML = '<div class="err">Dán đường dẫn thư mục tập.</div>'; return }
   el.innerHTML = '<span class="note">đang kiểm…</span>'
@@ -468,7 +474,7 @@ async function kiemTap() {
   el.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div>${loi}${nhac}`
   if (d.san_sang) {
     TAP_OK = d.duong_dan || p
-    document.getElementById('ns-opts').hidden = false
+    document.getElementById('ns-nut').disabled = false
     document.getElementById('ns-msg').textContent = ''
   }
 }
@@ -493,6 +499,7 @@ async function nopTap() {
     const r = await api('/api/jobs', {method: 'POST', body: JSON.stringify({
       folder: TAP_OK,
       niche: document.getElementById('ns-niche').value.trim(),
+      no_sub: document.getElementById('ns-sub').value === '1',
       aigen: document.getElementById('ns-aigen').checked,
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
@@ -506,10 +513,12 @@ async function nopTap() {
 
 /* ══════════ Generation ══════════ */
 let PID = ''
+let GEN_TIMER = 0                   // 1 timer poll duy nhất cho màn Generation
 const QUYET = {}                    // pid -> {ma: {duong, b64, ten}}
 
 function veSelectPhien() {
   const sel = document.getElementById('sel-phien')
+  if (document.activeElement === sel) return   // user đang mở dropdown — đừng vẽ đè
   const cu = sel.value
   const os = ['<option value="">— chọn chương có phiên AI —</option>']
   for (const j of JOBS) for (const c of (j.chuongs || []))
@@ -563,14 +572,14 @@ function veGen(p) {
   if (p.trang_thai === 'dang_gen_anh') {
     noi.innerHTML = RAY(2) + `<div class="panel"><span class="hb run"></span>
       Đang gen ảnh phương án (~20 giây/ảnh) — trang tự cập nhật.</div>`
-    setTimeout(taiPhien, 7000)
+    clearTimeout(GEN_TIMER); GEN_TIMER = setTimeout(taiPhien, 7000)
     return
   }
   if (p.trang_thai === 'cho_duyet') { noi.innerHTML = RAY(2) + veGallery(p); return }
   if (p.trang_thai === 'da_chot') {
     noi.innerHTML = RAY(3) + `<div class="panel"><span class="hb run"></span>
       Đang gen video + dựng lại draft (~2 phút/cảnh) — đóng tab được, xong hiện ở Processing.</div>`
-    setTimeout(taiPhien, 12000)
+    clearTimeout(GEN_TIMER); GEN_TIMER = setTimeout(taiPhien, 12000)
     return
   }
   noi.innerHTML = RAY(4) + `<div class="panel"><span class="hb ok"></span>
