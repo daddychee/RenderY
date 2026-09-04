@@ -94,24 +94,32 @@ def phan_tich_anh(anh: Path, dai_s: float,
     return phan_tich(doc_duong_cong(Path(anh), tooltip=tooltip), dai_s)
 
 
-def ap_vao_ho_so(project, hs) -> list[str]:
-    """Đọc retention.json ở FOLDER TẬP (cha của folder chương) -> chỉnh hs tại chỗ.
+def ap_vao_ho_so(project, hs) -> tuple["object", list[str]]:
+    """Đọc retention.json ở FOLDER TẬP (cha của folder chương) -> (HoSoNhip MỚI, log).
 
-    Fail-open: không file / file hỏng -> [] hoặc 1 dòng cảnh báo, nhịp chạy như cũ.
+    Fail-open: không file / file hỏng -> (hs nguyên, [] hoặc 1 dòng cảnh báo).
     """
     try:
         goc = Path(project.inputs.original_script_path).parent.parent
         f = goc / TEN_FILE
         if not f.is_file():
-            return []
+            return hs, []
         d = json.loads(f.read_text(encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001
-        return [f"retention: bỏ qua ({exc})"]
+        return hs, [f"retention: bỏ qua ({exc})"]
     dc = d.get("dieu_chinh") or {}
     ra = [f"retention (tập cũ {int(d.get('dai_s', 0)) // 60} phút): áp vào nhịp"]
+    # HoSoNhip là FROZEN dataclass — gán đè tại chỗ nổ FrozenInstanceError (bug
+    # tiềm ẩn 04-05/09: bị try/except fail-open của cutter nuốt, retention +
+    # ép nhịp cùng âm thầm tắt; test kênh 05/09 mới lộ) -> trả hồ sơ MỚI.
+    from dataclasses import replace
+
+    doi: dict = {}
     if dc.get("hook_kieu"):
-        hs.hook_kieu = dc["hook_kieu"]
+        doi["hook_kieu"] = dc["hook_kieu"]
     if dc.get("bung_he_so_chu_ky"):
-        hs.bung_chu_ky_s = max(SAN_CHU_KY_S, hs.bung_chu_ky_s * dc["bung_he_so_chu_ky"])
+        doi["bung_chu_ky_s"] = max(SAN_CHU_KY_S,
+                                   hs.bung_chu_ky_s * dc["bung_he_so_chu_ky"])
     ra += [ln for ln in d.get("bao_cao", [])[1:]]     # dòng 1 là tổng quan, khỏi lặp
-    return ra if (dc or len(ra) > 1) else []
+    hs_moi = replace(hs, **doi) if doi else hs
+    return (hs_moi, ra) if (dc or len(ra) > 1) else (hs, [])

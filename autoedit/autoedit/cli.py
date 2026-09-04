@@ -228,6 +228,39 @@ def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
         return None
 
 
+@app.command(name="kenh-do")
+def kenh_do_cmd(
+    link: str = typer.Argument(..., help="Link YouTube: kênh (@fern-tv) hoặc video lẻ."),
+    ten: str = typer.Option("", "--ten", help="Slug cache (mặc định suy từ link)."),
+    so_video: int = typer.Option(3, "--so-video", help="Đo tối đa mấy video (kênh)."),
+    do_lai: bool = typer.Option(False, "--do-lai", help="Bỏ cache, tải + đo lại từ đầu."),
+) -> None:
+    """Đo KÊNH ref → Hồ Sơ Kênh (nhịp + nhạc) — nền của 3 phương án dựng.
+
+    Cache theo kênh: đo 1 lần dùng mãi (né YouTube chặn IP). Video tải tạm
+    360p rồi xoá, chỉ giữ hoso.json. User chốt 05/09: mỗi phương án dựng học
+    nhịp/phong cách từ kênh ref thay vì luật cứng."""
+    from autoedit.kenh.do_kenh import DoKenhError, do_kenh
+
+    try:
+        hs = do_kenh(link, ten=ten, so_video=so_video, do_lai=do_lai,
+                     log=lambda m: typer.echo("  " + m))
+    except DoKenhError as exc:
+        typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    typer.secho(f"\n✓ Hồ sơ kênh «{hs.ten}» ({hs.so_video_hoi_tu} video hội tụ):",
+                fg=typer.colors.GREEN)
+    typer.echo(f"  hook  : trung vị {hs.hook_trung_vi:.2f}s · nhanh "
+               f"{hs.hook_ty_le_nhanh:.0%} · kiểu {hs.hook_kieu or '?'}")
+    typer.echo(f"  thân  : trung vị {hs.than_trung_vi:.2f}s · nhanh "
+               f"{hs.than_ty_le_nhanh:.0%} · hold {hs.than_ty_le_hold:.0%}")
+    ck = f"{hs.bung_chu_ky_s / 60:.1f} phút" if hs.bung_chu_ky_s else "không đo được"
+    typer.echo(f"  bùng  : chu kỳ {ck}")
+    typer.echo(f"  nhạc  : drop tại {hs.nhac_vi_tri_drop:.0%} bài · dải động "
+               f"{hs.nhac_do_dong:.0f}dB")
+    typer.echo(f"  cache : {hs.duong(hs.ten)}")
+
+
 @app.command(name="nhip-do")
 def nhip_do_cmd(
     videos: list[Path] = typer.Argument(..., help="Video cần đo nhịp (1+ file)."),

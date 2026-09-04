@@ -230,9 +230,11 @@ def test_phan_tich_diem_tut_cuc_bo():
 
 
 # ------------------------------------------------------------------ ap_vao_ho_so
-class _HS:
-    hook_kieu = "leo"
-    bung_chu_ky_s = 270.0
+# Dung HoSoNhip THAT (frozen dataclass) — bug 05/09: class gia mutable che mat
+# FrozenInstanceError, retention + ep nhip cung am tham tat tren production.
+def _hs_that():
+    from autoedit.nhip.profile import nap
+    return nap("investigate")          # hook_kieu="leo", bung_chu_ky_s=270.0
 
 
 def _project_tai(tmp_path):
@@ -250,14 +252,15 @@ def test_ap_vao_ho_so_chinh_hook_va_chu_ky(tmp_path):
         "dai_s": 1705, "bao_cao": ["tổng quan", "hook yếu"],
         "dieu_chinh": {"hook_kieu": "no", "bung_he_so_chu_ky": 0.75}}),
         encoding="utf-8")
-    hs = _HS()
-    ra = ap_vao_ho_so(p, hs)
-    assert hs.hook_kieu == "no"
-    assert hs.bung_chu_ky_s == pytest.approx(202.5)
+    hs = _hs_that()
+    hs_moi, ra = ap_vao_ho_so(p, hs)
+    assert hs_moi.hook_kieu == "no"
+    assert hs_moi.bung_chu_ky_s == pytest.approx(202.5)
+    assert hs.hook_kieu == "leo"                # ban goc frozen giu nguyen
     assert ra and "hook yếu" in " ".join(ra)
 
 
 def test_ap_vao_ho_so_khong_file_im_lang(tmp_path):
-    hs = _HS()
-    assert ap_vao_ho_so(_project_tai(tmp_path), hs) == []
-    assert hs.hook_kieu == "leo"                           # không đổi gì
+    hs = _hs_that()
+    hs_moi, log = ap_vao_ho_so(_project_tai(tmp_path), hs)
+    assert log == [] and hs_moi is hs                      # không đổi gì
