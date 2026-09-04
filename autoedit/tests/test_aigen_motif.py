@@ -142,6 +142,25 @@ def test_gen_anh_moi_anh_hong_quay_ve_cong1(tmp_path):
     assert PhienDuyet.doc(tmp_path).trang_thai == "cho_gen_anh"   # tick lại được
 
 
+def test_gen_anh_giu_motif_anh_ref(tmp_path):
+    """Motif editor tự đưa ảnh ref ($0) phải SỐNG SÓT qua lượt gen của motif khác."""
+    from autoedit.aigen.duyet import PhuongAn
+    p = _project(tmp_path, thieu=(1, 2, 3), t=(0.0, 100.0, 300.0))
+    _phien_cong1(tmp_path, p)                              # m1 (gen), m2
+    doc = PhienDuyet.doc(tmp_path)
+    (tmp_path / "aigen").mkdir()
+    (tmp_path / "aigen" / "m2_ref.png").write_bytes(b"anh cua editor")
+    doc.motif[1].phuong_an = [PhuongAn(file="m2_ref.png", chon=True)]
+    doc.ghi(tmp_path)
+    ark = _ArkGia()
+    gen_anh_phuong_an(tmp_path, giu=["m1"], ark=ark)
+    doc = PhienDuyet.doc(tmp_path)
+    assert doc.trang_thai == "cho_duyet"
+    assert [m.ma for m in doc.motif] == ["m1", "m2"]        # ref không bị vứt
+    assert doc.motif[1].anh_chot.file == "m2_ref.png"       # vẫn chọn sẵn
+    assert all(f.startswith("m1_") for f in ark.goi)        # m2 không đốt tiền
+
+
 def test_gen_anh_sai_trang_thai_bo_qua(tmp_path):
     p = _project(tmp_path)
     _phien_cong1(tmp_path, p)

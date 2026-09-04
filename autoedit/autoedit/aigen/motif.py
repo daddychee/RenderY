@@ -136,8 +136,9 @@ def gen_anh_phuong_an(project_dir: Path, giu: list[str],
     phien = PhienDuyet.doc(pdir)
     if phien is None or phien.trang_thai not in ("cho_gen_anh", "dang_gen_anh"):
         return "phiên không ở trạng thái cho_gen_anh — bỏ qua"
-    chon = [mx for mx in phien.motif if mx.ma in set(giu)]
-    if not chon:
+    # motif đã có phương án sẵn (editor tự đưa ảnh ref — $0) giữ nguyên, không gen
+    chon = [mx for mx in phien.motif if mx.ma in set(giu) and not mx.phuong_an]
+    if not chon and not any(mx.phuong_an for mx in phien.motif):
         phien.trang_thai = "cho_gen_anh"
         phien.ghi(pdir)
         return "không motif nào được tick — phiên giữ nguyên"
@@ -166,14 +167,13 @@ def gen_anh_phuong_an(project_dir: Path, giu: list[str],
             ten = fut.result()
             if ten:
                 anh_theo_ma.setdefault(ma, []).append(ten)
-    con: list[Motif] = []
     for mx in chon:
         ten_anh = anh_theo_ma.get(mx.ma, [])
         if not ten_anh:
             ghi_log(f"aigen: motif {mx.ma} không sinh được ảnh nào — bỏ, beat giữ needs_human")
             continue
         mx.phuong_an = [PhuongAn(file=t) for t in sorted(ten_anh)]
-        con.append(mx)
+    con = [mx for mx in phien.motif if mx.phuong_an]   # ref sẵn + gen thành công
     if not con:
         phien.trang_thai = "cho_gen_anh"     # cho editor tick lại/thử lại
         phien.ghi(pdir)

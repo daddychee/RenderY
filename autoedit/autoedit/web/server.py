@@ -560,6 +560,13 @@ def _aigen_pdir(project_id: str) -> Path:
     return pdir
 
 
+@app.get("/mockup")
+def trang_mockup(request: Request):
+    """Mockup user duyet 04/09 — dat canh code lam chuan so (index.html phai khop)."""
+    _require_auth(request)
+    return FileResponse(Path(__file__).parent / "static" / "mockup_de_xuat.html")
+
+
 @app.get("/duyet")
 def trang_duyet(request: Request):
     _require_auth(request)
@@ -615,6 +622,91 @@ def api_aigen_chon(project_id: str, req: ChonAnh, request: Request):
 
 class GenAnhReq(BaseModel):
     giu: list[str] = []            # ma các motif được tick (CỔNG 1)
+
+
+class QuyetReq(BaseModel):
+    """CỔNG 1 (UI mới 04/09): mỗi cảnh 1 trong 3 đường."""
+
+    quyet: dict[str, str] = {}     # ma -> "gen" | "ref" | "bo"
+    ref_anh: dict[str, str] = {}   # ma -> base64/dataURL ảnh editor tự đưa
+
+
+@app.post("/api/aigen/{project_id}/quyet")
+def api_aigen_quyet(project_id: str, req: QuyetReq, request: Request):
+    """Quyết 3 đường/cảnh: gen ảnh AI ($) · ảnh của tôi ($0, đi thẳng chốt) · bỏ.
+
+    Motif "bỏ" rời phiên (beat giữ needs_human, editor đắp tay). Motif "ref" nhận
+    ảnh editor đưa làm phương án CHỌN SẴN. Chỉ nhóm "gen" mới đốt tiền ảnh — chạy
+    nền; không có "gen" nào thì phiên sang cho_duyet ngay (chốt là gen video)."""
+    _require_auth(request)
+    import base64 as _b64
+
+    from autoedit.aigen.duyet import THU_MUC_ANH, PhienDuyet, PhuongAn
+
+    pdir = _aigen_pdir(project_id)
+    phien = PhienDuyet.doc(pdir)
+    if phien is None:
+        raise HTTPException(404, "Không có phiên duyệt")
+    if phien.trang_thai != "cho_gen_anh":
+        raise HTTPException(400, f"Phiên đang ở {phien.trang_thai} — không quyết được")
+    hop_le = {m.ma for m in phien.motif}
+    la = set(req.quyet) - hop_le
+    if la:
+        raise HTTPException(422, f"Motif lạ: {', '.join(sorted(la))}")
+
+    gen: list[str] = []
+    giu_motif = []
+    for m in phien.motif:
+        duong = req.quyet.get(m.ma, "bo")      # không quyết = bỏ (không đốt tiền ngầm)
+        if duong == "bo":
+            continue
+        if duong == "ref":
+            b64 = (req.ref_anh.get(m.ma) or "").split(",", 1)[-1]
+            if not b64:
+                raise HTTPException(422, f"Cảnh {m.ma} chọn 'ảnh của tôi' nhưng chưa đính ảnh")
+            anh_dir = pdir / THU_MUC_ANH
+            anh_dir.mkdir(exist_ok=True)
+            ten = f"{m.ma}_ref.png"
+            try:
+                (anh_dir / ten).write_bytes(_b64.b64decode(b64))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(422, f"Ảnh cảnh {m.ma} không đọc được: {exc}")
+            m.phuong_an = [PhuongAn(file=ten, chon=True)]   # chọn sẵn — $0
+        else:
+            gen.append(m.ma)
+        giu_motif.append(m)
+    if not giu_motif:
+        phien.motif = []
+        phien.trang_thai = "da_gen_video"      # đóng phiên — không dùng AI
+        phien.ghi(pdir)
+        return {"ok": True, "trang_thai": phien.trang_thai,
+                "ghi_chu": "không cảnh nào dùng AI — phiên đóng, beat đắp tay"}
+    phien.motif = giu_motif
+    if not gen:
+        phien.trang_thai = "cho_duyet"         # toàn ảnh ref — sang thẳng bước chốt
+        phien.ghi(pdir)
+        return {"ok": True, "trang_thai": phien.trang_thai,
+                "ghi_chu": "không tốn tiền ảnh — sang thẳng bước chốt gen video"}
+    phien.trang_thai = "dang_gen_anh"
+    phien.ghi(pdir)
+    import threading
+
+    from autoedit.aigen.motif import gen_anh_phuong_an
+
+    def _chay():
+        try:
+            msg = gen_anh_phuong_an(pdir, gen)
+            print(f"[aigen] {project_id}: {msg}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[aigen] {project_id} LỖI gen ảnh: {exc}", flush=True)
+            p2 = PhienDuyet.doc(pdir)
+            if p2 is not None and p2.trang_thai == "dang_gen_anh":
+                p2.trang_thai = "cho_gen_anh"
+                p2.ghi(pdir)
+
+    threading.Thread(target=_chay, daemon=True, name=f"aigen-quyet-{project_id}").start()
+    return {"ok": True, "trang_thai": phien.trang_thai,
+            "ghi_chu": f"đang gen ảnh {len(gen)} cảnh (~20s/ảnh)"}
 
 
 @app.post("/api/aigen/{project_id}/gen-anh")
@@ -741,6 +833,51 @@ def api_jobs(request: Request, all_users: bool = False):
                     except Exception:  # noqa: BLE001
                         pass
             d["duyet"] = duyet
+            # UI mới: 6 đốt tiến độ / chương (voice-beat-cắt-nguồn-AI-ráp) + tên chương
+            chuongs = []
+            for pid in (j.project_id or "").split(","):
+                pid = pid.strip()
+                pj = PROJECTS_DIR / pid / "project.json"
+                if not pid or not pj.is_file():
+                    continue
+                try:
+                    import json as _json
+
+                    pd = _json.loads(pj.read_text(encoding="utf-8"))
+                    st = pd.get("stages", {})
+
+                    def _s(*ten):
+                        cac = [st.get(t, {}).get("status") for t in ten]
+                        if any(c == "failed" for c in cac):
+                            return "loi"
+                        if all(c == "done" for c in cac):
+                            return "ok"
+                        if any(c == "running" for c in cac):
+                            return "run"
+                        return "im"
+                    ai_tt = next((x["trang_thai"] for x in duyet
+                                  if x["project_id"] == pid), "")
+                    ai = ("ok" if ai_tt == "da_gen_video" else
+                          "run" if ai_tt in ("dang_gen_anh", "da_chot") else
+                          "cho" if ai_tt in ("cho_gen_anh", "cho_duyet") else
+                          "ok" if st.get("source", {}).get("status") == "done" else "im")
+                    chuongs.append({
+                        "project_id": pid, "ten": pd.get("title", pid),
+                        "aigen_tt": ai_tt,
+                        "dot": [_s("align"), _s("direct"), _s("cut"),
+                                _s("source", "rank"), ai, _s("assemble")]})
+                except Exception:  # noqa: BLE001
+                    pass
+            d["chuongs"] = chuongs
+            try:                     # retention của tập (server ghi lúc nộp)
+                import json as _json
+
+                rf = Path(j.job_folder) / "retention.json"
+                if rf.is_file():
+                    d["retention"] = " · ".join(
+                        _json.loads(rf.read_text(encoding="utf-8")).get("bao_cao", []))
+            except Exception:  # noqa: BLE001
+                pass
             if j.status == "queued":
                 d["wait_ahead"] = q.wait_ahead(conn, j.id)
             rows.append(d)

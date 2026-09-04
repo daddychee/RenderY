@@ -4,520 +4,729 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RenderY</title>
-<script>
-// Theo THEME CỦA CRM. App chạy trong iframe CÙNG ORIGIN (qua proxy /app/rendery/)
-// nên đọc thẳng localStorage["outliery_theme"] — cùng khoá nen_khung_app.html dùng.
-// Đặt trước khi vẽ để không nháy màu. Nút Theme của CRM chỉ đổi khung ngoài và ghi
-// localStorage, KHÔNG báo iframe, nên phải tự nghe 'storage' + hỏi lại khi quay lại tab.
-(function () {
-  var d = document.documentElement;
-  function doc() {
-    var t = null;
-    try { t = new URLSearchParams(location.search).get("theme")
-              || localStorage.getItem("outliery_theme"); } catch (e) {}
-    if (t !== "light" && t !== "dark")
-      t = (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches)
-          ? "light" : "dark";
-    return t;
-  }
-  function dat(t) { d.setAttribute("data-theme", t); }
-  dat(doc());
-  // 'storage' chỉ bắn sang TAB KHÁC, không bắn trong cùng tab -> iframe không nhận
-  // khi bấm nút Theme ở khung ngoài. Nên soi lại mỗi khi tab hoạt động trở lại.
-  addEventListener("storage", function (e) {
-    if (e.key === "outliery_theme" && (e.newValue === "light" || e.newValue === "dark"))
-      dat(e.newValue);
-  });
-  addEventListener("focus", function () { dat(doc()); });
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) dat(doc());
-  });
-  // Khung ngoài đổi theme trong CÙNG tab: 'storage' im, focus có thể không đổi ->
-  // soi định kỳ, rất rẻ (1 lần đọc localStorage/giây).
-  setInterval(function () {
-    var t = doc();
-    if (d.getAttribute("data-theme") !== t) dat(t);
-  }, 1000);
-})();
-</script>
+<!-- Theme đồng bộ CRM: đọc outliery_theme như radary; mặc định theo hệ -->
+<script>(function(){var d=document.documentElement,t=null;try{t=new URLSearchParams(location.search).get("theme")||localStorage.getItem("outliery_theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark"}d.setAttribute("data-theme",t);addEventListener("storage",function(s){if(s.key==="outliery_theme"&&(s.newValue==="light"||s.newValue==="dark"))d.setAttribute("data-theme",s.newValue)})})()</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600&display=swap">
 <style>
-  /* Màu bám theo CRM (nen_khung_app.html). MỌI màu phải đi qua biến — màu cứng
-     trong thân CSS là chỗ theme sáng vỡ: nền đổi mà chữ vẫn trắng thì không đọc nổi. */
-  :root{
-    --bg:#0f1115; --panel:#171a21; --line:#252a34; --txt:#e6e9ef; --dim:#8b93a3;
-    --ok:#3fb950; --run:#3b82f6; --fail:#f85149; --warn:#d29922;
-    --nut:#232935; --nut-hover:#2c3444; --run-hover:#2f6fd0; --run-nhat:#8ab4ff;
-    --o-nhap:#0b0d11; --the:#12151b; --vien-dam:#39414f; --tab-vien:#3a4352;
-    --cham-tat:#444b58;
-  }
-  :root[data-theme="light"]{
-    --bg:#ffffff; --panel:#f5f7fa; --line:#dfe3ea; --txt:#16181c; --dim:#6c6c72;
-    --ok:#1a7f37; --run:#2c6fc4; --fail:#b14a3c; --warn:#8a6100;
-    --nut:#eef1f5; --nut-hover:#e2e6ec; --run-hover:#1b5fb2; --run-nhat:#1b5fb2;
-    --o-nhap:#ffffff; --the:#f0f2f6; --vien-dam:#c4cad4; --tab-vien:#b8c0cc;
-    --cham-tat:#b8c0cc;
-  }
-  html{color-scheme:dark}
-  html[data-theme="light"]{color-scheme:light}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);
-       font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-  header{display:flex;align-items:center;gap:14px;padding:14px 20px;
-         border-bottom:1px solid var(--line);background:var(--panel)}
-  h1{font-size:16px;margin:0;letter-spacing:.3px}
-  .grow{flex:1}
-  button{background:var(--nut);color:var(--txt);border:1px solid var(--line);
-         border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
-  button:hover{background:var(--nut-hover)}
-  button.primary{background:var(--run);border-color:var(--run);color:#fff}
-  button.primary:hover{background:var(--run-hover)}
-  button:disabled{opacity:.45;cursor:not-allowed}
-  button.tab.on{background:var(--nut-hover);border-color:var(--tab-vien)}
-  main{padding:20px;max-width:1080px;margin:0 auto}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-        padding:14px 16px;margin-bottom:12px}
-  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .muted{color:var(--dim);font-size:12px}
-  .big{font-size:15px;font-weight:600}
-  table{width:100%;border-collapse:collapse}
-  td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
-  input,select{background:var(--o-nhap);border:1px solid var(--line);color:var(--txt);
-        border-radius:6px;padding:6px 9px;font-size:13px}
-  input{width:100%}
-  .hide{display:none}
-  .bar{height:6px;background:var(--o-nhap);border-radius:99px;overflow:hidden;margin:8px 0 4px}
-  .bar>i{display:block;height:100%;background:var(--run);transition:width .5s}
-  .pill{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);
-        color:var(--dim)}
-  .pill.done{background:rgba(63,185,80,.14);border-color:var(--ok);color:var(--ok)}
-  .pill.running{background:rgba(59,130,246,.16);border-color:var(--run);color:var(--run-nhat)}
-  .pill.failed{background:rgba(248,81,73,.14);border-color:var(--fail);color:var(--fail)}
-  .pill.queued{background:rgba(210,153,34,.12);border-color:var(--warn);color:var(--warn)}
-  .pill.canceled{opacity:.6}
-  .err{color:var(--fail);font-size:12px;margin-top:6px;white-space:pre-wrap;
-       max-height:120px;overflow:auto}
-  .warn{color:var(--warn);font-size:12px}
-  pre{background:var(--o-nhap);border:1px solid var(--line);border-radius:8px;padding:12px;
-      max-height:340px;overflow:auto;font-size:12px;margin:10px 0 0}
-  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
-  .dot.ok{background:var(--ok)} .dot.no{background:var(--cham-tat)}
-  .fold{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;
-        cursor:pointer;background:var(--the)}
-  .fold:hover{border-color:var(--vien-dam)}
-  .fold.sel{border-color:var(--run);background:rgba(59,130,246,.08)}
-  .fold.bad{opacity:.65}
+/* ═══ token theo RADARY (chuẩn sống CRM OUTLIERY) — mockup duyệt 04/09 ở
+   static/mockup_de_xuat.html (mở /mockup): UI này phải khớp mockup từng khối ═══ */
+:root{
+  color-scheme:light;
+  --bg:#f5f5f5; --panel:#fff; --line:#e6e6e6; --text:#16181c; --muted:#6c6c72;
+  --accent:#2c6fc4; --accent-soft:#e8f0fb;
+  --good:#16a34a; --good-soft:rgba(22,163,74,.10);
+  --warn:#d97706; --warn-soft:rgba(217,119,6,.10);
+  --bad:#dc2626;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#090c12; --panel:#121826; --line:#243149; --text:#e8edf4; --muted:#8b96a8;
+  --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
+  --good:#3fae63; --good-soft:rgba(63,174,99,.14);
+  --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
+  --bad:#ef4444;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);
+  font:14px/1.5 'Inter',-apple-system,'Segoe UI',Roboto,sans-serif}
+#app{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0 14px}
+header.top h1{font-size:20px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
+header.top h1 span{color:var(--accent)}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs button{border:0;background:none;color:var(--muted);padding:7px 13px;
+  border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;font-family:inherit}
+nav.tabs button.on{background:var(--accent-soft);color:var(--accent)}
+nav.tabs button:disabled{opacity:.4;cursor:default}
+nav.tabs button:focus-visible{outline:2px solid var(--accent)}
+.ai{margin-left:auto;color:var(--muted);font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px;margin-bottom:14px}
+.panel h2{font-size:15px;margin-bottom:10px}
+.panel h2 small{color:var(--muted);font-weight:400;font-size:12.5px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px}
+.chip b{display:block;font-size:17px}
+.chip b.w{color:var(--warn)}
+.chip span{color:var(--muted);font-size:12px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:6px 10px;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+a{color:var(--accent);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;
+  font-weight:600;cursor:pointer;font-size:13.5px;font-family:inherit}
+.btn.ghost{background:none;color:var(--accent);border:1px solid var(--accent)}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=text]{background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font:inherit}
+select{background:var(--panel);color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit;max-width:100%}
+.note{color:var(--muted);font-size:12.5px;margin-top:8px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.hb{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.hb.ok{background:var(--good)}.hb.run{background:var(--accent)}
+.hb.cho{background:var(--warn)}.hb.im{background:var(--line)}.hb.loi{background:var(--bad)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px}
+.tag.cho{background:var(--warn-soft);color:var(--warn)}
+.tag.ok{background:var(--good-soft);color:var(--good)}
+.tag.loi{background:none;border:1px solid var(--bad);color:var(--bad)}
+.tien{color:var(--warn);font-variant-numeric:tabular-nums;white-space:nowrap}
+.td6{display:inline-flex;gap:3px;vertical-align:middle}
+.td6 i{width:14px;height:5px;border-radius:3px;background:var(--line)}
+.td6 i.ok{background:var(--good)}
+.td6 i.run{background:var(--accent);animation:tho 1.3s ease-in-out infinite}
+.td6 i.cho{background:var(--warn)}
+.td6 i.loi{background:var(--bad)}
+@keyframes tho{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.td6 i.run{animation:none}}
+.viec{display:flex;align-items:center;gap:10px;padding:9px 2px;
+  border-bottom:1px solid var(--line);cursor:pointer;flex-wrap:wrap}
+.viec:last-child{border-bottom:0}
+.viec:hover b{color:var(--accent)}
+.viec .gia{margin-left:auto}
+.insight{border-left:3px solid var(--accent);background:var(--accent-soft);
+  border-radius:0 7px 7px 0;padding:8px 11px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
+.insight b{color:var(--text)}
+.formrow{display:grid;grid-template-columns:200px 1fr;gap:10px;align-items:start;margin-bottom:10px}
+.formrow>label{color:var(--muted);padding-top:8px}
+@media (max-width:640px){.formrow{grid-template-columns:1fr}.formrow>label{padding-top:0}}
+.optbox{display:flex;gap:9px;background:var(--bg);border:1px solid var(--line);
+  border-radius:9px;padding:9px 11px;cursor:pointer;font-size:13.5px}
+.optbox input{accent-color:var(--accent);margin-top:3px}
+.optbox .note{margin-top:2px}
+.steps{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:12px;
+  color:var(--muted);margin-bottom:12px}
+.steps .s{border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.steps .s.on{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:600}
+.steps .s.qua{background:var(--good-soft);color:var(--good);border-color:transparent}
+.canh{display:flex;gap:12px;align-items:flex-start;padding:11px 2px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.canh:last-child{border-bottom:0}
+.canh.bo .noi{opacity:.45}
+.canh .noi{flex:1;min-width:250px}
+.canh .noi b{font-size:13.5px}
+.canh .prompt{color:var(--muted);font-size:12.5px;max-width:60ch}
+.canh .meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;align-items:center}
+.bchip{font-size:11px;font-family:ui-monospace,monospace;background:var(--bg);
+  border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--muted)}
+.lua{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);
+  border-radius:9px;padding:2px;flex:none}
+.lua button{border:0;background:none;border-radius:7px;color:var(--muted);
+  font:600 12px Inter,sans-serif;padding:5px 10px;cursor:pointer}
+.lua button:hover{color:var(--text)}
+.lua button.on{background:var(--accent-soft);color:var(--accent)}
+.lua button.on.ref{background:var(--good-soft);color:var(--good)}
+.lua button:focus-visible{outline:2px solid var(--accent)}
+.keo-tha{width:100%;border:1.5px dashed var(--line);border-radius:9px;padding:9px 12px;
+  color:var(--muted);font-size:12.5px;cursor:pointer}
+.keo-tha:hover{border-color:var(--good);color:var(--text)}
+.keo-tha b{color:var(--text)}
+.chan{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);
+  margin:12px -16px 0;padding:12px 16px 0;flex-wrap:wrap}
+.pa-hang{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px;margin:8px 0 14px}
+.pa{border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.pa.chon{border-color:var(--good)}
+.pa img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;cursor:zoom-in}
+.pa .day{display:flex;gap:8px;align-items:center;padding:7px 9px}
+.pa .day input{flex:1;min-width:0;padding:5px 8px;font-size:12px}
+.pa-ghi{display:flex;align-items:center;color:var(--muted);font-size:12.5px;padding:0 4px}
+.vi{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.vi>div{padding:5px 13px;text-align:right}
+.vi>div+div{border-left:1px solid var(--line)}
+.vi .t{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.vi .n{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.vi .n.w{color:var(--warn)}
+#soi{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:50;
+  align-items:center;justify-content:center;cursor:zoom-out}
+#soi img{max-width:94vw;max-height:94vh;border-radius:10px}
+.man{display:none}.man.on{display:block}
+.pane{display:none}.pane.show{display:block}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;
+  align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px;max-width:760px;width:94%;max-height:88vh;overflow:auto}
+.modal h3{margin:0 0 10px;font-size:15px}
+.modal pre{font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+.err{color:var(--bad);font-size:12.5px}
 </style>
 </head>
 <body>
-<header>
-  <h1>🎬 RenderY</h1>
-  <span class="muted" id="sub"></span>
-  <span class="grow"></span>
-  <button class="tab on" id="t-dung" onclick="showTab('dung')">Dựng video</button>
-  <button class="tab" id="t-sources" onclick="showTab('sources')">Nguồn</button>
-  <button class="tab" id="t-settings" onclick="showTab('settings')">⚙ Cài đặt</button>
+<div id="app">
+<header class="top">
+  <h1>RENDER<span>Y</span></h1>
+  <nav class="tabs">
+    <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
+    <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
+    <button disabled>Library</button>
+    <button disabled>Settings</button>
+  </nav>
+  <span class="ai" id="nguoi-dung"></span>
 </header>
 
-<main>
-  <!-- ─────────────────────────── DỰNG VIDEO ─────────────────────────── -->
-  <div id="tab-dung">
-    <div class="card">
-      <div class="row">
-        <span class="big">1. Dán đường dẫn thư mục tập</span>
-        <span class="grow"></span>
-        <span class="muted" id="nas-path"></span>
-      </div>
-      <div class="muted" style="margin:6px 0 10px">
-        Trong thư mục tập, tạo thư mục con <b>RenderY</b>, bên trong là các chương:
-        <b>H</b> (hook) · <b>C1</b>, <b>C2</b>… (chương) · <b>E</b> (kết).
-        Mỗi chương chứa <b>kịch bản .txt</b> + <b>voice .mp3</b> (+ <b>.srt</b> nếu có).
-        <br>Muốn dùng <b>video có sẵn</b>: đặt <b>Ref 1.mp4</b> + <b>Ref 1.srt</b>
-        (cùng số) vào <b>RenderY\</b> — cả tập dùng chung, tool tự khớp nội dung rồi
-        cắt vào timeline. Đặt trong thư mục chương thì chỉ chương đó dùng.
-        <br>Dán đường dẫn từ Explorer — ổ mạng <b>Z:\</b> hay đường máy chủ đều được.
-      </div>
-      <div class="row">
-        <input id="tap-path" placeholder="F:\OutlierY Nas 2\Investigate\IN002"
-               onkeydown="if(event.key==='Enter')kiemTap()">
-        <button onclick="kiemTap()">Kiểm tra</button>
-      </div>
-      <div id="ket-qua-kiem" style="margin-top:10px"></div>
-    </div>
+<!-- ═════════ SEQUENCES: Processing + New Sequence chung màn ═════════ -->
+<section class="man on" id="man-seq">
+  <nav class="tabs" style="margin-bottom:12px">
+    <button id="tab-proc" class="on" onclick="doiTab('proc')">Processing</button>
+    <button id="tab-new" onclick="doiTab('new')">+ New Sequence</button>
+  </nav>
 
-    <div class="card" id="box-nop" style="display:none">
-      <div class="big">2. Nộp việc</div>
-      <table style="margin-top:8px">
-        <tr><td style="width:150px">Kênh / niche</td>
-            <td><input id="opt-niche" placeholder="(tuỳ chọn) vd: life-in"></td></tr>
-        <tr><td>Nguồn footage</td>
-            <td><select id="opt-sub">
-                  <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
-                  <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
-                </select></td></tr>
-        <tr><td>AI gen cảnh</td>
-            <td><label style="cursor:pointer"><input type="checkbox" id="opt-aigen">
-                Bật — beat thiếu hình sẽ có đề xuất cảnh AI (bạn duyệt mới tốn tiền)</label></td></tr>
-        <tr><td>Retention tập cũ</td>
-            <td class="row" style="gap:8px">
-              <input type="file" id="opt-ret" accept="image/*" style="width:auto">
-              <input id="opt-ret-dai" placeholder="thời lượng tập cũ, vd 28:25" style="width:180px">
-              <span class="muted">(tuỳ chọn — ảnh chụp biểu đồ giữ chân YouTube Studio)</span>
-            </td></tr>
-      </table>
-      <div class="row" style="margin-top:12px">
-        <button class="primary" id="btn-nop" onclick="nopJob()">▶ Bắt đầu dựng</button>
-        <span class="muted" id="nop-msg"></span>
-      </div>
+  <div class="pane show" id="pane-proc">
+    <div class="chips" id="chips"></div>
+    <div class="panel" id="p-canxuly" hidden>
+      <h2>Cần bạn xử lý <small>mọi việc chờ tay người gom về đây</small></h2>
+      <div id="ds-canxuly"></div>
     </div>
-
-    <div class="card">
-      <div class="row">
-        <span class="big">3. Việc đang chạy</span>
-        <span class="grow"></span>
-        <label class="muted hide" id="lb-moi-nguoi" style="cursor:pointer">
-          <input type="checkbox" id="cb-moi-nguoi" checked onchange="loadJobs()"
-                 style="vertical-align:-2px"> việc của mọi người</label>
-        <span class="muted" id="queue-stat"></span>
-      </div>
-      <div id="jobs" style="margin-top:10px">đang tải…</div>
+    <div id="ds-tap"><div class="note">Đang tải…</div></div>
+    <div class="panel" id="p-dagiao" hidden>
+      <h2>Đã giao gần đây</h2>
+      <div class="tablewrap"><table id="bang-dagiao"></table></div>
     </div>
   </div>
 
-  <!-- ─────────────────────────── NGUỒN ─────────────────────────── -->
-  <div id="tab-sources" class="hide">
-    <div class="card"><b>Nguồn footage</b><div id="src-list" class="muted">đang tải…</div></div>
-  </div>
+  <!-- + New Sequence -->
+  <div class="pane" id="pane-new">
+    <div class="panel">
+      <h2>Thư mục tập <small>script + voice từng chương trong &lt;tập&gt;/RenderY/</small></h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" class="mono" id="ns-folder" placeholder="F:\OutlierY Nas 2\Investigate\IN002"
+               style="flex:1;min-width:260px" onkeydown="if(event.key==='Enter')kiemTap()">
+        <button class="btn ghost" onclick="kiemTap()">Kiểm tra</button>
+      </div>
+      <div id="ns-kiem" style="margin-top:10px"></div>
+    </div>
 
-  <!-- ─────────────────────────── CÀI ĐẶT ─────────────────────────── -->
-  <div id="tab-settings" class="hide">
-    <div class="card">
-      <b>Cài đặt</b>
-      <div class="muted">Để trống = giữ giá trị cũ. Khoá bí mật hiển thị dạng che.</div>
-      <table id="set-table"></table>
-      <div style="margin-top:10px">
-        <button class="primary" onclick="saveSettings()">Lưu</button>
-        <span id="set-msg" class="muted"></span>
+    <div class="panel" id="ns-opts" hidden>
+      <h2>Tuỳ chọn dựng</h2>
+      <div class="formrow"><label>Kênh / niche</label>
+        <input type="text" id="ns-niche" list="ds-niche" placeholder="(tuỳ chọn) vd: investigate"
+               style="max-width:240px">
+        <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist></div>
+      <div class="formrow"><label>Cảnh AI</label>
+        <label class="optbox"><input type="checkbox" id="ns-aigen">
+          <span><b>Bật đề xuất cảnh AI</b> cho beat không tìm được footage
+            <span class="note" style="display:block">Bước này chưa tốn tiền. Mỗi cảnh bạn sẽ chọn:
+            gen ảnh AI ($0.06) / tự đưa ảnh ref ($0) / bỏ. Video chỉ gen sau khi chốt (~$0.05/cảnh).</span></span>
+        </label></div>
+      <div class="formrow"><label>Retention tập trước</label>
+        <div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="file" id="ns-ret" accept="image/*" style="font-size:12.5px;color:var(--muted)">
+            <input type="text" id="ns-ret-dai" placeholder="thời lượng, vd 28:25" style="max-width:150px">
+          </div>
+          <div class="note">(tuỳ chọn) ảnh chụp biểu đồ giữ chân YouTube Studio của tập trước —
+            tool đo ngay lúc nộp và chỉnh nhịp tập này.</div>
+        </div></div>
+      <div class="chan">
+        <button class="btn" id="ns-nut" onclick="nopTap()">▶ Start sequence</button>
+        <span class="note" style="margin:0" id="ns-msg"></span>
       </div>
     </div>
   </div>
-</main>
+</section>
+
+<!-- ═════════ GENERATION ═════════ -->
+<section class="man" id="man-gen">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <select id="sel-phien" onchange="chonPhien(this.value)">
+      <option value="">— chọn chương có phiên AI —</option>
+    </select>
+    <div class="vi" style="margin-left:auto">
+      <div><div class="t">đã tiêu</div><div class="n mono" id="vi-da">$0.00</div></div>
+      <div><div class="t">sẽ tiêu khi bấm</div><div class="n w mono" id="vi-se">$0.00</div></div>
+    </div>
+  </div>
+  <div id="gen-noi"><div class="note">Chọn chương ở trên — chương có phiên AI hiện trong
+    danh sách sau khi stage nguồn chạy xong (bật «Cảnh AI» lúc nộp).</div></div>
+</section>
+</div>
+
+<div id="soi" onclick="this.style.display='none'"><img id="soi-img" alt=""></div>
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal"><h3 id="modal-tieu"></h3><div id="modal-noi"></div></div>
+</div>
 
 <script>
-// Token chỉ dùng khi mở TRỰC TIẾP. Vào qua CRM thì CRM đã xác thực rồi, và trong
-// iframe cũng không có query ?token= để đọc.
+/* ══════════ khung chung ══════════ */
 const TOKEN = new URLSearchParams(location.search).get('token') || ''
 const H = TOKEN ? {'x-rendery-token': TOKEN} : {}
-let chon = null        // folder đang chọn
-let timer = null
-let me = {nguoi: '', vai: '', xem_het: false}
+const GIA_ANH = 0.06        // 2 phương án × $0.03 (Seedream 2560x1440)
+const GIA_VIDEO = 0.05      // Seedance lite 5s — ước tính hiển thị
+const esc = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]))
 
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
-
-function phut(giay) {
-  if (giay == null) return ''
-  const p = Math.round(giay / 60)
-  if (p < 1) return 'dưới 1 phút'
-  if (p < 60) return `~${p} phút`
-  const h = Math.floor(p / 60)
-  return `~${h} giờ${p % 60 ? ' ' + (p % 60) + ' phút' : ''}`
-}
-
-async function api(path, opts = {}) {
-  const r = await fetch(path, {...opts, headers: {...H, ...(opts.headers || {})}})
-  if (!r.ok) throw new Error((await r.text()).slice(0, 300))
-  return r.headers.get('content-type')?.includes('json') ? r.json() : r.text()
-}
-
-function showTab(name) {
-  for (const t of ['dung', 'sources', 'settings']) {
-    document.getElementById('tab-' + t).classList.toggle('hide', t !== name)
-    document.getElementById('t-' + t).classList.toggle('on', t === name)
+async function api(path, opts) {
+  const r = await fetch(path, Object.assign(
+    {headers: Object.assign({'Content-Type': 'application/json'}, H)}, opts))
+  if (!r.ok) {
+    let ct = ''
+    try { ct = (await r.json()).detail } catch { }
+    throw new Error(ct || ('HTTP ' + r.status))
   }
-  if (name === 'sources') loadSources()
-  if (name === 'settings') loadSettings()
+  const loai = r.headers.get('content-type') || ''
+  return loai.includes('json') ? r.json() : r.text()
+}
+function doiTrang(t) {
+  document.getElementById('man-seq').classList.toggle('on', t === 'seq')
+  document.getElementById('man-gen').classList.toggle('on', t === 'gen')
+  document.getElementById('gn-seq').classList.toggle('on', t === 'seq')
+  document.getElementById('gn-gen').classList.toggle('on', t === 'gen')
+}
+function doiTab(t) {
+  document.getElementById('pane-proc').classList.toggle('show', t === 'proc')
+  document.getElementById('pane-new').classList.toggle('show', t === 'new')
+  document.getElementById('tab-proc').classList.toggle('on', t === 'proc')
+  document.getElementById('tab-new').classList.toggle('on', t === 'new')
+}
+function modal(tieu, html) {
+  document.getElementById('modal-tieu').textContent = tieu
+  document.getElementById('modal-noi').innerHTML = html
+  document.getElementById('modal-bg').classList.add('show')
+}
+function soi(src) {
+  document.getElementById('soi-img').src = src
+  document.getElementById('soi').style.display = 'flex'
 }
 
-// ─────────────────────────── kiểm thư mục tập ───────────────────────────
-async function kiemTap() {
-  const el = document.getElementById('ket-qua-kiem')
-  const p = document.getElementById('tap-path').value.trim()
-  document.getElementById('box-nop').style.display = 'none'
-  chon = null
-  if (!p) { el.innerHTML = '<span class="muted">Chưa nhập đường dẫn.</span>'; return }
+/* ══════════ Processing ══════════ */
+let JOBS = []
+const PHIEN = {}                    // pid -> phiên aigen (cache theo vòng poll)
+const NHAN_AI = {cho_gen_anh: 'cảnh chờ bạn quyết', dang_gen_anh: 'đang gen ảnh…',
+  cho_duyet: 'ảnh chờ duyệt', da_chot: 'đang gen video…', da_gen_video: 'cảnh AI xong'}
 
-  el.innerHTML = '<span class="muted">đang kiểm…</span>'
-  let d
-  try { d = await api('/api/kiem-tap?duong_dan=' + encodeURIComponent(p)) }
-  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
-
-  const loi = (d.loi || []).length
-    ? `<div class="warn" style="margin-top:8px">${
-        d.loi.map(x => '⚠ ' + esc(x)).join('<br>')}</div>` : ''
-  const nhac = (d.nhac || []).length
-    ? `<div class="muted" style="margin-top:8px">${
-        d.nhac.map(x => 'ℹ ' + esc(x)).join('<br>')}</div>` : ''
-  const ds = (d.chuong || []).map(c => `<div class="fold" style="cursor:default">
-      <div class="row">
-        <b>${esc(c.ma)}</b>
-        <span class="muted">${esc(c.nhan)} — thư mục ${esc(c.thu_muc)}</span>
-        <span class="grow"></span>
-        <span class="muted">${c.srt ? '.srt ✓' : 'không .srt'}
-          ${c.du_file ? '· đủ file' : '· ⚠ thiếu file'}</span>
-      </div></div>`).join('')
-
-  el.innerHTML = `<div class="muted" style="margin-bottom:6px">
-      Tập <b>${esc(d.tap || '')}</b> — ${d.so_chuong || 0} chương
-      ${d.san_sang ? '<span style="color:var(--ok)">· sẵn sàng</span>' : ''}
-    </div>${ds}${loi}${nhac}`
-
-  if (d.san_sang) {
-    chon = {ten: d.tap, path: d.duong_dan}
-    document.getElementById('box-nop').style.display = ''
-    document.getElementById('nop-msg').textContent = ''
-  }
+function tienPhien(p) {             // [đã tiêu, sẽ tiêu khi bấm]
+  if (!p) return [0, 0]
+  let anh = 0
+  for (const m of p.motif) anh += m.phuong_an.filter(x => !x.file.includes('_ref')).length
+  const da = anh * 0.03 + (p.trang_thai === 'da_gen_video' ? p.motif.length * GIA_VIDEO : 0)
+  const se = p.trang_thai === 'cho_gen_anh' ? p.motif.length * GIA_ANH
+    : p.trang_thai === 'cho_duyet' ? p.motif.length * GIA_VIDEO : 0
+  return [da, se]
 }
 
-// ─────────────────────────── nộp việc ───────────────────────────
-async function nopJob() {
-  if (!chon) return
-  const btn = document.getElementById('btn-nop'), msg = document.getElementById('nop-msg')
-  btn.disabled = true
-  msg.textContent = 'đang xếp hàng…'
-  let retB64 = ''
-  const retFile = document.getElementById('opt-ret').files[0]
-  if (retFile) {
-    if (!document.getElementById('opt-ret-dai').value.trim()) {
-      msg.textContent = 'Nhập thời lượng tập cũ (vd 28:25) kèm ảnh retention'
-      btn.disabled = false; return
-    }
-    retB64 = await new Promise((ok, loi) => {
-      const r = new FileReader()
-      r.onload = () => ok(r.result); r.onerror = loi
-      r.readAsDataURL(retFile)
-    })
-  }
-  try {
-    const r = await api('/api/jobs', {
-      method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        folder: chon.path,
-        niche: document.getElementById('opt-niche').value.trim(),
-        no_sub: document.getElementById('opt-sub').value === '1',
-        aigen: document.getElementById('opt-aigen').checked,
-        retention_anh_b64: retB64,
-        retention_dai: document.getElementById('opt-ret-dai').value.trim(),
-      }),
-    })
-    const cho = r.wait_ahead
-    msg.textContent = cho ? `✓ Đã xếp hàng — bắt đầu sau ${phut(cho)}` : '✓ Bắt đầu ngay'
-    if (r.retention) msg.textContent += ' · 📉 ' + r.retention
-    loadJobs()
-  } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
-  btn.disabled = false
-}
-
-// ─────────────────────────── việc đang chạy ───────────────────────────
 async function loadJobs() {
-  const el = document.getElementById('jobs')
-  // Quản trị: MẶC ĐỊNH xem việc của mọi người. 31/08 user (đăng nhập 'bot') mở app
-  // thấy "Chưa có việc nào" trong khi 5 job của 'thanhtran' đang chạy — API lọc theo
-  // người nộp, phải có all_users=1 mới thấy, mà UI không hề truyền.
-  const moiNguoi = document.getElementById('cb-moi-nguoi')
-  const q = (me.xem_het && moiNguoi && moiNguoi.checked) ? '?all_users=1' : ''
   let d
-  try { d = await api('/api/jobs' + q) }
-  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
-
-  const s = d.stats
-  document.getElementById('queue-stat').textContent =
-    `${s.running}/${s.workers} máy đang chạy · ${s.queued} chờ`
-
-  if (!d.jobs.length) {
-    el.innerHTML = `<div class="muted">Chưa có việc nào.</div>`
-  } else {
-    el.innerHTML = d.jobs.map(jobCard).join('')
+  try { d = await api('/api/jobs') } catch (e) {
+    document.getElementById('ds-tap').innerHTML =
+      `<div class="panel err">Không tải được danh sách việc: ${esc(e.message)}</div>`
+    return
   }
-  // job đang chạy hoặc đang chờ -> tự làm mới
-  clearTimeout(timer)
-  // 2s khi có job CHẠY (dòng log phải nhúc nhích thì mới biết là còn sống),
-  // 5s khi chỉ có job đang chờ — chờ thì không có gì đổi để mà xem.
-  const dangChay = d.jobs.some(j => j.status === 'running')
-  if (dangChay || d.jobs.some(j => j.status === 'queued'))
-    timer = setTimeout(loadJobs, dangChay ? 2000 : 5000)
-  if (d.unseen) markSeen()
+  JOBS = d.jobs || []
+  const can = []
+  for (const j of JOBS) for (const c of (j.chuongs || []))
+    if (c.aigen_tt && c.aigen_tt !== 'da_gen_video') can.push(c.project_id)
+  await Promise.all(can.slice(0, 8).map(async pid => {
+    try { PHIEN[pid] = await api(`/api/aigen/${pid}` + (TOKEN ? `?token=${TOKEN}` : '')) }
+    catch { }
+  }))
+  veProcessing()
+  veSelectPhien()
 }
 
-const NHAN = {queued: 'đang chờ', running: 'đang chạy', done: 'xong',
-              failed: 'lỗi', canceled: 'đã huỷ'}
+const tenTap = j => (j.job_folder || '').replace(/[\\/]+$/, '')
+  .split(/[\\/]/).pop() || ('job ' + j.id)
 
-// Tên stage bằng tiếng người — nhân sự không cần biết 'direct' hay 'assemble' là gì.
-const NHAN_STAGE = {
-  align: 'khớp lời với voice', direct: 'chia cảnh', enrich: 'dựng bổ sung',
-  cut: 'cắt đoạn', music: 'chọn nhạc', source: 'tìm & tải footage',
-  rank: 'chấm footage', assemble: 'ghép timeline', report: 'làm báo cáo',
-  compose: 'gom kết quả ra NAS',
-}
-
-function jobCard(j) {
-  const ten = j.job_folder.replace(/\\/g, '/').split('/').filter(Boolean).pop()
-  let phai = ''
-  if (j.status === 'running') {
-    const ten_stage = NHAN_STAGE[j.stage] || j.stage || ''
-    const ch = j.chuong ? esc(j.chuong) + ' · ' : ''
-    phai = `<span class="muted">${ch}${esc(ten_stage)} · còn ${phut(j.eta)}</span>`
+function veProcessing() {
+  const dang = JOBS.filter(j => ['queued', 'running'].includes(j.status))
+  const choXuLy = []
+  let daTieu = 0, choChot = 0
+  for (const j of JOBS) for (const c of (j.chuongs || [])) {
+    const p = PHIEN[c.project_id], [da, se] = tienPhien(p)
+    daTieu += da
+    if (c.aigen_tt === 'cho_duyet') choChot += se
+    if (['cho_gen_anh', 'cho_duyet'].includes(c.aigen_tt)) choXuLy.push({j, c, p, se})
   }
-  else if (j.status === 'queued')
-    phai = `<span class="muted">bắt đầu sau ${phut(j.wait_ahead)}</span>`
+  document.getElementById('chips').innerHTML = `
+    <div class="chip"><b>${dang.length}</b><span>tập đang dựng / xếp hàng</span></div>
+    <div class="chip"><b class="${choXuLy.length ? 'w' : ''}">${choXuLy.length}</b><span>việc chờ bạn xử lý</span></div>
+    <div class="chip"><b class="mono">$${daTieu.toFixed(2)}</b><span>AI đã tiêu (các job đang hiện)</span></div>
+    <div class="chip"><b class="mono w">$${choChot.toFixed(2)}</b><span>chờ bạn chốt</span></div>`
 
-  const bar = j.status === 'running'
-    ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>` : ''
-  // 30/08: job chạy 20 phút mà UI chỉ ghi 'đang chạy' -> không phân biệt được
-  // CHẬM với TREO. Dòng log gần nhất trả lời đúng câu hỏi đó.
-  const nhip = (j.status === 'running' && j.dong_cuoi)
-    ? `<div class="muted" style="margin-top:6px;font-size:12px;overflow:hidden;
-         text-overflow:ellipsis;white-space:nowrap">${esc(j.dong_cuoi)}</div>` : ''
-  const err = j.error
-    ? `<div class="err">${esc(j.error.slice(0, 600))}</div>` : ''
-  const huy = j.status === 'queued'
-    ? `<button onclick="huyJob(${j.id})">Huỷ</button>` : ''
-  const log = (j.status !== 'queued')
-    ? `<button onclick="xemLog(${j.id})">Log</button>` : ''
-  const kq = j.status === 'done'
-    ? `<button class="primary" onclick="xemKetQua(${j.id})">📁 Lấy kết quả</button>` : ''
-  // V2: phiên duyệt ảnh AI của job — nút mở gallery /duyet (giữ token trên URL)
-  const tk = new URLSearchParams(location.search).get('token')
-  const duyet = (j.duyet || []).map(x => {
-    const nhan = x.trang_thai === 'cho_gen_anh' ? '🎬 Chọn cảnh đáng gen'
-               : x.trang_thai === 'dang_gen_anh' ? '⏳ Đang gen ảnh…'
-               : x.trang_thai === 'cho_duyet' ? '🖼 Duyệt ảnh AI'
-               : x.trang_thai === 'da_chot' ? '⏳ Đang gen video…' : '🖼 Ảnh AI ✓'
-    return `<a href="/duyet?p=${encodeURIComponent(x.project_id)}${tk ? '&token='+tk : ''}"
-              target="_blank"><button ${x.trang_thai==='da_chot' ? 'disabled' : ''}>${nhan}</button></a>`
-  }).join(' ')
-  // Xem việc chung thì phải biết của ai — không thì 5 job giống hệt nhau.
-  const nguoi = (j.nguoi && j.nguoi !== me.nguoi)
-    ? `<span class="muted" style="font-size:12px">· ${esc(j.nguoi)}</span>` : ''
+  document.getElementById('p-canxuly').hidden = !choXuLy.length
+  document.getElementById('ds-canxuly').innerHTML = choXuLy.map(({j, c, p, se}) => {
+    const la1 = c.aigen_tt === 'cho_gen_anh'
+    const n = p ? p.motif.length : '?'
+    return `<div class="viec" onclick="moPhien('${esc(c.project_id)}')">
+      <span class="tag cho">${la1 ? 'chọn cảnh' : 'duyệt ảnh'}</span>
+      <span><b>${esc(tenTap(j))} · ${esc(c.ten)}</b> — ${la1
+        ? `${n} cảnh trắng footage: gen ảnh AI / tự đưa ảnh ref / bỏ`
+        : 'ảnh phương án đã về, chọn 1 ảnh/cảnh rồi chốt'}</span>
+      <span class="gia tien mono">${la1 ? 'tối đa' : 'chốt tiêu'} $${se.toFixed(2)} →</span></div>`
+  }).join('')
 
-  return `<div class="card" style="margin-bottom:8px">
-    <div class="row">
-      <span class="pill ${esc(j.status)}">${NHAN[j.status] || esc(j.status)}</span>
-      <b>${esc(ten)}</b>${nguoi}
-      <span class="grow"></span>${phai} ${duyet} ${kq} ${huy} ${log}
-    </div>
-    ${bar}${nhip}${err}
-    <div id="kq-${j.id}" class="hide" style="margin-top:10px"></div>
-    <pre id="jlog-${j.id}" class="hide"></pre>
-  </div>`
+  const hien = JOBS.filter(j => j.status !== 'done'
+    || (j.chuongs || []).some(c => c.aigen_tt && c.aigen_tt !== 'da_gen_video'))
+  document.getElementById('ds-tap').innerHTML = hien.length ? hien.map(veTap).join('')
+    : '<div class="panel note" style="margin-top:0">Chưa có tập nào đang dựng — nộp ở tab «+ New Sequence».</div>'
+
+  const xong = JOBS.filter(j => j.status === 'done' && !hien.includes(j)).slice(0, 6)
+  document.getElementById('p-dagiao').hidden = !xong.length
+  document.getElementById('bang-dagiao').innerHTML =
+    '<tr><th>Sequence</th><th class="num">Chương</th><th class="num">Thao tác</th></tr>'
+    + xong.map(j => `<tr><td>${esc(tenTap(j))}</td>
+      <td class="num">${(j.chuongs || []).length || '—'}</td>
+      <td class="num"><a onclick="xemKetQua(${j.id})">kết quả</a> ·
+        <a onclick="xemLog(${j.id})">log</a></td></tr>`).join('')
 }
 
-async function xemKetQua(id) {
-  const el = document.getElementById('kq-' + id)
-  if (!el.classList.contains('hide')) { el.classList.add('hide'); return }
-  el.classList.remove('hide')
-  el.innerHTML = '<span class="muted">đang tải…</span>'
-  try {
-    const d = await api(`/api/ketqua/${id}`)
-    if (!d.san_sang) { el.innerHTML = `<div class="warn">${esc(d.loi)}</div>`; return }
-    const ds = d.chuong.map(c =>
-      `<div class="muted">• <b>${esc(c.ten)}</b> — ${c.co_draft ? 'có draft' : '⚠ chưa có draft'}
-       · ${c.footage} file footage</div>`).join('')
-    el.innerHTML = `
-      <div class="big">Copy thư mục này về máy:</div>
-      <div class="row" style="margin:6px 0">
-        <input id="p-${id}" readonly value="${esc(d.duong_dan)}" style="flex:1">
-        <button onclick="chepPath(${id})">Sao chép</button>
-      </div>
-      ${ds}
-      <pre style="max-height:200px">${esc(d.doc_truoc)}</pre>`
-  } catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>` }
-}
-
-function chepPath(id) {
-  const inp = document.getElementById('p-' + id)
-  inp.select()
-  navigator.clipboard?.writeText(inp.value).catch(() => document.execCommand('copy'))
+function veTap(j) {
+  const rows = (j.chuongs || []).map(c => {
+    const p = PHIEN[c.project_id]
+    let tt = '', act = ''
+    if (c.aigen_tt === 'cho_gen_anh') {
+      tt = `<span class="hb cho"></span>Draft đã ra · <b>${p ? p.motif.length + ' ' : ''}cảnh chờ bạn quyết</b>`
+      act = `<button class="btn small" onclick="moPhien('${esc(c.project_id)}')">Chọn cảnh</button>`
+    } else if (c.aigen_tt === 'cho_duyet') {
+      const n = p ? p.motif.reduce((s, m) => s + m.phuong_an.length, 0) : '?'
+      tt = `<span class="hb cho"></span>Draft đã ra · <b>${n} ảnh chờ duyệt</b>`
+      act = `<button class="btn small" onclick="moPhien('${esc(c.project_id)}')">Duyệt ảnh</button>`
+    } else if (c.aigen_tt === 'dang_gen_anh') {
+      tt = `<span class="hb run"></span>Đang gen ảnh phương án…`
+      act = `<a onclick="moPhien('${esc(c.project_id)}')">xem</a>`
+    } else if (c.aigen_tt === 'da_chot') {
+      tt = `<span class="hb run"></span>Đang gen video + dựng lại draft…`
+      act = `<a onclick="moPhien('${esc(c.project_id)}')">xem</a>`
+    } else if (c.dot.includes('loi')) {
+      tt = `<span class="hb loi"></span>Có stage lỗi — xem log`
+    } else if (c.dot.every(x => x === 'ok')) {
+      tt = `<span class="hb ok"></span>Draft xong${c.aigen_tt === 'da_gen_video' ? ' · có cảnh AI' : ''}`
+    } else if (c.dot.includes('run')) {
+      const la = j.chuong && j.chuong.startsWith(c.ten)
+      tt = `<span class="hb run"></span>${esc(la ? (j.dong_cuoi || 'đang chạy…').slice(0, 70) : 'đang chạy…')}`
+    } else {
+      tt = `<span class="hb im"></span><span style="color:var(--muted)">chờ tới lượt</span>`
+    }
+    return `<tr><td class="mono"><b>${esc(c.ten)}</b></td>
+      <td><span class="td6">${c.dot.map(x => `<i class="${x === 'im' ? '' : x}"></i>`).join('')}</span></td>
+      <td>${tt}</td><td class="num">${act}</td></tr>`
+  }).join('')
+  const choDoi = j.status === 'queued'
+    ? `<div class="note">Xếp hàng${j.wait_ahead ? ` — bắt đầu sau ~${Math.round(j.wait_ahead / 60)} phút` : '…'}</div>` : ''
+  const huy = ['queued', 'running'].includes(j.status)
+    ? ` · <a onclick="huyJob(${j.id})" style="color:var(--muted)">huỷ</a>` : ''
+  return `<div class="panel">
+    <h2>${esc(tenTap(j))} <small>${esc(j.job_folder || '')} · ${esc(j.nguoi || '')}</small></h2>
+    ${j.retention ? `<div class="insight"><b>Retention tập trước:</b> ${esc(j.retention)}</div>` : ''}
+    ${rows ? `<div class="tablewrap"><table>
+      <tr><th>Chương</th><th>Tiến độ</th><th>Trạng thái</th><th class="num">Thao tác</th></tr>
+      ${rows}</table></div>` : choDoi || '<div class="note">chưa có chương nào bắt đầu</div>'}
+    <div class="note">Tiến độ 6 đốt: voice → beat → cắt → nguồn → AI → ráp ·
+      vàng = chờ người · xanh = máy chạy · <a onclick="xemLog(${j.id})">log</a>
+      · <a onclick="xemKetQua(${j.id})">kết quả</a>${huy}</div></div>`
 }
 
 async function huyJob(id) {
+  if (!confirm('Huỷ job này?')) return
   try { await api(`/api/jobs/${id}/cancel`, {method: 'POST'}); loadJobs() }
-  catch (e) { alert('Không huỷ được: ' + e.message) }
+  catch (e) { alert('Lỗi: ' + e.message) }
 }
-
 async function xemLog(id) {
-  const el = document.getElementById('jlog-' + id)
-  if (!el.classList.contains('hide')) { el.classList.add('hide'); return }
-  el.classList.remove('hide')
-  el.textContent = 'đang tải…'
-  try { el.textContent = await api(`/api/joblog/${id}`) }
-  catch (e) { el.textContent = 'Không đọc được log: ' + e.message }
-  el.scrollTop = el.scrollHeight
-}
-
-async function markSeen() {
-  try { await api('/api/jobs/seen', {method: 'POST'}) } catch {}
-}
-
-// ─────────────────────────── nguồn ───────────────────────────
-async function loadSources() {
-  const el = document.getElementById('src-list')
   try {
-    const d = await api('/api/sources')
-    el.innerHTML = d.sources.map(s => `<div style="margin-top:8px">
-      <span class="dot ${s.ready ? 'ok' : 'no'}"></span><b>${esc(s.name)}</b>
-      ${s.ready
-        ? `<span class="muted">sẵn sàng${s.nguon ? ' — ' + esc(s.nguon) : ''}</span>`
-        : `<span class="muted">thiếu: ${esc(s.need)}</span>`}
-    </div>`).join('')
-  } catch (e) { el.textContent = 'Lỗi: ' + e.message }
+    const t = await api(`/api/joblog/${id}`)
+    modal('Log job ' + id, `<pre>${esc(t)}</pre>`)
+  } catch (e) { alert('Lỗi: ' + e.message) }
 }
-
-// ─────────────────────────── cài đặt ───────────────────────────
-async function loadSettings() {
-  const t = document.getElementById('set-table')
+async function xemKetQua(id) {
   try {
-    const d = await api('/api/settings')
-    t.innerHTML = d.settings.map(s => `<tr>
-      <td style="width:230px">${esc(s.key)}</td>
-      <td><input id="set-${esc(s.key)}" placeholder="${
-        s.set ? esc(s.value) : '(chưa đặt)'}"></td></tr>`).join('')
-  } catch (e) { t.innerHTML = `<tr><td class="err">${esc(e.message)}</td></tr>` }
+    const d = await api(`/api/ketqua/${id}`)
+    if (!d.san_sang) { modal('Kết quả', `<div class="note">${esc(d.loi)}</div>`); return }
+    modal('Kết quả trên NAS', `
+      <div style="display:flex;gap:8px"><input type="text" class="mono" readonly
+        value="${esc(d.duong_dan)}" style="flex:1" onclick="this.select()">
+        <button class="btn small ghost" onclick="navigator.clipboard.writeText(${JSON.stringify('')} + this.parentNode.querySelector('input').value)">Copy</button></div>
+      <div class="note">${(d.chuong || []).map(c =>
+        `${esc(c.ten)}: ${c.co_draft ? 'draft ✓' : 'chưa draft'} · ${c.footage} footage`).join('<br>')}</div>
+      ${d.doc_truoc ? `<pre style="margin-top:10px">${esc(d.doc_truoc)}</pre>` : ''}`)
+  } catch (e) { alert('Lỗi: ' + e.message) }
 }
 
-async function saveSettings() {
-  const values = {}
-  for (const inp of document.querySelectorAll('[id^="set-"]')) {
-    const v = inp.value.trim()
-    if (v) values[inp.id.slice(4)] = v
+/* ══════════ + New Sequence ══════════ */
+let TAP_OK = null
+async function kiemTap() {
+  const el = document.getElementById('ns-kiem')
+  const p = document.getElementById('ns-folder').value.trim()
+  document.getElementById('ns-opts').hidden = true
+  TAP_OK = null
+  if (!p) { el.innerHTML = '<div class="err">Dán đường dẫn thư mục tập.</div>'; return }
+  el.innerHTML = '<span class="note">đang kiểm…</span>'
+  let d
+  try { d = await api('/api/kiem-tap?duong_dan=' + encodeURIComponent(p)) }
+  catch (e) { el.innerHTML = `<div class="err">${esc(e.message)}</div>`; return }
+  const chips = (d.chuong || []).map(c =>
+    `<span class="tag ${c.du_file ? 'ok' : 'loi'}">${esc(c.nhan)}${c.du_file
+      ? (c.srt ? ' ✓' : ' ✓ (không .srt)') : ' — thiếu file'}</span>`).join(' ')
+  const loi = (d.loi || []).map(x => `<div class="err">${esc(x)}</div>`).join('')
+  const nhac = (d.nhac || []).map(x => `<div class="note" style="margin-top:4px">${esc(x)}</div>`).join('')
+  el.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div>${loi}${nhac}`
+  if (d.san_sang) {
+    TAP_OK = d.duong_dan || p
+    document.getElementById('ns-opts').hidden = false
+    document.getElementById('ns-msg').textContent = ''
   }
-  const msg = document.getElementById('set-msg')
-  if (!Object.keys(values).length) { msg.textContent = 'Chưa nhập gì.'; return }
-  try {
-    const r = await api('/api/settings', {
-      method: 'POST', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({values}),
+}
+async function nopTap() {
+  if (!TAP_OK) return
+  const nut = document.getElementById('ns-nut'), msg = document.getElementById('ns-msg')
+  const f = document.getElementById('ns-ret').files[0]
+  let retB64 = ''
+  if (f) {
+    if (!document.getElementById('ns-ret-dai').value.trim()) {
+      msg.innerHTML = '<span class="err">Nhập thời lượng tập cũ (vd 28:25) kèm ảnh retention</span>'
+      return
+    }
+    retB64 = await new Promise((ok, loi) => {
+      const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = loi
+      r.readAsDataURL(f)
     })
-    msg.textContent = `✓ Đã lưu ${r.saved.length} mục.`
-    loadSettings()
-  } catch (e) { msg.textContent = 'Lỗi: ' + e.message }
+  }
+  nut.disabled = true
+  msg.textContent = 'đang xếp hàng…'
+  try {
+    const r = await api('/api/jobs', {method: 'POST', body: JSON.stringify({
+      folder: TAP_OK,
+      niche: document.getElementById('ns-niche').value.trim(),
+      aigen: document.getElementById('ns-aigen').checked,
+      retention_anh_b64: retB64,
+      retention_dai: document.getElementById('ns-ret-dai').value.trim(),
+    })})
+    msg.textContent = (r.wait_ahead ? `✓ Đã xếp hàng — bắt đầu sau ~${Math.round(r.wait_ahead / 60)} phút`
+      : '✓ Bắt đầu ngay') + (r.retention ? ' · 📉 ' + r.retention : '')
+    loadJobs(); doiTab('proc')
+  } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>` }
+  nut.disabled = false
 }
 
-async function init() {
-  try {
-    me = await api('/api/me')
-    document.getElementById('sub').textContent =
-      me.nguoi ? `— ${me.nguoi}${me.vai ? ' (' + me.vai + ')' : ''}` : ''
-    // Chỉ quản trị mới có ô 'việc của mọi người' — người thường chỉ thấy việc mình.
-    if (me.xem_het) document.getElementById('lb-moi-nguoi').classList.remove('hide')
-  } catch {}
-  try {
-    const d = await api('/api/kiem-tap')          // chưa nhập gì -> chỉ lấy gốc NAS
-    document.getElementById('nas-path').textContent = 'gốc: ' + d.nas + ' (= ổ Z:\\)'
-    document.getElementById('tap-path').placeholder = 'Z:\\Life In\\US\\LI093'
-  } catch {}
-  loadJobs()
+/* ══════════ Generation ══════════ */
+let PID = ''
+const QUYET = {}                    // pid -> {ma: {duong, b64, ten}}
+
+function veSelectPhien() {
+  const sel = document.getElementById('sel-phien')
+  const cu = sel.value
+  const os = ['<option value="">— chọn chương có phiên AI —</option>']
+  for (const j of JOBS) for (const c of (j.chuongs || []))
+    if (c.aigen_tt) os.push(`<option value="${esc(c.project_id)}">` +
+      `${esc(tenTap(j))} · ${esc(c.ten)} — ${NHAN_AI[c.aigen_tt] || c.aigen_tt}</option>`)
+  sel.innerHTML = os.join('')
+  if ([...sel.options].some(o => o.value === cu)) sel.value = cu
 }
-init()
+function moPhien(pid) { doiTrang('gen'); chonPhien(pid) }
+async function chonPhien(pid) {
+  PID = pid
+  document.getElementById('sel-phien').value = pid
+  if (pid) await taiPhien()
+}
+async function taiPhien() {
+  if (!PID) return
+  const pidLuc = PID
+  let p
+  try { p = await api(`/api/aigen/${PID}` + (TOKEN ? `?token=${TOKEN}` : '')) }
+  catch (e) {
+    document.getElementById('gen-noi').innerHTML = `<div class="panel err">${esc(e.message)}</div>`
+    return
+  }
+  if (pidLuc !== PID) return        // user đã chuyển chương khác trong lúc chờ
+  PHIEN[PID] = p
+  veGen(p)
+}
+function capNhatVi(p) {
+  let [da, se] = tienPhien(p)
+  if (p.trang_thai === 'cho_gen_anh') {
+    const q = QUYET[PID] || {}
+    se = p.motif.filter(m => (q[m.ma] || {duong: 'gen'}).duong === 'gen').length * GIA_ANH
+  }
+  document.getElementById('vi-da').textContent = '$' + da.toFixed(2)
+  document.getElementById('vi-se').textContent = '$' + se.toFixed(2)
+}
+const RAY = b => `<div class="steps">
+  <span class="s ${b > 1 ? 'qua' : 'on'}">1 · Quyết từng cảnh${b > 1 ? ' ✓' : ''}</span><span>→</span>
+  <span class="s ${b > 2 ? 'qua' : b === 2 ? 'on' : ''}">2 · Duyệt ảnh</span><span>→</span>
+  <span class="s ${b > 3 ? 'qua' : b === 3 ? 'on' : ''}">3 · Chốt, gen video</span><span>→</span>
+  <span class="s ${b === 4 ? 'on' : ''}">4 · Draft dựng lại</span></div>`
+
+function veGen(p) {
+  capNhatVi(p)
+  const noi = document.getElementById('gen-noi')
+  if (p.trang_thai === 'cho_gen_anh') {
+    noi.innerHTML = RAY(1) + veCong1(p)
+    capNhatNutTiep(p)
+    return
+  }
+  if (p.trang_thai === 'dang_gen_anh') {
+    noi.innerHTML = RAY(2) + `<div class="panel"><span class="hb run"></span>
+      Đang gen ảnh phương án (~20 giây/ảnh) — trang tự cập nhật.</div>`
+    setTimeout(taiPhien, 7000)
+    return
+  }
+  if (p.trang_thai === 'cho_duyet') { noi.innerHTML = RAY(2) + veGallery(p); return }
+  if (p.trang_thai === 'da_chot') {
+    noi.innerHTML = RAY(3) + `<div class="panel"><span class="hb run"></span>
+      Đang gen video + dựng lại draft (~2 phút/cảnh) — đóng tab được, xong hiện ở Processing.</div>`
+    setTimeout(taiPhien, 12000)
+    return
+  }
+  noi.innerHTML = RAY(4) + `<div class="panel"><span class="hb ok"></span>
+    ${p.motif.length ? `Xong — ${p.motif.length} cảnh AI đã vào draft, draft đã dựng lại.
+      Mở CapCut xem bản mới.` : 'Phiên đã đóng — không dùng cảnh AI, beat đắp tay.'}
+    <div class="note"><a onclick="doiTrang('seq')">← về Processing</a></div></div>`
+}
+
+/* ── cổng 1: mỗi cảnh 3 đường ── */
+function veCong1(p) {
+  const q = QUYET[PID] = QUYET[PID] || {}
+  for (const m of p.motif) q[m.ma] = q[m.ma] || {duong: 'gen'}
+  return `<div class="panel">
+    <h2>${p.motif.length} cảnh trắng footage
+      <small>gen ảnh AI · tự đưa ảnh ref (miễn phí) · bỏ</small></h2>
+    ${p.motif.map(m => {
+      const d = q[m.ma].duong
+      return `<div class="canh ${d === 'bo' ? 'bo' : ''}" id="canh-${esc(m.ma)}">
+      <span class="noi"><b>${esc(m.mo_ta)}</b>
+        <div class="prompt">${esc(m.prompt).slice(0, 200)}</div>
+        <div class="meta">${m.beat_ids.map(b => `<span class="bchip">beat ${b}</span>`).join('')}
+          ${m.beat_ids.length > 1 ? `<span class="tag ok">1 video → ${m.beat_ids.length} vị trí</span>` : ''}</div></span>
+      <span class="lua">
+        <button class="${d === 'gen' ? 'on' : ''}" onclick="quyet('${esc(m.ma)}','gen')">Gen ảnh AI · <span class="mono">$${GIA_ANH.toFixed(2)}</span></button>
+        <button class="${d === 'ref' ? 'on ref' : ''}" onclick="quyet('${esc(m.ma)}','ref')">Ảnh của tôi · <span class="mono">$0</span></button>
+        <button class="${d === 'bo' ? 'on' : ''}" onclick="quyet('${esc(m.ma)}','bo')">Bỏ</button>
+      </span>
+      <div class="keo-tha" ${d === 'ref' ? '' : 'hidden'}
+           onclick="document.getElementById('file-${esc(m.ma)}').click()">
+        ${q[m.ma].ten ? `✓ <b>${esc(q[m.ma].ten)}</b> — đã nhận, dùng làm khung đầu video AI. Bấm để đổi ảnh.`
+          : '⇧ Bấm chọn ảnh ref — PNG/JPG ngang 16:9, dùng làm khung đầu video AI. Không tốn tiền gen ảnh.'}
+        <input type="file" id="file-${esc(m.ma)}" accept="image/*" hidden
+          onchange="nhanRef('${esc(m.ma)}', this)"></div>
+    </div>`}).join('')}
+    <div class="chan">
+      <button class="btn" id="nut-tiep" onclick="guiQuyet()">Tiếp tục</button>
+      <span class="note" style="margin:0" id="ghi-tiep"></span>
+    </div>
+  </div>`
+}
+function capNhatNutTiep(p) {
+  p = p || PHIEN[PID]
+  const q = QUYET[PID] || {}
+  const gen = p.motif.filter(m => (q[m.ma] || {}).duong === 'gen').length
+  const ref = p.motif.filter(m => (q[m.ma] || {}).duong === 'ref').length
+  const nut = document.getElementById('nut-tiep')
+  if (!nut) return
+  nut.textContent = gen ? `Tiếp tục — gen ảnh ${gen} cảnh · $${(gen * GIA_ANH).toFixed(2)}`
+    : ref ? 'Tiếp tục — không tốn tiền ảnh' : 'Đóng phiên — không dùng AI'
+  document.getElementById('ghi-tiep').textContent = (ref
+    ? `${ref} cảnh dùng ảnh của bạn (miễn phí, đi thẳng bước chốt) · ` : '')
+    + 'cảnh bỏ giữ slug, đắp tay bằng kho/stock.'
+  capNhatVi(p)
+}
+function quyet(ma, duong) {
+  QUYET[PID][ma].duong = duong
+  const canh = document.getElementById('canh-' + ma)
+  canh.classList.toggle('bo', duong === 'bo')
+  canh.querySelectorAll('.lua button').forEach((b, i) =>
+    b.className = ['gen', 'ref', 'bo'][i] === duong
+      ? ('on' + (duong === 'ref' ? ' ref' : '')) : '')
+  canh.querySelector('.keo-tha').hidden = duong !== 'ref'
+  capNhatNutTiep()
+}
+function nhanRef(ma, inp) {
+  const f = inp.files[0]
+  if (!f) return
+  const r = new FileReader()
+  r.onload = () => {
+    QUYET[PID][ma].b64 = r.result
+    QUYET[PID][ma].ten = f.name
+    veGen(PHIEN[PID])
+  }
+  r.readAsDataURL(f)
+}
+async function guiQuyet() {
+  const p = PHIEN[PID], q = QUYET[PID] || {}
+  const quyetMap = {}, refAnh = {}
+  for (const m of p.motif) {
+    const d = q[m.ma] || {duong: 'gen'}
+    quyetMap[m.ma] = d.duong
+    if (d.duong === 'ref') {
+      if (!d.b64) { alert(`Cảnh «${m.mo_ta}» chọn "Ảnh của tôi" nhưng chưa đính ảnh.`); return }
+      refAnh[m.ma] = d.b64
+    }
+  }
+  const nut = document.getElementById('nut-tiep')
+  nut.disabled = true
+  try {
+    await api(`/api/aigen/${PID}/quyet`, {method: 'POST',
+      body: JSON.stringify({quyet: quyetMap, ref_anh: refAnh})})
+    delete QUYET[PID]
+    await taiPhien(); loadJobs()
+  } catch (e) { alert('Lỗi: ' + e.message); nut.disabled = false }
+}
+
+/* ── cổng 2: gallery ── */
+function veGallery(p) {
+  const nAnh = p.motif.reduce((s, m) => s + m.phuong_an.length, 0)
+  return `<div class="panel">
+    <h2>Duyệt ảnh phương án <small>${nAnh} ảnh · chọn 1 ảnh mỗi cảnh rồi chốt</small></h2>
+    ${p.motif.map(m => {
+      const laRef = m.phuong_an.length === 1 && m.phuong_an[0].file.includes('_ref')
+      return `<div style="margin-top:10px"><b>${esc(m.mo_ta)}</b>
+      <small style="color:var(--muted)"> · dùng tại beat ${m.beat_ids.join(', ')}</small>
+      ${laRef ? '<span class="tag ok" style="margin-left:6px">ảnh của bạn · $0</span>' : ''}</div>
+    <div class="pa-hang">
+      ${m.phuong_an.map(pa => {
+        const src = `/api/aigen/${PID}/anh/${encodeURIComponent(pa.file)}` + (TOKEN ? `?token=${TOKEN}` : '')
+        return `<div class="pa ${pa.chon ? 'chon' : ''}">
+        <img src="${src}" alt="${esc(m.mo_ta)}" onclick="soi(this.src)">
+        <div class="day">${pa.chon
+          ? `<span class="tag ok">${laRef ? 'dùng ảnh này' : 'đã chọn'}</span>`
+          : `<button class="btn ghost small" onclick="chonAnh('${esc(m.ma)}','${esc(pa.file)}')">Chọn</button>`}
+          <input type="text" placeholder="ghi chú gen lại" value="${esc(pa.ghi_chu)}"
+            onchange="ghiChu('${esc(m.ma)}','${esc(pa.file)}',this.value)"></div></div>`
+      }).join('')}
+      ${laRef ? '<div class="pa-ghi">Ảnh bạn tự đưa — không tốn tiền gen ảnh, đi thẳng bước gen video.</div>' : ''}
+    </div>`}).join('')}
+    <div class="chan">
+      <button class="btn" onclick="chotPhien()">✓ Chốt ${p.motif.length} cảnh → gen video ·
+        $${(p.motif.length * GIA_VIDEO).toFixed(2)}</button>
+      <span class="note" style="margin:0">Gen ~2 phút/cảnh, draft tự dựng lại — đóng tab được,
+        xong hiện ở Processing.</span>
+    </div></div>`
+}
+async function chonAnh(ma, file) {
+  try {
+    await api(`/api/aigen/${PID}/chon`, {method: 'POST',
+      body: JSON.stringify({ma_motif: ma, file, chon: true})})
+    await taiPhien()
+  } catch (e) { alert('Lỗi: ' + e.message) }
+}
+async function ghiChu(ma, file, gc) {
+  try {
+    await api(`/api/aigen/${PID}/chon`, {method: 'POST',
+      body: JSON.stringify({ma_motif: ma, file, chon: null, ghi_chu: gc})})
+  } catch (e) { alert('Lỗi: ' + e.message) }
+}
+async function chotPhien() {
+  try {
+    await api(`/api/aigen/${PID}/chot`, {method: 'POST', body: '{}'})
+    await taiPhien(); loadJobs()
+  } catch (e) { alert('Chưa chốt được: ' + e.message) }
+}
+
+/* ══════════ khởi động ══════════ */
+;(async () => {
+  try {
+    const me = await api('/api/me')
+    document.getElementById('nguoi-dung').innerHTML = `${esc(me.nguoi || '')}` +
+      ` · <a href="/mockup${TOKEN ? '?token=' + TOKEN : ''}" target="_blank" style="color:inherit">mockup</a>`
+  } catch { }
+  loadJobs()
+  setInterval(() => { if (!document.hidden) loadJobs() }, 7000)
+})()
 </script>
 </body>
 </html>
