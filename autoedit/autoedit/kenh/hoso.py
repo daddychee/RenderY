@@ -35,6 +35,7 @@ class HoSoKenh:
 
     ten: str                                  # slug (tên thư mục cache, không dấu)
     ten_phong_cach: str = ""                  # tên ĐỌC ĐƯỢC editor đặt ("Fern chậm rãi")
+    nguoi_tao: str = ""                       # ghi công — khớp khuôn CU "do ✍ X tạo"
     link: str = ""                            # link gốc — nút "đo lại" dùng, khỏi dán lại
     nguon: list[str] = field(default_factory=list)   # link/id các video đã đo
     ngay_do: str = ""

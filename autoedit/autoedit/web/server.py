@@ -611,12 +611,13 @@ def api_kenh_list(request: Request):
 
 
 def _chay_do_kenh(link: str, ten: str, do_lai: bool = False,
-                  so_video: int = 5, ten_phong_cach: str = "") -> None:
+                  so_video: int = 5, ten_phong_cach: str = "",
+                  nguoi_tao: str = "") -> None:
     from autoedit.kenh.do_kenh import do_kenh
 
     try:
         do_kenh(link, ten=ten, do_lai=do_lai, so_video=so_video,
-                ten_phong_cach=ten_phong_cach)
+                ten_phong_cach=ten_phong_cach, nguoi_tao=nguoi_tao)
         with _kenh_lock:
             _kenh_dang_do.pop(ten, None)
         print(f"[kenh] «{ten}» đo xong", flush=True)
@@ -655,7 +656,8 @@ def api_kenh_them(req: KenhRequest, request: Request):
         if ten in _kenh_dang_do and _kenh_dang_do[ten].get("tt") == "dang_do":
             raise HTTPException(409, f"Kênh «{ten}» đang đo dở")
         _kenh_dang_do[ten] = {"tt": "dang_do"}
-    threading.Thread(target=_chay_do_kenh, args=(link, ten, False, so_video, ten_pc),
+    threading.Thread(target=_chay_do_kenh,
+                     args=(link, ten, False, so_video, ten_pc, current_user(request)),
                      daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ten": ten,
             "ghi_chu": f"đang tải + đo nền {so_video} video 360p (~vài phút) — F5 tab này"}
@@ -678,7 +680,7 @@ def api_kenh_do_lai(ten: str, request: Request):
             raise HTTPException(409, "Kênh đang đo dở")
         _kenh_dang_do[ten] = {"tt": "dang_do"}
     threading.Thread(target=_chay_do_kenh,
-                     args=(hs.link, ten, True, 5, hs.ten_phong_cach),
+                     args=(hs.link, ten, True, 5, hs.ten_phong_cach, hs.nguoi_tao),
                      daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ghi_chu": "đang đo lại nền"}
 

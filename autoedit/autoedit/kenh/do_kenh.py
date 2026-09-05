@@ -158,7 +158,7 @@ def _median(vals: list[float]) -> float:
 
 def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
             do_lai: bool = False, log=None, tai=None, goi_vision=None,
-            ten_phong_cach: str = "") -> HoSoKenh:
+            ten_phong_cach: str = "", nguoi_tao: str = "") -> HoSoKenh:
     """Link → HoSoKenh (cache theo kênh). `tai` tiêm được để test không mạng."""
     def ghi(m):
         if log:
@@ -213,7 +213,7 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
                 f"không video nào của «{ten}» cho số đo tin được (2 thước không "
                 "hội tụ) — thử kênh khác hoặc dán link video cụ thể ít đồ hoạ hơn")
         hs = HoSoKenh(
-            ten=ten, ten_phong_cach=ten_phong_cach, link=link,
+            ten=ten, ten_phong_cach=ten_phong_cach, nguoi_tao=nguoi_tao, link=link,
             nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
             hook_trung_vi=_median(hooks), hook_ty_le_nhanh=_median(hooks_nhanh),
             than_trung_vi=_median(thans), than_ty_le_nhanh=_median(thans_nhanh),
