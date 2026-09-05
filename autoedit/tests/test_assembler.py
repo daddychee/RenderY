@@ -1265,3 +1265,25 @@ def test_retime_bo_qua_o_ngoai_ids_va_o_1_mieng():
     st = cov.retime_breath_grid(ws, pts, {1})             # beat 0 ngoài ids; beat 1 chỉ 1 miếng
     assert st == {"retimed": 0, "kept": 0, "durs": {}}
     assert ws[0].end == 13.2
+
+
+@needs_ffmpeg
+def test_freeze_frame_ne_khung_toi(tmp_path):
+    """Freeze né khung tối (05/09: clip fade-out -> freeze 7.2s gần đen): đuôi
+    clip đen thì lùi về khung sáng hơn; placeholder thì KHÔNG freeze (test trên
+    qua nhánh la_placeholder — ở đây chỉ kiểm chọn khung)."""
+    from PIL import Image, ImageStat
+
+    from autoedit.packager.assembler import _freeze_frame
+
+    clip = tmp_path / "fade.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error",
+         "-f", "lavfi", "-i", "color=white:s=320x180:r=30:d=2.2",
+         "-f", "lavfi", "-i", "color=black:s=320x180:r=30:d=0.8",
+         "-filter_complex", "[0][1]concat=n=2:v=1[v]", "-map", "[v]", str(clip)],
+        check=True, capture_output=True)
+    f = _freeze_frame(clip, tmp_path)
+    assert f is not None
+    luma = ImageStat.Stat(Image.open(f).convert("L")).mean[0]
+    assert luma >= 28, f"freeze vẫn tối (luma {luma:.0f}) — phải lùi về khung trắng"

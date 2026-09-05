@@ -463,13 +463,33 @@ def _freeze_frame(asset: Path, norm_dir: Path) -> Path | None:
     import subprocess
 
     dich = norm_dir / f"freeze_{asset.stem}.jpg"
-    if dich.is_file():
+    # KHÔNG cache: bản cũ từng trả freeze tối còn sót từ lượt assemble trước
+    # (bắt thật 05/09) — rút lại mỗi lần rẻ (1 frame), đổi lấy luôn đúng logic mới.
+    # NÉ KHUNG TỐI (bắt thật 05/09 hook Fern: clip kết fade-out -> freeze 7.2s
+    # gần đen): thử lùi dần từ đuôi, lấy khung đầu tiên đủ sáng; cả 3 đều tối
+    # thì đành lấy khung ít tối nhất (clip đêm thật sự thì freeze tối là đúng).
+    tot_nhat, sang_nhat = None, -1.0
+    for lui in ("-0.2", "-1.0", "-2.5"):
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-v", "error", "-sseof", lui, "-i", str(asset),
+             "-frames:v", "1", "-q:v", "3", str(dich)],
+            capture_output=True, timeout=60)
+        if r.returncode != 0 or not dich.is_file():
+            continue
+        try:
+            from PIL import Image, ImageStat
+            luma = ImageStat.Stat(Image.open(dich).convert("L")).mean[0]
+        except Exception:  # noqa: BLE001 — không đo được thì coi như đạt
+            return dich
+        if luma >= 28:
+            return dich
+        if luma > sang_nhat:
+            sang_nhat = luma
+            tot_nhat = dich.read_bytes()
+    if tot_nhat is not None:
+        dich.write_bytes(tot_nhat)
         return dich
-    r = subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-sseof", "-0.2", "-i", str(asset),
-         "-frames:v", "1", "-q:v", "3", str(dich)],
-        capture_output=True, timeout=60)
-    return dich if r.returncode == 0 and dich.is_file() else None
+    return None
 
 
 def _place_video_l1(script, record, project_dir: Path, norm_dir: Path,
@@ -528,7 +548,11 @@ def _place_video_l1(script, record, project_dir: Path, norm_dir: Path,
         else:
             speed = avail / want_us           # <1 = slow-mo sâu hơn footage_speed
             thieu_us = want_us - round(avail / footage_speed)
-            if speed < SPEED_MIN and thieu_us >= FREEZE_TOI_THIEU_US:
+            # KHÔNG freeze PLACEHOLDER (bắt thật 05/09: beat graphic «editor làm
+            # biểu đồ» bị freeze thêm 2.3s đen vô nghĩa) — placeholder là màn
+            # tĩnh nên slow-mo sâu kiểu cũ không giật, cứ giãn cho phủ ô.
+            la_placeholder = "placeholder" in asset.name.lower()
+            if speed < SPEED_MIN and thieu_us >= FREEZE_TOI_THIEU_US and not la_placeholder:
                 # SÀN 0.8 (user 05/09): thay vì slow sâu, chạy clip trọn nguồn ở
                 # footage_speed rồi freeze khung cuối phủ nốt — không giật hình.
                 dur_v_us = want_us - thieu_us
