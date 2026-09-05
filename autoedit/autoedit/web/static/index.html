@@ -51,6 +51,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .chip b{display:block;font-size:17px}
 .chip b.w{color:var(--warn)}
 .chip span{color:var(--muted);font-size:12px}
+#st-tabs .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fi-eb{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted);font-weight:700;margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .fi-body p,.fi-body li{font-size:13.5px;line-height:1.75;margin:6px 0}
 .fi-body ul,.fi-body ol{padding-left:20px;margin:4px 0}
@@ -230,6 +231,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
     <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
+    <button id="gn-sotra" onclick="doiTrang('sotra')">Sổ Tra</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
 </header>
@@ -406,6 +408,62 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 </section>
 
+<!-- ═════════ SỔ TRA (Đợt 1 Đường Dây — trang stock nội bộ, user chốt 06/09) ═════════ -->
+<section class="man" id="man-sotra">
+  <div class="panel" style="text-align:center;padding:22px 16px 16px">
+    <div style="max-width:660px;margin:0 auto;position:relative">
+      <input type="text" id="st-tim" placeholder="ecuador market, dollar bills, quito street... (gõ tiếng Việt cũng được)"
+             style="width:100%;padding:12px 44px 12px 18px;font-size:15px;border-radius:12px"
+             oninput="stTimDebounce()">
+      <span style="position:absolute;right:16px;top:11px;color:var(--muted)">🔍</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap" id="st-tabs">
+      <button class="btn ghost small on" data-n="" onclick="stNguon(this)">Tất cả <small id="st-d-all"></small></button>
+      <button class="btn ghost small" data-n="envato" onclick="stNguon(this)">Envato <small id="st-d-envato"></small></button>
+      <button class="btn ghost small" data-n="pexels" onclick="stNguon(this)">Pexels <small id="st-d-pexels"></small></button>
+      <button class="btn ghost small" data-n="pixabay" onclick="stNguon(this)">Pixabay <small id="st-d-pixabay"></small></button>
+      <button class="btn ghost small" data-n="ref" onclick="stNguon(this)">Ref <small id="st-d-ref"></small></button>
+      <button class="btn ghost small" data-n="kho" onclick="stNguon(this)">Kho cũ <small id="st-d-kho"></small></button>
+      <button class="btn ghost small" id="st-neo" onclick="stNeo()">⚑ có neo</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <span class="note" id="st-dem" style="margin:0"></span>
+      <span class="note" id="st-hut-tt" style="margin:0"></span>
+      <span style="flex:1"></span>
+      <button class="btn ghost small" id="st-hut-nut" onclick="stHut()" hidden>⛏ Hút thêm theo từ khóa này</button>
+    </div>
+    <div id="st-luoi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+    <div class="note" id="st-trong" style="text-align:center;padding:26px 0" hidden>
+      Kho chưa có kết quả cho từ khóa này — bấm «⛏ Hút thêm» để tra thẳng Envato/Pexels/Pixabay (manager).
+    </div>
+    <div style="text-align:center;margin-top:12px">
+      <button class="btn ghost small" id="st-them" onclick="stThem()" hidden>Xem thêm ↓</button>
+    </div>
+  </div>
+
+  <div id="st-phu" style="position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;
+       place-items:center;z-index:60;padding:24px" onclick="if(event.target.id==='st-phu')stDong()">
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:820px;width:100%;overflow:hidden">
+      <div style="position:relative;aspect-ratio:16/9;background:#000">
+        <video id="st-v" muted loop playsinline style="width:100%;height:100%;object-fit:contain" hidden></video>
+        <img id="st-a" style="width:100%;height:100%;object-fit:contain" alt="">
+      </div>
+      <div style="padding:13px 17px 15px">
+        <div id="st-ten" style="font-size:15px;font-weight:600;line-height:1.45"></div>
+        <div class="note" id="st-meta" style="margin:5px 0 0"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <a class="btn" id="st-goc" target="_blank" style="text-decoration:none">↗ Mở trang gốc</a>
+          <button class="btn ghost" onclick="navigator.clipboard.writeText(ST_CHON.url_trang||ST_CHON.path_local||'');this.textContent='✓ đã copy'">⧉ Copy link</button>
+          <button class="btn ghost" onclick="stDong()">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═════════ GENERATION ═════════ -->
 <section class="man" id="man-gen">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -448,11 +506,12 @@ async function api(path, opts) {
   return loai.includes('json') ? r.json() : r.text()
 }
 function doiTrang(t) {
-  for (const m of ['seq', 'gen', 'kenh']) {
+  for (const m of ['seq', 'gen', 'kenh', 'sotra']) {
     document.getElementById('man-' + m).classList.toggle('on', t === m)
     document.getElementById('gn-' + m).classList.toggle('on', t === m)
   }
   if (t === 'kenh') loadKenh()
+  if (t === 'sotra') stVe()
 }
 function doiTab(t) {
   document.getElementById('pane-proc').classList.toggle('show', t === 'proc')
@@ -822,6 +881,123 @@ async function nopTap() {
 function canhBaoNiche() {
   const trong = !document.getElementById('ns-niche').value.trim()
   document.getElementById('ns-niche-canh-bao').hidden = !trong
+}
+
+/* ── SỔ TRA: trang stock nội bộ — 1 ô tìm, 4 nguồn, hover-play ── */
+let ST_Q = '', ST_NGUON = '', ST_NEO = false, ST_OFFSET = 0, ST_DS = [], ST_CHON = null
+let ST_TIMER = 0
+
+function stAnh(c) {                 // thumbnail: web hotlink, local qua endpoint
+  return c.url_anh || `/api/sotra/frame?id=${encodeURIComponent(c.id)}&vai=dau`
+}
+function stVideo(c) {
+  return c.url_video || (c.path_local ? `/api/sotra/video?id=${encodeURIComponent(c.id)}` : '')
+}
+const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
+                ref: '#a98ee0', kho: '#8a93a0'}
+
+async function stVe(them) {
+  if (!them) ST_OFFSET = 0
+  let d
+  try {
+    d = await api(`/api/sotra?q=${encodeURIComponent(ST_Q)}&nguon=${ST_NGUON}` +
+                  `&neo=${ST_NEO ? 1 : 0}&limit=60&offset=${ST_OFFSET}`)
+  } catch (e) {
+    document.getElementById('st-dem').innerHTML = `<span class="err">${esc(e.message)}</span>`
+    return
+  }
+  ST_DS = them ? ST_DS.concat(d.clips) : d.clips
+  const dem = d.dem || {}
+  let tong = 0
+  for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho']) {
+    tong += dem[n] || 0
+    const el = document.getElementById('st-d-' + n)
+    if (el) el.textContent = dem[n] ? (dem[n] >= 1000 ? (dem[n] / 1000).toFixed(1) + 'k' : dem[n]) : ''
+  }
+  document.getElementById('st-d-all').textContent = tong >= 1000 ? (tong / 1000).toFixed(1) + 'k' : (tong || '')
+  document.getElementById('st-dem').textContent =
+    `${ST_DS.length} kết quả${ST_Q ? ` cho «${ST_Q}»` : ''} · kho ${tong.toLocaleString('vi')} clip`
+  const ht = d.hut || {}
+  document.getElementById('st-hut-tt').innerHTML = ht.tt === 'dang'
+    ? '<span class="hb run"></span>đang hút nền: ' + esc(ht.ghi_chu || '')
+    : (ht.tt ? esc('hút gần nhất: ' + (ht.ghi_chu || '')) : '')
+  document.getElementById('st-hut-nut').hidden = !(ME.nghien_cuu_kenh && ST_Q.trim())
+  document.getElementById('st-trong').hidden = ST_DS.length > 0
+  document.getElementById('st-them').hidden = d.clips.length < 60
+
+  const l = document.getElementById('st-luoi')
+  if (!them) l.innerHTML = ''
+  for (const c of d.clips) {
+    const div = document.createElement('div')
+    div.style.cssText = 'border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:var(--panel)'
+    const vsrc = stVideo(c)
+    div.innerHTML = `
+      <div style="position:relative;aspect-ratio:16/9;background:#000">
+        <img src="${esc(stAnh(c))}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt="">
+        ${vsrc ? `<video muted loop playsinline preload="none" src="${esc(vsrc)}"
+           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0"></video>` : ''}
+        <span style="position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:${ST_MAU[c.nguon] || '#888'};color:#111">${c.nguon === 'ref' ? 'REF' : c.nguon.toUpperCase()}</span>
+        ${c.geo ? '<span style="position:absolute;top:6px;right:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(92,185,138,.92);color:#04220f">⚑</span>' : ''}
+        ${c.da_dung ? `<span style="position:absolute;bottom:6px;right:6px;font-size:9.5px;padding:2px 8px;border-radius:5px;background:rgba(0,0,0,.72);color:var(--warn)">đã dùng ${esc(c.da_dung)}</span>` : ''}
+      </div>
+      <div class="note" style="margin:0;padding:7px 10px 9px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:42px">${esc(c.tieu_de)}</div>`
+    const vid = div.querySelector('video')
+    if (vid) {          // hover = PHÁT PREVIEW thật (đúng trải nghiệm stock site)
+      div.onmouseenter = () => { vid.style.opacity = 1; vid.play().catch(() => {}) }
+      div.onmouseleave = () => { vid.style.opacity = 0; vid.pause() }
+    }
+    div.onclick = () => stMo(c)
+    l.appendChild(div)
+  }
+}
+function stTimDebounce() {
+  clearTimeout(ST_TIMER)
+  ST_TIMER = setTimeout(() => { ST_Q = document.getElementById('st-tim').value; stVe() }, 300)
+}
+function stNguon(nut) {
+  document.querySelectorAll('#st-tabs [data-n]').forEach(b => b.classList.remove('on'))
+  nut.classList.add('on')
+  ST_NGUON = nut.dataset.n
+  stVe()
+}
+function stNeo() {
+  ST_NEO = !ST_NEO
+  document.getElementById('st-neo').classList.toggle('on', ST_NEO)
+  stVe()
+}
+function stThem() { ST_OFFSET += 60; stVe(true) }
+function stMo(c) {
+  ST_CHON = c
+  const v = document.getElementById('st-v'), a = document.getElementById('st-a')
+  const vsrc = stVideo(c)
+  if (vsrc) { v.src = vsrc; v.hidden = false; a.style.display = 'none'; v.play().catch(() => {}) }
+  else { v.hidden = true; a.style.display = ''; a.src = stAnh(c) }
+  document.getElementById('st-ten').textContent = c.tieu_de
+  document.getElementById('st-meta').innerHTML =
+    `Nguồn <b style="color:${ST_MAU[c.nguon]}">${c.nguon.toUpperCase()}</b>`
+    + (c.geo ? ` · ⚑ ${esc(c.geo.replace(/>/g, ' › '))}` : '')
+    + (c.dai_s ? ` · ${Math.round(c.dai_s)}s` : '')
+    + (c.da_dung ? ` · <span style="color:var(--warn)">đã dùng ở ${esc(c.da_dung)}</span>` : ' · chưa dùng ở tập nào')
+  const goc = document.getElementById('st-goc')
+  goc.href = c.url_trang || '#'
+  goc.style.display = c.url_trang ? '' : 'none'
+  document.getElementById('st-phu').style.display = 'grid'
+}
+function stDong() {
+  document.getElementById('st-phu').style.display = 'none'
+  const v = document.getElementById('st-v')
+  v.pause(); v.removeAttribute('src')
+}
+async function stHut() {
+  const nut = document.getElementById('st-hut-nut')
+  nut.disabled = true
+  try {
+    await api('/api/sotra/hut', {method: 'POST', body: JSON.stringify(
+      {tu_khoa: [ST_Q.trim()], nguon: ['envato', 'pexels', 'pixabay'], so_trang: 1})})
+    document.getElementById('st-hut-tt').innerHTML = '<span class="hb run"></span>đang hút nền «' + esc(ST_Q) + '»...'
+    setTimeout(() => stVe(), 25000)
+  } catch (e) { alert('Lỗi: ' + e.message) }
+  nut.disabled = false
 }
 
 /* ── FRAMING INSIGHT (khuôn Author Extract): dropdown hồ sơ + thân mô tả ── */
@@ -1249,10 +1425,10 @@ function doiTen() {
   try { localStorage.setItem('rendery_nguoi', NGUOI_LOCAL) } catch { }
   veNguoiDung('')
 }
+let ME = {}
 ;(async () => {
-  let me = {}
-  try { me = await api('/api/me') } catch { }
-  veNguoiDung(me.nguoi || '')
+  try { ME = await api('/api/me') } catch { }
+  veNguoiDung(ME.nguoi || '')
   loadJobs()
   loadKenh()          // nạp thư viện kênh cho dropdown form nộp ngay từ đầu
   setInterval(() => { if (!document.hidden) loadJobs() }, 7000)

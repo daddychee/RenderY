@@ -587,6 +587,127 @@ class KenhRequest(BaseModel):
     so_video: int = 5          # đo bao nhiêu video (1..8 — trần né YouTube chặn IP)
 
 
+# ═════════════════ SỔ TRA (Đợt 1 flow Đường Dây — user chốt 06/09) ═══════════
+# Trang stock nội bộ: 1 ô tìm cho 4 nguồn. Db mở theo request (SQLite mở nhanh,
+# tránh giữ connection xuyên thread của uvicorn).
+_sotra_dang_hut: dict = {}        # {"tt": "dang"|"xong"|"loi", "ghi_chu": str}
+_sotra_lock = threading.Lock()
+
+
+class SoTraHutRequest(BaseModel):
+    tu_khoa: list[str]
+    nguon: list[str] = ["envato", "pexels", "pixabay"]
+    so_trang: int = 1
+
+
+@app.get("/api/sotra")
+def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
+                  neo: int = 0, tap: str = "", limit: int = 60, offset: int = 0):
+    """Ô tìm của trang Sổ Tra — mọi vai xem được."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        kq = _sdb.tim(conn, q=q, nguon=nguon, chi_neo=bool(neo), tap=tap,
+                      limit=max(1, min(200, limit)), offset=max(0, offset))
+        dem = _sdb.dem_theo_nguon(conn)
+    finally:
+        conn.close()
+    with _sotra_lock:
+        hut = dict(_sotra_dang_hut)
+    return {"clips": kq, "dem": dem, "hut": hut}
+
+
+@app.get("/api/sotra/clip")
+def api_sotra_clip(request: Request, id: str):
+    """Hồ sơ 1 clip + lịch sử sự kiện (hộp xem lớn)."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        r = conn.execute("SELECT * FROM clip WHERE id=?", (id,)).fetchone()
+        if r is None:
+            raise HTTPException(404, "Không thấy clip trong sổ")
+        return {"clip": dict(r), "su_kien": _sdb.lich_su(conn, id)}
+    finally:
+        conn.close()
+
+
+@app.get("/api/sotra/frame")
+def api_sotra_frame(request: Request, id: str, vai: str = "dau"):
+    """Frame đầu/cuối cho clip nguồn local (ref/kho) — rút lazy, cache vĩnh viễn."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+    from autoedit.sotra.media import frame_clip
+
+    conn = _sdb.mo()
+    try:
+        f = frame_clip(conn, id, vai)
+    finally:
+        conn.close()
+    if f is None:
+        raise HTTPException(404, "Không rút được frame")
+    return FileResponse(f, media_type="image/jpeg",
+                        headers={"Cache-Control": "max-age=86400"})
+
+
+@app.get("/api/sotra/video")
+def api_sotra_video(request: Request, id: str):
+    """Phát file local (ref/kho) cho hover-play — nguồn web dùng url_video thẳng."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        r = conn.execute("SELECT path_local FROM clip WHERE id=?", (id,)).fetchone()
+    finally:
+        conn.close()
+    if r is None or not r[0] or not Path(r[0]).is_file():
+        raise HTTPException(404, "Không có file local")
+    return FileResponse(Path(r[0]), media_type="video/mp4")
+
+
+@app.post("/api/sotra/hut")
+def api_sotra_hut(req: SoTraHutRequest, request: Request):
+    """Phiên hút — manager/owner; chạy nền 1 luồng rón rén."""
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được hút nguồn mới")
+    tu_khoas = [t.strip() for t in req.tu_khoa if t.strip()][:40]
+    if not tu_khoas:
+        raise HTTPException(422, "Chưa có từ khóa nào")
+    with _sotra_lock:
+        if _sotra_dang_hut.get("tt") == "dang":
+            raise HTTPException(409, "Đang có phiên hút chạy dở")
+        _sotra_dang_hut.clear()
+        _sotra_dang_hut.update({"tt": "dang", "ghi_chu": f"{len(tu_khoas)} từ khóa..."})
+
+    def _chay():
+        from autoedit.sotra import db as _sdb
+        from autoedit.sotra.hut import phien_hut
+        try:
+            conn = _sdb.mo()
+            try:
+                kq = phien_hut(conn, tu_khoas, req.nguon,
+                               so_trang=max(1, min(3, req.so_trang)),
+                               log=lambda m: print("[sotra]", m, flush=True))
+            finally:
+                conn.close()
+            with _sotra_lock:
+                _sotra_dang_hut.update(
+                    {"tt": "xong",
+                     "ghi_chu": f"+{kq['moi']} mới · {kq['trung']} trùng"
+                                + (f" · {len(kq['loi'])} lỗi" if kq["loi"] else "")})
+        except Exception as exc:  # noqa: BLE001
+            with _sotra_lock:
+                _sotra_dang_hut.update({"tt": "loi", "ghi_chu": str(exc)[:200]})
+
+    threading.Thread(target=_chay, daemon=True, name="sotra-hut").start()
+    return {"ok": True, "ghi_chu": "đang hút nền — kết quả tự hiện thêm"}
+
+
 @app.get("/api/kenh")
 def api_kenh_list(request: Request):
     """Thư viện kênh đã nghiên cứu + kênh đang đo — mọi vai xem được."""
@@ -720,8 +841,12 @@ def api_kenh_do_lai(ten: str, request: Request):
         if _kenh_dang_do.get(ten, {}).get("tt") == "dang_do":
             raise HTTPException(409, "Kênh đang đo dở")
         _kenh_dang_do[ten] = {"tt": "dang_do"}
+    # Giữ quy mô cũ (đo 8 video thì đo lại vẫn 8) — chỉ dùng tới khi kho video
+    # trống (kênh đời cũ); kho có sẵn thì do_kenh phân tích thẳng, không tải.
+    from autoedit.kenh.do_kenh import SO_VIDEO, SO_VIDEO_TRAN
+    so_video = min(max(len(hs.nguon or []), SO_VIDEO), SO_VIDEO_TRAN)
     threading.Thread(target=_chay_do_kenh,
-                     args=(hs.link, ten, True, 5, hs.ten_phong_cach, hs.nguoi_tao),
+                     args=(hs.link, ten, True, so_video, hs.ten_phong_cach, hs.nguoi_tao),
                      daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ghi_chu": "đang đo lại nền"}
 
@@ -750,6 +875,27 @@ def trang_mockup(request: Request):
     """Mockup user duyet 04/09 — dat canh code lam chuan so (index.html phai khop)."""
     _require_auth(request)
     return FileResponse(Path(__file__).parent / "static" / "mockup_de_xuat.html")
+
+
+@app.get("/mockup-processing")
+def trang_mockup_processing(request: Request):
+    """Mockup Processing user duyệt 05/09 — đặt cạnh code làm chuẩn so (index.html phải khớp)."""
+    _require_auth(request)
+    return FileResponse(Path(__file__).parent / "static" / "mockup_processing.html")
+
+
+@app.get("/api/report/{project_id}")
+def api_report(project_id: str, request: Request):
+    """report.html của 1 chương — dòng lịch sử Processing ấn vào mở ra luôn."""
+    _require_auth(request)
+    pdir = _aigen_pdir(project_id)
+    try:
+        rp = json.loads((pdir / "project.json").read_text(encoding="utf-8")).get("report_path")
+    except Exception:  # noqa: BLE001
+        rp = None
+    if not rp or not Path(rp).is_file():
+        raise HTTPException(404, "Chương này chưa có report.html")
+    return FileResponse(rp)
 
 
 @app.get("/duyet")
@@ -1006,18 +1152,29 @@ def api_jobs(request: Request, all_users: bool = False):
             d = j.to_dict()
             # V2: job có phiên duyệt ảnh AI? -> UI hiện nút Duyệt trên thẻ job
             duyet = []
+            chi_phi = 0.0
             for pid in (j.project_id or "").split(","):
                 pid = pid.strip()
                 if pid and (PROJECTS_DIR / pid / "aigen_duyet.json").is_file():
                     try:
-                        import json as _json
-
-                        tt = _json.loads((PROJECTS_DIR / pid / "aigen_duyet.json")
-                                         .read_text(encoding="utf-8")).get("trang_thai")
+                        ph = json.loads((PROJECTS_DIR / pid / "aigen_duyet.json")
+                                        .read_text(encoding="utf-8"))
+                        tt = ph.get("trang_thai")
                         duyet.append({"project_id": pid, "trang_thai": tt})
+                        # Tiền AI của job, cùng biểu giá UI Generation: ảnh
+                        # $0.03/phương án (ảnh _ref editor tự đưa miễn phí),
+                        # video $0.05/motif có ảnh chốt. Tính ở server để job
+                        # XONG RỒI lịch sử vẫn còn số (UI cũ chỉ tính job sống).
+                        for m in ph.get("motif", []):
+                            pa = m.get("phuong_an", [])
+                            chi_phi += 0.03 * sum(1 for p in pa
+                                                  if "_ref" not in p.get("file", ""))
+                            if tt == "da_gen_video" and any(p.get("chon") for p in pa):
+                                chi_phi += 0.05
                     except Exception:  # noqa: BLE001
                         pass
             d["duyet"] = duyet
+            d["chi_phi"] = round(chi_phi, 2)
             # UI mới: 6 đốt tiến độ / chương (voice-beat-cắt-nguồn-AI-ráp) + tên chương
             chuongs = []
             for pid in (j.project_id or "").split(","):
@@ -1049,6 +1206,8 @@ def api_jobs(request: Request, all_users: bool = False):
                     chuongs.append({
                         "project_id": pid, "ten": pd.get("title", pid),
                         "aigen_tt": ai_tt,
+                        "report_ok": bool(pd.get("report_path")
+                                          and Path(pd["report_path"]).is_file()),
                         "dot": [_s("align"), _s("direct"), _s("cut"),
                                 _s("source", "rank"), ai, _s("assemble")]})
                 except Exception:  # noqa: BLE001
@@ -1102,6 +1261,9 @@ def _doc_tooltip(dong: list[str]) -> list[tuple[float, float]]:
 
 class JobRequest(BaseModel):
     folder: str
+    # AI LÀM (user 05/09): vào thẳng (token, không qua CRM) thì không có SSO —
+    # UI cho tự khai tên (localStorage) gửi kèm; có CRM thì header luôn thắng.
+    nguoi: str = ""
     niche: str = ""
     align_backend: str = "auto"
     no_sub: bool = False
@@ -1162,7 +1324,8 @@ def api_add_job(req: JobRequest, request: Request):
 
     conn = _queue_conn()
     try:
-        jid = q.add_job(conn, str(folder), nguoi=current_user(request),
+        jid = q.add_job(conn, str(folder),
+                        nguoi=current_user(request) or req.nguoi.strip()[:40],
                         opts={"niche": req.niche, "align_backend": req.align_backend,
                               "no_sub": req.no_sub, "aigen": req.aigen,
                               "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref})
