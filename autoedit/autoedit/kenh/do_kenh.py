@@ -7,18 +7,18 @@ từng video → chỉ video HỘI TỤ 2 thước mới vào hồ sơ (video đ
 
 yt-dlp cần JS runtime cho YouTube — deno đặt BỀN tại C:\OutlierY\tools\deno
 (bài học 05/09: bản cũ nằm ở scratchpad phiên làm việc, bay mất khi hết phiên).
-Video tải về thư mục tạm và XOÁ ngay sau khi đo — chỉ giữ hoso.json vài KB.
+Video 360p GIỮ LẠI ở <kenh>/videos/ (user 05/09: "đo lại chỉ phân tích lại,
+không tải lại") — đo lại/thêm thước mới chạy trên bộ video cũ, không đụng
+YouTube (né chặn IP). Giá đĩa ~300-500MB/kênh; xoá kênh là kho đi theo.
 """
 
 from __future__ import annotations
 
 import os
 import re
-import shutil
 import statistics
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from autoedit.kenh.hoso import HoSoKenh, thu_muc_kenh
@@ -208,16 +208,29 @@ def _median(vals: list[float]) -> float:
     return round(statistics.median(vals), 3) if vals else 0.0
 
 
-def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
+def do_kenh(link, ten: str = "", so_video: int = SO_VIDEO,
             do_lai: bool = False, log=None, tai=None, goi_vision=None,
             ten_phong_cach: str = "", nguoi_tao: str = "",
             llm_mo_ta=None) -> HoSoKenh:
-    """Link → HoSoKenh (cache theo kênh). `tai` tiêm được để test không mạng."""
+    """Link (1 chuỗi, chuỗi NHIỀU DÒNG, hoặc list) → HoSoKenh.
+
+    FRAMING BỘ-OUTLIER (Đợt 3, user chốt 06/09): framing không còn theo KÊNH —
+    là BỘ VIDEO OUTLIER của ngách gom dưới 1 hồ sơ. Nhiều link => mỗi link tải
+    phần video của nó (video lẻ = 1; link kênh = chia đều quota), đo GỘP median
+    qua cả bộ. `tai` tiêm được để test không mạng."""
     def ghi(m):
         if log:
             log(m)
 
-    ten = ten or slug_tu_link(link)
+    links = ([l.strip() for l in link if str(l).strip()] if isinstance(link, (list, tuple))
+             else [l.strip() for l in str(link).split() if l.strip()])
+    if not links:
+        raise DoKenhError("chưa có link nào")
+    if len(links) > SO_VIDEO_TRAN:
+        ghi(f"kenh: bộ {len(links)} link — lấy {SO_VIDEO_TRAN} đầu (trần né chặn IP)")
+        links = links[:SO_VIDEO_TRAN]
+    ten = ten or slug_tu_link(links[0])
+    link = "\n".join(links)        # hs.link lưu CẢ BỘ — nút Đo lại chạy lại trọn
     if not do_lai:
         cu = HoSoKenh.doc(ten)
         if cu is not None:
@@ -226,88 +239,106 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
             return cu
 
     tai = tai or _tai_video
-    tmp = Path(tempfile.mkdtemp(prefix=f"kenh_{ten}_"))
-    try:
-        files = tai(link, tmp, so_video=so_video, log=log)
-        hooks, hooks_nhanh, thans, thans_nhanh, thans_hold = [], [], [], [], []
-        chu_kys, drops, do_dongs = [], [], []
-        curve_tong: list[list[float]] = []
-        nhip_cong_tong: list[list[float]] = []
-        video_hoi_tu: list[Path] = []
-        hoi_tu = 0
-        for f in files:
-            ghi(f"kenh: đo {f.name}...")
+    # KHO VIDEO BỀN: có sẵn video là phân tích thẳng, không gọi YouTube.
+    # Muốn đo bộ video MỚI của kênh: xoá kênh rồi trích xuất lại từ đầu.
+    kho = thu_muc_kenh(ten) / "videos"
+    files = sorted(kho.glob("*.mp4"))
+    if files:
+        ghi(f"kenh: dùng lại {len(files)} video trong kho — không tải lại")
+    else:
+        kho.mkdir(parents=True, exist_ok=True)
+        files = []
+        moi_link = max(1, so_video // len(links)) if len(links) > 1 else so_video
+        for l in links:
             try:
-                kq = do_video(f)
-            except DoNhipError as exc:
-                ghi(f"kenh: {f.name} đo lỗi ({exc}) — bỏ")
-                continue
-            if not kq.hoi_tu():
-                ghi(f"kenh: {f.name} hai thước KHÔNG hội tụ — bỏ (video đánh lừa thước)")
-                continue
-            hoi_tu += 1
-            video_hoi_tu.append(f)
-            h, t = kq.hook.get("select"), kq.than.get("select")
-            if h:
-                hooks.append(h.trung_vi)
-                hooks_nhanh.append(h.ty_le_nhanh)
-            if t:
-                thans.append(t.trung_vi)
-                thans_nhanh.append(t.ty_le_nhanh)
-                thans_hold.append(t.ty_le_hold)
-            if kq.chu_ky_bung_s:
-                chu_kys.append(kq.chu_ky_bung_s)
-            if kq.cong:
-                nhip_cong_tong.append(_resample_cong(kq.cong, kq.tong_s))
-            nh = do_nhac_ffmpeg(f)
-            if nh["curve"]:
-                curve_tong.append(nh["curve"])
-                drops.append(nh["vi_tri_drop"])
-                do_dongs.append(nh["do_dong"])
-        if hoi_tu == 0:
-            raise DoKenhError(
-                f"không video nào của «{ten}» cho số đo tin được (2 thước không "
-                "hội tụ) — thử kênh khác hoặc dán link video cụ thể ít đồ hoạ hơn")
-        hs = HoSoKenh(
-            ten=ten, ten_phong_cach=ten_phong_cach, nguoi_tao=nguoi_tao, link=link,
-            nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
-            hook_trung_vi=_median(hooks), hook_ty_le_nhanh=_median(hooks_nhanh),
-            than_trung_vi=_median(thans), than_ty_le_nhanh=_median(thans_nhanh),
-            than_ty_le_hold=_median(thans_hold),
-            bung_chu_ky_s=_median(chu_kys),
-            nhac_vi_tri_drop=_median(drops), nhac_do_dong=_median(do_dongs),
-        )
-        hs.hook_kieu = _hook_kieu(hs.hook_trung_vi, hs.than_trung_vi)
-        if nhip_cong_tong:
-            hs.nhip_curve = [
-                round(statistics.median(c[i] for c in nhip_cong_tong), 1)
-                for i in range(SO_BUCKET_NHIP)]
-        if curve_tong:
-            n = len(curve_tong[0])
-            hs.nhac_energy_curve = [
-                round(statistics.fmean(c[i] for c in curve_tong), 3) for i in range(n)]
-        # Tầng 3 (Đợt B): tỷ trọng loại cảnh — GLM vision, fail-open (thiếu key/
-        # API chết -> {} + log, hồ sơ vẫn có 2 tầng nhịp+nhạc). Đo TRƯỚC khi xoá
-        # video tạm; goi_vision tiêm được cho test.
-        from autoedit.kenh.loai_canh import do_loai_canh
-        hs.loai_canh = do_loai_canh(video_hoi_tu, goi=goi_vision, log=log)
-        if hs.loai_canh:
-            ghi("kenh: loại cảnh — " + " · ".join(
-                f"{k} {v:.0%}" for k, v in hs.loai_canh.items() if v > 0))
-        so_frame = _luu_frames(video_hoi_tu, thu_muc_kenh(ten) / "frames", log=log)
-        if so_frame:
-            ghi(f"kenh: đã lưu {so_frame} frame minh hoạ")
-        # MÔ TẢ ĐỌC ĐƯỢC (Framing Insight): LLM viết bản nhận diện 4 mặt (nhịp
-        # độ · đường hình · âm nhạc · năng lượng) TỪ số đo — fail-open: thiếu
-        # key/API chết thì mô tả trống, UI nhắc Đo lại để sinh.
+                files += tai(l, kho, so_video=moi_link, log=log)
+            except DoKenhError as exc:
+                # bộ outlier: 1 link chết không giết cả bộ — ghi rồi đi tiếp
+                if len(links) == 1:
+                    raise
+                ghi(f"kenh: link {l[:60]} LỖI ({str(exc)[:80]}) — bỏ, đo phần còn lại")
+        if not files:
+            raise DoKenhError("không tải được video nào từ cả bộ link")
+        files = sorted(set(files))
+    hooks, hooks_nhanh, thans, thans_nhanh, thans_hold = [], [], [], [], []
+    chu_kys, drops, do_dongs, tongs = [], [], [], []
+    curve_tong: list[list[float]] = []
+    nhip_cong_tong: list[list[float]] = []
+    video_hoi_tu: list[Path] = []
+    hoi_tu = 0
+    for f in files:
+        ghi(f"kenh: đo {f.name}...")
         try:
-            from autoedit.kenh.mo_ta import sinh_mo_ta
-            hs.mo_ta = sinh_mo_ta(hs, llm=llm_mo_ta)
-            ghi("kenh: mô tả phong cách đã sinh (Framing Insight)")
-        except Exception as exc:  # noqa: BLE001
-            ghi(f"kenh: sinh mô tả LỖI ({exc}) — hồ sơ vẫn giữ đủ số đo")
-        hs.ghi()
-        ghi(f"kenh: «{ten}» đo xong — {hoi_tu}/{len(files)} video hội tụ, hồ sơ đã cache")
-        return hs
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)   # video tạm xoá sạch, chỉ giữ hoso.json
+            kq = do_video(f)
+        except DoNhipError as exc:
+            ghi(f"kenh: {f.name} đo lỗi ({exc}) — bỏ")
+            continue
+        if not kq.hoi_tu():
+            ghi(f"kenh: {f.name} hai thước KHÔNG hội tụ — bỏ (video đánh lừa thước)")
+            continue
+        hoi_tu += 1
+        video_hoi_tu.append(f)
+        if kq.tong_s:
+            tongs.append(kq.tong_s)
+        h, t = kq.hook.get("select"), kq.than.get("select")
+        if h:
+            hooks.append(h.trung_vi)
+            hooks_nhanh.append(h.ty_le_nhanh)
+        if t:
+            thans.append(t.trung_vi)
+            thans_nhanh.append(t.ty_le_nhanh)
+            thans_hold.append(t.ty_le_hold)
+        if kq.chu_ky_bung_s:
+            chu_kys.append(kq.chu_ky_bung_s)
+        if kq.cong:
+            nhip_cong_tong.append(_resample_cong(kq.cong, kq.tong_s))
+        nh = do_nhac_ffmpeg(f)
+        if nh["curve"]:
+            curve_tong.append(nh["curve"])
+            drops.append(nh["vi_tri_drop"])
+            do_dongs.append(nh["do_dong"])
+    if hoi_tu == 0:
+        raise DoKenhError(
+            f"không video nào của «{ten}» cho số đo tin được (2 thước không "
+            "hội tụ) — thử kênh khác hoặc dán link video cụ thể ít đồ hoạ hơn")
+    hs = HoSoKenh(
+        ten=ten, ten_phong_cach=ten_phong_cach, nguoi_tao=nguoi_tao, link=link,
+        nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
+        hook_trung_vi=_median(hooks), hook_ty_le_nhanh=_median(hooks_nhanh),
+        than_trung_vi=_median(thans), than_ty_le_nhanh=_median(thans_nhanh),
+        than_ty_le_hold=_median(thans_hold),
+        bung_chu_ky_s=_median(chu_kys), dai_trung_vi_s=_median(tongs),
+        nhac_vi_tri_drop=_median(drops), nhac_do_dong=_median(do_dongs),
+    )
+    hs.hook_kieu = _hook_kieu(hs.hook_trung_vi, hs.than_trung_vi)
+    if nhip_cong_tong:
+        hs.nhip_curve = [
+            round(statistics.median(c[i] for c in nhip_cong_tong), 1)
+            for i in range(SO_BUCKET_NHIP)]
+    if curve_tong:
+        n = len(curve_tong[0])
+        hs.nhac_energy_curve = [
+            round(statistics.fmean(c[i] for c in curve_tong), 3) for i in range(n)]
+    # Tầng 3 (Đợt B): tỷ trọng loại cảnh — GLM vision, fail-open (thiếu key/
+    # API chết -> {} + log, hồ sơ vẫn có 2 tầng nhịp+nhạc). Đo TRƯỚC khi xoá
+    # video tạm; goi_vision tiêm được cho test.
+    from autoedit.kenh.loai_canh import do_loai_canh
+    hs.loai_canh = do_loai_canh(video_hoi_tu, goi=goi_vision, log=log)
+    if hs.loai_canh:
+        ghi("kenh: loại cảnh — " + " · ".join(
+            f"{k} {v:.0%}" for k, v in hs.loai_canh.items() if v > 0))
+    so_frame = _luu_frames(video_hoi_tu, thu_muc_kenh(ten) / "frames", log=log)
+    if so_frame:
+        ghi(f"kenh: đã lưu {so_frame} frame minh hoạ")
+    # MÔ TẢ ĐỌC ĐƯỢC (Framing Insight): LLM viết bản nhận diện 4 mặt (nhịp
+    # độ · đường hình · âm nhạc · năng lượng) TỪ số đo — fail-open: thiếu
+    # key/API chết thì mô tả trống, UI nhắc Đo lại để sinh.
+    try:
+        from autoedit.kenh.mo_ta import sinh_mo_ta
+        hs.mo_ta = sinh_mo_ta(hs, llm=llm_mo_ta)
+        ghi("kenh: mô tả phong cách đã sinh (Framing Insight)")
+    except Exception as exc:  # noqa: BLE001
+        ghi(f"kenh: sinh mô tả LỖI ({exc}) — hồ sơ vẫn giữ đủ số đo")
+    hs.ghi()
+    ghi(f"kenh: «{ten}» đo xong — {hoi_tu}/{len(files)} video hội tụ, hồ sơ đã cache")
+    return hs

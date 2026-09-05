@@ -133,9 +133,11 @@ def test_do_kenh_do_that_va_cache(cache_rieng, tmp_path):
     assert len(goi_tai) == 1, "cache hit vẫn tải lại = vi phạm luật né chặn IP"
     assert hs2.than_trung_vi == hs.than_trung_vi
 
-    # --do-lai: chủ động đo mới -> được tải lại
-    do_kenh("https://www.youtube.com/@test-kenh", do_lai=True, tai=tai_gia)
-    assert len(goi_tai) == 2
+    # --do-lai (user 05/09): PHÂN TÍCH LẠI từ kho video bền <kenh>/videos/ —
+    # không gọi YouTube nữa (né chặn IP, đo lại tức thì, thêm thước mới là có số)
+    hs3 = do_kenh("https://www.youtube.com/@test-kenh", do_lai=True, tai=tai_gia)
+    assert len(goi_tai) == 1, "đo lại vẫn tải lại = trái yêu cầu user 05/09"
+    assert hs3.than_trung_vi == hs.than_trung_vi
 
 
 def test_do_kenh_khong_video_nao_hoi_tu_bao_ro(cache_rieng, tmp_path):
@@ -331,3 +333,40 @@ def test_do_kenh_luu_frames_va_nhip_curve(cache_rieng, tmp_path):
     assert frames[0].stat().st_size > 100  # JPEG thật (màu phẳng nén rất nhỏ)
     # video test ngắn hơn cửa sổ 60s -> nhip_curve rỗng là HỢP LỆ (không nổ)
     assert isinstance(hs.nhip_curve, list)
+
+
+# ------------------------------------------------- Framing BỘ-OUTLIER (Đợt 3)
+def test_do_kenh_bo_outlier_nhieu_link(cache_rieng, tmp_path):
+    """User chốt 06/09: framing không theo KÊNH — bộ VIDEO OUTLIER gom 1 hồ sơ.
+    Nhiều link -> tải từng link (video lẻ = 1), đo GỘP; 1 link chết không giết
+    cả bộ; hs.link lưu trọn bộ để Đo lại chạy lại đủ."""
+    video_dir = tmp_path / "vids_bo"
+    video_dir.mkdir()
+    _video_cat_cung(video_dir, "a.mp4")
+    _video_cat_cung(video_dir, "b.mp4")
+
+    goi = []
+
+    def tai_gia(link, dich, so_video=3, log=None):
+        goi.append((link, so_video))
+        if "chet" in link:
+            from autoedit.kenh.do_kenh import DoKenhError
+            raise DoKenhError("403 gia lap")
+        import shutil
+        ten = "a.mp4" if "aaa" in link else "b.mp4"
+        d = dich / ten
+        if not d.exists():
+            shutil.copy2(video_dir / ten, d)
+        return [d]
+
+    links = ["https://youtu.be/aaa111aaa", "https://youtu.be/chet404xx",
+             "https://youtu.be/bbb222bbb"]
+    hs = do_kenh(links, ten="bo-thu", ten_phong_cach="Bộ outlier thử",
+                 tai=tai_gia, llm_mo_ta=None, so_video=6)
+    assert len(goi) == 3                              # gọi đủ 3 link
+    assert all(sv == 2 for _, sv in goi)              # 6 quota / 3 link
+    assert hs.so_video_hoi_tu == 2                    # link chết bị bỏ, bộ vẫn sống
+    assert hs.link.count(chr(10)) == 2                # lưu TRỌN 3 link (2 xuống dòng)
+    # chuỗi nhiều dòng cũng nhận (đường API textarea)
+    hs2 = do_kenh(chr(10).join(links), ten="bo-thu")  # cache hit
+    assert hs2.so_video_hoi_tu == 2

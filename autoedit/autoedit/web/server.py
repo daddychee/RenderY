@@ -864,9 +864,12 @@ def api_kenh_them(req: KenhRequest, request: Request):
 
     from autoedit.kenh.do_kenh import SO_VIDEO_TRAN, slug_tu_ten
 
+    # FRAMING BỘ-OUTLIER (Đợt 3): nhận NHIỀU link (mỗi dòng 1 video outlier;
+    # link kênh vẫn nhận) — do_kenh tự tách + đo gộp median cả bộ
     link = (req.link or "").strip()
     if not link:
-        raise HTTPException(422, "Dán link kênh YouTube (vd https://www.youtube.com/@fern-tv)")
+        raise HTTPException(422, "Dán link video outlier của ngách — mỗi dòng 1 link "
+                                 "(link kênh cũng nhận)")
     ten_pc = (req.ten or "").strip()
     if not ten_pc:
         raise HTTPException(422, "Đặt tên phong cách (vd 'Fern chậm rãi') — thư viện "
