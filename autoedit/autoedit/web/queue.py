@@ -180,8 +180,13 @@ def get_job(conn: sqlite3.Connection, job_id: int) -> Optional[Job]:
 def list_jobs(conn: sqlite3.Connection, nguoi: str = "", limit: int = 50) -> list[Job]:
     """Job mới nhất trước. `nguoi` rỗng = mọi người (dùng cho trang quản trị)."""
     if nguoi:
-        rows = conn.execute("SELECT * FROM jobs WHERE nguoi=? ORDER BY id DESC LIMIT ?",
-                            (nguoi, limit)).fetchall()
+        # SUA 05/09: job KHONG CO CHU (nguoi='') hien cho MOI nguoi — do la job
+        # chay truc tiep / truoc SSO / job he thong, khong thuoc rieng ai. Truoc
+        # day chi khop nguoi=X nen nguoi dang nhap ten khac chu thay TRONG TRON
+        # du du lieu con du (su co "mat lich su" 05/09 — that ra bi loc, khong mat).
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE nguoi=? OR nguoi='' OR nguoi IS NULL "
+            "ORDER BY id DESC LIMIT ?", (nguoi, limit)).fetchall()
     else:
         rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [Job.from_row(r) for r in rows]
