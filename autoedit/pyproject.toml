@@ -17,7 +17,7 @@ dependencies = [
     "librosa>=0.11.0",
     # ytref điểm nhô (MO_TA_VAN_HANH_YTREF_DIEM_NHO §3c): pin đúng bản smoke M0 —
     # YouTube đổi format thì bump có chủ đích, không để trôi ngầm
-    "yt-dlp==2026.7.4",
+    "yt-dlp>=2026.8.19",   # KHONG ghim cung: yt-dlp duoi theo YouTube, ban cu 2 thang la 403 hang loat (05/09)
     # Nguồn REF VIDEO (02/09): khớp câu beat ↔ câu transcript video có sẵn bằng
     # bge-small (~130MB, chạy CPU vài giây/chương, KHÔNG tốn token API). Thiếu thư
     # viện này thì nguồn ref TỰ TẮT — chương vẫn dựng bằng Pexels/kho như thường.

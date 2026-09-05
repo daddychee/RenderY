@@ -17,6 +17,7 @@ import re
 import shutil
 import statistics
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -28,6 +29,12 @@ SO_VIDEO = 5          # mặc định (user 05/09: "đo nhiều video thì số 
 SO_VIDEO_TRAN = 8
 DAI_TOI_THIEU_S = 240  # bỏ video <4 phút (shorts/trailer — không đại diện nhịp dựng)
 DENO_DIR = r"C:\OutlierY\tools\deno"
+# Lớp cookies NGỦ ĐÔNG (user hỏi 05/09 sau trận 403): bình thường KHÔNG cần —
+# 403 hàng loạt hôm đó do yt-dlp cũ 2 tháng, update là khỏi. Nhưng ngày nào
+# YouTube chặn IP máy chủ thật thì chỉ cần export cookies từ browser đã đăng
+# nhập (account PHỤ — account bị soi có thể dính cờ) bỏ vào đây là chạy tiếp,
+# không phải sửa code. File không tồn tại = bỏ qua.
+COOKIES_FILE = Path(r"C:\OutlierY\tools\yt_cookies.txt")
 
 
 class DoKenhError(RuntimeError):
@@ -85,16 +92,23 @@ def _tai_video(link: str, dich: Path, so_video: int = SO_VIDEO,
     env["PATH"] = DENO_DIR + os.pathsep + env.get("PATH", "")
     la_video_le = bool(re.search(r"watch\?v=|youtu\.be/", link))
     url = link if la_video_le else link.rstrip("/") + "/videos"
+    # sys.executable -m yt_dlp: LUÔN bản trong venv — gọi "yt-dlp" trần qua PATH
+    # từng vớ phải bản GLOBAL cũ 2 tháng (trận 403 hàng loạt 05/09: venv đã
+    # update mà production vẫn chết vì subprocess chạy con global)
     cmd = [
-        "yt-dlp", "--no-warnings", "--quiet", "--no-playlist" if la_video_le else "--yes-playlist",
+        sys.executable, "-m", "yt_dlp",
+        "--no-warnings", "--quiet", "--no-playlist" if la_video_le else "--yes-playlist",
         "-f", "bv*[height<=360]+ba/b[height<=360]/b",
         "--merge-output-format", "mp4",
         "--match-filter", f"duration >= {DAI_TOI_THIEU_S}",
         "--playlist-items", f"1:{so_video * 2}",   # dư gấp đôi vì match-filter loại bớt
         "--max-downloads", str(so_video),
         "-o", str(dich / "%(id)s.%(ext)s"),
-        url,
     ]
+    if COOKIES_FILE.is_file():
+        cmd += ["--cookies", str(COOKIES_FILE)]
+        ghi("kenh: dùng cookies tại " + str(COOKIES_FILE))
+    cmd.append(url)
     ghi(f"kenh: tải tối đa {so_video} video 360p từ {url}")
     r = subprocess.run(cmd, capture_output=True, text=True, errors="replace",
                        env=env, timeout=1800)
@@ -102,7 +116,11 @@ def _tai_video(link: str, dich: Path, so_video: int = SO_VIDEO,
     # yt-dlp exit 101 = dừng vì --max-downloads (thành công); các mã khác + 0 file = lỗi thật
     if not files:
         duoi = (r.stderr or r.stdout or "")[-400:]
-        raise DoKenhError(f"không tải được video nào từ {link} — {duoi}")
+        goi_y = ""
+        if "403" in duoi or "Forbidden" in duoi:
+            goi_y = (" · GỢI Ý 403: yt-dlp cũ (update trong venv) hoặc YouTube "
+                     f"chặn IP — export cookies browser vào {COOKIES_FILE}")
+        raise DoKenhError(f"không tải được video nào từ {link} — {duoi}{goi_y}")
     return files
 
 
