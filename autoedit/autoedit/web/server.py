@@ -677,6 +677,33 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     return {"ok": True}
 
 
+@app.get("/api/offline/{project_id}/voice")
+def api_offline_voice(project_id: str, request: Request):
+    """Voice master WAV cho màn Offline — PCM seek chính xác mẫu (bài học 06/09:
+    MP3 currentTime lệch 50-250ms theo frame khiến 'khối trắng dính voice')."""
+    _require_auth(request)
+    d = _pdir_offline(project_id)
+    f = d / "media" / "voice_master.wav"
+    if not f.is_file():
+        raise HTTPException(404, "Chưa có voice master — chạy align/cut trước")
+    return FileResponse(f, media_type="audio/wav")
+
+
+@app.post("/api/offline/{project_id}/khoa-so")
+def api_offline_khoa(project_id: str, request: Request):
+    """KHÓA SỔ chương (pha 2 duyệt xong) — thay máu (đợt 5) chỉ chạy chương khóa."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    hd["trang_thai"] = "khoa"
+    orun.luu(d, hd)
+    return {"ok": True, "ghi_chu": f"đã khóa sổ {len(hd['khoi'])} khối — chờ thay máu (đợt 5)"}
+
+
 @app.post("/api/offline/{project_id}/kiem-mp4")
 def api_offline_kiem(project_id: str, request: Request, dai_s: float = 15.0):
     """Xuất MP4 kiểm ranh (sync tuyệt đối — miễn nhiễm trễ RDP)."""

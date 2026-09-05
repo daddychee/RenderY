@@ -51,6 +51,69 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .chip b{display:block;font-size:17px}
 .chip b.w{color:var(--warn)}
 .chip span{color:var(--muted);font-size:12px}
+/* ── OFFLINE (Đợt 4 — UI 2 pha chốt 07/09) ── */
+#of-than{display:flex; gap:12px; align-items:stretch; min-height:430px}
+#of-trai{flex:0 0 320px; display:flex; flex-direction:column; gap:9px}
+#of-khung{position:relative; aspect-ratio:16/9; background:#000;
+          border:1px solid var(--line); border-radius:10px; overflow:hidden}
+#of-khung img,#of-khung video{width:100%; height:100%; object-fit:contain}
+#of-khung .rong{position:absolute; inset:0; display:grid; place-items:center;
+                color:#5a6470; font-size:13px; text-align:center; line-height:1.6}
+#of-nhan{position:absolute; left:8px; top:8px; background:rgba(0,0,0,.7);
+         padding:3px 10px; border-radius:7px; font-size:11.5px; z-index:2}
+#of-loi-p{flex:1; overflow:auto; background:var(--panel); border:1px solid var(--line);
+          border-radius:10px; padding:9px 12px; min-height:0}
+#of-cau{font-size:14px; line-height:1.5}
+#of-lop{margin-top:6px; display:flex; gap:5px; flex-wrap:wrap; font-size:11.5px}
+.of-chip{background:rgba(105,174,224,.14); color:#69aee0; border-radius:999px; padding:1px 10px}
+.of-chip.l1{background:rgba(217,164,65,.15); color:var(--warn)}
+.of-chip.l3{background:rgba(138,147,160,.14); color:var(--muted)}
+#of-phai{flex:1 1 0; min-width:0; display:flex; flex-direction:column; min-height:0}
+#of-hd{flex:1; display:grid; place-items:center; color:var(--muted);
+       border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
+#of-khay{flex:1 1 0; min-height:0; display:none; flex-direction:column; gap:8px}
+#of-khay.on{display:flex}
+#of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:1fr 1fr;
+        grid-template-rows:1.4fr 1fr; gap:10px}
+.of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
+        border:1px solid var(--line); border-radius:10px; padding:6px 9px}
+.of-khu h4{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
+           display:flex; gap:7px; align-items:center; margin:0 0 5px}
+.of-khu h4 .g{flex:1; height:1px; background:var(--line)}
+.of-cuon{flex:1 1 0; min-height:0; display:flex; gap:8px; overflow-x:auto; align-items:center}
+.of-uv{flex:0 0 168px; position:relative; border:1px solid var(--line); border-radius:8px;
+       overflow:hidden; cursor:pointer; background:#000}
+.of-khu.phu .of-uv{flex-basis:126px}
+.of-uv .cap{position:relative; aspect-ratio:16/9; background:#000}
+.of-uv .cap img,.of-uv .cap video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+.of-uv .cap video{opacity:0}
+.of-uv:hover .cap video{opacity:1}
+.of-uv .n{font-size:9.5px; padding:3px 6px; color:var(--muted); white-space:nowrap;
+          overflow:hidden; text-overflow:ellipsis}
+.of-uv.dang{border-color:var(--warn); box-shadow:0 0 0 1px var(--warn) inset}
+.of-uv .lap{position:absolute; inset:0; background:rgba(224,108,108,.26);
+            display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
+#of-cuon-tl{overflow-x:auto; padding:2px 2px 8px}
+#of-thuoc{position:relative; height:15px}
+#of-thuoc span{position:absolute; font-size:10px; color:var(--muted)}
+#of-dai{position:relative; height:90px}
+.of-khoi{position:absolute; top:0; height:100%; border:1px solid var(--line); border-radius:7px;
+         background:#22303f; cursor:pointer; overflow:hidden}
+.of-khoi img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.88}
+.of-khoi .i{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--muted);
+            background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
+.of-khoi .d{position:absolute; left:3px; bottom:3px; font-size:9.5px;
+            background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
+.of-khoi.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
+.of-khoi.tongB{background:#3a2f45; border-color:#54446b}
+.of-khoi.lap{border-color:var(--bad)}
+.of-tho{position:absolute; top:0; height:100%; border-radius:7px; z-index:1;
+        background:#e9ecef; border:1px solid #b9c2cc; cursor:pointer}
+.of-tho .nh{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+            font-size:10px; color:#39414b; font-weight:700; white-space:nowrap}
+.of-tho.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
+#of-ph{position:absolute; top:-15px; bottom:0; width:2px; background:var(--warn);
+       pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
 #st-tabs .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fi-eb{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted);font-weight:700;margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .fi-body p,.fi-body li{font-size:13.5px;line-height:1.75;margin:6px 0}
@@ -231,6 +294,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
     <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
+    <button id="gn-offline" onclick="doiTrang('offline')">Offline</button>
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
@@ -464,6 +528,72 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 </section>
 
+<!-- ═════════ OFFLINE (Đợt 4 — màn 2 pha, UI chốt 07/09) ═════════ -->
+<section class="man" id="man-offline">
+  <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="text-transform:uppercase;letter-spacing:.07em;font-size:11.5px;color:var(--muted);font-weight:700">Offline</span>
+    <select id="of-project" style="min-width:250px" onchange="ofNap()"></select>
+    <span class="note" id="of-pha-nhan" style="margin:0"></span>
+    <button class="btn ghost small" id="of-play" onclick="ofPlay()">▶ Phát</button>
+    <span class="note mono" id="of-tc" style="margin:0;min-width:80px">00:00.0</span>
+    <span class="note" id="of-stat" style="margin:0"></span>
+    <span style="flex:1"></span>
+    <button class="btn ghost small" onclick="ofPhuongAn()" title="ranh mềm + rút thăm — khối ✎ giữ nguyên">⟳ Phương án</button>
+    <button class="btn ghost small" onclick="window.open('/api/offline/'+OF_PID+'/kiem-mp4','_blank')" title="MP4 sync tuyệt đối — miễn nhiễm trễ RDP">🎞 MP4 kiểm</button>
+    <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
+  </div>
+
+  <div class="panel" id="of-chua-co" >
+    <div class="note" style="margin:0">Chọn project rồi bấm Phân tích — cắt khối theo hơi thở
+      người đọc + gán 4 lớp + đổ ứng viên từ Library.</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <input type="number" id="of-avd" placeholder="AVD (phút)" style="max-width:110px" value="6">
+      <select id="of-framing" style="max-width:220px"></select>
+      <select id="of-uutien" style="max-width:150px">
+        <option value="ref">Ưu tiên Ref</option>
+        <option value="envato">Ưu tiên Envato</option>
+        <option value="">Không ưu tiên</option>
+      </select>
+      <button class="btn" onclick="ofPhanTich()">Phân tích</button>
+      <span class="note" id="of-pt-tt" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div id="of-than" hidden>
+    <div id="of-trai">
+      <div id="of-khung">
+        <img id="of-anh" alt="" hidden>
+        <video id="of-video" muted loop playsinline hidden></video>
+        <div class="rong" id="of-rong">PHA 1 — duyệt cấu trúc khối<br>chưa đổ hình</div>
+        <div id="of-nhan" hidden></div>
+      </div>
+      <div id="of-loi-p"><div id="of-cau">—</div><div id="of-lop"></div></div>
+    </div>
+    <div id="of-phai">
+      <div id="of-hd">PHA 1 · CHỐT KHỐI<br>▶ nghe voice kiểm ranh — khối trắng = hình thở<br>
+        +1s/−1s ở panel trái · ⟳ phương án khác<br>
+        xong bấm <b style="color:var(--warn)">Duyệt khối → Đổ video</b></div>
+      <div id="of-khay">
+        <div style="display:flex;gap:10px;align-items:center">
+          <input type="text" id="of-tim" placeholder="tìm trong Library... (đổ vào 4 khu)" style="flex:1;max-width:460px" oninput="ofTimDebounce()">
+          <span class="note" id="of-tim-nhan" style="margin:0"></span>
+        </div>
+        <div id="of-khu">
+          <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
+          <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
+          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS <span id="of-n-pexels"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pexels"></div></div>
+          <div class="of-khu phu"><h4 style="color:#5b9bd5">PIXABAY / KHO <span id="of-n-pixabay"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pixabay"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="of-tl" hidden>
+    <div class="note" style="margin:0 0 6px" id="of-cc"></div>
+    <div id="of-cuon-tl"><div id="of-thuoc"></div><div id="of-dai"><div id="of-ph"></div></div></div>
+  </div>
+</section>
+
 <!-- ═════════ GENERATION ═════════ -->
 <section class="man" id="man-gen">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -506,12 +636,13 @@ async function api(path, opts) {
   return loai.includes('json') ? r.json() : r.text()
 }
 function doiTrang(t) {
-  for (const m of ['seq', 'gen', 'kenh', 'sotra']) {
+  for (const m of ['seq', 'gen', 'kenh', 'sotra', 'offline']) {
     document.getElementById('man-' + m).classList.toggle('on', t === m)
     document.getElementById('gn-' + m).classList.toggle('on', t === m)
   }
   if (t === 'kenh') loadKenh()
   if (t === 'sotra') stVe()
+  if (t === 'offline') ofKhoiDong()
 }
 function doiTab(t) {
   document.getElementById('pane-proc').classList.toggle('show', t === 'proc')
@@ -881,6 +1012,335 @@ async function nopTap() {
 function canhBaoNiche() {
   const trong = !document.getElementById('ns-niche').value.trim()
   document.getElementById('ns-niche-canh-bao').hidden = !trong
+}
+
+/* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
+let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_PXS = 14
+let OF_AUDIO = null, OF_LUU_T = 0
+const ofK = () => (OF_HD ? OF_HD.khoi : [])
+const ofUv = k => (k && k.uv && k.chon >= 0 && k.uv[k.chon]) ? k.uv[k.chon] : null
+const ofFmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + (s % 60).toFixed(1).padStart(4, '0')
+function ofAnh(u) {
+  return u.url_anh || `/api/sotra/frame?id=${encodeURIComponent(u.id)}&vai=dau`
+}
+function ofVid(u) {
+  return u.url_video || `/api/sotra/video?id=${encodeURIComponent(u.id)}`
+}
+
+async function ofKhoiDong() {
+  // dropdown project (mới nhất trước) + dropdown framing
+  try {
+    const ds = await api('/api/projects')
+    const sel = document.getElementById('of-project')
+    const cu = sel.value
+    sel.innerHTML = '<option value="">— chọn project —</option>' +
+      (ds.projects || ds || []).slice(0, 40).map(p =>
+        `<option value="${esc(p.project_id)}">${esc(p.project_id)} · ${esc((p.title || '').slice(0, 30))}</option>`).join('')
+    if (cu) sel.value = cu
+  } catch (e) { /* projects lỗi thì vẫn vào được bằng tay */ }
+  try {
+    const d = await api('/api/kenh')
+    document.getElementById('of-framing').innerHTML =
+      '<option value="">— Framing: mặc định —</option>' +
+      (d.kenh || []).map(k => `<option value="${esc(k.ten)}">${esc(k.ten_phong_cach || k.ten)}</option>`).join('')
+  } catch (e) { }
+  if (OF_PID) ofNap()
+}
+
+async function ofNap() {
+  OF_PID = document.getElementById('of-project').value
+  if (!OF_PID) return
+  let d
+  try { d = await api('/api/offline/' + OF_PID) }
+  catch (e) {
+    OF_HD = null
+    document.getElementById('of-chua-co').hidden = false
+    document.getElementById('of-than').hidden = true
+    document.getElementById('of-tl').hidden = true
+    document.getElementById('of-nut-pha').disabled = true
+    return
+  }
+  const tt = d.tt || {}
+  document.getElementById('of-pt-tt').textContent =
+    tt.tt === 'dang' ? 'đang phân tích nền...' : (tt.ghi_chu || '')
+  if (tt.tt === 'dang') { setTimeout(ofNap, 5000); return }
+  OF_HD = d.hop_dong
+  if (!OF_HD) { document.getElementById('of-chua-co').hidden = false; return }
+  OF_PHA = (OF_HD.trang_thai === 'pha1') ? 1 : 2
+  OF_CHON = 0
+  document.getElementById('of-chua-co').hidden = true
+  document.getElementById('of-than').hidden = false
+  document.getElementById('of-tl').hidden = false
+  document.getElementById('of-nut-pha').disabled = false
+  if (OF_AUDIO) { OF_AUDIO.pause(); OF_AUDIO = null }
+  OF_AUDIO = new Audio('/api/offline/' + OF_PID + '/voice')
+  OF_AUDIO.onended = () => document.getElementById('of-play').textContent = '▶ Phát'
+  ofCapPha()
+  ofVeAll()
+}
+
+async function ofPhanTich() {
+  if (!OF_PID) { alert('Chọn project trước'); return }
+  const avd = parseFloat(document.getElementById('of-avd').value || '0') * 60
+  try {
+    await api('/api/offline/' + OF_PID + '/phan-tich', {method: 'POST', body: JSON.stringify({
+      avd_s: avd || 0, kenh_ref: document.getElementById('of-framing').value,
+      uu_tien_nguon: document.getElementById('of-uutien').value})})
+    document.getElementById('of-pt-tt').textContent = 'đang phân tích nền...'
+    setTimeout(ofNap, 4000)
+  } catch (e) { alert('Lỗi: ' + e.message) }
+}
+
+function ofCapPha() {
+  document.getElementById('of-pha-nhan').textContent =
+    OF_PHA === 1 ? 'PHA 1 · Chốt khối' : (OF_HD.trang_thai === 'khoa' ? 'ĐÃ KHÓA SỔ' : 'PHA 2 · Đổ video')
+  document.getElementById('of-hd').style.display = OF_PHA === 1 ? 'grid' : 'none'
+  document.getElementById('of-khay').classList.toggle('on', OF_PHA === 2)
+  document.getElementById('of-nut-pha').textContent =
+    OF_PHA === 1 ? 'Duyệt khối → Đổ video' : '✔ Khóa sổ chương'
+}
+
+function ofLuu() {                       // debounce PUT — voice bất biến server gác
+  clearTimeout(OF_LUU_T)
+  OF_LUU_T = setTimeout(async () => {
+    try { await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)}) }
+    catch (e) { toastOf('Lưu lỗi: ' + e.message) }
+  }, 700)
+}
+function toastOf(m) {
+  const t = document.getElementById('of-stat')
+  t.textContent = m
+  clearTimeout(t._h); t._h = setTimeout(() => ofVeStat(), 2600)
+}
+
+/* ---------- timeline ---------- */
+const ofDoiTruoc = i => ofK().slice(0, i).reduce((a, k) => a + (k.tho_them || 0), 0)
+function ofVeTL() {
+  const dai = document.getElementById('of-dai')
+  ;[...dai.querySelectorAll('.of-khoi,.of-tho')].forEach(e => e.remove())
+  const ks = ofK()
+  const lap = ofKiemLap()
+  ks.forEach((k, i) => {
+    const u = ofUv(k)
+    const d = document.createElement('div')
+    let tong = ''
+    if (k.cau_id !== undefined) {
+      const cung = ks.filter(x => x.cau_id === k.cau_id)
+      if (cung.length > 1) tong = cung.indexOf(k) % 2 ? ' tongB' : ''
+    }
+    d.className = 'of-khoi' + tong + (i === OF_CHON ? ' chon' : '') + (lap.has(i) ? ' lap' : '')
+    d.style.left = ((k.v0 + ofDoiTruoc(i)) * OF_PXS) + 'px'
+    d.style.width = Math.max((k.v1 - k.v0) * OF_PXS - 2, 16) + 'px'
+    d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
+      <span class="i">${String(i + 1).padStart(2, '0')}${k.nguoi_sua ? ' ✎' : ''}</span>
+      <span class="d mono">${(k.v1 - k.v0).toFixed(1)}s</span>`
+    d.onclick = () => { OF_CHON = i; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + k.v0 + .02; ofVeAll() }
+    d.ondblclick = e => { e.preventDefault(); ofDoiHinh(i) }
+    dai.appendChild(d)
+    const nghi = (k.tho || 0) + (k.tho_them || 0)
+    if (nghi > 0.05) {
+      const b = document.createElement('div')
+      b.className = 'of-tho' + (i === OF_CHON ? ' chon' : '')
+      b.style.left = ((k.v1 + ofDoiTruoc(i)) * OF_PXS + 1) + 'px'
+      b.style.width = Math.max(nghi * OF_PXS - 3, 6) + 'px'
+      b.innerHTML = `<span class="nh">${nghi * OF_PXS > 30 ? nghi.toFixed(1) + 's' + (k.tho_them ? '✚' : '') : ''}</span>`
+      b.onclick = () => { OF_CHON = i; ofVeAll() }
+      dai.appendChild(b)
+    }
+  })
+  const tong = ks.length ? Math.max(...ks.map((k, i) => k.v1 + (k.tho || 0) + ofDoiTruoc(i) + (k.tho_them || 0))) : 0
+  const th = document.getElementById('of-thuoc'); th.innerHTML = ''
+  for (let x = 0; x <= tong; x += 5) {
+    const v = document.createElement('span')
+    v.className = 'mono'; v.style.left = (x * OF_PXS) + 'px'; v.textContent = ofFmt(x)
+    th.appendChild(v)
+  }
+  document.getElementById('of-dai').style.width = th.style.width = (tong * OF_PXS + 60) + 'px'
+}
+function ofKiemLap() {
+  const v = new Set(), ks = ofK()
+  ks.forEach((k, i) => {
+    const u = ofUv(k); if (!u) return
+    for (let j = 0; j < i; j++) {
+      const w = ofUv(ks[j])
+      if (w && w.id === u.id && (k.v0 - ks[j].v0) < 60) { v.add(i); v.add(j) }
+    }
+  })
+  return v
+}
+
+/* ---------- panel trái + khay ---------- */
+function ofVeLoi() {
+  const k = ofK()[OF_CHON] || {}
+  document.getElementById('of-cau').innerHTML = `${esc(k.loi || '—')}
+    <span style="float:right;display:flex;gap:6px;align-items:center;font-size:12px;color:#69aee0">
+      ◦ thở ${(k.tho || 0).toFixed(1)}s${k.tho_them ? ` <b style="color:var(--warn)">${k.tho_them > 0 ? '+' : ''}${k.tho_them}s</b>` : ''}
+      <button class="btn ghost small" onclick="ofTho(1)" title="chèn 1s im lặng thật">+1s</button>
+      ${((k.tho || 0) + (k.tho_them || 0)) > 0.2 ? '<button class="btn ghost small" onclick="ofTho(-1)" title="thu 1s im lặng (sàn 0.2s)">−1s</button>' : ''}
+    </span>`
+  document.getElementById('of-lop').innerHTML =
+    (k.truu_tuong ? '<span class="of-chip l3">câu trừu tượng</span>' : '')
+    + (k.L1 || []).map(x => `<span class="of-chip l1">◆ ${esc(x)}</span>`).join('')
+    + (k.L2 || []).map(x => `<span class="of-chip">${esc(x)}</span>`).join('')
+    + (k.L3 || []).map(x => `<span class="of-chip l3">${esc(x)}</span>`).join('')
+    + (k.neo ? '' : '<span class="of-chip l3">nơi khác — miễn neo</span>')
+    + (k.mood ? `<span class="of-chip l3">mood ${esc(k.mood)}</span>` : '')
+}
+function ofTho(delta) {
+  const k = ofK()[OF_CHON]; if (!k) return
+  const san = -(Math.max((k.tho || 0) - 0.2, 0))
+  k.tho_them = Math.round(Math.max(san, (k.tho_them || 0) + delta) * 10) / 10
+  k.nguoi_sua = true
+  toastOf(`Khối ${OF_CHON + 1}: thở ${(k.tho || 0).toFixed(1)}s ${k.tho_them >= 0 ? '+' : ''}${k.tho_them}s — voice bất biến`)
+  ofLuu(); ofVeAll()
+}
+let OF_TIM_Q = '', OF_TIM_T = 0, OF_TIM_KQ = null
+function ofTimDebounce() {
+  clearTimeout(OF_TIM_T)
+  OF_TIM_T = setTimeout(async () => {
+    OF_TIM_Q = document.getElementById('of-tim').value.trim()
+    OF_TIM_KQ = null
+    if (OF_TIM_Q) {
+      try {
+        const d = await api('/api/sotra?q=' + encodeURIComponent(OF_TIM_Q) + '&limit=40')
+        OF_TIM_KQ = (d.clips || []).map(c => ({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
+          lop: 'TIM', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo}))
+      } catch (e) { }
+    }
+    ofVeKhay()
+  }, 300)
+}
+function ofVeKhay() {
+  if (OF_PHA !== 2) return
+  const k = ofK()[OF_CHON] || {}
+  const ds = OF_TIM_KQ !== null ? OF_TIM_KQ : (k.uv || [])
+  document.getElementById('of-tim-nhan').textContent = OF_TIM_KQ !== null
+    ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của khối ${OF_CHON + 1}`
+  const nhom = {envato: [], ref: [], pexels: [], pixabay: []}
+  ds.forEach((u, j) => { (nhom[u.nguon] || nhom.pixabay).push([u, j]) })
+  for (const ng of ['envato', 'ref', 'pexels', 'pixabay']) {
+    const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
+    document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
+    if (!nhom[ng].length) { dai.innerHTML = '<span class="note" style="margin:0">—</span>'; continue }
+    for (const [u, j] of nhom[ng]) {
+      const lap = ofUvLap(u.id)
+      const d = document.createElement('div')
+      d.className = 'of-uv' + (OF_TIM_KQ === null && j === k.chon ? ' dang' : '')
+      d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
+        <video muted loop playsinline preload="none" src="${esc(ofVid(u))}"></video>
+        ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}</div>
+        <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
+      const v = d.querySelector('video')
+      d.onmouseenter = () => v && v.play().catch(() => {})
+      d.onmouseleave = () => v && v.pause()
+      d.onclick = () => {
+        if (OF_TIM_KQ !== null) {              // kết quả Library -> THÊM vào uv khối
+          k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
+          k.chon = 0
+        } else k.chon = j
+        k.nguoi_sua = true
+        toastOf(`Khối ${OF_CHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
+        OF_TIM_KQ = null; document.getElementById('of-tim').value = ''
+        ofLuu(); ofVeAll()
+      }
+      dai.appendChild(d)
+    }
+  }
+}
+function ofUvLap(uid) {
+  const ks = ofK(), k0 = ks[OF_CHON]
+  return ks.some((k, j) => { const w = ofUv(k)
+    return j !== OF_CHON && w && w.id === uid && Math.abs(k.v0 - k0.v0) < 60 })
+}
+function ofDoiHinh(i) {
+  const k = ofK()[i]; if (!k || !k.uv || k.uv.length < 2 || OF_PHA !== 2) return
+  let c = k.chon
+  for (let n = 1; n <= k.uv.length; n++) {
+    const t = (k.chon + n) % k.uv.length
+    if (!ofUvLap(k.uv[t].id)) { c = t; break }
+  }
+  k.chon = c; k.nguoi_sua = true; OF_CHON = i
+  toastOf(`Khối ${i + 1} → «${esc((k.uv[c].tieu_de || '').slice(0, 44))}»`)
+  ofLuu(); ofVeAll()
+}
+function ofPhuongAn() {
+  const ks = ofK(); if (!ks.length) return
+  let doi = 0
+  if (OF_PHA === 2) {
+    const dung = {}
+    ks.forEach(k => {
+      if (k.nguoi_sua || !k.uv || !k.uv.length) { const u = ofUv(k); if (u) dung[u.id] = k.v0; return }
+      const top = k.uv.slice(0, Math.min(6, k.uv.length))
+      let c = Math.floor(Math.random() * top.length)
+      for (let n = 0; n < top.length; n++) {
+        const j = (c + n) % top.length
+        const g = dung[top[j].id]
+        if (g === undefined || Math.abs(k.v0 - g) >= 60) { c = j; break }
+      }
+      k.chon = c; dung[top[c].id] = k.v0; doi++
+    })
+  } else toastOf('Pha 1: phương án ranh mềm sẽ có ở bản kế — hiện chỉnh tay chẻ/thở')
+  if (doi) { toastOf(`⟳ Phương án mới: ${doi} khối đổi — khối ✎ giữ nguyên`); ofLuu(); ofVeAll() }
+}
+
+/* ---------- pha + phát ---------- */
+async function ofDoiPha() {
+  if (OF_PHA === 1) {
+    OF_PHA = 2
+    OF_HD.trang_thai = 'pha2'
+    ofCapPha(); ofLuu(); ofVeAll()
+    toastOf('Khối ĐÃ KHÓA — máy đã chọn mặc định, sửa từng khối từ 4 khu')
+  } else {
+    try {
+      const r = await api('/api/offline/' + OF_PID + '/khoa-so', {method: 'POST', body: '{}'})
+      OF_HD.trang_thai = 'khoa'; ofCapPha()
+      toastOf('✔ ' + r.ghi_chu)
+    } catch (e) { alert('Lỗi: ' + e.message) }
+  }
+}
+function ofVeXem() {
+  const k = ofK()[OF_CHON] || {}, u = ofUv(k)
+  const co = OF_PHA === 2 && u
+  const anh = document.getElementById('of-anh'), vid = document.getElementById('of-video')
+  anh.hidden = true; vid.hidden = true; vid.pause()
+  document.getElementById('of-rong').style.display = co ? 'none' : 'grid'
+  document.getElementById('of-nhan').hidden = !co
+  if (co) {
+    const vs = ofVid(u)
+    if (vs) { vid.src = vs; vid.hidden = false; vid.play().catch(() => {}) }
+    else { anh.src = ofAnh(u); anh.hidden = false }
+    document.getElementById('of-nhan').innerHTML =
+      `<b>Khối ${String(OF_CHON + 1).padStart(2, '0')}</b> · ${esc((u.tieu_de || '').slice(0, 42))}`
+  } else if (OF_PHA === 2) {
+    document.getElementById('of-rong').innerHTML = 'Khối ' + (OF_CHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
+  }
+}
+function ofVeStat() {
+  const ks = ofK(), lap = ofKiemLap().size
+  const co = ks.filter(k => ofUv(k)).length
+  document.getElementById('of-stat').textContent = OF_PHA === 1
+    ? `${ks.length} khối theo hơi thở · ${ks.filter(k => (k.tho || 0) >= 0.5).length} khoảng thở`
+    : `hình ${co}/${ks.length} · lặp<60s ${lap}`
+  document.getElementById('of-cc').textContent = OF_PHA === 1
+    ? 'PHA 1 — nghe voice kiểm ranh; khối trắng = hình thở; +1s/−1s là ÂM THANH thật (voice bất biến).'
+    : 'PHA 2 — khối đã khóa ranh. Click khối → 4 khu ứng viên; double-click = hình kế; search nối Library.'
+}
+function ofVeAll() { ofVeTL(); ofVeLoi(); ofVeKhay(); ofVeStat(); ofVeXem() }
+function ofPlay() {
+  if (!OF_AUDIO) return
+  if (OF_AUDIO.paused) {
+    OF_AUDIO.play(); document.getElementById('of-play').textContent = '❚❚ Dừng'
+    ;(function vong() {
+      if (!OF_AUDIO || OF_AUDIO.paused) return
+      const t = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
+      document.getElementById('of-tc').textContent = ofFmt(t)
+      let i = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
+      document.getElementById('of-ph').style.left = ((t + ofDoiTruoc(i)) * OF_PXS) + 'px'
+      if (i !== OF_CHON) { OF_CHON = i; ofVeLoi(); ofVeKhay(); ofVeXem()
+        document.querySelectorAll('.of-khoi').forEach((el, j) => el.classList.toggle('chon', j === i)) }
+      requestAnimationFrame(vong)
+    })()
+  } else { OF_AUDIO.pause(); document.getElementById('of-play').textContent = '▶ Phát' }
 }
 
 /* ── SỔ TRA: trang stock nội bộ — 1 ô tìm, 4 nguồn, hover-play ── */

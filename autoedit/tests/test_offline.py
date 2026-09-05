@@ -180,3 +180,22 @@ def test_api_offline_luu_voice_bat_bien(du_an, tmp_path, monkeypatch):
     assert tc.put(f"/api/offline/{du_an.name}", json=hd).status_code == 200
     hd["khoi"][0]["v1"] = hd["khoi"][0]["v1"] + 3.0   # đổi phần NÓI: cấm
     assert tc.put(f"/api/offline/{du_an.name}", json=hd).status_code == 422
+
+
+def test_api_voice_va_khoa_so(du_an, tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.offline import runner
+    from autoedit.web import server
+
+    runner.phan_tich(du_an, llm=_LLM())
+    monkeypatch.setattr(server, "PROJECTS_DIR", du_an.parent)
+    tc = TestClient(server.app)
+    v = tc.get(f"/api/offline/{du_an.name}/voice")
+    assert v.status_code == 200 and v.headers["content-type"].startswith("audio/wav")
+    r = tc.post(f"/api/offline/{du_an.name}/khoa-so")
+    assert r.status_code == 200
+    assert runner.doc(du_an)["trang_thai"] == "khoa"
