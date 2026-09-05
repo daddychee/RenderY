@@ -68,20 +68,24 @@ def test_doi_chieu_bat_dung_ca_li095():
     dong = doi_chieu_hs(_project(), {"so_shot": 306, "trung_vi": 6.26,
                                      "ty_le_nhanh": 0.01, "ty_le_hold": 0.65})
     assert "LỆCH TO" in dong
-    assert "+526%" in dong or "526" in dong
+    # 06/09 niche không còn đổi nhịp: đích hook = mặc định 1.2s -> +422% (vẫn réo to)
+    assert "+422%" in dong or "422" in dong
 
 
 def test_doi_chieu_chuong_than_dung_dich_than():
     dong = doi_chieu_hs(_project(title="C3"), {"so_shot": 50, "trung_vi": 3.4,
                                                "ty_le_nhanh": 0.3, "ty_le_hold": 0.3})
     assert "[than]" in dong
-    assert "3.5s" in dong                  # đích thân life-in
+    assert "3.0s" in dong                  # đích thân MẶC ĐỊNH (06/09: niche không đổi nhịp)
 
 
 # ------------------------------------------------------------ nap_hieu_luc
-def test_hieu_luc_khong_kenh_khong_retention_ra_niche():
+def test_hieu_luc_niche_khong_anh_huong_nhip():
+    """User chốt 06/09: chọn kênh/niche KHÔNG được đổi logic dựng — nền luôn là
+    hồ sơ trung tính, kể cả khi channel='life-in' (preset life-in từng đè 3.5s)."""
     hs, logs = nap_hieu_luc(_project())
-    assert hs.ten == "life-in"
+    assert hs.ten == "_mac_dinh"
+    assert hs.than_trung_vi == 3.0
     assert logs == []                      # không tầng nào áp -> im lặng
 
 
@@ -102,5 +106,5 @@ def test_hieu_luc_kenh_chua_do_bao_ro():
     p = _project()
     p.inputs.kenh_ref = "https://www.youtube.com/@kenh-chua-do-bao-gio"
     hs, logs = nap_hieu_luc(p)
-    assert hs.ten == "life-in"             # rơi về niche
+    assert hs.ten == "_mac_dinh"           # rơi về mặc định (06/09: hết tầng niche)
     assert any("chưa có hồ sơ" in x for x in logs)

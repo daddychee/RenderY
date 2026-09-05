@@ -827,8 +827,8 @@ def _add_music_by_chapter(script, project, record, project_dir: Path, music_lib:
     # dính đầu span nên bị luật biên lọc) — fail-open, thiếu hồ sơ/index thì giữ
     # spans cũ, KHÔNG hỏng nhạc.
     try:
-        from autoedit.nhip.profile import nap as _nhip_nap
-        hs = _nhip_nap(project.niche or "")
+        from autoedit.nhip.hieu_luc import nap_hieu_luc as _nap_hl
+        hs = _nap_hl(project)[0]   # 06/09: niche không đổi nhịp — 1 nguồn sự thật
         idx_by_file = {row["file"]: row for row in index}
         spans, bung_log = bung_music_spans(spans, project.beats, hs,
                                            getattr(project, "title", ""), idx_by_file)
@@ -1269,9 +1269,9 @@ def _add_hook_sfx(script, project, record, cuts, accents=None,
     vung: list[tuple[float, float]] = []
     try:
         from autoedit.nhip.ep import vung_nhan as _vung_nhan
-        from autoedit.nhip.profile import nap as _nhip_nap
+        from autoedit.nhip.hieu_luc import nap_hieu_luc as _nap_hl
 
-        vung = _vung_nhan(project.beats, _nhip_nap(project.niche or ""),
+        vung = _vung_nhan(project.beats, _nap_hl(project)[0],   # 06/09: bỏ nap(niche)
                           title=getattr(project, "title", ""))
     except Exception as exc:  # noqa: BLE001
         record.warnings.append(f"S3 nhấn: nhịp lỗi ({exc}) — dùng mốc chương cũ")

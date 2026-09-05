@@ -9,14 +9,16 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600&display=swap">
 <style>
 /* ═══ token theo RADARY (chuẩn sống CRM OUTLIERY) — mockup duyệt 04/09 ở
-   static/mockup_de_xuat.html (mở /mockup): UI này phải khớp mockup từng khối ═══ */
+   static/mockup_de_xuat.html (mở /mockup): UI này phải khớp mockup từng khối.
+   Riêng tab Processing theo mockup duyệt 05/09 ở static/mockup_processing.html
+   (mở /mockup-processing): lưới 2 cột trái=đang chạy phải=chờ, lịch sử gộp ngày ═══ */
 :root{
   color-scheme:light;
   --bg:#f5f5f5; --panel:#fff; --line:#e6e6e6; --text:#16181c; --muted:#6c6c72;
   --accent:#2c6fc4; --accent-soft:#e8f0fb;
   --good:#16a34a; --good-soft:rgba(22,163,74,.10);
   --warn:#d97706; --warn-soft:rgba(217,119,6,.10);
-  --bad:#dc2626;
+  --bad:#dc2626; --bad-soft:rgba(220,38,38,.08);
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
@@ -24,7 +26,7 @@
   --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
   --good:#3fae63; --good-soft:rgba(63,174,99,.14);
   --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
-  --bad:#ef4444;
+  --bad:#ef4444; --bad-soft:rgba(239,68,68,.12);
 }
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--text);
@@ -79,7 +81,8 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
 .tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px}
 .tag.cho{background:var(--warn-soft);color:var(--warn)}
 .tag.ok{background:var(--good-soft);color:var(--good)}
-.tag.loi{background:none;border:1px solid var(--bad);color:var(--bad)}
+.tag.loi{background:var(--bad-soft);color:var(--bad)}
+.tag.im{background:none;border:1px solid var(--line);color:var(--muted)}
 .tien{color:var(--warn);font-variant-numeric:tabular-nums;white-space:nowrap}
 .td6{display:inline-flex;gap:3px;vertical-align:middle}
 .td6 i{width:14px;height:5px;border-radius:3px;background:var(--line)}
@@ -89,11 +92,67 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
 .td6 i.loi{background:var(--bad)}
 @keyframes tho{50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){.td6 i.run{animation:none}}
-.viec{display:flex;align-items:center;gap:10px;padding:9px 2px;
-  border-bottom:1px solid var(--line);cursor:pointer;flex-wrap:wrap}
-.viec:last-child{border-bottom:0}
+/* ── Processing (mockup 05/09): tiêu đề khối + lưới 2 cột ── */
+h2.khoi{display:flex;align-items:center;gap:10px;font-size:12px;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:700}
+h2.khoi::after{content:"";flex:1;height:1px;background:var(--line)}
+h2.khoi .dem{background:var(--accent-soft);color:var(--accent);
+  border-radius:99px;padding:0 8px;font-size:11px}
+.luoi{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:0 16px;align-items:start}
+.luoi>.trai,.luoi>.phai{min-width:0}
+@media (max-width:920px){.luoi{grid-template-columns:1fr}}
+/* việc chờ tay (cột phải — danh sách dọc) */
+.viec{display:block;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.viec:last-child{border-bottom:0;padding-bottom:2px}
 .viec:hover b{color:var(--accent)}
-.viec .gia{margin-left:auto}
+.viec .d1{display:flex;gap:8px;align-items:center;margin-bottom:3px}
+.viec .d1 .tien{margin-left:auto;font-size:12.5px}
+.viec p{color:var(--muted);font-size:12.5px;line-height:1.45}
+/* hàng chờ (cột phải) */
+.hc{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line)}
+.hc:last-child{border-bottom:0;padding-bottom:2px}
+.hc .stt{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;width:14px}
+.hc .ten b{font-size:13.5px}
+.hc .ten span{display:block;color:var(--muted);font-size:11.5px}
+.hc .sau{margin-left:auto;text-align:right;font-size:12.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.hc .sau a{display:block;font-size:11.5px;color:var(--muted)}
+/* thẻ đang chạy */
+.dc-dau{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.dc-dau h3{font-size:15px}
+.dc-dau .who{color:var(--muted);font-size:12.5px}
+.dc-dau .eta{margin-left:auto;font-size:13px;color:var(--accent);font-weight:600;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.pbar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:10px}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.dc-chan{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px}
+/* lịch sử gộp theo ngày */
+details.ngay{border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  margin-bottom:10px;overflow:hidden}
+details.ngay>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;
+  gap:10px;padding:10px 16px;font-weight:600;font-size:14px}
+details.ngay>summary::-webkit-details-marker{display:none}
+details.ngay>summary .mui{color:var(--muted);font-weight:400;font-size:12.5px}
+details.ngay>summary .tong{margin-left:auto;color:var(--muted);font-weight:400;
+  font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+details.ngay>summary::before{content:"▸";color:var(--muted);font-size:12px;
+  transition:transform .15s}
+details.ngay[open]>summary::before{transform:rotate(90deg)}
+details.ngay[open]>summary{border-bottom:1px solid var(--line)}
+.ls-body{padding:2px 16px 10px}
+tr.ls:hover td{background:var(--accent-soft);cursor:pointer}
+tr.ls td:first-child{font-weight:600}
+tr.ls-mo>td{background:var(--bg);padding:12px 14px}
+.ls-chitiet{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13px}
+.ls-chitiet>span:nth-child(odd){color:var(--muted)}
+.ls-chitiet .baocao{display:flex;gap:6px;flex-wrap:wrap}
+.ls-chitiet .baocao a{border:1px solid var(--line);border-radius:6px;padding:2px 9px;
+  font-size:12.5px;background:var(--panel)}
+.ls-chitiet .baocao a:hover{border-color:var(--accent);text-decoration:none}
+.nas{display:flex;gap:8px}
+.nas input{flex:1;min-width:0;background:var(--panel);color:var(--text);
+  border:1px solid var(--line);border-radius:8px;padding:5px 9px;
+  font:12px ui-monospace,Consolas,monospace}
 .insight{border-left:3px solid var(--accent);background:var(--accent-soft);
   border-radius:0 7px 7px 0;padding:8px 11px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
 .insight b{color:var(--text)}
@@ -184,15 +243,22 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
 
   <div class="pane show" id="pane-proc">
     <div class="chips" id="chips"></div>
-    <div class="panel" id="p-canxuly" hidden>
-      <h2>Cần bạn xử lý <small>mọi việc chờ tay người gom về đây</small></h2>
-      <div id="ds-canxuly"></div>
+    <div class="luoi">
+      <div class="trai">
+        <h2 class="khoi">Đang chạy <span class="dem" id="dem-chay">…</span></h2>
+        <div id="ds-tap"><div class="note">Đang tải…</div></div>
+      </div>
+      <div class="phai">
+        <div id="khu-canxuly" hidden>
+          <h2 class="khoi">Cần bạn xử lý <span class="dem" id="dem-canxuly"></span></h2>
+          <div class="panel" id="ds-canxuly"></div>
+        </div>
+        <h2 class="khoi">Hàng chờ <span class="dem" id="dem-hangcho">…</span></h2>
+        <div class="panel" id="ds-hangcho"><div class="note">Đang tải…</div></div>
+      </div>
     </div>
-    <div id="ds-tap"><div class="note">Đang tải…</div></div>
-    <div class="panel" id="p-dagiao" hidden>
-      <h2>Đã giao gần đây</h2>
-      <div class="tablewrap"><table id="bang-dagiao"></table></div>
-    </div>
+    <h2 class="khoi">Lịch sử</h2>
+    <div id="ds-lichsu"><div class="note">Đang tải…</div></div>
   </div>
 
   <!-- + New Sequence -->
@@ -214,6 +280,8 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
           <input type="text" id="ns-niche" list="ds-niche" placeholder="vd: life-in"
                  style="max-width:240px" oninput="canhBaoNiche()">
           <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist>
+          <div class="note">Niche chỉ trỏ KHO: thư viện footage local + bộ SFX/tiếng nền.
+            KHÔNG ảnh hưởng nhịp/logic dựng — nhịp do «Phong cách tham chiếu» quyết.</div>
           <div class="note" id="ns-niche-canh-bao" style="color:var(--bad)" hidden>
             ⚠ Bỏ trống niche: SFX + tiếng nền sẽ TẮT HẲN (kho tiếng tra theo niche) và
             nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
@@ -243,11 +311,11 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
       <div class="formrow"><label>Phong cách tham chiếu</label>
         <div>
           <select id="ns-kenh-ref" style="max-width:280px">
-            <option value="">— không dùng (hồ sơ niche) —</option>
+            <option value="">— mặc định (nhịp trung tính) —</option>
           </select>
           <div class="note">Chọn kênh mẫu ĐÃ nghiên cứu cho video này — mỗi video một
             lựa chọn, không có mặc định. Kênh chưa có?
-            <a onclick="doiTrang('kenh')">Sang tab Phong cách</a> (manager trích xuất).</div>
+            <a onclick="doiTrang('kenh')">Sang tab Framing Insight</a> (manager trích xuất).</div>
         </div></div>
       <div class="formrow"><label>Retention tập trước</label>
         <div>
@@ -320,7 +388,8 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
         <button class="btn" id="kenh-nut" onclick="themKenh()">▶ Trích xuất</button>
       </div>
       <div class="note" id="kenh-msg">Tool tải bản 360p, đo nhịp cắt + nhạc + tỷ trọng
-        loại cảnh rồi xoá video — chỉ giữ hồ sơ số. Đo một lần, cả team dùng mãi.</div>
+        loại cảnh; video giữ trong kho nên đo lại sau chỉ phân tích, không tải lại.
+        Đo một lần, cả team dùng mãi.</div>
       <details style="margin-top:8px">
         <summary style="cursor:pointer;color:var(--muted);font-size:12.5px">Dựng tham chiếu hoạt động thế nào?</summary>
         <div class="note" style="line-height:1.7">
@@ -403,6 +472,9 @@ function soi(src) {
 
 /* ══════════ Processing ══════════ */
 let JOBS = []
+let STATS = {}                      // đếm queued/running/workers từ /api/jobs
+const LS_MO = {}                    // job id -> dòng lịch sử đang mở (giữ qua poll)
+const KQ = {}                       // job id -> kết quả NAS đã tải (cache)
 const PHIEN = {}                    // pid -> phiên aigen (cache theo vòng poll)
 const NHAN_AI = {cho_gen_anh: 'cảnh chờ bạn quyết', dang_gen_anh: 'đang gen ảnh…',
   cho_duyet: 'ảnh chờ duyệt', da_chot: 'đang gen video…', da_gen_video: 'cảnh AI xong'}
@@ -425,6 +497,7 @@ async function loadJobs() {
     return
   }
   JOBS = d.jobs || []
+  STATS = d.stats || {}
   const can = []
   for (const j of JOBS) for (const c of (j.chuongs || []))
     if (c.aigen_tt && c.aigen_tt !== 'da_gen_video') can.push(c.project_id)
@@ -436,50 +509,66 @@ async function loadJobs() {
   veSelectPhien()
 }
 
-const tenTap = j => (j.job_folder || '').replace(/[\\/]+$/, '')
-  .split(/[\\/]/).pop() || ('job ' + j.id)
+const tenTap = j => {          // quy ước OUTLIERY: <tập>/RenderY — tên tập là folder CHA
+  const p = (j.job_folder || '').replace(/[\\/]+$/, '').split(/[\\/]/)
+  if (p.length > 1 && /^rendery$/i.test(p[p.length - 1])) p.pop()
+  return p.pop() || ('job ' + j.id)
+}
 
 function veProcessing() {
-  const dang = JOBS.filter(j => ['queued', 'running'].includes(j.status))
+  const dang = JOBS.filter(j => j.status === 'running')
+  const cho = JOBS.filter(j => j.status === 'queued')
+  const pendingAi = j => (j.chuongs || []).some(c => c.aigen_tt && c.aigen_tt !== 'da_gen_video')
+  const the = JOBS.filter(j => j.status === 'running' || (j.status === 'done' && pendingAi(j)))
+  const xong = JOBS.filter(j => ['done', 'failed', 'canceled'].includes(j.status)
+    && !the.includes(j))
+
   const choXuLy = []
-  let daTieu = 0, choChot = 0
   for (const j of JOBS) for (const c of (j.chuongs || [])) {
-    const p = PHIEN[c.project_id], [da, se] = tienPhien(p)
-    daTieu += da
-    if (c.aigen_tt === 'cho_duyet') choChot += se
+    const p = PHIEN[c.project_id], [, se] = tienPhien(p)
     if (['cho_gen_anh', 'cho_duyet'].includes(c.aigen_tt)) choXuLy.push({j, c, p, se})
   }
-  document.getElementById('chips').innerHTML = `
-    <div class="chip"><b>${dang.length}</b><span>tập đang dựng / xếp hàng</span></div>
-    <div class="chip"><b class="${choXuLy.length ? 'w' : ''}">${choXuLy.length}</b><span>việc chờ bạn xử lý</span></div>
-    <div class="chip"><b class="mono">$${daTieu.toFixed(2)}</b><span>AI đã tiêu (các job đang hiện)</span></div>
-    <div class="chip"><b class="mono w">$${choChot.toFixed(2)}</b><span>chờ bạn chốt</span></div>`
+  const homNay = ngayKey(new Date().toISOString())
+  let daTieuHomNay = 0
+  for (const j of JOBS)
+    if (ngayKey(j.finished_at || j.started_at || j.created_at) === homNay)
+      daTieuHomNay += chiPhiJob(j) || 0
 
-  document.getElementById('p-canxuly').hidden = !choXuLy.length
+  document.getElementById('chips').innerHTML = `
+    <div class="chip"><b>${STATS.running || 0}/${STATS.workers || 1}</b><span>máy đang dựng</span></div>
+    <div class="chip"><b>${cho.length}</b><span>tập xếp hàng</span></div>
+    <div class="chip"><b class="${choXuLy.length ? 'w' : ''}">${choXuLy.length}</b><span>việc chờ bạn xử lý</span></div>
+    <div class="chip"><b class="mono">$${daTieuHomNay.toFixed(2)}</b><span>AI đã tiêu hôm nay</span></div>`
+
+  // cột phải: cần bạn xử lý
+  document.getElementById('khu-canxuly').hidden = !choXuLy.length
+  document.getElementById('dem-canxuly').textContent = choXuLy.length
   document.getElementById('ds-canxuly').innerHTML = choXuLy.map(({j, c, p, se}) => {
     const la1 = c.aigen_tt === 'cho_gen_anh'
     const n = p ? p.motif.length : '?'
     return `<div class="viec" onclick="moPhien('${esc(c.project_id)}')">
-      <span class="tag cho">${la1 ? 'chọn cảnh' : 'duyệt ảnh'}</span>
-      <span><b>${esc(tenTap(j))} · ${esc(c.ten)}</b> — ${la1
-        ? `${n} cảnh trắng footage: gen ảnh AI / tự đưa ảnh ref / bỏ`
-        : 'ảnh phương án đã về, chọn 1 ảnh/cảnh rồi chốt'}</span>
-      <span class="gia tien mono">${se > 0 ? `${la1 ? 'tối đa' : 'chốt tiêu'} $${se.toFixed(2)} ` : ''}→</span></div>`
+      <div class="d1"><span class="tag cho">${la1 ? 'chọn cảnh' : 'duyệt ảnh'}</span>
+        <b>${esc(tenTap(j))} · ${esc(c.ten)}</b>
+        <span class="tien mono">${se > 0 ? `$${se.toFixed(2)} ` : ''}→</span></div>
+      <p>${la1 ? `${n} cảnh trắng footage — gen ảnh AI / ảnh tự đưa / bỏ.`
+        : 'Ảnh phương án đã về — chọn 1 ảnh/cảnh rồi chốt để gen video.'}</p></div>`
   }).join('')
 
-  const hien = JOBS.filter(j => j.status !== 'done'
-    || (j.chuongs || []).some(c => c.aigen_tt && c.aigen_tt !== 'da_gen_video'))
-  document.getElementById('ds-tap').innerHTML = hien.length ? hien.map(veTap).join('')
-    : '<div class="panel note" style="margin-top:0">Chưa có tập nào đang dựng — nộp ở tab «+ New Sequence».</div>'
+  // cột phải: hàng chờ
+  document.getElementById('dem-hangcho').textContent = cho.length + ' tập'
+  document.getElementById('ds-hangcho').innerHTML = cho.length ? cho.map((j, i) =>
+    `<div class="hc"><span class="stt">${i + 1}</span>
+      <span class="ten"><b>${esc(tenTap(j))}</b><span>${esc(j.nguoi || '—')} · nộp ${gio(j.created_at)}</span></span>
+      <span class="sau">${j.wait_ahead ? '~' + etaDoc(j.wait_ahead) : 'sắp chạy'}
+        <a onclick="huyJob(${j.id})">huỷ</a></span></div>`).join('')
+    : '<div class="note">Hàng chờ trống.</div>'
 
-  const xong = JOBS.filter(j => j.status === 'done' && !hien.includes(j)).slice(0, 6)
-  document.getElementById('p-dagiao').hidden = !xong.length
-  document.getElementById('bang-dagiao').innerHTML =
-    '<tr><th>Sequence</th><th class="num">Chương</th><th class="num">Thao tác</th></tr>'
-    + xong.map(j => `<tr><td>${esc(tenTap(j))}</td>
-      <td class="num">${(j.chuongs || []).length || '—'}</td>
-      <td class="num"><a onclick="xemKetQua(${j.id})">kết quả</a> ·
-        <a onclick="xemLog(${j.id})">log</a></td></tr>`).join('')
+  // cột trái: đang chạy
+  document.getElementById('dem-chay').textContent = the.length + ' tập'
+  document.getElementById('ds-tap').innerHTML = the.length ? the.map(veTap).join('')
+    : '<div class="panel note" style="margin:0 0 14px">Máy đang rảnh — nộp tập ở «+ New Sequence».</div>'
+
+  veLichSu(xong)
 }
 
 function veTap(j) {
@@ -513,19 +602,27 @@ function veTap(j) {
       <td><span class="td6">${c.dot.map(x => `<i class="${x === 'im' ? '' : x}"></i>`).join('')}</span></td>
       <td>${tt}</td><td class="num">${act}</td></tr>`
   }).join('')
-  const choDoi = j.status === 'queued'
-    ? `<div class="note">Xếp hàng${j.wait_ahead ? ` — bắt đầu sau ~${Math.round(j.wait_ahead / 60)} phút` : '…'}</div>` : ''
-  const huy = ['queued', 'running'].includes(j.status)
-    ? ` · <a onclick="huyJob(${j.id})" style="color:var(--muted)">huỷ</a>` : ''
+  const run = j.status === 'running'
+  const pct = Math.round((j.progress || 0) * 100)
+  const cp = chiPhiJob(j)
   return `<div class="panel">
-    <h2>${esc(tenTap(j))} <small>${esc(j.job_folder || '')} · ${esc(j.nguoi || '')}</small></h2>
+    <div class="dc-dau">
+      <h3><span class="hb ${run ? 'run' : 'cho'}"></span>${esc(tenTap(j))}</h3>
+      <span class="who">${esc(j.nguoi || '—')} · ${run ? 'bắt đầu ' + gio(j.started_at) : 'draft đã ra'}</span>
+      <span class="eta">${run ? pct + '%' + (j.eta != null ? ' · còn ~' + etaDoc(j.eta) : '')
+        : 'chờ bạn duyệt AI'}</span>
+    </div>
+    ${run ? `<div class="pbar"><i style="width:${pct}%"></i></div>` : ''}
     ${j.retention ? `<div class="insight"><b>Retention tập trước:</b> ${esc(j.retention)}</div>` : ''}
     ${rows ? `<div class="tablewrap"><table>
       <tr><th>Chương</th><th>Tiến độ</th><th>Trạng thái</th><th class="num">Thao tác</th></tr>
-      ${rows}</table></div>` : choDoi || '<div class="note">chưa có chương nào bắt đầu</div>'}
-    <div class="note">Tiến độ 6 đốt: voice → beat → cắt → nguồn → AI → ráp ·
-      vàng = chờ người · xanh = máy chạy · <a onclick="xemLog(${j.id})">log</a>
-      · <a onclick="xemKetQua(${j.id})">kết quả</a>${huy}</div></div>`
+      ${rows}</table></div>` : '<div class="note">chưa có chương nào bắt đầu</div>'}
+    <div class="dc-chan">
+      <span class="note">AI đã tiêu <span class="mono">${cp == null ? '$0.00' : '$' + cp.toFixed(2)}</span></span>
+      <span class="note">voice → beat → cắt → nguồn → AI → ráp · vàng = chờ người · xanh = máy chạy</span>
+      <span class="note" style="margin-left:auto"><a onclick="xemLog(${j.id})">log</a>${run
+        ? ` · <a onclick="huyJob(${j.id})" style="color:var(--muted)">huỷ</a>` : ''}</span>
+    </div></div>`
 }
 
 async function huyJob(id) {
@@ -539,18 +636,124 @@ async function xemLog(id) {
     modal('Log job ' + id, `<pre>${esc(t)}</pre>`)
   } catch (e) { alert('Lỗi: ' + e.message) }
 }
-async function xemKetQua(id) {
-  try {
-    const d = await api(`/api/ketqua/${id}`)
-    if (!d.san_sang) { modal('Kết quả', `<div class="note">${esc(d.loi)}</div>`); return }
-    modal('Kết quả trên NAS', `
-      <div style="display:flex;gap:8px"><input type="text" class="mono" readonly
-        value="${esc(d.duong_dan)}" style="flex:1" onclick="this.select()">
-        <button class="btn small ghost" onclick="const i=this.parentNode.querySelector('input');i.select();document.execCommand('copy');this.textContent='Đã copy'">Copy</button></div>
-      <div class="note">${(d.chuong || []).map(c =>
-        `${esc(c.ten)}: ${c.co_draft ? 'draft ✓' : 'chưa draft'} · ${c.footage} footage`).join('<br>')}</div>
-      ${d.doc_truoc ? `<pre style="margin-top:10px">${esc(d.doc_truoc)}</pre>` : ''}`)
-  } catch (e) { alert('Lỗi: ' + e.message) }
+/* ── giờ giấc + tiền: mọi mốc hiển thị theo giờ máy người xem ── */
+const gio = iso => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return isNaN(d) ? '—' : String(d.getHours()).padStart(2, '0') + ':'
+    + String(d.getMinutes()).padStart(2, '0')
+}
+const ngayKey = iso => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0')
+}
+const THU = ['Chủ nhật', 'thứ Hai', 'thứ Ba', 'thứ Tư', 'thứ Năm', 'thứ Sáu', 'thứ Bảy']
+function nhanNgay(k) {
+  if (!k || k === 'khac') return 'Không rõ ngày'
+  const nhan = THU[new Date(k + 'T12:00:00').getDay()] + ' ' + k.slice(8, 10) + '/' + k.slice(5, 7)
+  if (k === ngayKey(new Date().toISOString())) return `Hôm nay <span class="mui">${nhan}</span>`
+  if (k === ngayKey(new Date(Date.now() - 864e5).toISOString())) return `Hôm qua <span class="mui">${nhan}</span>`
+  return nhan
+}
+function etaDoc(s) {                // giây -> "34 phút" | "1 giờ 20"
+  const m = Math.max(1, Math.round(s / 60))
+  return m < 60 ? m + ' phút' : Math.floor(m / 60) + ' giờ ' + String(m % 60).padStart(2, '0')
+}
+function docKhoang(a, b) {          // 2 mốc ISO -> "42 phút" | "1g35"
+  if (!a || !b) return '—'
+  const m = Math.round((new Date(b) - new Date(a)) / 60000)
+  if (!(m >= 0)) return '—'
+  return m < 60 ? m + ' phút' : Math.floor(m / 60) + 'g' + String(m % 60).padStart(2, '0')
+}
+function chiPhiJob(j) {             // server tính (chi_phi); thiếu thì gom từ phiên đã tải
+  if (typeof j.chi_phi === 'number') return j.chi_phi
+  let s = 0, co = false
+  for (const c of (j.chuongs || []))
+    if (PHIEN[c.project_id]) { co = true; s += tienPhien(PHIEN[c.project_id])[0] }
+  return co ? s : null
+}
+
+/* ── LỊCH SỬ: gộp theo ngày, chỉ nhóm mới nhất mở sẵn; nhớ nhóm/dòng đang mở qua poll ── */
+function veLichSu(xong) {
+  const el = document.getElementById('ds-lichsu')
+  const daVe = el.dataset.ve === '1'
+  const moCu = new Set([...el.querySelectorAll('details.ngay[open]')].map(d => d.dataset.ngay))
+  el.dataset.ve = '1'
+  if (!xong.length) {
+    el.innerHTML = '<div class="note">Chưa có lần dựng nào xong.</div>'
+    return
+  }
+  const nhom = new Map()
+  for (const j of xong) {
+    const k = ngayKey(j.finished_at || j.created_at) || 'khac'
+    if (!nhom.has(k)) nhom.set(k, [])
+    nhom.get(k).push(j)
+  }
+  const keys = [...nhom.keys()].sort().reverse()
+  el.innerHTML = keys.map((k, i) => {
+    const ds = nhom.get(k)
+    const tien = ds.reduce((s, j) => s + (chiPhiJob(j) || 0), 0)
+    return `<details class="ngay" data-ngay="${k}" ${(daVe ? moCu.has(k) : i === 0) ? 'open' : ''}>
+      <summary>${nhanNgay(k)}<span class="tong">${ds.length} tập · $${tien.toFixed(2)} AI</span></summary>
+      <div class="ls-body"><div class="tablewrap"><table>
+        <tr><th class="num">Xong lúc</th><th>Sequence</th><th>Người</th><th class="num">Chương</th>
+          <th class="num">Dựng mất</th><th class="num">Chi phí AI</th><th></th></tr>
+        ${ds.map(veDongLS).join('')}</table></div></div></details>`
+  }).join('') + '<div class="note" style="margin-top:4px">Hiện 50 lần dựng gần nhất.</div>'
+}
+
+function veDongLS(j) {
+  const cp = chiPhiJob(j)
+  const tag = j.status === 'done' ? '<span class="tag ok">done</span>'
+    : j.status === 'failed' ? '<span class="tag loi">failed</span>'
+    : '<span class="tag im">huỷ</span>'
+  return `<tr class="ls" onclick="moDongLS(${j.id})"><td class="num mono">${gio(j.finished_at)}</td>
+    <td>${esc(tenTap(j))}</td><td>${esc(j.nguoi || '—')}</td>
+    <td class="num">${(j.chuongs || []).length || '—'}</td>
+    <td class="num mono">${docKhoang(j.started_at, j.finished_at)}</td>
+    <td class="num mono">${cp == null ? '—' : '$' + cp.toFixed(2)}</td><td>${tag}</td></tr>
+    <tr class="ls-mo" id="lsmo-${j.id}" ${LS_MO[j.id] ? '' : 'hidden'}>
+      <td colspan="7">${veChiTietLS(j)}</td></tr>`
+}
+
+function veChiTietLS(j) {
+  const cp = chiPhiJob(j)
+  const bc = (j.chuongs || []).filter(c => c.report_ok)
+  return `<div class="ls-chitiet">
+    <span>Thời gian</span><span>nộp ${gio(j.created_at)} → ${j.status === 'done' ? 'xong' : 'dừng'}
+      ${gio(j.finished_at)}${j.started_at && j.finished_at
+        ? ` (dựng ${docKhoang(j.started_at, j.finished_at)})` : ''}</span>
+    ${j.error ? `<span>Lỗi</span><span style="color:var(--bad)">${esc(j.error)}</span>` : ''}
+    <span>Chi phí AI</span><span class="mono">${cp == null ? '—'
+      : '$' + cp.toFixed(2) + (cp === 0 ? ' — không dùng AI' : '')}</span>
+    <span>Báo cáo chương</span><span class="baocao">${bc.length
+      ? bc.map(c => `<a href="/api/report/${encodeURIComponent(c.project_id)}${TOKEN ? '?token=' + TOKEN : ''}"
+          target="_blank">${esc(c.ten)} — report</a>`).join('')
+      : '<span class="note">chưa có report</span>'}</span>
+    <span>Kết quả NAS</span><span class="nas ls-nas">${KQ[j.id] ? veNas(KQ[j.id])
+      : '<span class="note">đang lấy đường dẫn…</span>'}</span>
+    <span>Khác</span><span><a onclick="xemLog(${j.id})">log đầy đủ</a></span>
+  </div>`
+}
+
+function veNas(d) {
+  if (!d || !d.san_sang) return `<span class="note">${esc((d && d.loi) || 'chưa có kết quả')}</span>`
+  return `<input class="mono" readonly value="${esc(d.duong_dan)}" onclick="this.select()">
+    <button class="btn small ghost" onclick="const i=this.parentNode.querySelector('input');i.select();document.execCommand('copy');this.textContent='Đã copy'">Copy</button>`
+}
+
+async function moDongLS(id) {       // ấn dòng lịch sử -> mở chi tiết, tải đường NAS lần đầu
+  LS_MO[id] = !LS_MO[id]
+  const tr = document.getElementById('lsmo-' + id)
+  if (tr) tr.hidden = !LS_MO[id]
+  if (LS_MO[id] && !KQ[id]) {
+    try { KQ[id] = await api(`/api/ketqua/${id}`) }
+    catch (e) { KQ[id] = {san_sang: false, loi: e.message} }
+    const o = document.querySelector(`#lsmo-${id} .ls-nas`)
+    if (o) o.innerHTML = veNas(KQ[id])
+  }
 }
 
 /* ══════════ + New Sequence ══════════ */
@@ -598,6 +801,7 @@ async function nopTap() {
   try {
     const r = await api('/api/jobs', {method: 'POST', body: JSON.stringify({
       folder: TAP_OK,
+      nguoi: NGUOI_LOCAL,            // vào thẳng không có SSO — tự khai; CRM thắng
       niche: document.getElementById('ns-niche').value.trim(),
       no_sub: document.getElementById('ns-sub').value === '1',
       phuong_an: document.querySelector('input[name="ns-pa"]:checked').value,
@@ -650,6 +854,7 @@ async function loadKenh() {
         (d.nghien_cuu ? ` <a onclick="xoaKenh('${esc(ten)}')">bỏ</a>` : '')
       : `<span class="hb run"></span>đang trích «${esc(ten)}»…`).join(' · ')
 
+  capNhatSelectKenh(KENH_DS)   // dropdown «Phong cách tham chiếu» form nộp — bị rớt khi redesign 05/09
   chonPhongCach(sel.value || (KENH_DS[0] ? KENH_DS[0].ten : ''))
   if (dd.some(([, t]) => t.tt === 'dang_do')
       && document.getElementById('man-kenh').classList.contains('on'))
@@ -681,7 +886,8 @@ function chonPhongCach(ten) {
   if (k.so_video_hoi_tu <= 1) {
     cb.hidden = false
     cb.textContent = '⚠ Chỉ ' + k.so_video_hoi_tu + ' video cho số đo tin được — hồ sơ '
-      + 'kém chắc, nên Đo lại với nhiều video hơn hoặc dán link video cụ thể ít đồ hoạ.'
+      + 'kém chắc. Muốn thêm video: xoá kênh rồi trích xuất lại với nhiều video hơn, '
+      + 'hoặc dán link video cụ thể ít đồ hoạ.'
   } else cb.hidden = true
 
   const lc = k.loai_canh || {}
@@ -698,46 +904,59 @@ function chonPhongCach(ten) {
   const nhac = (k.nhac_energy_curve || []).map(v => Math.round(v * 100))
   G('fi-dothi').innerHTML =
     veChart(k.nhip_curve || [], 'Nhịp cắt theo thời gian', ' cắt/phút',
-      k.bung_chu_ky_s ? `bùng lặp mỗi ${(k.bung_chu_ky_s / 60).toFixed(1)} phút` : '')
+      k.bung_chu_ky_s ? `bùng lặp mỗi ${(k.bung_chu_ky_s / 60).toFixed(1)} phút` : '',
+      k.dai_trung_vi_s)
     + veChart(nhac, 'Năng lượng nhạc', '%',
-      nhac.length ? `cao trào tại ${(k.nhac_vi_tri_drop * 100).toFixed(0)}% bài · dải động ${k.nhac_do_dong}dB` : '')
+      nhac.length ? `cao trào tại ${(k.nhac_vi_tri_drop * 100).toFixed(0)}% bài · dải động ${k.nhac_do_dong}dB` : '',
+      k.dai_trung_vi_s)
   G('fi-mota').innerHTML = veMoTa(k.mo_ta || {})
   G('fi-footer').hidden = !(k.mo_ta && k.mo_ta.la_gi)
 }
 
 // Đồ thị SVG gọn (user 05/09 "cần đồ thị nhịp tăng giảm theo thời gian"):
 // area + line, trục x = vị trí trong video (video dài ngắn đều chồng khớp).
-function veChart(vals, nhan, donvi, chu_thich) {
+// dai_s = độ dài trung vị video -> trục x ghi MỐC PHÚT thật thay vì đầu/cuối
+// (user 05/09: "khoảng tăng giảm trong các mốc thời gian" — input cho dựng).
+const mmss = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0')
+function veChart(vals, nhan, donvi, chu_thich, dai_s) {
   if (!vals || vals.length < 2) return ''
   const W = 560, H = 92, P = 8
   const mx = Math.max(...vals), mn = Math.min(...vals)
   const y = v => H - P - (mx > mn ? (v - mn) / (mx - mn) : .5) * (H - 2 * P)
   const x = i => P + i * (W - 2 * P) / (vals.length - 1)
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-  return `<div class="note" style="margin:12px 0 2px"><b>${nhan}</b> — đỉnh ${mx}${donvi}, đáy ${mn}${donvi}${chu_thich ? ' · ' + chu_thich : ''}</div>
+  const moc = dai_s > 0
+    ? `<span>0:00</span><span>${mmss(dai_s / 4)}</span><span>${mmss(dai_s / 2)}</span>
+       <span>${mmss(dai_s * 3 / 4)}</span><span>${mmss(dai_s)}</span>`
+    : '<span>đầu video</span><span>cuối video</span>'
+  const buoc = dai_s > 0 ? ` · mỗi mốc ≈ ${Math.round(dai_s / vals.length)}s` : ''
+  return `<div class="note" style="margin:12px 0 2px"><b>${nhan}</b> — đỉnh ${mx}${donvi}, đáy ${mn}${donvi}${chu_thich ? ' · ' + chu_thich : ''}${buoc}</div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;display:block" preserveAspectRatio="none">
       <line x1="${P}" y1="${H - P}" x2="${W - P}" y2="${H - P}" stroke="var(--line)"/>
       <path d="M${pts[0]} L${pts.slice(1).join(' L')} L${x(vals.length - 1).toFixed(1)},${H - P} L${x(0).toFixed(1)},${H - P} Z"
             fill="var(--accent)" fill-opacity="0.12"/>
       <polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>
     </svg>
-    <div class="note" style="display:flex;justify-content:space-between;max-width:560px;margin:0"><span>đầu video</span><span>cuối video</span></div>`
+    <div class="note" style="display:flex;justify-content:space-between;max-width:560px;margin:0">${moc}</div>`
 }
 
 // Bản mô tả — BỚT CHỮ (user 05/09): 4 mặt thành thẻ 2×2, mỗi ý 1 câu; phần
 // còn lại giữ khuôn AE. Thiếu mô tả thì nhắc «Viết lại mô tả» (không tải lại video).
+// ngatCau: câu nào dòng nấy (user 05/09 «câu dính liền, ý nối nhau khó đọc») —
+// hồ sơ cũ mô tả dài nhiều câu vẫn đọc được mà không cần gọi lại LLM.
+const ngatCau = t => esc(t).replace(/([.!?])\s+/g, '$1<br>')
 function veMoTa(m) {
   if (!m || !m.la_gi)
     return '<p class="note">Hồ sơ này chưa có bản mô tả đọc được — bấm «✎ Viết lại'
       + ' mô tả» để sinh từ số đo đã có (không tải lại video).</p>'
   const the = (nhan, v) => v ? `<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
       <div class="note" style="margin:0 0 3px;text-transform:uppercase;letter-spacing:.06em;font-size:10.5px">${nhan}</div>
-      <div style="font-size:13px;line-height:1.6">${esc(v)}</div></div>` : ''
+      <div style="font-size:13px;line-height:1.6">${ngatCau(v)}</div></div>` : ''
   return `
     <div class="fi-eb">Nhận ra phong cách</div>
-    <p>${esc(m.la_gi)}</p>
+    <p>${ngatCau(m.la_gi)}</p>
     ${(m.ky_thuat || []).length ? '<ul>'
-      + m.ky_thuat.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>' : ''}
+      + m.ky_thuat.map(x => `<li>${ngatCau(x)}</li>`).join('') + '</ul>' : ''}
     <div class="fi-eb">Phân tích cách dựng</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${the('Nhịp độ', m.nhip_do)}${the('Đường hình', m.duong_hinh)}${the('Âm nhạc', m.am_nhac)}${the('Năng lượng', m.nang_luong)}</div>
@@ -763,7 +982,7 @@ function capNhatSelectKenh(kenh) {
   const sel = document.getElementById('ns-kenh-ref')
   if (document.activeElement === sel) return
   const cu = sel.value
-  sel.innerHTML = '<option value="">— không dùng (hồ sơ niche) —</option>'
+  sel.innerHTML = '<option value="">— mặc định (nhịp trung tính) —</option>'
     + kenh.map(k => `<option value="${esc(k.ten)}">${esc(k.ten_phong_cach || k.ten)}
         (hook ${k.hook_kieu || '?'} · thân ${k.than_trung_vi}s)</option>`).join('')
   if ([...sel.options].some(o => o.value === cu)) sel.value = cu
@@ -784,7 +1003,8 @@ async function themKenh() {
   nut.disabled = false
 }
 async function doLaiKenh(ten) {
-  if (!confirm(`Đo lại «${ten}»? (tải lại video từ YouTube — mất vài phút)`)) return
+  if (!confirm(`Đo lại «${ten}»? Phân tích lại từ kho video đã lưu — không tải lại`
+    + ` từ YouTube. (Kênh cũ chưa có kho video thì tải một lần rồi giữ.)`)) return
   try { await api(`/api/kenh/${encodeURIComponent(ten)}/do-lai`, {method: 'POST', body: '{}'}); loadKenh() }
   catch (e) { alert('Lỗi: ' + e.message) }
 }
@@ -1010,12 +1230,29 @@ async function chotPhien() {
 }
 
 /* ══════════ khởi động ══════════ */
+/* AI LÀM: vào thẳng (token) không có SSO của CRM -> tự khai tên, lưu máy này,
+   gửi kèm mỗi lần nộp job. Qua CRM thì header X-Remote-User thắng, ô này ẩn. */
+let NGUOI_LOCAL = ''
+try { NGUOI_LOCAL = localStorage.getItem('rendery_nguoi') || '' } catch { }
+function veNguoiDung(meNguoi) {
+  const links =
+    ` · <a href="/mockup${TOKEN ? '?token=' + TOKEN : ''}" target="_blank" style="color:inherit">mockup</a>` +
+    ` · <a href="/mockup-processing${TOKEN ? '?token=' + TOKEN : ''}" target="_blank" style="color:inherit">mockup xử lý</a>`
+  document.getElementById('nguoi-dung').innerHTML = meNguoi ? esc(meNguoi) + links
+    : (NGUOI_LOCAL ? `<b>${esc(NGUOI_LOCAL)}</b> · <a onclick="doiTen()">đổi tên</a>`
+      : `<a onclick="doiTen()">Khai tên bạn</a> — để job ghi ai làm`) + links
+}
+function doiTen() {
+  const t = (prompt('Tên bạn — ghi vào job mỗi lần nộp:', NGUOI_LOCAL) || '').trim()
+  if (!t) return
+  NGUOI_LOCAL = t.slice(0, 40)
+  try { localStorage.setItem('rendery_nguoi', NGUOI_LOCAL) } catch { }
+  veNguoiDung('')
+}
 ;(async () => {
-  try {
-    const me = await api('/api/me')
-    document.getElementById('nguoi-dung').innerHTML = `${esc(me.nguoi || '')}` +
-      ` · <a href="/mockup${TOKEN ? '?token=' + TOKEN : ''}" target="_blank" style="color:inherit">mockup</a>`
-  } catch { }
+  let me = {}
+  try { me = await api('/api/me') } catch { }
+  veNguoiDung(me.nguoi || '')
   loadJobs()
   loadKenh()          // nạp thư viện kênh cho dropdown form nộp ngay từ đầu
   setInterval(() => { if (!document.hidden) loadJobs() }, 7000)
