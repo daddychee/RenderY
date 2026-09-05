@@ -365,15 +365,19 @@ def test_entity_route_missing_key_needs_human(project, conn, tmp_path):
 
 
 # ----------------------------- route graphic ---------------------------------
-def test_graphic_route_placeholder_with_background(project, conn, tmp_path):
+def test_graphic_route_khong_spec_dung_footage_thuong(project, conn, tmp_path):
+    """User chốt 06/09 «không sử dụng placeholder nữa»: route graphic KHÔNG có
+    graphic_spec -> hết màn đen «EDITOR LÀM GRAPHIC», beat rơi về đường footage
+    thường; warning báo editor biết beat này đạo diễn vốn muốn biểu đồ."""
     project.beats = [_beat(0, route="graphic", thematic=["dark texture background"])]
     project.save()
     _run(project, conn, tmp_path)
     saved = Project.load(project.project_dir)
     s = saved.shots[0]
-    assert s.status == "graphic"
-    assert "EDITOR LÀM GRAPHIC" in s.note
-    assert s.asset_path  # nền lót đã tải
+    assert s.status == "ok" and s.asset_path        # footage thật, không placeholder
+    assert "EDITOR LÀM GRAPHIC" not in (s.note or "")
+    assert any("placeholder đã bỏ" in w
+               for w in saved.stages[Stage.SOURCE].warnings)
 
 
 def test_stock_download_failure_falls_to_next_candidate(project, conn, tmp_path):

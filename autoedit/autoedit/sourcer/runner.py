@@ -444,10 +444,14 @@ def run_source(
             if beat.sourcing_route == "entity":
                 pick = _source_entity(beat, entity, conn, niche, library_root,
                                       assets_dir, project_dir, record)
-            elif beat.sourcing_route == "graphic":
-                pick = _source_graphic(beat, conn, stock, niche, used_in_video,
-                                       channel, assets_dir, project_dir, script_text)
-            else:  # stock | local_library
+            elif beat.sourcing_route == "graphic" and (
+                    gpick := _source_graphic(beat, assets_dir, project_dir)) is not None:
+                pick = gpick
+            else:  # stock | local_library | graphic-không-render-được (06/09: hết placeholder)
+                if beat.sourcing_route == "graphic":
+                    record.warnings.append(
+                        f"beat {beat.beat_id}: route graphic không render được biểu đồ — "
+                        "dựng footage thường (placeholder đã bỏ, user 06/09)")
                 pick = _source_stock(beat, conn, stock, niche, used_in_video,
                                      channel, assets_dir, project_dir, record, script_text,
                                      brain=brain, ctx=ctx, local_stats=local_stats,
@@ -462,7 +466,8 @@ def run_source(
                     pick = floor
             prev_chapter = beat.chapter
             # mạch c3 cho route ngoài phễu (route stock tự cập nhật trong _source_stock)
-            if ctx is not None and beat.sourcing_route in ("entity", "graphic") and pick.asset_key:
+            if ctx is not None and pick.asset_key and (
+                    beat.sourcing_route == "entity" or pick.source == "chart"):
                 ctx["prev_pick_note"] = pick.note or beat.visual_concept
                 ctx["prev_shot_size"] = ""
             if pick.asset_key:
@@ -1313,50 +1318,30 @@ def _render_info_card(beat, assets_dir, project_dir, record):
     return str(out.relative_to(project_dir))
 
 
-def _source_graphic(beat, conn, stock, niche, used_in_video, channel,
-                    assets_dir, project_dir, script_text="") -> ShotPick:
-    """Beat có graphic_spec -> RENDER biểu đồ động (P1.5); không thì placeholder + nền."""
-    if beat.graphic_spec is not None:
-        from autoedit.packager.charts import render_chart
-        from autoedit.project import slugify
+def _source_graphic(beat, assets_dir, project_dir):
+    """Beat có graphic_spec -> RENDER biểu đồ động thật (P1.5).
 
-        dur = max(beat.end - beat.start + 1.0, 3.0)  # phủ beat + chừa margin
-        out = assets_dir / f"b{beat.beat_id:03d}_chart_{slugify(beat.graphic_spec.title)[:30]}.mp4"
-        try:
-            render_chart(beat.graphic_spec, dur, out)
-        except Exception as exc:  # render hỏng -> rơi về placeholder, không giết stage
-            return ShotPick(
-                beat_id=beat.beat_id, status="graphic", source="none",
-                note=f"RENDER CHART LỖI ({exc}) — editor làm graphic: {beat.visual_concept}",
-            )
-        return ShotPick(
-            beat_id=beat.beat_id, status="graphic", source="chart",
-            asset_path=str(out.relative_to(project_dir)),
-            asset_key=f"chart:{beat.beat_id}",
-            note=f"Biểu đồ {beat.graphic_spec.chart_type} tự sinh: {beat.graphic_spec.title}",
-        )
+    PLACEHOLDER ĐÃ BỎ (user chốt 06/09 "tôi sẽ không sử dụng placeholder nữa"):
+    không spec hoặc render lỗi -> trả None, caller cho beat chạy đường footage
+    thường như mọi beat khác — hết màn đen «EDITOR LÀM GRAPHIC» trên timeline.
+    """
+    if beat.graphic_spec is None:
+        return None
+    from autoedit.packager.charts import render_chart
+    from autoedit.project import slugify
 
-    queries = SearchQueries.model_validate(
-        beat.search_queries if isinstance(beat.search_queries, dict)
-        else beat.search_queries.model_dump()
+    dur = max(beat.end - beat.start + 1.0, 3.0)  # phủ beat + chừa margin
+    out = assets_dir / f"b{beat.beat_id:03d}_chart_{slugify(beat.graphic_spec.title)[:30]}.mp4"
+    try:
+        render_chart(beat.graphic_spec, dur, out)
+    except Exception:  # noqa: BLE001 — render hỏng -> footage thường (hết placeholder)
+        return None
+    return ShotPick(
+        beat_id=beat.beat_id, status="graphic", source="chart",
+        asset_path=str(out.relative_to(project_dir)),
+        asset_key=f"chart:{beat.beat_id}",
+        note=f"Biểu đồ {beat.graphic_spec.chart_type} tự sinh: {beat.graphic_spec.title}",
     )
-    note = f"EDITOR LÀM GRAPHIC: {beat.visual_concept}"
-    bg = SearchQueries(specific=[], broad=[], thematic=queries.thematic)
-    candidates = [c for c in (find_local_candidates(conn, niche, bg, script_text=script_text,
-                                                    used_keys=used_in_video)
-                              + stock.search_tiered(bg))
-                  if c["asset_key"] not in used_in_video]
-    for chosen in usage.soft_penalty_sort(conn, channel, candidates):
-        try:
-            asset_path = _materialize(chosen, beat, stock, assets_dir, project_dir)
-        except (RuntimeError, OSError):
-            continue  # nền lót là phụ — hỏng thì thử cái khác, hết thì thôi
-        return ShotPick(
-            beat_id=beat.beat_id, status="graphic", source=chosen["source"],
-            asset_path=asset_path, asset_key=chosen["asset_key"],
-            note=note + " (đã tải nền lót)",
-        )
-    return ShotPick(beat_id=beat.beat_id, status="graphic", source="none", note=note)
 
 
 # ----------------------------------------------------------------------------
