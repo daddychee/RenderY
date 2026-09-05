@@ -16,6 +16,11 @@ VIRAL_CAP_RATIO = 0.08  # luật 5: trần % thời lượng 1 nguồn trong 1 v
 # từ tên file) được trần riêng — editor đã khoanh đúng đề tài nên chấp nhận footprint
 # lớn hơn; luật kề + rải mềm vẫn áp nguyên.
 REF_CAP_RATIO = 0.15
+# LẶP FOOTAGE (editor Hải + user chốt 05/09: "một số footage bị lặp lại, chỉ cách
+# nhau vài frame — trong 45-60s không được dùng lại footage đã dùng"): cùng NGUỒN
+# (source_video) không được xuất hiện 2 lần trong cửa sổ 60s timeline. Áp MỌI
+# class có source_video (luật kề cũ chỉ áp viral nên own/local/ref lọt).
+CUA_SO_LAP_S = 60.0
 
 
 class ViralLedger:
@@ -23,6 +28,10 @@ class ViralLedger:
 
     def __init__(self, ref_sources: tuple[str, ...] | list[str] = ()) -> None:
         self.picked: dict[str, set[int]] = {}  # source_video -> scene_index đã dùng
+        # luật cửa sổ 60s: source_video -> mốc beat (giây voice) lần dùng gần nhất.
+        # beat_hien_tai do _gather_candidates đặt trước mỗi lượt gate/re-check.
+        self.moc_lap: dict[str, float] = {}
+        self.beat_hien_tai: float = 0.0
         self.seconds: dict[str, float] = {}    # source_video -> giây đã lấy (trọn clip)
         self.blocked = 0                       # đếm ứng viên bị gate chặn (report)
         self.peak_picks = 0                    # ytref §3h: đếm pick mang cờ điểm nhô (report)
@@ -51,6 +60,12 @@ class ViralLedger:
 
     def blocks(self, cand: dict) -> str:
         """'' nếu qua; lý do (ghi log) nếu gate chặn. Chỉ áp class viral."""
+        src_lap = cand.get("source_video", "")
+        if src_lap:
+            gan = self.moc_lap.get(src_lap)
+            if gan is not None and abs(self.beat_hien_tai - gan) < CUA_SO_LAP_S:
+                return (f"nguồn «{src_lap}» vừa dùng {abs(self.beat_hien_tai - gan):.0f}s"
+                        f" trước — luật 60s chống lặp")
         if cand.get("source_class") != "viral":
             return ""
         src = cand.get("source_video", "")
@@ -73,6 +88,9 @@ class ViralLedger:
 
     def add(self, cand: dict) -> None:
         """Ghi sổ SAU khi pick thật (đã tải/copy thành công)."""
+        src_lap = cand.get("source_video", "")
+        if src_lap:
+            self.moc_lap[src_lap] = self.beat_hien_tai
         if cand.get("source_class") != "viral":
             return
         src = cand.get("source_video", "")

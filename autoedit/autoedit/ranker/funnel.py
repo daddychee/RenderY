@@ -48,7 +48,11 @@ MACHINE_MAX_SPREAD = 2 * VARIETY_BONUS + DURATION_BONUS + UNUSED_BONUS + PEAK_BO
 # khai chủ động), khác họ điểm máy trung tính — bất biến test_ranker giữ nguyên.
 
 PREFER_DURATION_RATIO = 1.2   # như sourcer/runner (4.4)
-MIN_DURATION_RATIO = 0.5      # cửa kỹ thuật: cần slow-mo quá 2x mới phủ nổi beat -> hỏng
+# Cửa kỹ thuật (user chốt 05/09 sau lỗi editor Hải báo): mốc tốc độ an toàn là
+# 0.8-1.2 — clip phải phủ >=85% ô để assembler chỉ cần slow tới ~0.85x (kèm sàn
+# SPEED_MIN=0.8 + freeze frame bên assembler). Mức cũ 0.5 sinh slow-mo 0.5x
+# giật hình trên footage fps thấp (clip 9s bị kéo 17s — editor Hải bắt).
+MIN_DURATION_RATIO = 0.85
 DEMOTE_PENALTY = 100.0        # trả-lại-sàn: trừ nặng -> luôn xếp SAU mọi ứng viên ok
 POOL_FLOOR = 3                # sàn pool (c5 đóng băng)
 

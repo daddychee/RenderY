@@ -724,6 +724,32 @@ def _viral_cand(idx, dur=6.0, src="E:/src.mp4"):
             "source_duration": 600.0, "duration": dur}
 
 
+def _add_xa(lg, cand, buoc=100.0):
+    """add + nhảy mốc beat quá cửa sổ 60s — các test kề/trần kiểm luật cũ ĐỘC LẬP
+    với luật cửa sổ chống lặp (user 05/09); luật 60s có test riêng bên dưới."""
+    lg.add(cand)
+    lg.beat_hien_tai += buoc
+
+
+def test_viral_ledger_cua_so_60s_chong_lap():
+    """User 05/09 (editor Hải): "footage bị lặp, chỉ cách nhau vài frame — trong
+    45-60s không được dùng lại" — cùng source_video bị chặn trong cửa sổ 60s
+    timeline, áp MỌI class (own/local từng miễn nên mới lọt); quá 60s thì qua."""
+    from autoedit.sourcer.viral import ViralLedger
+
+    lg = ViralLedger()
+    own = {"source_class": "own", "source_video": "E:/own.mp4",
+           "scene_index": 1, "duration": 4.0}
+    lg.beat_hien_tai = 10.0
+    assert lg.blocks(own) == ""
+    lg.add(own)
+    lg.beat_hien_tai = 50.0                    # cách 40s < 60 -> chặn cả scene khác
+    assert "60s" in lg.blocks(dict(own, scene_index=7))
+    lg.beat_hien_tai = 80.0                    # cách 70s -> qua
+    assert lg.blocks(dict(own, scene_index=7)) == ""
+    assert lg.blocks({"source": "local"}) == ""   # không có source_video -> miễn
+
+
 def test_viral_ledger_adjacency_far_apart_still_banned():
     """c8 luật 3 (user chốt 2026-07-08): cảnh 5 đã pick -> cảnh 4/6 cùng nguồn bị cấm
     DÙ ĐẶT XA NHAU trên timeline; cách 2 cảnh thì qua; own/Pexels miễn mọi gate."""
@@ -732,7 +758,7 @@ def test_viral_ledger_adjacency_far_apart_still_banned():
     lg = ViralLedger()
     assert lg.blocks({"source": "local"}) == ""          # own không có source_class
     assert lg.blocks(_viral_cand(5)) == ""
-    lg.add(_viral_cand(5))
+    _add_xa(lg, _viral_cand(5))
     assert lg.blocks(_viral_cand(4)) and lg.blocks(_viral_cand(6))
     assert lg.blocks(_viral_cand(5))                     # trùng cảnh
     assert lg.blocks(_viral_cand(7)) == ""               # cách 2 -> qua
@@ -749,15 +775,15 @@ def test_viral_ledger_peak_exempts_adjacency_not_cap():
         return _viral_cand(i) | {"peak_value": 0.9, "peak_type": "primary"}
 
     lg = ViralLedger()
-    lg.add(pk(5))
+    _add_xa(lg, pk(5))
     assert lg.blocks(pk(6)) == ""                        # kề nhưng điểm nhô -> qua
-    lg.add(pk(6))
+    _add_xa(lg, pk(6))
     assert lg.blocks(pk(7)) == ""                        # cả trio 5-6-7 vào được
-    lg.add(pk(7))
+    _add_xa(lg, pk(7))
     assert "trùng" in lg.blocks(pk(6))                   # trùng chính nó vẫn chặn
     assert "kề" in lg.blocks(_viral_cand(8))             # cảnh thường kề 7 vẫn cấm
     for i in (10, 12, 14, 16, 18):                       # 3×6 + 5×6 = 48s = trần 8%
-        lg.add(pk(i))
+        _add_xa(lg, pk(i))
     assert "8%" in lg.blocks(pk(30))                     # trần 8% KHÔNG miễn
 
 
@@ -781,7 +807,7 @@ def test_viral_ledger_8pct_cap_accumulates():
     lg = ViralLedger()
     for i in (1, 3, 5, 7, 9, 11, 13, 15):                # 8 clip × 6s = 48s = đúng trần
         assert lg.blocks(_viral_cand(i)) == ""
-        lg.add(_viral_cand(i))
+        _add_xa(lg, _viral_cand(i))
     assert lg.seconds["E:/src.mp4"] == pytest.approx(48.0)
     assert "8%" in lg.blocks(_viral_cand(30))
     assert "source_duration" in lg.blocks(
@@ -794,7 +820,7 @@ def test_viral_ledger_gate_filters_counts_and_spreads():
     from autoedit.sourcer.viral import ViralLedger
 
     lg = ViralLedger()
-    lg.add(_viral_cand(5))                               # src.mp4 đã dùng 6s
+    _add_xa(lg, _viral_cand(5))                               # src.mp4 đã dùng 6s
     own = {"asset_key": "local:/own.mp4"}
     fresh = _viral_cand(2, src="E:/fresh.mp4")
     used_src = _viral_cand(9)                            # cùng src.mp4, không kề -> qua gate
@@ -833,11 +859,11 @@ def test_viral_ledger_ref_cap_15pct():
     lg = ViralLedger(ref_sources=["E:/SRC.mp4"])          # khai HOA, cand ghi thường
     for i in (1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29):  # 15×6s=90s=trần 15%
         assert lg.blocks(_viral_cand(i)) == ""
-        lg.add(_viral_cand(i))
+        _add_xa(lg, _viral_cand(i))
     assert "15%" in lg.blocks(_viral_cand(40))            # quá 90s -> chặn, báo đúng 15%
     lg2 = ViralLedger(ref_sources=["E:/SRC.mp4"])
     for i in (1, 3, 5, 7, 9, 11, 13, 15):                 # nguồn KHÁC: 48s = trần 8% cũ
-        lg2.add(_viral_cand(i, src="E:/other.mp4"))
+        _add_xa(lg2, _viral_cand(i, src="E:/other.mp4"))
     assert "8%" in lg2.blocks(_viral_cand(30, src="E:/other.mp4"))
 
 

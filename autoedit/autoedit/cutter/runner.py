@@ -27,6 +27,25 @@ DURATION_TOLERANCE = 0.05  # verify ffprobe ±50ms
 TAIL_PAD = 0.30           # 3.1: đệm sau từ cuối segment (giữ âm đuôi/decay)
 LEAD_PAD = 0.25           # 3.1: đệm dự phòng khi không đo được khởi âm
 ONSET_GUARD = 0.12        # 3.1: lùi trước khởi âm ĐO ĐƯỢC từ audio
+# NGẮT NHỊP TRONG VOICE (user chốt 05/09: "tôi sẽ cho user ngắt nhịp trong voice —
+# nhận tín hiệu đó là hình thở"): khoảng nghỉ >= ngưỡng giữa 2 beat, ĐO SẠCH TIẾNG,
+# được chuyển thành breathing_after ĐÚNG độ dài ngắt — thay vì bị cắt bỏ ở ranh run
+# (đo LI100: 305s nguồn bị vứt, timeline chỉ chèn lại 181s thở máy).
+NGUONG_NGAT_S = 1.0       # ngắt chủ động của người đọc thường >= 1s
+TIENG_CHO_PHEP = 0.25     # vùng nghỉ chứa > 0.25s KHÔNG-im-lặng = có tiếng thật
+
+
+def _tieng_trong_vung(
+    z0: float, z1: float, silences: list[tuple[float, float]]
+) -> float:
+    """Số giây CÓ TIẾNG trong [z0, z1] = độ dài vùng trừ phần phủ bởi silence.
+
+    Dùng để (a) chỉ nhận ngắt-nhịp SẠCH làm hình thở, (b) phát hiện align sót từ
+    tại ranh run — vùng "nghỉ theo transcript" mà có tiếng thì cấm vứt (bug 05/09:
+    câu 5s mất 2-3s voice)."""
+    dai = max(0.0, z1 - z0)
+    im = sum(max(0.0, min(e, z1) - max(s, z0)) for s, e in silences)
+    return max(0.0, dai - im)
 
 
 def _onset_in_zone(
@@ -93,6 +112,24 @@ def run_cut(project: Project) -> Project:
                 f"{min(depth.values()):.1f}-{max(depth.values()):.1f}s, video dài thêm +{added:.1f}s"
             )
 
+        # NGẮT NHỊP TRONG VOICE -> HÌNH THỞ (user 05/09): khoảng nghỉ >=1s giữa
+        # 2 beat mà đo SẠCH TIẾNG = người đọc ngắt chủ động -> breathing_after
+        # ĐÚNG BẰNG độ dài ngắt (ranh run cắt khoảng lặng khỏi voice, timeline
+        # chèn lại y nguyên -> tổng thời lượng giữ, sourcer tự cấp shot thở).
+        # Đặt SAU depth DNA: độ ngắt của người đọc thắng số máy (chỉ nâng, không hạ).
+        silences = sil.detect_silences(master)
+        ngat = []
+        for a, b in zip(project.beats, project.beats[1:]):
+            gap = b.start - a.end
+            if (gap >= NGUONG_NGAT_S and gap > a.breathing_after
+                    and _tieng_trong_vung(a.end, b.start, silences) <= TIENG_CHO_PHEP):
+                a.breathing_after = round(gap, 2)
+                ngat.append(gap)
+        if ngat:
+            record.warnings.append(
+                f"ngắt nhịp trong voice -> hình thở: {len(ngat)} chỗ "
+                f"({min(ngat):.1f}-{max(ngat):.1f}s) — giữ đúng độ dài ngắt của người đọc")
+
         # NHIP-M2 đoạn chèn: Δ editor khai (lệnh `insert`) — tiêu thụ Ở ĐÂY, chỗ sinh
         # timeline duy nhất (BAN_GIAO_NHIP_NHAC §7b). Validate lại phòng project.json
         # sửa tay: beat phải tồn tại + không phải beat cuối (total_end dựa segment cuối).
@@ -116,7 +153,7 @@ def run_cut(project: Project) -> Project:
 
         plans = tl.plan_segments(project.beats, inserts=insert_map)
         master_dur = ffprobe_duration(master) or project.beats[-1].end
-        silences = sil.detect_silences(master)
+        # (silences đã đo ở khối ngắt-nhịp phía trên — cùng master, không đo lại)
 
         first_onset = _onset_in_zone(0.0, plans[0].source_start, silences)
         plans[0].source_start = max(
@@ -131,7 +168,18 @@ def run_cut(project: Project) -> Project:
             gap = word_start - word_end
             tail = word_end + min(TAIL_PAD, max(gap, 0.0) * 0.4)
             onset = _onset_in_zone(word_end, word_start, silences)
-            if onset is not None and onset > tail:
+            tieng = _tieng_trong_vung(word_end, word_start, silences)
+            if tieng > TIENG_CHO_PHEP:
+                # Vùng "nghỉ theo transcript" mà CÓ TIẾNG = align sót từ (bug 05/09:
+                # câu 5s mất 2-3s voice — LI100 vứt 305s nguồn tại 125 ranh). CẤM
+                # vứt: lấy trọn vùng vào segment sau — im lặng thừa vô hại,
+                # mất từ là chí mạng.
+                lead = tail
+                record.warnings.append(
+                    f"ranh segment {i + 1}->{i + 2}: vùng nghỉ {word_end:.2f}-"
+                    f"{word_start:.2f}s có {tieng:.1f}s TIẾNG (align nghi sót từ) — "
+                    "giữ trọn vào segment sau, không vứt voice")
+            elif onset is not None and onset > tail:
                 lead = max(tail, onset - ONSET_GUARD)
             else:
                 lead = tail  # không đo được khởi âm -> trọn khoảng nghỉ vào segment sau

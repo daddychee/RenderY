@@ -807,6 +807,16 @@ def _gather_candidates(beat, conn, stock, niche, used_in_video, signature_first,
         beat.search_queries if isinstance(beat.search_queries, dict)
         else beat.search_queries.model_dump()
     )
+    if ledger is not None:   # luật 60s chống lặp: gate cần biết beat đang đứng đâu
+        ledger.beat_hien_tai = beat.start
+    # CỠ CẢNH (editor Hải + user 05/09 "quá nhiều cảnh toàn, không có toàn-trung-
+    # cận"): stock là keyword matcher — không hỏi "close up" thì trả toàn establishing
+    # wide. Beat đạo diễn kê close-up/aerial -> đẻ thêm query dẫn đầu mang cỡ cảnh.
+    mod = {"close_up": "close up", "extreme_close_up": "macro close up",
+           "aerial": "aerial view"}.get(getattr(beat, "shot_size", "") or "")
+    if mod and queries.specific:
+        queries.specific = [" ".join(q.split()[:2]) + " " + mod
+                            for q in queries.specific[:2]] + queries.specific
     # luật c6: beat HOOK/CHÊM gom signature/ trước, xếp LÊN ĐẦU (chỉ đường phễu)
     candidates: list[dict] = []
     if signature_first:
@@ -966,6 +976,8 @@ def _source_stock(beat, conn, stock, niche, used_in_video, channel,
                   assets_dir, project_dir, record, script_text="",
                   brain=None, ctx=None, local_stats=None, ledger=None,
                   boost_terms=(), refs=(), matcher=None) -> ShotPick:
+    if ledger is not None:   # luật 60s: re-check tại pick phải theo mốc beat NÀY
+        ledger.beat_hien_tai = beat.start
     # PA-1: chunk đã chấm batch -> dùng lại ứng viên + verdict cache, không gather/call lại
     cached = (ctx or {}).get("batch_cache", {}).pop(beat.beat_id, None) if ctx else None
     if cached is not None:

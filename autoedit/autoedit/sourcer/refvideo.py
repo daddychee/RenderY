@@ -277,6 +277,13 @@ def tim_ung_vien(beat, refs: list[RefVideo], matcher, used_keys=(),
             con_lai = max(0.0, r_thoi_luong.get(seg.ten_ref, 0.0) - seg.vao)
             if con_lai > 0:
                 keo = min(keo, con_lai)
+        # CẮT SẠCH (editor Hải + user 05/09: "dư vài chục frame, minh hoạ sai
+        # người/sai nước"): độ dài lấy theo Ô BEAT từng tràn qua ranh đoạn
+        # transcript -> dính cảnh/người của câu SAU. Kẹp về ranh đoạn + 0.5s đệm;
+        # clip thành ngắn thì cửa kỹ thuật phễu tự loại, KHÔNG lấy bẩn cho đủ.
+        keo = min(keo, seg.keo_dai + 0.5)
+        if keo < 1.5:
+            continue                   # đoạn quá cụt — cắt sạch cũng không đủ hình
         key = _asset_key(seg.ten_ref, seg.vao, seg.vao + keo)
         if key in da_dung:
             continue

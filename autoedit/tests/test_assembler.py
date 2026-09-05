@@ -406,7 +406,8 @@ def test_footage_speed_090_video_only(tmp_path, fake_profile):
     """FOOTAGE_SPEED 0.9 (user chốt 2026-07-15): video chạy chậm 10% nhưng target
     GIỮ NGUYÊN mép beat (chỉ truyền speed cho pycapcut — truyền cả source lẫn speed
     sẽ bị tính lại target, lệch 1µs -> SegmentOverlap); ảnh giữ 1.0; clip ngắn vẫn
-    slow-mo sâu hơn như cũ; --footage-speed 1.0 = hành vi cũ nguyên vẹn."""
+    KHÔNG slow sâu nữa (sàn 0.8, user 05/09) mà chạy 0.9x + freeze khung cuối;
+    --footage-speed 1.0 = hành vi cũ nguyên vẹn."""
     from autoedit.packager.assembler import run_assemble
 
     script = tmp_path / "s.txt"; script.write_text("a b")
@@ -444,17 +445,22 @@ def test_footage_speed_090_video_only(tmp_path, fake_profile):
 
     run_assemble(p, fake_profile)
     saved = Project.load(p.project_dir)
-    long_v, photo, short_v = _video_segs(saved)
+    long_v, photo, short_v, freeze = _video_segs(saved)
     # video dài: speed 0.9, target GIỮ NGUYÊN mép beat, source = round(0.9 x target)
     assert long_v["speed"] == pytest.approx(0.9)
     assert long_v["target_timerange"] == {"start": 0, "duration": 4_000_000}
     assert long_v["source_timerange"]["duration"] == 3_600_000
     # ảnh: không đổi tốc độ (Ken Burns giữ nguyên hành vi)
     assert photo["speed"] == pytest.approx(1.0)
-    # clip ngắn: vẫn kéo giãn phủ kín ô (slow-mo sâu hơn 0.9) + warning như cũ
-    assert short_v["speed"] < 0.9
-    assert short_v["target_timerange"] == {"start": 6_000_000, "duration": 4_000_000}
-    assert any("kéo giãn slow-mo" in w
+    # clip ngắn (sàn tốc độ 05/09): KHÔNG slow sâu nữa — chạy 0.9x hết nguồn,
+    # phần thiếu là FREEZE khung cuối; 2 miếng ghép khít phủ kín ô 4s
+    assert short_v["speed"] == pytest.approx(0.9)
+    assert short_v["target_timerange"]["start"] == 6_000_000
+    assert freeze["target_timerange"]["start"] == (
+        6_000_000 + short_v["target_timerange"]["duration"])
+    assert (short_v["target_timerange"]["duration"]
+            + freeze["target_timerange"]["duration"]) == 4_000_000
+    assert any("freeze khung cuối" in w
                for w in saved.stages[Stage.ASSEMBLE].warnings)
 
     # knob --footage-speed 1.0 = hành vi cũ nguyên vẹn: source = target, speed 1.0

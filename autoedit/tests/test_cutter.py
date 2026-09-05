@@ -359,3 +359,67 @@ def test_plan_breath_depth_idempotent_via_base_reset():
     pz.reset_breathing_to_base(beats)                 # lần cut sau
     assert beats[0].breathing_after == 2.5            # về đúng số NÃO
     assert pz.plan_breath_depth(beats) == first
+
+
+# ============ ngắt nhịp trong voice -> hình thở + chống vứt voice (05/09) =====
+def test_tieng_trong_vung_tinh_dung():
+    from autoedit.cutter.runner import _tieng_trong_vung
+
+    sil = [(2.0, 4.0)]
+    assert _tieng_trong_vung(2.0, 4.0, sil) == pytest.approx(0.0)   # lặng sạch
+    assert _tieng_trong_vung(1.5, 4.0, sil) == pytest.approx(0.5)   # 0.5s tiếng đầu
+    assert _tieng_trong_vung(2.0, 4.0, []) == pytest.approx(2.0)    # không silence = toàn tiếng
+
+
+@needs_ffmpeg
+def test_ngat_nhip_sach_thanh_hinh_tho(tmp_path):
+    """User 05/09: người đọc ngắt >=1s (đo SẠCH tiếng) -> breathing_after ĐÚNG độ
+    dài ngắt, timeline chèn lại y nguyên (LI100 từng vứt 305s, chèn lại 181s)."""
+    from autoedit.cutter.runner import run_cut
+    from autoedit.project import Project
+
+    script = tmp_path / "s.txt"; script.write_text("a b", encoding="utf-8")
+    voice = tmp_path / "v.wav"
+    _write_tone_wav(voice, [(2.0, True), (2.0, False), (2.0, True)])
+    p = create_project(script, voice, out_dir=tmp_path / "projects")
+    p.transcript = [Word(text="a", start=0.0, end=2.0), Word(text="b", start=4.0, end=6.0)]
+    p.beats = [_beat(0, 0.0, 2.0), _beat(1, 4.0, 6.0)]
+    p.stages[Stage.ALIGN].status = StageStatus.DONE
+    p.stages[Stage.DIRECT].status = StageStatus.DONE
+    p.save()
+
+    run_cut(p)
+    saved = Project.load(p.project_dir)
+    assert saved.beats[0].breathing_after == pytest.approx(2.0, abs=0.15)
+    assert any("ngắt nhịp trong voice" in w
+               for w in saved.stages[Stage.CUT].warnings)
+    a, b = saved.segments
+    # timeline giữa 2 segment hở đúng bằng ngắt (thở) — không co video
+    assert b.timeline_start - a.timeline_end == pytest.approx(
+        saved.beats[0].breathing_after + saved.beats[0].micro_pause_after, abs=0.05)
+
+
+@needs_ffmpeg
+def test_gap_co_tieng_khong_vut_voice(tmp_path):
+    """Bug 05/09 (câu 5s mất 2-3s voice): vùng "nghỉ theo transcript" mà CÓ TIẾNG
+    (align sót từ) thì CẤM vứt — lấy trọn vào segment sau, tổng voice giữ nguyên."""
+    from autoedit.cutter.runner import run_cut
+    from autoedit.project import Project
+
+    script = tmp_path / "s.txt"; script.write_text("a b", encoding="utf-8")
+    voice = tmp_path / "v.wav"
+    _write_tone_wav(voice, [(6.0, True)])          # tiếng LIỀN 6s — transcript lại hở 2-4s
+    p = create_project(script, voice, out_dir=tmp_path / "projects")
+    p.transcript = [Word(text="a", start=0.0, end=2.0), Word(text="b", start=4.0, end=6.0)]
+    p.beats = [_beat(0, 0.0, 2.0, breathing=True), _beat(1, 4.0, 6.0)]
+    p.stages[Stage.ALIGN].status = StageStatus.DONE
+    p.stages[Stage.DIRECT].status = StageStatus.DONE
+    p.save()
+
+    run_cut(p)
+    saved = Project.load(p.project_dir)
+    tong = sum(sg.source_end - sg.source_start for sg in saved.segments)
+    assert tong == pytest.approx(6.0, abs=0.25)    # KHÔNG mất 2s "gap" có tiếng
+    assert any("TIẾNG" in w for w in saved.stages[Stage.CUT].warnings)
+    # gap bẩn KHÔNG được nhận là ngắt chủ động
+    assert saved.beats[0].breathing_after != pytest.approx(2.0, abs=0.1)

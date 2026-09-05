@@ -47,6 +47,12 @@ MUSIC_VOLUME = 0.2  # Phase 0: volume thấp cố định; ducking keyframe là 
 # Tốc độ phát footage video trên track L1 (user chốt 2026-07-15: mọi footage chậm 10%).
 # Chỉ video — ảnh/chart/slug giữ nguyên. Override từng lần chạy: `--footage-speed` (1.0 = gốc).
 FOOTAGE_SPEED = 0.9
+# SÀN TỐC ĐỘ (editor Hải + user chốt 05/09): mốc an toàn 0.8-1.2 — footage stock
+# fps thấp mà slow dưới 0.8 là giật hình/drop frame (đo thật: clip 9s bị kéo 17s
+# = 0.53x). Clip thiếu nguồn -> KHÔNG slow sâu nữa: chạy hết nguồn ở footage_speed
+# rồi ĐÓNG BĂNG khung cuối (freeze frame) phủ nốt ô — thủ pháp dựng chuẩn, không giật.
+SPEED_MIN = 0.8
+FREEZE_TOI_THIEU_US = SEC // 2   # phần thiếu < 0.5s thì slow nhẹ thêm chút còn hơn chèn freeze
 
 
 def run_assemble(
@@ -451,6 +457,21 @@ def _ken_burns_zoom(name: str) -> float:
     return lo + (zlib.crc32(name.encode("utf-8")) % (steps + 1)) / 100
 
 
+def _freeze_frame(asset: Path, norm_dir: Path) -> Path | None:
+    """Khung CUỐI của clip -> JPEG (freeze frame phủ phần ô thiếu nguồn — sàn
+    tốc độ 05/09). None nếu ffmpeg không rút được (caller ghi warning, ô hở đuôi)."""
+    import subprocess
+
+    dich = norm_dir / f"freeze_{asset.stem}.jpg"
+    if dich.is_file():
+        return dich
+    r = subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-sseof", "-0.2", "-i", str(asset),
+         "-frames:v", "1", "-q:v", "3", str(dich)],
+        capture_output=True, timeout=60)
+    return dich if r.returncode == 0 and dich.is_file() else None
+
+
 def _place_video_l1(script, record, project_dir: Path, norm_dir: Path,
                     asset_rel: str, start: float, end: float, beat_id: int,
                     kb_log: Optional[list] = None,
@@ -505,8 +526,37 @@ def _place_video_l1(script, record, project_dir: Path, norm_dir: Path,
             source = None
             speed = footage_speed
         else:
-            source = Timerange(0, avail)     # clip ngắn -> dùng trọn, giãn cho đầy ô
             speed = avail / want_us           # <1 = slow-mo sâu hơn footage_speed
+            thieu_us = want_us - round(avail / footage_speed)
+            if speed < SPEED_MIN and thieu_us >= FREEZE_TOI_THIEU_US:
+                # SÀN 0.8 (user 05/09): thay vì slow sâu, chạy clip trọn nguồn ở
+                # footage_speed rồi freeze khung cuối phủ nốt — không giật hình.
+                dur_v_us = want_us - thieu_us
+                seg_v = VideoSegment(material, Timerange(start_us, dur_v_us),
+                                     speed=footage_speed)
+                script.add_segment(seg_v, "video_l1")
+                freeze = _freeze_frame(asset, norm_dir)
+                if freeze is not None:
+                    m_f = VideoMaterial(str(freeze))
+                    script.add_segment(
+                        VideoSegment(m_f, Timerange(start_us + dur_v_us, thieu_us),
+                                     source_timerange=Timerange(0, thieu_us)),
+                        "video_l1")
+                record.warnings.append(
+                    f"beat {beat_id}: clip ngắn ({material.duration / SEC:.1f}s cho ô "
+                    f"{(end - start):.1f}s) — chạy {footage_speed}x + freeze khung cuối "
+                    f"{thieu_us / SEC:.1f}s (sàn tốc độ {SPEED_MIN}, không slow sâu nữa); "
+                    "editor nên swap clip dài hơn"
+                    + ("" if freeze is not None else " — RÚT FRAME LỖI, ô hở đuôi"))
+                if cuts_log is not None:
+                    cuts_log.append((start, False))
+                    cuts_log.append((start + dur_v_us / SEC, True))
+                if credit_log is not None:
+                    credit_log.append((start, end, asset_rel))
+                return True
+            # tới đây: hoặc thiếu < 0.5s (slow nhẹ quá sàn một chút, chấp nhận),
+            # hoặc speed >= SPEED_MIN (slow trong mốc an toàn 0.8-1.2)
+            source = Timerange(0, avail)     # clip ngắn -> dùng trọn, giãn cho đầy ô
             record.warnings.append(
                 f"beat {beat_id}: clip ngắn ({material.duration / SEC:.1f}s không đủ "
                 f"{(end - start):.1f}s × {footage_speed}) — kéo giãn slow-mo {speed:.2f}x "
