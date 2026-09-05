@@ -96,7 +96,10 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
     (f.parent / "frames").mkdir(exist_ok=True)
     (f.parent / "prev_cache").mkdir(exist_ok=True)
     (f.parent / "prev_giu").mkdir(exist_ok=True)
-    conn = sqlite3.connect(str(f))
+    conn = sqlite3.connect(str(f), timeout=15.0)
+    # WAL (08/09, chuẩn bị 5 editor đồng thời): nhiều reader + 1 writer không
+    # chặn nhau; journal 'delete' cũ khiến lượt hút nền khóa cả trang Library.
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     # migration nhẹ: cột thêm sau đợt 1 (ALTER bỏ qua nếu đã có)
