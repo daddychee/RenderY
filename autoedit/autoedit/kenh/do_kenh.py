@@ -23,13 +23,29 @@ from pathlib import Path
 from autoedit.kenh.hoso import HoSoKenh
 from autoedit.nhip.do import DoNhipError, do_video
 
-SO_VIDEO = 3          # đo tối đa ngần này video/kênh (5/5 video tháng 9 đã đủ kết luận)
+SO_VIDEO = 5          # mặc định (user 05/09: "đo nhiều video thì số hiệu chỉnh
+                      # chuẩn hơn"); trần 8 — YouTube từng chặn IP ở ~9 lượt tải
+SO_VIDEO_TRAN = 8
 DAI_TOI_THIEU_S = 240  # bỏ video <4 phút (shorts/trailer — không đại diện nhịp dựng)
 DENO_DIR = r"C:\OutlierY\tools\deno"
 
 
 class DoKenhError(RuntimeError):
     """Không đo được kênh — thông điệp tiếng Việt, in thẳng cho editor."""
+
+
+def slug_tu_ten(ten: str) -> str:
+    """Tên phong cách editor đặt ("Fern chậm rãi") -> slug thư mục cache
+    ("fern-cham-rai") — bỏ dấu tiếng Việt, chỉ giữ chữ/số/gạch."""
+    import unicodedata
+
+    khong_dau = unicodedata.normalize("NFD", ten)
+    khong_dau = "".join(c for c in khong_dau if unicodedata.category(c) != "Mn")
+    khong_dau = khong_dau.replace("đ", "d").replace("Đ", "D")
+    sach = re.sub(r"[^\w.-]+", "-", khong_dau).strip("-").lower()[:60]
+    if not sach:
+        raise DoKenhError(f"tên phong cách không hợp lệ: {ten!r}")
+    return sach
 
 
 def slug_tu_link(link: str) -> str:
@@ -141,7 +157,8 @@ def _median(vals: list[float]) -> float:
 
 
 def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
-            do_lai: bool = False, log=None, tai=None, goi_vision=None) -> HoSoKenh:
+            do_lai: bool = False, log=None, tai=None, goi_vision=None,
+            ten_phong_cach: str = "") -> HoSoKenh:
     """Link → HoSoKenh (cache theo kênh). `tai` tiêm được để test không mạng."""
     def ghi(m):
         if log:
@@ -196,7 +213,8 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
                 f"không video nào của «{ten}» cho số đo tin được (2 thước không "
                 "hội tụ) — thử kênh khác hoặc dán link video cụ thể ít đồ hoạ hơn")
         hs = HoSoKenh(
-            ten=ten, link=link, nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
+            ten=ten, ten_phong_cach=ten_phong_cach, link=link,
+            nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
             hook_trung_vi=_median(hooks), hook_ty_le_nhanh=_median(hooks_nhanh),
             than_trung_vi=_median(thans), than_ty_le_nhanh=_median(thans_nhanh),
             than_ty_le_hold=_median(thans_hold),

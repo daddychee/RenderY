@@ -38,6 +38,14 @@ def test_slug_link_rac_bao_loi():
         slug_tu_link("???")
 
 
+def test_slug_tu_ten_phong_cach_bo_dau():
+    from autoedit.kenh.do_kenh import slug_tu_ten
+    assert slug_tu_ten("Fern chậm rãi") == "fern-cham-rai"
+    assert slug_tu_ten("Đối thủ #1!") == "doi-thu-1"
+    with pytest.raises(DoKenhError):
+        slug_tu_ten("???")
+
+
 # ------------------------------------------------------------ hook kiểu
 def test_hook_kieu_theo_ty_le():
     assert _hook_kieu(0.72, 2.1) == "no"      # Fern thật: 0.72/2.1 ≈ 0.34

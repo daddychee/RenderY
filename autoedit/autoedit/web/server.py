@@ -583,7 +583,8 @@ _kenh_lock = threading.Lock()
 
 class KenhRequest(BaseModel):
     link: str
-    ten: str = ""
+    ten: str = ""              # TÊN PHONG CÁCH editor đặt (bắt buộc, user 05/09)
+    so_video: int = 5          # đo bao nhiêu video (1..8 — trần né YouTube chặn IP)
 
 
 @app.get("/api/kenh")
@@ -609,11 +610,13 @@ def api_kenh_list(request: Request):
             "nghien_cuu": _duoc_nghien_cuu_kenh(request)}
 
 
-def _chay_do_kenh(link: str, ten: str, do_lai: bool = False) -> None:
+def _chay_do_kenh(link: str, ten: str, do_lai: bool = False,
+                  so_video: int = 5, ten_phong_cach: str = "") -> None:
     from autoedit.kenh.do_kenh import do_kenh
 
     try:
-        do_kenh(link, ten=ten, do_lai=do_lai)
+        do_kenh(link, ten=ten, do_lai=do_lai, so_video=so_video,
+                ten_phong_cach=ten_phong_cach)
         with _kenh_lock:
             _kenh_dang_do.pop(ten, None)
         print(f"[kenh] «{ten}» đo xong", flush=True)
@@ -632,11 +635,18 @@ def api_kenh_them(req: KenhRequest, request: Request):
     from autoedit.kenh.do_kenh import DoKenhError, slug_tu_link
     from autoedit.kenh.hoso import HoSoKenh
 
+    from autoedit.kenh.do_kenh import SO_VIDEO_TRAN, slug_tu_ten
+
     link = (req.link or "").strip()
     if not link:
         raise HTTPException(422, "Dán link kênh YouTube (vd https://www.youtube.com/@fern-tv)")
+    ten_pc = (req.ten or "").strip()
+    if not ten_pc:
+        raise HTTPException(422, "Đặt tên phong cách (vd 'Fern chậm rãi') — thư viện "
+                                 "cần tên đọc được, không dùng slug link")
+    so_video = max(1, min(SO_VIDEO_TRAN, int(req.so_video or 5)))
     try:
-        ten = req.ten.strip() or slug_tu_link(link)
+        ten = slug_tu_ten(ten_pc)
     except DoKenhError as exc:
         raise HTTPException(422, str(exc))
     if HoSoKenh.doc(ten) is not None:
@@ -645,10 +655,10 @@ def api_kenh_them(req: KenhRequest, request: Request):
         if ten in _kenh_dang_do and _kenh_dang_do[ten].get("tt") == "dang_do":
             raise HTTPException(409, f"Kênh «{ten}» đang đo dở")
         _kenh_dang_do[ten] = {"tt": "dang_do"}
-    threading.Thread(target=_chay_do_kenh, args=(link, ten), daemon=True,
-                     name=f"kenh-{ten}").start()
+    threading.Thread(target=_chay_do_kenh, args=(link, ten, False, so_video, ten_pc),
+                     daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ten": ten,
-            "ghi_chu": "đang tải + đo nền (~vài phút cho 3 video 360p) — F5 tab này"}
+            "ghi_chu": f"đang tải + đo nền {so_video} video 360p (~vài phút) — F5 tab này"}
 
 
 @app.post("/api/kenh/{ten}/do-lai")
@@ -667,8 +677,9 @@ def api_kenh_do_lai(ten: str, request: Request):
         if _kenh_dang_do.get(ten, {}).get("tt") == "dang_do":
             raise HTTPException(409, "Kênh đang đo dở")
         _kenh_dang_do[ten] = {"tt": "dang_do"}
-    threading.Thread(target=_chay_do_kenh, args=(hs.link, ten, True), daemon=True,
-                     name=f"kenh-{ten}").start()
+    threading.Thread(target=_chay_do_kenh,
+                     args=(hs.link, ten, True, 5, hs.ten_phong_cach),
+                     daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ghi_chu": "đang đo lại nền"}
 
 

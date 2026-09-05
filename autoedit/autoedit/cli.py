@@ -232,7 +232,7 @@ def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
 def kenh_do_cmd(
     link: str = typer.Argument(..., help="Link YouTube: kênh (@fern-tv) hoặc video lẻ."),
     ten: str = typer.Option("", "--ten", help="Slug cache (mặc định suy từ link)."),
-    so_video: int = typer.Option(3, "--so-video", help="Đo tối đa mấy video (kênh)."),
+    so_video: int = typer.Option(5, "--so-video", help="Đo tối đa mấy video (nhiều hơn = chuẩn hơn; trần 8 né YouTube chặn IP)."),
     do_lai: bool = typer.Option(False, "--do-lai", help="Bỏ cache, tải + đo lại từ đầu."),
 ) -> None:
     """Đo KÊNH ref → Hồ Sơ Kênh (nhịp + nhạc) — nền của 3 phương án dựng.

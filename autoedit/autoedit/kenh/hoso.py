@@ -33,7 +33,8 @@ def thu_muc_kenh(ten: str) -> Path:
 class HoSoKenh:
     """Kết quả đo 1 kênh ref — nguồn sự thật cho 3 chỗ áp: ép nhịp, nhạc, nguồn."""
 
-    ten: str                                  # slug kênh (fern-tv, johnnyharris...)
+    ten: str                                  # slug (tên thư mục cache, không dấu)
+    ten_phong_cach: str = ""                  # tên ĐỌC ĐƯỢC editor đặt ("Fern chậm rãi")
     link: str = ""                            # link gốc — nút "đo lại" dùng, khỏi dán lại
     nguon: list[str] = field(default_factory=list)   # link/id các video đã đo
     ngay_do: str = ""

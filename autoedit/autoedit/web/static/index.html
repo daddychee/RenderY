@@ -297,12 +297,19 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
   <div class="panel" id="p-kenh-them" hidden>
     <h2>Nghiên cứu kênh mới <small>chỉ manager/owner</small></h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input type="text" id="kenh-ten" placeholder="Tên phong cách * (vd: Fern chậm rãi)"
+             style="max-width:220px" onkeydown="if(event.key==='Enter')themKenh()">
       <input type="text" id="kenh-link" class="mono" placeholder="https://www.youtube.com/@fern-tv"
              style="flex:1;min-width:280px" onkeydown="if(event.key==='Enter')themKenh()">
-      <input type="text" id="kenh-ten" placeholder="tên (tuỳ chọn)" style="max-width:140px">
+      <select id="kenh-so-video" title="số video đo — nhiều hơn = số hiệu chỉnh chuẩn hơn">
+        <option value="3">3 video</option>
+        <option value="5" selected>5 video</option>
+        <option value="8">8 video (tối đa)</option>
+      </select>
       <button class="btn" id="kenh-nut" onclick="themKenh()">Nghiên cứu</button>
     </div>
-    <div class="note" id="kenh-msg"></div>
+    <div class="note" id="kenh-msg">Đo nhiều video thì số hiệu chỉnh chuẩn hơn —
+      trần 8 vì YouTube chặn IP khi tải liên tiếp quá nhiều.</div>
   </div>
 
   <div class="panel">
@@ -617,7 +624,7 @@ async function loadKenh() {
     const lc = k.loai_canh || {}
     const lcTxt = Object.entries(lc).filter(([_, v]) => v > 0)
       .map(([x, v]) => `${x} ${(v * 100).toFixed(0)}%`).join(' · ') || '—'
-    rows.push(`<tr><td class="mono"><b>${esc(k.ten)}</b><br>
+    rows.push(`<tr><td><b>${esc(k.ten_phong_cach || k.ten)}</b><br>
         <span class="note" style="margin:0">${esc((k.ngay_do || '').slice(0, 10))} ·
         ${k.so_video_hoi_tu} video</span></td>
       <td>hook <b>${k.hook_kieu || '?'}</b> ${k.hook_trung_vi}s ·
@@ -644,7 +651,7 @@ function capNhatSelectKenh(kenh) {
   if (document.activeElement === sel) return
   const cu = sel.value
   sel.innerHTML = '<option value="">— không dùng (hồ sơ niche) —</option>'
-    + kenh.map(k => `<option value="${esc(k.ten)}">${esc(k.ten)}
+    + kenh.map(k => `<option value="${esc(k.ten)}">${esc(k.ten_phong_cach || k.ten)}
         (hook ${k.hook_kieu || '?'} · thân ${k.than_trung_vi}s)</option>`).join('')
   if ([...sel.options].some(o => o.value === cu)) sel.value = cu
 }
@@ -655,7 +662,8 @@ async function themKenh() {
   try {
     const r = await api('/api/kenh', {method: 'POST', body: JSON.stringify({
       link: document.getElementById('kenh-link').value.trim(),
-      ten: document.getElementById('kenh-ten').value.trim()})})
+      ten: document.getElementById('kenh-ten').value.trim(),
+      so_video: parseInt(document.getElementById('kenh-so-video').value, 10)})})
     msg.textContent = '✓ ' + r.ghi_chu
     document.getElementById('kenh-link').value = ''
     loadKenh()

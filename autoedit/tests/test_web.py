@@ -186,8 +186,23 @@ def test_api_kenh_them_trung_bao_409(monkeypatch, tmp_path):
     r = _ReqCRM("")
     r.headers = {}
     with pytest.raises(HTTPException) as e:
-        srv.api_kenh_them(srv.KenhRequest(link="https://youtube.com/@fern-tv"), r)
+        srv.api_kenh_them(srv.KenhRequest(link="https://youtube.com/@x", ten="fern tv"), r)
     assert e.value.status_code == 409
+
+
+def test_api_kenh_them_bat_buoc_ten_phong_cach(monkeypatch, tmp_path):
+    """User 05/09: thu vien can TEN doc duoc — thieu ten -> 422, khong lay slug link."""
+    from fastapi import HTTPException
+
+    import autoedit.kenh.hoso as mh
+    monkeypatch.setattr(mh, "resolve_data_root", lambda *a, **k: tmp_path)
+    monkeypatch.delenv("RENDERY_WEB_TOKEN", raising=False)
+    r = _ReqCRM("")
+    r.headers = {}
+    with pytest.raises(HTTPException) as e:
+        srv.api_kenh_them(srv.KenhRequest(link="https://youtube.com/@fern-tv"), r)
+    assert e.value.status_code == 422
+    assert "tên phong cách" in str(e.value.detail).lower()
 
 
 def test_api_kenh_list_tra_thu_vien(monkeypatch, tmp_path):
