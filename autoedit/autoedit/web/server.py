@@ -677,6 +677,38 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     return {"ok": True}
 
 
+class OfflineGenRequest(BaseModel):
+    khoi: int
+    so_anh: int = 2
+
+
+@app.post("/api/offline/{project_id}/gen")
+def api_offline_gen(project_id: str, req: OfflineGenRequest, request: Request):
+    """⚡ Gen AI cho 1 khối (nền) — nguồn thứ 5, ảnh ghi vào Library."""
+    _require_auth(request)
+    d = _pdir_offline(project_id)
+    khoa = f"{project_id}:gen{req.khoi}"
+    with _offline_lock:
+        if _offline_dang.get(khoa, {}).get("tt") == "dang":
+            raise HTTPException(409, "Khối này đang gen dở")
+        _offline_dang[khoa] = {"tt": "dang", "ghi_chu": f"gen khối {req.khoi + 1}..."}
+
+    def _chay():
+        from autoedit.offline.gen import gen_cho_khoi
+        try:
+            moi = gen_cho_khoi(d, req.khoi, so_anh=req.so_anh,
+                               log=lambda m: print("[offline-gen]", m, flush=True))
+            with _offline_lock:
+                _offline_dang[khoa] = {"tt": "xong",
+                                       "ghi_chu": f"+{len(moi)} ảnh AI vào khay"}
+        except Exception as exc:  # noqa: BLE001
+            with _offline_lock:
+                _offline_dang[khoa] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
+
+    threading.Thread(target=_chay, daemon=True, name=khoa).start()
+    return {"ok": True, "ghi_chu": "đang gen nền — ảnh tự rơi vào khay khối"}
+
+
 @app.get("/api/offline/{project_id}/voice")
 def api_offline_voice(project_id: str, request: Request):
     """Voice master WAV cho màn Offline — PCM seek chính xác mẫu (bài học 06/09:

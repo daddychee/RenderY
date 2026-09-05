@@ -21,7 +21,7 @@ from pathlib import Path
 
 from autoedit.packager.machine import resolve_data_root
 
-NGUON_HOP_LE = ("envato", "pexels", "pixabay", "ref", "kho")
+NGUON_HOP_LE = ("envato", "pexels", "pixabay", "ref", "kho", "aigen")
 # 7 trục từ khóa (chốt 06/09) — cột nào cũng text thường, cách nhau dấu phẩy
 TRUC = ("subject", "action", "setting", "geo", "people", "shot", "mood")
 

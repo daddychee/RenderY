@@ -488,6 +488,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <button class="btn ghost small" data-n="pixabay" onclick="stNguon(this)">Pixabay <small id="st-d-pixabay"></small></button>
       <button class="btn ghost small" data-n="ref" onclick="stNguon(this)">Ref <small id="st-d-ref"></small></button>
       <button class="btn ghost small" data-n="kho" onclick="stNguon(this)">Kho cũ <small id="st-d-kho"></small></button>
+      <button class="btn ghost small" data-n="aigen" onclick="stNguon(this)">AI <small id="st-d-aigen"></small></button>
       <button class="btn ghost small" id="st-neo" onclick="stNeo()">⚑ có neo</button>
     </div>
   </div>
@@ -582,7 +583,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
           <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
           <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
           <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS <span id="of-n-pexels"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pexels"></div></div>
-          <div class="of-khu phu"><h4 style="color:#5b9bd5">PIXABAY / KHO <span id="of-n-pixabay"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pixabay"></div></div>
+          <div class="of-khu phu"><h4 style="color:#5b9bd5">PIXABAY · KHO · AI <span id="of-n-pixabay"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pixabay"></div></div>
         </div>
       </div>
     </div>
@@ -1175,6 +1176,7 @@ function ofVeLoi() {
   document.getElementById('of-cau').innerHTML = `${esc(k.loi || '—')}
     <span style="float:right;display:flex;gap:6px;align-items:center;font-size:12px;color:#69aee0">
       ◦ thở ${(k.tho || 0).toFixed(1)}s${k.tho_them ? ` <b style="color:var(--warn)">${k.tho_them > 0 ? '+' : ''}${k.tho_them}s</b>` : ''}
+      ${OF_PHA === 2 ? '<button class="btn ghost small" onclick="ofGen()" title="Seedream sinh 2 ảnh theo 4 lớp khối — ảnh vào Library nguồn AI">⚡ Gen AI</button>' : ''}
       <button class="btn ghost small" onclick="ofTho(1)" title="chèn 1s im lặng thật">+1s</button>
       ${((k.tho || 0) + (k.tho_them || 0)) > 0.2 ? '<button class="btn ghost small" onclick="ofTho(-1)" title="thu 1s im lặng (sàn 0.2s)">−1s</button>' : ''}
     </span>`
@@ -1217,7 +1219,10 @@ function ofVeKhay() {
   document.getElementById('of-tim-nhan').textContent = OF_TIM_KQ !== null
     ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của khối ${OF_CHON + 1}`
   const nhom = {envato: [], ref: [], pexels: [], pixabay: []}
-  ds.forEach((u, j) => { (nhom[u.nguon] || nhom.pixabay).push([u, j]) })
+  ds.forEach((u, j) => {
+    const khu = u.nguon === 'aigen' ? 'pixabay' : u.nguon   // AI nằm khu phụ 2
+    ;(nhom[khu] || nhom.pixabay).push([u, j])
+  })
   for (const ng of ['envato', 'ref', 'pexels', 'pixabay']) {
     const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
     document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
@@ -1246,6 +1251,16 @@ function ofVeKhay() {
       dai.appendChild(d)
     }
   }
+}
+async function ofGen() {
+  const k = ofK()[OF_CHON]; if (!k || OF_PHA !== 2) return
+  try {
+    await api('/api/offline/' + OF_PID + '/gen', {method: 'POST',
+      body: JSON.stringify({khoi: OF_CHON, so_anh: 2})})
+    toastOf('⚡ đang gen nền khối ' + (OF_CHON + 1) + ' — ảnh tự rơi vào khay (~30-60s)')
+    setTimeout(ofNap, 25000)
+    setTimeout(ofNap, 55000)
+  } catch (e) { alert('Lỗi: ' + e.message) }
 }
 function ofUvLap(uid) {
   const ks = ofK(), k0 = ks[OF_CHON]
@@ -1358,7 +1373,7 @@ function stVideo(c) {
   return `/api/sotra/video?id=${encodeURIComponent(c.id)}` + mang
 }
 const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
-                ref: '#a98ee0', kho: '#8a93a0'}
+                ref: '#a98ee0', kho: '#8a93a0', aigen: '#d9a441'}
 
 async function stVe(them) {
   if (!them) ST_OFFSET = 0
@@ -1373,7 +1388,7 @@ async function stVe(them) {
   ST_DS = them ? ST_DS.concat(d.clips) : d.clips
   const dem = d.dem || {}
   let tong = 0
-  for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho']) {
+  for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho', 'aigen']) {
     tong += dem[n] || 0
     const el = document.getElementById('st-d-' + n)
     if (el) el.textContent = dem[n] ? (dem[n] >= 1000 ? (dem[n] / 1000).toFixed(1) + 'k' : dem[n]) : ''

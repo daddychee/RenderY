@@ -199,3 +199,46 @@ def test_api_voice_va_khoa_so(du_an, tmp_path, monkeypatch):
     r = tc.post(f"/api/offline/{du_an.name}/khoa-so")
     assert r.status_code == 200
     assert runner.doc(du_an)["trang_thai"] == "khoa"
+
+
+def test_gen_ai_vao_library_va_khay(du_an, tmp_path, monkeypatch):
+    """Đợt 4.5 (user duyệt 07/09): ⚡ Gen = nguồn thứ 5, ảnh vào LIBRARY nguồn
+    aigen + chèn đầu khay khối; prompt ghép từ 4 lớp + đuôi phong cách cố định."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import runner
+    from autoedit.offline.gen import gen_cho_khoi, prompt_cho_khoi
+
+    runner.phan_tich(du_an, llm=_LLM())
+
+    class _Ark:
+        goi = []
+
+        def gen_anh(self, prompt, dich, size="2560x1440"):
+            self.goi.append(prompt)
+            Path(dich).write_bytes(b"PNGfake")
+            return Path(dich)
+
+    moi = gen_cho_khoi(du_an, 0, so_anh=2, client=_Ark())
+    assert len(moi) == 2
+    assert all(m["nguon"] == "aigen" for m in moi)
+    # prompt mang L1 + đuôi phong cách (không để model tự do phá mood)
+    assert "market stall" in _Ark.goi[0] and "documentary still" in _Ark.goi[0]
+    # vào Library: tra ra được, id chính tắc aigen:project:khối:hash
+    conn = sdb.mo()
+    kq = sdb.tim(conn, q="market", nguon="aigen")
+    conn.close()
+    assert kq and kq[0]["id"].startswith(f"aigen:{du_an.name}:0:")
+    # chèn ĐẦU khay khối trong hợp đồng
+    hd = runner.doc(du_an)
+    assert hd["khoi"][0]["uv"][0]["nguon"] == "aigen"
+
+
+def test_prompt_cho_khoi_ghep_4_lop():
+    from autoedit.offline.gen import prompt_cho_khoi
+
+    p = prompt_cho_khoi({"L1": ["cash in hand"], "neo": True, "mood": "tense"},
+                        ["ecuador", "daily life"])
+    assert p.startswith("cash in hand")
+    assert "Ecuador" in p and "tense" in p and "no watermark" in p
