@@ -242,3 +242,93 @@ def test_prompt_cho_khoi_ghep_4_lop():
                         ["ecuador", "daily life"])
     assert p.startswith("cash in hand")
     assert "Ecuador" in p and "tense" in p and "no watermark" in p
+
+
+# ------------------------------------------------------- Đợt 5: THAY MÁU
+@pytest.fixture
+def profile_gia(tmp_path):
+    from autoedit.packager.machine import MachineProfile
+
+    root = tmp_path / "com.lveditor.draft"
+    root.mkdir(exist_ok=True)
+    return MachineProfile(
+        donor_name="donor", capcut_root=str(root), capcut_app_version="8.1.1",
+        content_overrides={
+            "platform": {"os": "mac"}, "last_modified_platform": {"os": "mac"},
+            "new_version": "173.0.0", "version": 360000, "draft_type": "video",
+            "function_assistant_info": {}, "mixed_track_mode_on": False,
+            "smart_ads_info": {}, "uneven_animation_template_info": {},
+        },
+        meta_template={"draft_name": "donor", "draft_cover": ""},
+    )
+
+
+def _clip_that(dich: Path, dai: float = 8.0):
+    import subprocess
+
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+                    "-i", f"testsrc=duration={dai}:size=320x180:rate=30",
+                    "-pix_fmt", "yuv420p", str(dich)], check=True, capture_output=True)
+
+
+def test_thay_mau_chuong_khoa(du_an, tmp_path, monkeypatch, profile_gia):
+    """Khóa sổ -> relocate (kho local + dự bị khi chết) -> voice cắt theo khối
+    -> draft CapCut có track video + voice; sự kiện len_final ghi sổ."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import runner
+    from autoedit.offline.thay_mau import thay_mau
+
+    runner.phan_tich(du_an, llm=_LLM())
+    hd = runner.doc(du_an)
+    # kho local: 1 clip thật + 1 clip CHẾT (path không tồn tại) để kiểm dự bị
+    clip_ok = tmp_path / "clip_ok.mp4"
+    _clip_that(clip_ok)
+    conn = sdb.mo()
+    sdb.them_clip(conn, {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok",
+                         "path_local": str(clip_ok)})
+    sdb.them_clip(conn, {"id": "kho:t:chet.mp4", "nguon": "kho", "tieu_de": "chet",
+                         "path_local": str(tmp_path / "khong_ton_tai.mp4")})
+    conn.commit()
+    conn.close()
+    uv_chet = {"id": "kho:t:chet.mp4", "nguon": "kho", "tieu_de": "chet", "lop": "L1",
+               "diem": 9, "url_anh": "", "url_video": "", "geo": "", "dai_s": 8}
+    uv_ok = {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok", "lop": "L1",
+             "diem": 5, "url_anh": "", "url_video": "", "geo": "", "dai_s": 8}
+    for k in hd["khoi"]:
+        k["uv"] = [uv_chet, uv_ok]      # chọn mặc định = clip CHẾT -> phải rơi về dự bị
+        k["chon"] = 0
+    hd["khoi"][0]["tho_them"] = 1.0     # +1s: hình phủ thêm, voice gap im thật
+    hd["trang_thai"] = "khoa"
+    runner.luu(du_an, hd)
+
+    kq = thay_mau(du_an, profile=profile_gia, log=lambda m: None)
+    assert kq["khoi_co_hinh"] == kq["tong_khoi"] == 2
+    d = json.loads((Path(kq["draft"]) / "draft_content.json").read_text(encoding="utf-8"))
+    tr = {t["name"]: t for t in d["tracks"]}
+    assert len(tr["video_l1"]["segments"]) >= 2
+    assert len(tr["voice"]["segments"]) == 2
+    # +1s: khối 2 bắt đầu sau (nói+thở+1s) của khối 1
+    s0, s1 = tr["voice"]["segments"]
+    giay = (s1["target_timerange"]["start"] - s0["target_timerange"]["start"]) / 1_000_000
+    hd2 = runner.doc(du_an)
+    k0 = hd2["khoi"][0]
+    assert giay == pytest.approx((k0["v1"] - k0["v0"]) + k0["tho"] + 1.0, abs=0.15)
+    # sự kiện len_final ghi cho clip DỰ BỊ (clip thật được dùng)
+    conn = sdb.mo()
+    sk = conn.execute("SELECT clip_id FROM su_kien WHERE loai='len_final'").fetchall()
+    conn.close()
+    assert all(r[0] == "kho:t:ok.mp4" for r in sk) and len(sk) == 2
+
+
+def test_thay_mau_doi_khoa_so(du_an, tmp_path, monkeypatch, profile_gia):
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import runner
+    from autoedit.offline.thay_mau import thay_mau
+
+    runner.phan_tich(du_an, llm=_LLM())
+    with pytest.raises(RuntimeError, match="KHÓA SỔ"):
+        thay_mau(du_an, profile=profile_gia)

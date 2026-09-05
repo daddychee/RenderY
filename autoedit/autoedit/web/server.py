@@ -709,6 +709,35 @@ def api_offline_gen(project_id: str, req: OfflineGenRequest, request: Request):
     return {"ok": True, "ghi_chu": "đang gen nền — ảnh tự rơi vào khay khối"}
 
 
+@app.post("/api/offline/{project_id}/thay-mau")
+def api_offline_thay_mau(project_id: str, request: Request):
+    """THAY MÁU (Đợt 5): chương KHÓA SỔ -> tải bản thật + ráp draft CapCut (nền)."""
+    _require_auth(request)
+    d = _pdir_offline(project_id)
+    khoa = f"{project_id}:thaymau"
+    with _offline_lock:
+        if _offline_dang.get(khoa, {}).get("tt") == "dang":
+            raise HTTPException(409, "Đang thay máu dở")
+        _offline_dang[khoa] = {"tt": "dang", "ghi_chu": "tải bản thật + ráp draft..."}
+
+    def _chay():
+        from autoedit.offline.thay_mau import thay_mau
+        try:
+            kq = thay_mau(d, log=lambda m: print("[thay-mau]", m, flush=True))
+            with _offline_lock:
+                _offline_dang[khoa] = {
+                    "tt": "xong",
+                    "ghi_chu": f"draft {Path(kq['draft']).name} · hình "
+                               f"{kq['khoi_co_hinh']}/{kq['tong_khoi']}"
+                               + (f" · {len(kq['canh_bao'])} cảnh báo" if kq["canh_bao"] else "")}
+        except Exception as exc:  # noqa: BLE001
+            with _offline_lock:
+                _offline_dang[khoa] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
+
+    threading.Thread(target=_chay, daemon=True, name=khoa).start()
+    return {"ok": True, "ghi_chu": "đang thay máu nền — draft CapCut sẽ hiện khi xong"}
+
+
 @app.get("/api/offline/{project_id}/voice")
 def api_offline_voice(project_id: str, request: Request):
     """Voice master WAV cho màn Offline — PCM seek chính xác mẫu (bài học 06/09:
@@ -828,6 +857,21 @@ def api_sotra_video(request: Request, id: str):
     if r is None or not r[0] or not Path(r[0]).is_file():
         raise HTTPException(404, "Không có file local")
     return FileResponse(Path(r[0]), media_type="video/mp4")
+
+
+@app.post("/api/sotra/clip/loi")
+def api_sotra_clip_loi(request: Request, id: str):
+    """UI báo link chết (ảnh/video không tải được) — đánh dấu, không xóa."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        conn.execute("UPDATE clip SET trang_thai='link_chet' WHERE id=?", (id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
 
 
 @app.post("/api/sotra/hut")

@@ -291,11 +291,12 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <header class="top">
   <h1>RENDER<span>Y</span></h1>
   <nav class="tabs">
-    <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
-    <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
-    <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
+    <button id="gn-seq" class="on" onclick="doiTrang('seq')">Overview</button>
     <button id="gn-offline" onclick="doiTrang('offline')">Offline</button>
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
+    <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
+    <button id="gn-new" onclick="doiTrang('seq');doiTab('new')"
+            style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
 </header>
@@ -303,7 +304,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <!-- ═════════ SEQUENCES: Processing + New Sequence chung màn ═════════ -->
 <section class="man on" id="man-seq">
   <nav class="tabs" style="margin-bottom:12px">
-    <button id="tab-proc" class="on" onclick="doiTab('proc')">Processing</button>
+    <button id="tab-proc" class="on" onclick="doiTab('proc')">Overview</button>
     <button id="tab-new" onclick="doiTab('new')">+ New Sequence</button>
   </nav>
 
@@ -424,7 +425,6 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <h2 id="fi-ten"></h2>
       <div class="note" id="fi-meta" style="margin:0 0 12px"></div>
       <div class="note" id="fi-canhbao" style="color:var(--bad);margin:0 0 10px" hidden></div>
-      <div id="fi-frames" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px"></div>
       <div class="chips" id="fi-the"></div>
       <div id="fi-dothi"></div>
       <div class="fi-body" id="fi-mota"></div>
@@ -639,7 +639,8 @@ async function api(path, opts) {
 function doiTrang(t) {
   for (const m of ['seq', 'gen', 'kenh', 'sotra', 'offline']) {
     document.getElementById('man-' + m).classList.toggle('on', t === m)
-    document.getElementById('gn-' + m).classList.toggle('on', t === m)
+    const nut = document.getElementById('gn-' + m)
+    if (nut) nut.classList.toggle('on', t === m)   // tab Generation đã gỡ khỏi nav (07/09)
   }
   if (t === 'kenh') loadKenh()
   if (t === 'sotra') stVe()
@@ -1098,7 +1099,8 @@ function ofCapPha() {
   document.getElementById('of-hd').style.display = OF_PHA === 1 ? 'grid' : 'none'
   document.getElementById('of-khay').classList.toggle('on', OF_PHA === 2)
   document.getElementById('of-nut-pha').textContent =
-    OF_PHA === 1 ? 'Duyệt khối → Đổ video' : '✔ Khóa sổ chương'
+    OF_PHA === 1 ? 'Duyệt khối → Đổ video'
+    : (OF_HD && OF_HD.trang_thai === 'khoa' ? '🩸 Thay máu → Draft' : '✔ Khóa sổ chương')
 }
 
 function ofLuu() {                       // debounce PUT — voice bất biến server gác
@@ -1305,11 +1307,25 @@ async function ofDoiPha() {
     OF_HD.trang_thai = 'pha2'
     ofCapPha(); ofLuu(); ofVeAll()
     toastOf('Khối ĐÃ KHÓA — máy đã chọn mặc định, sửa từng khối từ 4 khu')
-  } else {
+  } else if (OF_HD.trang_thai !== 'khoa') {
     try {
       const r = await api('/api/offline/' + OF_PID + '/khoa-so', {method: 'POST', body: '{}'})
       OF_HD.trang_thai = 'khoa'; ofCapPha()
+      document.getElementById('of-nut-pha').textContent = '🩸 Thay máu → Draft'
       toastOf('✔ ' + r.ghi_chu)
+    } catch (e) { alert('Lỗi: ' + e.message) }
+  } else {
+    try {
+      const r = await api('/api/offline/' + OF_PID + '/thay-mau', {method: 'POST', body: '{}'})
+      toastOf('🩸 ' + r.ghi_chu)
+      const canh = setInterval(async () => {
+        const d = await api('/api/offline/' + OF_PID)
+        const tt = Object.values(d.tt || {}).length ? d.tt : null
+        if (tt && tt.tt !== 'dang') {
+          clearInterval(canh)
+          toastOf((tt.tt === 'xong' ? '✔ ' : '✗ ') + (tt.ghi_chu || ''))
+        }
+      }, 8000)
     } catch (e) { alert('Lỗi: ' + e.message) }
   }
 }
@@ -1423,8 +1439,14 @@ async function stVe(them) {
       <div class="note" style="margin:0;padding:7px 10px 9px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:42px">${esc(c.tieu_de)}</div>`
     const vid = div.querySelector('video')
     if (vid) {          // hover = PHÁT PREVIEW thật (đúng trải nghiệm stock site)
-      div.onmouseenter = () => { vid.style.opacity = 1; vid.play().catch(() => {}) }
-      div.onmouseleave = () => { vid.style.opacity = 0; vid.pause() }
+      vid.onerror = () => vid.remove()               // video chết -> còn ảnh, hết thẻ đen
+      div.onmouseenter = () => { if (vid.isConnected) { vid.style.opacity = 1; vid.play().catch(() => vid.remove()) } }
+      div.onmouseleave = () => { if (vid.isConnected) { vid.style.opacity = 0; vid.pause() } }
+    }
+    const anh0 = div.querySelector('img')
+    if (anh0) anh0.onerror = () => {                 // ảnh chết -> đánh dấu + ẩn thẻ
+      div.remove()
+      fetch('/api/sotra/clip/loi?id=' + encodeURIComponent(c.id), {method: 'POST'}).catch(() => {})
     }
     div.onclick = () => stMo(c)
     l.appendChild(div)
@@ -1526,7 +1548,6 @@ function chonPhongCach(ten) {
     G('fi-meta').textContent = ''
     G('fi-canhbao').hidden = true
     G('fi-the').innerHTML = ''
-    G('fi-frames').innerHTML = ''
     G('fi-dothi').innerHTML = ''
     G('fi-footer').hidden = true
     G('fi-mota').innerHTML = '<p class="note">Trích xuất phong cách đầu tiên bằng form bên phải'
@@ -1554,9 +1575,6 @@ function chonPhongCach(ten) {
     <div class="chip"><b>${k.bung_chu_ky_s ? (k.bung_chu_ky_s / 60).toFixed(1) + ' ph' : '—'}</b><span>chu kỳ bùng</span></div>
     ${Object.entries(lc).filter(([_, v]) => v > 0).map(([x, v]) =>
       `<div class="chip"><b>${(v * 100).toFixed(0)}%</b><span>${nhanLc[x] || x}</span></div>`).join('')}`
-  G('fi-frames').innerHTML = Array.from({length: k.so_frame || 0}, (_, i) =>
-    `<img src="/api/kenh/${encodeURIComponent(k.ten)}/frame/${i + 1}" loading="lazy" alt=""
-       style="height:72px;border-radius:6px;border:1px solid var(--line)">`).join('')
   const nhac = (k.nhac_energy_curve || []).map(v => Math.round(v * 100))
   G('fi-dothi').innerHTML =
     veChart(k.nhip_curve || [], 'Nhịp cắt theo thời gian', ' cắt/phút',
