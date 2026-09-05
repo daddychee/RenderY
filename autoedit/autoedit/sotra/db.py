@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS clip(
   ngay_them TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_clip_nguon ON clip(nguon);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
   id UNINDEXED, chu, tokenize='unicode61');
 CREATE TABLE IF NOT EXISTS su_kien(
@@ -98,6 +99,11 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(str(f))
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    # migration nhẹ: cột thêm sau đợt 1 (ALTER bỏ qua nếu đã có)
+    try:
+        conn.execute("ALTER TABLE clip ADD COLUMN tieu_de_goc TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     if conn.execute("SELECT COUNT(*) FROM alias").fetchone()[0] == 0:
         conn.executemany("INSERT OR IGNORE INTO alias(tu, chuan) VALUES(?,?)",
                          list(_ALIAS_GOC.items()))
@@ -207,10 +213,16 @@ def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         sql = (f"SELECT c.* FROM clip c WHERE {' AND '.join(dk)} "
                f"ORDER BY c.ngay_them DESC LIMIT ? OFFSET ?")
         rows = conn.execute(sql, [*tham, limit, offset]).fetchall()
-    ra = []
+    ra, nhom = [], {}
     for r in rows:
         d = dict(r)
         d.pop("hang", None)
+        khoa = (d["nguon"], (d["tieu_de"] or "").strip().lower())
+        if khoa in nhom:                      # gộp trùng hiển thị — dữ liệu giữ nguyên
+            nhom[khoa]["so_ban"] = nhom[khoa].get("so_ban", 1) + 1
+            continue
+        d["so_ban"] = 1
+        nhom[khoa] = d
         ra.append(d)
     # nhãn "đã dùng ở tập" — chống lặp giữa các tập ngay lúc chọn
     if ra:

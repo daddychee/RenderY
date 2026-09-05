@@ -891,7 +891,11 @@ function stAnh(c) {                 // thumbnail: web hotlink, local qua endpoin
   return c.url_anh || `/api/sotra/frame?id=${encodeURIComponent(c.id)}&vai=dau`
 }
 function stVideo(c) {
-  return c.url_video || (c.path_local ? `/api/sotra/video?id=${encodeURIComponent(c.id)}` : '')
+  if (c.url_video) return c.url_video
+  if (!c.path_local) return ''
+  // ref/kho: phát file local; ref có t0/t1 -> media fragment nhảy đúng KHÚC
+  const mang = (c.t1 > c.t0) ? `#t=${c.t0},${c.t1}` : ''
+  return `/api/sotra/video?id=${encodeURIComponent(c.id)}` + mang
 }
 const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
                 ref: '#a98ee0', kho: '#8a93a0'}
@@ -939,6 +943,7 @@ async function stVe(them) {
         <span style="position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:${ST_MAU[c.nguon] || '#888'};color:#111">${c.nguon === 'ref' ? 'REF' : c.nguon.toUpperCase()}</span>
         ${c.geo ? '<span style="position:absolute;top:6px;right:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(92,185,138,.92);color:#04220f">⚑</span>' : ''}
         ${c.da_dung ? `<span style="position:absolute;bottom:6px;right:6px;font-size:9.5px;padding:2px 8px;border-radius:5px;background:rgba(0,0,0,.72);color:var(--warn)">đã dùng ${esc(c.da_dung)}</span>` : ''}
+        ${c.so_ban > 1 ? `<span style="position:absolute;bottom:6px;left:6px;font-size:9.5px;padding:2px 7px;border-radius:5px;background:rgba(0,0,0,.72);color:var(--muted)">+${c.so_ban - 1} bản</span>` : ''}
       </div>
       <div class="note" style="margin:0;padding:7px 10px 9px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:42px">${esc(c.tieu_de)}</div>`
     const vid = div.querySelector('video')
