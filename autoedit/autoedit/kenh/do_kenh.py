@@ -21,7 +21,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from autoedit.kenh.hoso import HoSoKenh
+from autoedit.kenh.hoso import HoSoKenh, thu_muc_kenh
 from autoedit.nhip.do import DoNhipError, do_video
 
 SO_VIDEO = 5          # mặc định (user 05/09: "đo nhiều video thì số hiệu chỉnh
@@ -124,6 +124,40 @@ def _tai_video(link: str, dich: Path, so_video: int = SO_VIDEO,
     return files
 
 
+SO_BUCKET_NHIP = 24
+
+
+def _resample_cong(cong: list[tuple[float, float]], tong: float,
+                   n: int = SO_BUCKET_NHIP) -> list[float]:
+    """[(t, cắt/phút)] cửa sổ trượt → n bucket theo VỊ TRÍ 0..1 (video dài ngắn
+    khác nhau vẫn chồng lên nhau được). Giá trị bucket = cửa sổ gần tâm nhất."""
+    ra = []
+    for i in range(n):
+        tmid = (i + 0.5) / n * tong
+        ra.append(min(cong, key=lambda x: abs(x[0] - tmid))[1])
+    return ra
+
+
+def _luu_frames(videos: list[Path], thu_muc: Path, log=None) -> int:
+    """Rút frame minh hoạ từ video gốc (user 05/09) TRƯỚC khi video tạm bị xoá:
+    2 frame/video, tối đa 3 video → ≤6 JPEG nhỏ vào <kenh>/frames/. Fail-open."""
+    from autoedit.library.vision import extract_frames
+
+    thu_muc.mkdir(parents=True, exist_ok=True)
+    for f in thu_muc.glob("f*.jpg"):        # đo lại thì thay trọn bộ cũ
+        f.unlink(missing_ok=True)
+    dem = 0
+    for v in videos[:3]:
+        try:
+            for b in extract_frames(v, n=2):
+                dem += 1
+                (thu_muc / f"f{dem}.jpg").write_bytes(b)
+        except Exception as exc:  # noqa: BLE001
+            if log:
+                log(f"kenh: rút frame {v.name} lỗi ({exc}) — bỏ qua")
+    return dem
+
+
 def do_nhac_ffmpeg(video: Path, so_bucket: int = 12) -> dict:
     """Energy curve audio bằng ffmpeg THUẦN (librosa cố ý vắng trên máy chủ).
 
@@ -198,6 +232,7 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
         hooks, hooks_nhanh, thans, thans_nhanh, thans_hold = [], [], [], [], []
         chu_kys, drops, do_dongs = [], [], []
         curve_tong: list[list[float]] = []
+        nhip_cong_tong: list[list[float]] = []
         video_hoi_tu: list[Path] = []
         hoi_tu = 0
         for f in files:
@@ -222,6 +257,8 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
                 thans_hold.append(t.ty_le_hold)
             if kq.chu_ky_bung_s:
                 chu_kys.append(kq.chu_ky_bung_s)
+            if kq.cong:
+                nhip_cong_tong.append(_resample_cong(kq.cong, kq.tong_s))
             nh = do_nhac_ffmpeg(f)
             if nh["curve"]:
                 curve_tong.append(nh["curve"])
@@ -241,6 +278,10 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
             nhac_vi_tri_drop=_median(drops), nhac_do_dong=_median(do_dongs),
         )
         hs.hook_kieu = _hook_kieu(hs.hook_trung_vi, hs.than_trung_vi)
+        if nhip_cong_tong:
+            hs.nhip_curve = [
+                round(statistics.median(c[i] for c in nhip_cong_tong), 1)
+                for i in range(SO_BUCKET_NHIP)]
         if curve_tong:
             n = len(curve_tong[0])
             hs.nhac_energy_curve = [
@@ -253,6 +294,9 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
         if hs.loai_canh:
             ghi("kenh: loại cảnh — " + " · ".join(
                 f"{k} {v:.0%}" for k, v in hs.loai_canh.items() if v > 0))
+        so_frame = _luu_frames(video_hoi_tu, thu_muc_kenh(ten) / "frames", log=log)
+        if so_frame:
+            ghi(f"kenh: đã lưu {so_frame} frame minh hoạ")
         # MÔ TẢ ĐỌC ĐƯỢC (Framing Insight): LLM viết bản nhận diện 4 mặt (nhịp
         # độ · đường hình · âm nhạc · năng lượng) TỪ số đo — fail-open: thiếu
         # key/API chết thì mô tả trống, UI nhắc Đo lại để sinh.

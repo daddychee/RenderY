@@ -138,6 +138,7 @@ class KetQuaDo:
     than: dict[str, ThongKeDoan | None] = field(default_factory=dict)
     bung: list[tuple[float, float]] = field(default_factory=list)
     chu_ky_bung_s: float | None = None
+    cong: list[tuple[float, float]] = field(default_factory=list)  # [(t, cắt/phút)] — đồ thị nhịp
 
     def hoi_tu(self, lech_toi_da: float = 0.25) -> bool:
         """Hai thước có hội tụ không (trung vị thân lệch ≤25%)? Không hội tụ thì
@@ -159,7 +160,8 @@ def do_video(video: Path) -> KetQuaDo:
     for ten, cat in (("select", cat_sel), ("scdet", diem_cat_scdet(video))):
         kq.hook[ten] = thong_ke_doan(cat, 0.0, min(HOOK_S, tong))
         kq.than[ten] = thong_ke_doan(cat, min(HOOK_S, tong), tong)
-    kq.bung = dinh_bung(duong_cong(cat_sel, tong))
+    kq.cong = duong_cong(cat_sel, tong)
+    kq.bung = dinh_bung(kq.cong)
     if len(kq.bung) >= 2:
         khoang = [kq.bung[i + 1][0] - kq.bung[i][0] for i in range(len(kq.bung) - 1)]
         kq.chu_ky_bung_s = round(statistics.median(khoang), 0)

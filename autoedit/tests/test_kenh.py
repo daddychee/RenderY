@@ -292,3 +292,42 @@ def test_do_kenh_mo_ta_loi_fail_open(cache_rieng, tmp_path):
     assert hs.mo_ta == {}
     assert hs.than_trung_vi > 0
     assert HoSoKenh.doc("kenh-mota-loi") is not None
+
+
+# ------------------------------------------------------- đồ thị nhịp + frames
+def test_resample_cong_theo_vi_tri():
+    """Đường cong cửa sổ trượt → 24 bucket theo VỊ TRÍ 0..1 (video dài ngắn
+    khác nhau chồng khớp). Bucket lấy cửa sổ gần tâm nhất."""
+    from autoedit.kenh.do_kenh import _resample_cong
+
+    cong = [(30.0, 10.0), (60.0, 20.0), (90.0, 30.0)]
+    ra = _resample_cong(cong, tong=120.0, n=4)
+    # tâm bucket: 15s→(30,10), 45s→(30 hay 60 đều cách 15, min chọn 30), 75s→(60 hoặc 90), 105s→(90,30)
+    assert len(ra) == 4
+    assert ra[0] == 10.0 and ra[3] == 30.0
+
+
+def test_do_kenh_luu_frames_va_nhip_curve(cache_rieng, tmp_path):
+    """Đo xong phải còn frame minh hoạ trên đĩa (video tạm đã xoá) — user 05/09."""
+    from autoedit.kenh.hoso import thu_muc_kenh
+
+    video_dir = tmp_path / "vids5"
+    video_dir.mkdir()
+    _video_cat_cung(video_dir, "v1.mp4")
+
+    def tai_gia(link, dich, so_video=3, log=None):
+        import shutil
+        ra = []
+        for f in video_dir.glob("*.mp4"):
+            d = dich / f.name
+            shutil.copy2(f, d)
+            ra.append(d)
+        return ra
+
+    hs = do_kenh("https://www.youtube.com/@kenh-frame", tai=tai_gia,
+                 llm_mo_ta=_LLMGia())
+    frames = sorted((thu_muc_kenh("kenh-frame") / "frames").glob("f*.jpg"))
+    assert len(frames) == 2                      # 1 video × 2 frame
+    assert frames[0].stat().st_size > 100  # JPEG thật (màu phẳng nén rất nhỏ)
+    # video test ngắn hơn cửa sổ 60s -> nhip_curve rỗng là HỢP LỆ (không nổ)
+    assert isinstance(hs.nhip_curve, list)

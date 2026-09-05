@@ -49,6 +49,9 @@ class HoSoKenh:
     than_ty_le_nhanh: float = 0.0
     than_ty_le_hold: float = 0.0
     bung_chu_ky_s: float = 0.0                # 0 = không đo được chu kỳ
+    # đồ thị nhịp theo thời gian (user 05/09 "cần đồ thị nhịp tăng giảm"):
+    # 24 bucket vị trí 0..1 của video, giá trị = cắt/phút (median qua video hội tụ)
+    nhip_curve: list[float] = field(default_factory=list)
 
     # ---- tầng 2: NHẠC (ffmpeg thuần) ----
     nhac_energy_curve: list[float] = field(default_factory=list)  # 12 bucket 0..1

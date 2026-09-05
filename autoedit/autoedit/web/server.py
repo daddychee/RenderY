@@ -603,7 +603,10 @@ def api_kenh_list(request: Request):
         for d in sorted(goc.iterdir()):
             hs = HoSoKenh.doc(d.name) if d.is_dir() else None
             if hs is not None:
-                ra.append(_dc.asdict(hs))
+                mot = _dc.asdict(hs)
+                # frame minh hoạ là file JPEG cạnh hoso.json, không nằm trong nó
+                mot["so_frame"] = len(list((d / "frames").glob("f*.jpg")))
+                ra.append(mot)
     with _kenh_lock:
         dang = {k: dict(v) for k, v in _kenh_dang_do.items()}
     return {"kenh": ra, "dang_do": dang,
@@ -661,6 +664,44 @@ def api_kenh_them(req: KenhRequest, request: Request):
                      daemon=True, name=f"kenh-{ten}").start()
     return {"ok": True, "ten": ten,
             "ghi_chu": f"đang tải + đo nền {so_video} video 360p (~vài phút) — F5 tab này"}
+
+
+@app.get("/api/kenh/{ten}/frame/{so}")
+def api_kenh_frame(ten: str, so: int, request: Request):
+    """Frame minh hoạ cắt từ video gốc lúc đo (user 05/09) — mọi vai xem được."""
+    _require_auth(request)
+    import re as _re
+
+    from autoedit.kenh.hoso import thu_muc_kenh
+
+    if not _re.fullmatch(r"[\w.-]{1,80}", ten) or not 1 <= so <= 12:
+        raise HTTPException(422, "Tham số không hợp lệ")
+    f = thu_muc_kenh(ten) / "frames" / f"f{so}.jpg"
+    if not f.is_file():
+        raise HTTPException(404, "Không có frame này")
+    return FileResponse(f, media_type="image/jpeg",
+                        headers={"Cache-Control": "max-age=86400"})
+
+
+@app.post("/api/kenh/{ten}/mo-ta")
+def api_kenh_viet_lai_mo_ta(ten: str, request: Request):
+    """Viết lại MÔ TẢ từ số đo đã cache — 1 lượt LLM, KHÔNG tải lại video.
+    Dùng khi hồ sơ cũ thiếu mô tả hoặc muốn bản gọn hơn sau khi đổi prompt."""
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được viết lại mô tả")
+    from autoedit.kenh.hoso import HoSoKenh
+    from autoedit.kenh.mo_ta import sinh_mo_ta
+
+    hs = HoSoKenh.doc(ten)
+    if hs is None:
+        raise HTTPException(404, "Không thấy kênh trong thư viện")
+    try:
+        hs.mo_ta = sinh_mo_ta(hs)
+    except Exception as exc:  # noqa: BLE001 — lỗi LLM trả thẳng cho UI
+        raise HTTPException(502, f"LLM không viết được mô tả: {exc}")
+    hs.ghi()
+    return {"ok": True, "mo_ta": hs.mo_ta}
 
 
 @app.post("/api/kenh/{ten}/do-lai")

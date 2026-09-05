@@ -290,13 +290,15 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
       <h2 id="fi-ten"></h2>
       <div class="note" id="fi-meta" style="margin:0 0 12px"></div>
       <div class="note" id="fi-canhbao" style="color:var(--bad);margin:0 0 10px" hidden></div>
+      <div id="fi-frames" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px"></div>
       <div class="chips" id="fi-the"></div>
-      <div id="fi-nhac" class="note" style="margin:0 0 4px"></div>
+      <div id="fi-dothi"></div>
       <div class="fi-body" id="fi-mota"></div>
       <div class="note" id="fi-footer" style="margin-top:16px" hidden>Đoạn mô tả do model
         viết, nhưng chỉ được đọc SỐ ĐO Python đã đo từ video của kênh — không được dùng
         hiểu biết riêng về kênh. Số nào không đo được thì không nhắc tới.</div>
       <div style="display:flex;gap:8px;margin-top:14px" id="fi-hanhdong" hidden>
+        <button class="btn ghost small" onclick="vietLaiMoTa(CT_TEN)">✎ Viết lại mô tả</button>
         <button class="btn ghost small" onclick="doLaiKenh(CT_TEN)">↻ Đo lại</button>
         <button class="btn ghost small" style="color:var(--muted);border-color:var(--line)"
                 onclick="xoaKenh(CT_TEN)">Xoá</button>
@@ -663,7 +665,8 @@ function chonPhongCach(ten) {
     G('fi-meta').textContent = ''
     G('fi-canhbao').hidden = true
     G('fi-the').innerHTML = ''
-    G('fi-nhac').innerHTML = ''
+    G('fi-frames').innerHTML = ''
+    G('fi-dothi').innerHTML = ''
     G('fi-footer').hidden = true
     G('fi-mota').innerHTML = '<p class="note">Trích xuất phong cách đầu tiên bằng form bên phải'
       + ' (manager/owner) — dán link kênh mẫu như Fern hay Johnny Harris.</p>'
@@ -689,35 +692,71 @@ function chonPhongCach(ten) {
     <div class="chip"><b>${k.bung_chu_ky_s ? (k.bung_chu_ky_s / 60).toFixed(1) + ' ph' : '—'}</b><span>chu kỳ bùng</span></div>
     ${Object.entries(lc).filter(([_, v]) => v > 0).map(([x, v]) =>
       `<div class="chip"><b>${(v * 100).toFixed(0)}%</b><span>${nhanLc[x] || x}</span></div>`).join('')}`
-  const cong = (k.nhac_energy_curve || [])
-  G('fi-nhac').innerHTML = cong.length
-    ? 'Năng lượng nhạc theo bài: <span class="mono">' + cong.map(v =>
-        '▁▂▃▄▅▆▇█'[Math.min(7, Math.round(v * 7))]).join('') + '</span>'
-      + ` · cao trào tại ${(k.nhac_vi_tri_drop * 100).toFixed(0)}% bài · dải động ${k.nhac_do_dong}dB`
-    : ''
+  G('fi-frames').innerHTML = Array.from({length: k.so_frame || 0}, (_, i) =>
+    `<img src="/api/kenh/${encodeURIComponent(k.ten)}/frame/${i + 1}" loading="lazy" alt=""
+       style="height:72px;border-radius:6px;border:1px solid var(--line)">`).join('')
+  const nhac = (k.nhac_energy_curve || []).map(v => Math.round(v * 100))
+  G('fi-dothi').innerHTML =
+    veChart(k.nhip_curve || [], 'Nhịp cắt theo thời gian', ' cắt/phút',
+      k.bung_chu_ky_s ? `bùng lặp mỗi ${(k.bung_chu_ky_s / 60).toFixed(1)} phút` : '')
+    + veChart(nhac, 'Năng lượng nhạc', '%',
+      nhac.length ? `cao trào tại ${(k.nhac_vi_tri_drop * 100).toFixed(0)}% bài · dải động ${k.nhac_do_dong}dB` : '')
   G('fi-mota').innerHTML = veMoTa(k.mo_ta || {})
   G('fi-footer').hidden = !(k.mo_ta && k.mo_ta.la_gi)
 }
 
-// Bản mô tả 4 mặt (nhịp độ · đường hình · âm nhạc · năng lượng) — khuôn AE:
-// eyebrow section + bullet có nhãn đậm. Thiếu mô tả (hồ sơ cũ / LLM lỗi lúc
-// trích) thì nhắc Đo lại thay vì để trống khó hiểu.
+// Đồ thị SVG gọn (user 05/09 "cần đồ thị nhịp tăng giảm theo thời gian"):
+// area + line, trục x = vị trí trong video (video dài ngắn đều chồng khớp).
+function veChart(vals, nhan, donvi, chu_thich) {
+  if (!vals || vals.length < 2) return ''
+  const W = 560, H = 92, P = 8
+  const mx = Math.max(...vals), mn = Math.min(...vals)
+  const y = v => H - P - (mx > mn ? (v - mn) / (mx - mn) : .5) * (H - 2 * P)
+  const x = i => P + i * (W - 2 * P) / (vals.length - 1)
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+  return `<div class="note" style="margin:12px 0 2px"><b>${nhan}</b> — đỉnh ${mx}${donvi}, đáy ${mn}${donvi}${chu_thich ? ' · ' + chu_thich : ''}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;display:block" preserveAspectRatio="none">
+      <line x1="${P}" y1="${H - P}" x2="${W - P}" y2="${H - P}" stroke="var(--line)"/>
+      <path d="M${pts[0]} L${pts.slice(1).join(' L')} L${x(vals.length - 1).toFixed(1)},${H - P} L${x(0).toFixed(1)},${H - P} Z"
+            fill="var(--accent)" fill-opacity="0.12"/>
+      <polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    </svg>
+    <div class="note" style="display:flex;justify-content:space-between;max-width:560px;margin:0"><span>đầu video</span><span>cuối video</span></div>`
+}
+
+// Bản mô tả — BỚT CHỮ (user 05/09): 4 mặt thành thẻ 2×2, mỗi ý 1 câu; phần
+// còn lại giữ khuôn AE. Thiếu mô tả thì nhắc «Viết lại mô tả» (không tải lại video).
 function veMoTa(m) {
   if (!m || !m.la_gi)
-    return '<p class="note">Hồ sơ này chưa có bản mô tả đọc được (đo trước bản'
-      + ' Framing Insight, hoặc LLM lỗi lúc trích) — bấm «↻ Đo lại» để sinh.</p>'
-  const li = (nhan, v) => v ? `<li><b>${nhan}.</b> ${esc(v)}</li>` : ''
+    return '<p class="note">Hồ sơ này chưa có bản mô tả đọc được — bấm «✎ Viết lại'
+      + ' mô tả» để sinh từ số đo đã có (không tải lại video).</p>'
+  const the = (nhan, v) => v ? `<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+      <div class="note" style="margin:0 0 3px;text-transform:uppercase;letter-spacing:.06em;font-size:10.5px">${nhan}</div>
+      <div style="font-size:13px;line-height:1.6">${esc(v)}</div></div>` : ''
   return `
     <div class="fi-eb">Nhận ra phong cách</div>
-    <p><b>Phong cách này là gì.</b> ${esc(m.la_gi)}</p>
-    ${(m.ky_thuat || []).length ? '<p><b>Kỹ thuật đặc trưng:</b></p><ul>'
+    <p>${esc(m.la_gi)}</p>
+    ${(m.ky_thuat || []).length ? '<ul>'
       + m.ky_thuat.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>' : ''}
     <div class="fi-eb">Phân tích cách dựng</div>
-    <ul>${li('Nhịp độ', m.nhip_do)}${li('Đường hình', m.duong_hinh)}${li('Âm nhạc', m.am_nhac)}${li('Năng lượng', m.nang_luong)}</ul>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${the('Nhịp độ', m.nhip_do)}${the('Đường hình', m.duong_hinh)}${the('Âm nhạc', m.am_nhac)}${the('Năng lượng', m.nang_luong)}</div>
     <div class="fi-eb">Giao việc</div>
-    <ul>${li('Dùng cho nội dung gì', m.hop_voi)}${li('Không hợp với', m.khong_hop)}${li('Mood cần set', m.mood)}</ul>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      ${the('Dùng cho', m.hop_voi)}${the('Không hợp', m.khong_hop)}${the('Mood', m.mood)}</div>
     ${(m.chi_lenh || []).length ? '<div class="fi-eb">Ba chỉ lệnh khi dựng</div><ol>'
       + m.chi_lenh.map(x => `<li>${esc(x)}</li>`).join('') + '</ol>' : ''}`
+}
+
+async function vietLaiMoTa(ten) {
+  if (!ten) return
+  const nut = event && event.target
+  if (nut) { nut.disabled = true; nut.textContent = 'đang viết…' }
+  try {
+    await api(`/api/kenh/${encodeURIComponent(ten)}/mo-ta`, {method: 'POST', body: '{}'})
+    await loadKenh()
+  } catch (e) { alert('Lỗi: ' + e.message) }
+  if (nut) { nut.disabled = false; nut.textContent = '✎ Viết lại mô tả' }
 }
 
 function capNhatSelectKenh(kenh) {

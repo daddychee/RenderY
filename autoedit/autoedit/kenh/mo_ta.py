@@ -56,7 +56,12 @@ nhỏ = nhạc phẳng); loai_canh = tỷ trọng thời lượng (tu_quay/b_rol
 ai_render). hook_kieu: no = nổ dày ngay giây đầu, leo = dồn dần, em = giữ đều.
 
 chi_lenh: đúng 3 chỉ lệnh máy-làm-được (số cụ thể), như "Giữ trung vị thân
-quanh 2.1s, tối đa 50% shot vượt 2s"."""
+quanh 2.1s, tối đa 50% shot vượt 2s".
+
+VIẾT NGẮN (user chê bản đầu dày chữ): mỗi trường đúng 1 câu ≤18 từ; ky_thuat
+tối đa 3 gạch, mỗi gạch ≤12 từ; chi_lenh mỗi cái ≤12 từ. Số đo đã có đồ thị
+và thẻ số hiển thị riêng — chỉ dẫn MỘT con số đắt nhất cho mỗi nhận định,
+không liệt kê tràn lan."""
 
 
 def sinh_mo_ta(hs, llm=None) -> dict:
