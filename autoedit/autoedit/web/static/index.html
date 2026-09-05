@@ -49,6 +49,10 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .chip b{display:block;font-size:17px}
 .chip b.w{color:var(--warn)}
 .chip span{color:var(--muted);font-size:12px}
+.fi-eb{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted);font-weight:700;margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.fi-body p,.fi-body li{font-size:13.5px;line-height:1.75;margin:6px 0}
+.fi-body ul,.fi-body ol{padding-left:20px;margin:4px 0}
+.fi-body b{color:var(--fg,inherit)}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13.5px}
 th{text-align:left;color:var(--muted);font-weight:600;padding:6px 10px;
@@ -166,7 +170,7 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
   <nav class="tabs">
     <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
     <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
-    <button id="gn-kenh" onclick="doiTrang('kenh')">Phong cách</button>
+    <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
 </header>
@@ -272,53 +276,61 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
   </div>
 </section>
 
-<!-- ═════════ PHONG CÁCH (khuôn CU Author Extract: trích 1 lần, chọn khi nộp) ═════════ -->
+<!-- ═════════ FRAMING INSIGHT (khuôn Author Extract: dropdown hồ sơ + thân mô tả + sidebar trích xuất) ═════════ -->
 <section class="man" id="man-kenh">
-  <div class="panel" id="p-kenh-them" hidden>
-    <h2>Trích xuất phong cách mới <small>manager/owner · làm một lần mỗi kênh</small></h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <input type="text" id="kenh-ten" placeholder="Tên phong cách (vd: Fern chậm rãi)"
-             style="max-width:220px" onkeydown="if(event.key==='Enter')themKenh()">
-      <input type="text" id="kenh-link" class="mono" placeholder="link kênh YouTube — https://www.youtube.com/@fern-tv"
-             style="flex:1;min-width:280px" onkeydown="if(event.key==='Enter')themKenh()">
-      <select id="kenh-so-video" title="đo nhiều video thì số hiệu chỉnh chuẩn hơn">
-        <option value="3">3 video</option>
-        <option value="5" selected>5 video</option>
-        <option value="8">8 video</option>
-      </select>
-      <button class="btn" id="kenh-nut" onclick="themKenh()">Trích xuất</button>
-    </div>
-    <div class="note" id="kenh-msg">Tool tải bản 360p, đo nhịp cắt + nhạc + tỷ trọng
-      loại cảnh rồi xoá video — chỉ giữ hồ sơ số. Đo một lần, cả team dùng mãi.</div>
-    <details style="margin-top:8px">
-      <summary style="cursor:pointer;color:var(--muted);font-size:12.5px">Dựng tham chiếu hoạt động thế nào?</summary>
-      <div class="note" style="line-height:1.7">
-        ① Manager trích xuất phong cách từ kênh mẫu (khung trên).
-        ② Editor chọn phong cách trong ô «Phong cách tham chiếu» khi nộp tập —
-        mỗi video một lựa chọn, không có mặc định.
-        ③ Tool ép nhịp cắt theo số đo của kênh mẫu; dựng xong draft tự đo lại và
-        báo đạt chuẩn tới đâu (dòng «ĐO LẠI SAU DỰNG» trong report).
-        Video ngắn &lt;4 phút bị bỏ; video đồ hoạ nhấp nháy đánh lừa thước bị loại
-        («không hội tụ») — kênh toàn đồ hoạ thì dán link video cụ thể ít đồ hoạ hơn.
+  <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span class="fi-eb" style="margin:0;border:0;padding:0">Framing Insight</span>
+    <select id="fi-select" style="min-width:260px" onchange="chonPhongCach(this.value)"></select>
+    <button class="btn ghost small" onclick="loadKenh()">Làm mới</button>
+    <span class="note" id="fi-dangdo" style="margin:0"></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start">
+    <div class="panel" id="fi-main">
+      <h2 id="fi-ten"></h2>
+      <div class="note" id="fi-meta" style="margin:0 0 12px"></div>
+      <div class="note" id="fi-canhbao" style="color:var(--bad);margin:0 0 10px" hidden></div>
+      <div class="chips" id="fi-the"></div>
+      <div id="fi-nhac" class="note" style="margin:0 0 4px"></div>
+      <div class="fi-body" id="fi-mota"></div>
+      <div class="note" id="fi-footer" style="margin-top:16px" hidden>Đoạn mô tả do model
+        viết, nhưng chỉ được đọc SỐ ĐO Python đã đo từ video của kênh — không được dùng
+        hiểu biết riêng về kênh. Số nào không đo được thì không nhắc tới.</div>
+      <div style="display:flex;gap:8px;margin-top:14px" id="fi-hanhdong" hidden>
+        <button class="btn ghost small" onclick="doLaiKenh(CT_TEN)">↻ Đo lại</button>
+        <button class="btn ghost small" style="color:var(--muted);border-color:var(--line)"
+                onclick="xoaKenh(CT_TEN)">Xoá</button>
       </div>
-    </details>
-  </div>
+    </div>
 
-  <div class="panel">
-    <h2>Thư viện phong cách <small id="kenh-dem"></small></h2>
-    <div class="tablewrap"><table id="bang-kenh"></table></div>
-  </div>
-
-  <div class="panel" id="p-kenh-chitiet" hidden>
-    <h2 id="ct-ten"></h2>
-    <div class="note" id="ct-meta" style="margin:0 0 10px"></div>
-    <div class="note" id="ct-canhbao" style="color:var(--bad);margin:0 0 10px" hidden></div>
-    <div class="chips" id="ct-the"></div>
-    <div id="ct-nhac" class="note"></div>
-    <div style="display:flex;gap:8px;margin-top:12px" id="ct-hanhdong" hidden>
-      <button class="btn ghost small" onclick="doLaiKenh(CT_TEN)">↻ Đo lại</button>
-      <button class="btn ghost small" style="color:var(--muted);border-color:var(--line)"
-              onclick="xoaKenh(CT_TEN)">Xoá</button>
+    <div class="panel" id="p-kenh-them" hidden>
+      <h2>Trích xuất phong cách mới <small>manager/owner</small></h2>
+      <input type="text" id="kenh-ten" placeholder="Tên phong cách (vd: Fern chậm rãi)"
+             style="width:100%;margin-bottom:8px" onkeydown="if(event.key==='Enter')themKenh()">
+      <input type="text" id="kenh-link" class="mono" placeholder="link kênh YouTube — https://www.youtube.com/@fern-tv"
+             style="width:100%;margin-bottom:8px" onkeydown="if(event.key==='Enter')themKenh()">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="kenh-so-video" style="flex:1" title="đo nhiều video thì số hiệu chỉnh chuẩn hơn">
+          <option value="3">3 video</option>
+          <option value="5" selected>5 video</option>
+          <option value="8">8 video</option>
+        </select>
+        <button class="btn" id="kenh-nut" onclick="themKenh()">▶ Trích xuất</button>
+      </div>
+      <div class="note" id="kenh-msg">Tool tải bản 360p, đo nhịp cắt + nhạc + tỷ trọng
+        loại cảnh rồi xoá video — chỉ giữ hồ sơ số. Đo một lần, cả team dùng mãi.</div>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;color:var(--muted);font-size:12.5px">Dựng tham chiếu hoạt động thế nào?</summary>
+        <div class="note" style="line-height:1.7">
+          ① Manager trích xuất phong cách từ kênh mẫu (form này).
+          ② Editor chọn phong cách trong ô «Phong cách tham chiếu» khi nộp tập —
+          mỗi video một lựa chọn, không có mặc định.
+          ③ Tool ép nhịp cắt theo số đo của kênh mẫu; dựng xong draft tự đo lại và
+          báo đạt chuẩn tới đâu (dòng «ĐO LẠI SAU DỰNG» trong report).
+          Video ngắn &lt;4 phút bị bỏ; video đồ hoạ nhấp nháy đánh lừa thước bị loại
+          («không hội tụ») — kênh toàn đồ hoạ thì dán link video cụ thể ít đồ hoạ hơn.
+        </div>
+      </details>
     </div>
   </div>
 </section>
@@ -606,81 +618,106 @@ function canhBaoNiche() {
   document.getElementById('ns-niche-canh-bao').hidden = !trong
 }
 
-/* ── PHONG CÁCH (khuôn CU Author Extract): thư viện + soi hồ sơ ── */
+/* ── FRAMING INSIGHT (khuôn Author Extract): dropdown hồ sơ + thân mô tả ── */
 let KENH_DS = []
 let CT_TEN = ''
 
 async function loadKenh() {
   let d
   try { d = await api('/api/kenh') } catch (e) {
-    document.getElementById('bang-kenh').innerHTML =
-      `<tr><td class="err">${esc(e.message)}</td></tr>`
+    document.getElementById('fi-mota').innerHTML = `<p class="err">${esc(e.message)}</p>`
     return
   }
   KENH_DS = d.kenh || []
   document.getElementById('p-kenh-them').hidden = !d.nghien_cuu
-  document.getElementById('ct-hanhdong').hidden = !d.nghien_cuu
-  const rows = []
-  for (const [ten, tt] of Object.entries(d.dang_do || {})) {
-    rows.push(`<tr><td><b>${esc(ten)}</b></td><td colspan="2">
-      ${tt.tt === 'loi' ? `<span class="hb loi"></span><span class="err">${esc(tt.loi)}</span>`
-        : '<span class="hb run"></span>Đang tải + đo nền…'}</td>
-      <td class="num">${d.nghien_cuu && tt.tt === 'loi'
-        ? `<a onclick="xoaKenh('${esc(ten)}')">bỏ</a>` : ''}</td></tr>`)
+  document.getElementById('fi-hanhdong').hidden = !d.nghien_cuu
+
+  const sel = document.getElementById('fi-select')
+  if (document.activeElement !== sel) {
+    sel.innerHTML = KENH_DS.length
+      ? KENH_DS.map(k => `<option value="${esc(k.ten)}">${esc(k.ten_phong_cach || k.ten)}</option>`).join('')
+      : '<option value="">— chưa có phong cách nào —</option>'
+    if (KENH_DS.some(k => k.ten === CT_TEN)) sel.value = CT_TEN
   }
-  for (const k of KENH_DS) {
-    const canh = k.so_video_hoi_tu <= 1 ? ' <span class="tag loi">số kém tin</span>' : ''
-    rows.push(`<tr style="cursor:pointer" onclick="xemPhongCach('${esc(k.ten)}')">
-      <td><b>${esc(k.ten_phong_cach || k.ten)}</b>${canh}<br>
-        <span class="note" style="margin:0">${esc((k.ngay_do || '').slice(0, 10))} ·
-        ${k.so_video_hoi_tu} video${k.nguoi_tao ? ' · ✍ ' + esc(k.nguoi_tao) : ''}</span></td>
-      <td>hook <b>${k.hook_kieu || '?'}</b> ${k.hook_trung_vi}s · thân ${k.than_trung_vi}s</td>
-      <td>${k.bung_chu_ky_s ? 'bùng ' + (k.bung_chu_ky_s / 60).toFixed(1) + 'ph' : '—'}</td>
-      <td class="num"><a>chi tiết →</a></td></tr>`)
-  }
-  document.getElementById('bang-kenh').innerHTML =
-    '<tr><th>Phong cách</th><th>Nhịp</th><th>Bùng</th><th></th></tr>'
-    + (rows.join('') || `<tr><td colspan="4" class="note">Chưa có phong cách nào.${
-        d.nghien_cuu ? ' Trích xuất phong cách đầu tiên ở khung trên.'
-        : ' Nhờ manager trích xuất phong cách đầu tiên.'}</td></tr>`)
-  document.getElementById('kenh-dem').textContent = `${KENH_DS.length} phong cách`
-  capNhatSelectKenh(KENH_DS)
-  if (Object.values(d.dang_do || {}).some(t => t.tt === 'dang_do')
+
+  // trạng thái các lượt trích đang chạy nền / lỗi
+  const dd = Object.entries(d.dang_do || {})
+  document.getElementById('fi-dangdo').innerHTML = dd.map(([ten, tt]) =>
+    tt.tt === 'loi'
+      ? `<span class="err">«${esc(ten)}» lỗi: ${esc(tt.loi)}</span>` +
+        (d.nghien_cuu ? ` <a onclick="xoaKenh('${esc(ten)}')">bỏ</a>` : '')
+      : `<span class="hb run"></span>đang trích «${esc(ten)}»…`).join(' · ')
+
+  chonPhongCach(sel.value || (KENH_DS[0] ? KENH_DS[0].ten : ''))
+  if (dd.some(([, t]) => t.tt === 'dang_do')
       && document.getElementById('man-kenh').classList.contains('on'))
     setTimeout(loadKenh, 8000)
 }
 
-function xemPhongCach(ten) {
+function chonPhongCach(ten) {
   const k = KENH_DS.find(x => x.ten === ten)
-  if (!k) return
-  CT_TEN = ten
-  document.getElementById('p-kenh-chitiet').hidden = false
-  document.getElementById('ct-ten').textContent = k.ten_phong_cach || k.ten
-  document.getElementById('ct-meta').innerHTML =
+  CT_TEN = k ? k.ten : ''
+  const G = id => document.getElementById(id)
+  if (!k) {
+    G('fi-ten').textContent = 'Chưa có phong cách nào'
+    G('fi-meta').textContent = ''
+    G('fi-canhbao').hidden = true
+    G('fi-the').innerHTML = ''
+    G('fi-nhac').innerHTML = ''
+    G('fi-footer').hidden = true
+    G('fi-mota').innerHTML = '<p class="note">Trích xuất phong cách đầu tiên bằng form bên phải'
+      + ' (manager/owner) — dán link kênh mẫu như Fern hay Johnny Harris.</p>'
+    return
+  }
+  G('fi-ten').textContent = k.ten_phong_cach || k.ten
+  G('fi-meta').innerHTML =
     `đo ${esc((k.ngay_do || '').slice(0, 10))} · ${k.so_video_hoi_tu} video hội tụ`
     + `${k.nguoi_tao ? ' · hồ sơ do <b>✍ ' + esc(k.nguoi_tao) + '</b> tạo' : ''}`
     + `${k.link ? ' · <a href="' + esc(k.link) + '" target="_blank">mở kênh</a>' : ''}`
-  const cb = document.getElementById('ct-canhbao')
+  const cb = G('fi-canhbao')
   if (k.so_video_hoi_tu <= 1) {
     cb.hidden = false
     cb.textContent = '⚠ Chỉ ' + k.so_video_hoi_tu + ' video cho số đo tin được — hồ sơ '
       + 'kém chắc, nên Đo lại với nhiều video hơn hoặc dán link video cụ thể ít đồ hoạ.'
   } else cb.hidden = true
+
   const lc = k.loai_canh || {}
   const nhanLc = {tu_quay: 'tự quay', b_roll: 'b-roll', do_hoa: 'đồ hoạ', ai_render: 'AI render'}
-  document.getElementById('ct-the').innerHTML = `
+  G('fi-the').innerHTML = `
     <div class="chip"><b>${k.hook_kieu || '?'}</b><span>kiểu hook · trung vị ${k.hook_trung_vi}s</span></div>
     <div class="chip"><b>${k.than_trung_vi}s</b><span>thân · nhanh ${(k.than_ty_le_nhanh * 100).toFixed(0)}% · hold ${(k.than_ty_le_hold * 100).toFixed(0)}%</span></div>
     <div class="chip"><b>${k.bung_chu_ky_s ? (k.bung_chu_ky_s / 60).toFixed(1) + ' ph' : '—'}</b><span>chu kỳ bùng</span></div>
     ${Object.entries(lc).filter(([_, v]) => v > 0).map(([x, v]) =>
       `<div class="chip"><b>${(v * 100).toFixed(0)}%</b><span>${nhanLc[x] || x}</span></div>`).join('')}`
   const cong = (k.nhac_energy_curve || [])
-  document.getElementById('ct-nhac').innerHTML = cong.length
+  G('fi-nhac').innerHTML = cong.length
     ? 'Năng lượng nhạc theo bài: <span class="mono">' + cong.map(v =>
         '▁▂▃▄▅▆▇█'[Math.min(7, Math.round(v * 7))]).join('') + '</span>'
       + ` · cao trào tại ${(k.nhac_vi_tri_drop * 100).toFixed(0)}% bài · dải động ${k.nhac_do_dong}dB`
     : ''
-  document.getElementById('p-kenh-chitiet').scrollIntoView({behavior: 'smooth', block: 'nearest'})
+  G('fi-mota').innerHTML = veMoTa(k.mo_ta || {})
+  G('fi-footer').hidden = !(k.mo_ta && k.mo_ta.la_gi)
+}
+
+// Bản mô tả 4 mặt (nhịp độ · đường hình · âm nhạc · năng lượng) — khuôn AE:
+// eyebrow section + bullet có nhãn đậm. Thiếu mô tả (hồ sơ cũ / LLM lỗi lúc
+// trích) thì nhắc Đo lại thay vì để trống khó hiểu.
+function veMoTa(m) {
+  if (!m || !m.la_gi)
+    return '<p class="note">Hồ sơ này chưa có bản mô tả đọc được (đo trước bản'
+      + ' Framing Insight, hoặc LLM lỗi lúc trích) — bấm «↻ Đo lại» để sinh.</p>'
+  const li = (nhan, v) => v ? `<li><b>${nhan}.</b> ${esc(v)}</li>` : ''
+  return `
+    <div class="fi-eb">Nhận ra phong cách</div>
+    <p><b>Phong cách này là gì.</b> ${esc(m.la_gi)}</p>
+    ${(m.ky_thuat || []).length ? '<p><b>Kỹ thuật đặc trưng:</b></p><ul>'
+      + m.ky_thuat.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>' : ''}
+    <div class="fi-eb">Phân tích cách dựng</div>
+    <ul>${li('Nhịp độ', m.nhip_do)}${li('Đường hình', m.duong_hinh)}${li('Âm nhạc', m.am_nhac)}${li('Năng lượng', m.nang_luong)}</ul>
+    <div class="fi-eb">Giao việc</div>
+    <ul>${li('Dùng cho nội dung gì', m.hop_voi)}${li('Không hợp với', m.khong_hop)}${li('Mood cần set', m.mood)}</ul>
+    ${(m.chi_lenh || []).length ? '<div class="fi-eb">Ba chỉ lệnh khi dựng</div><ol>'
+      + m.chi_lenh.map(x => `<li>${esc(x)}</li>`).join('') + '</ol>' : ''}`
 }
 
 function capNhatSelectKenh(kenh) {
@@ -708,7 +745,7 @@ async function themKenh() {
   nut.disabled = false
 }
 async function doLaiKenh(ten) {
-  if (!confirm(`Đo lại «${ten}»? (tải lại 3 video từ YouTube)`)) return
+  if (!confirm(`Đo lại «${ten}»? (tải lại video từ YouTube — mất vài phút)`)) return
   try { await api(`/api/kenh/${encodeURIComponent(ten)}/do-lai`, {method: 'POST', body: '{}'}); loadKenh() }
   catch (e) { alert('Lỗi: ' + e.message) }
 }

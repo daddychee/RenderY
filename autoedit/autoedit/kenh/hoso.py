@@ -58,6 +58,10 @@ class HoSoKenh:
     # ---- tầng 3: LOẠI CẢNH (Đợt B — GLM vision; rỗng = chưa đo) ----
     loai_canh: dict = field(default_factory=dict)  # {tu_quay, b_roll, do_hoa, ai_render}: 0..1
 
+    # ---- MÔ TẢ ĐỌC ĐƯỢC (Framing Insight — kenh/mo_ta.py, LLM viết TỪ số đo;
+    # rỗng = chưa sinh được, UI hiện nhắc Đo lại) ----
+    mo_ta: dict = field(default_factory=dict)
+
     # ------------------------------------------------------------------ io
     @staticmethod
     def duong(ten: str) -> Path:

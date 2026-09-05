@@ -158,7 +158,8 @@ def _median(vals: list[float]) -> float:
 
 def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
             do_lai: bool = False, log=None, tai=None, goi_vision=None,
-            ten_phong_cach: str = "", nguoi_tao: str = "") -> HoSoKenh:
+            ten_phong_cach: str = "", nguoi_tao: str = "",
+            llm_mo_ta=None) -> HoSoKenh:
     """Link → HoSoKenh (cache theo kênh). `tai` tiêm được để test không mạng."""
     def ghi(m):
         if log:
@@ -234,6 +235,15 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
         if hs.loai_canh:
             ghi("kenh: loại cảnh — " + " · ".join(
                 f"{k} {v:.0%}" for k, v in hs.loai_canh.items() if v > 0))
+        # MÔ TẢ ĐỌC ĐƯỢC (Framing Insight): LLM viết bản nhận diện 4 mặt (nhịp
+        # độ · đường hình · âm nhạc · năng lượng) TỪ số đo — fail-open: thiếu
+        # key/API chết thì mô tả trống, UI nhắc Đo lại để sinh.
+        try:
+            from autoedit.kenh.mo_ta import sinh_mo_ta
+            hs.mo_ta = sinh_mo_ta(hs, llm=llm_mo_ta)
+            ghi("kenh: mô tả phong cách đã sinh (Framing Insight)")
+        except Exception as exc:  # noqa: BLE001
+            ghi(f"kenh: sinh mô tả LỖI ({exc}) — hồ sơ vẫn giữ đủ số đo")
         hs.ghi()
         ghi(f"kenh: «{ten}» đo xong — {hoi_tu}/{len(files)} video hội tụ, hồ sơ đã cache")
         return hs

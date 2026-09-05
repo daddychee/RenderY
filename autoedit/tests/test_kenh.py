@@ -214,3 +214,81 @@ def test_do_kenh_kem_loai_canh(cache_rieng, tmp_path):
     assert hs.loai_canh["b_roll"] == 0.25
     doc_lai = HoSoKenh.doc("kenh-vision")
     assert doc_lai.loai_canh == hs.loai_canh              # tầng 3 vào cache
+
+
+# ------------------------------------------------------------ mô tả (Framing Insight)
+class _LLMGia:
+    """Stub GLMDirectorClient.complete — trả schema hợp lệ, ghi lại prompt."""
+
+    def __init__(self, no=False):
+        self.no = no
+        self.system = self.user = ""
+
+    def complete(self, system, user, model):
+        if self.no:
+            raise RuntimeError("GLM chết")
+        self.system, self.user = system, user
+        return model(la_gi="Kênh cắt chậm, giữ khung dài.",
+                     ky_thuat=["thân trung vị 3.0s — chậm gấp rưỡi chuẩn"],
+                     nhip_do="chậm đều", duong_hinh="đồ hoạ chiếm 75%",
+                     am_nhac="phẳng", nang_luong="đều, không sóng",
+                     hop_voi="video giải thích", khong_hop="vlog nhanh",
+                     mood="trầm", chi_lenh=["giữ 3s", "hold 20%", "ít cắt"]), None
+
+
+def test_sinh_mo_ta_chi_dua_so_do():
+    """LLM chỉ được thấy SỐ ĐO — link/nguồn/mo_ta cũ không vào prompt."""
+    from autoedit.kenh.mo_ta import sinh_mo_ta
+
+    hs = HoSoKenh(ten="t", link="https://youtube.com/@t", nguon=["v1"],
+                  than_trung_vi=3.0, so_video_hoi_tu=4, mo_ta={"la_gi": "cũ"})
+    llm = _LLMGia()
+    m = sinh_mo_ta(hs, llm=llm)
+    assert m["la_gi"].startswith("Kênh cắt chậm")
+    assert len(m["chi_lenh"]) == 3
+    assert "than_trung_vi" in llm.user
+    for cam in ("youtube.com", "v1", '"la_gi": "cũ"'):
+        assert cam not in llm.user, f"{cam} lọt vào prompt"
+
+
+def test_do_kenh_kem_mo_ta(cache_rieng, tmp_path):
+    """do_kenh sinh mô tả sau khi đo — cache round-trip giữ nguyên."""
+    video_dir = tmp_path / "vids3"
+    video_dir.mkdir()
+    _video_cat_cung(video_dir, "v1.mp4")
+
+    def tai_gia(link, dich, so_video=3, log=None):
+        import shutil
+        ra = []
+        for f in video_dir.glob("*.mp4"):
+            d = dich / f.name
+            shutil.copy2(f, d)
+            ra.append(d)
+        return ra
+
+    hs = do_kenh("https://www.youtube.com/@kenh-mota", tai=tai_gia,
+                 llm_mo_ta=_LLMGia())
+    assert hs.mo_ta["nhip_do"] == "chậm đều"
+    assert HoSoKenh.doc("kenh-mota").mo_ta == hs.mo_ta
+
+
+def test_do_kenh_mo_ta_loi_fail_open(cache_rieng, tmp_path):
+    """LLM chết -> mô tả trống nhưng hồ sơ SỐ vẫn đo xong + cache đủ."""
+    video_dir = tmp_path / "vids4"
+    video_dir.mkdir()
+    _video_cat_cung(video_dir, "v1.mp4")
+
+    def tai_gia(link, dich, so_video=3, log=None):
+        import shutil
+        ra = []
+        for f in video_dir.glob("*.mp4"):
+            d = dich / f.name
+            shutil.copy2(f, d)
+            ra.append(d)
+        return ra
+
+    hs = do_kenh("https://www.youtube.com/@kenh-mota-loi", tai=tai_gia,
+                 llm_mo_ta=_LLMGia(no=True))
+    assert hs.mo_ta == {}
+    assert hs.than_trung_vi > 0
+    assert HoSoKenh.doc("kenh-mota-loi") is not None
