@@ -23,9 +23,14 @@ def test_slug_kenh_handle():
     assert slug_tu_link("https://youtube.com/@JohnnyHarris/videos") == "johnnyharris"
 
 
-def test_slug_video_le():
-    assert slug_tu_link("https://www.youtube.com/watch?v=-Gnrp_caPvo") == "video--Gnrp_caPvo"
-    assert slug_tu_link("https://youtu.be/frr9AdZXrJc") == "video-frr9AdZXrJc"
+def test_slug_video_le_lowercase_nhat_quan():
+    """Lowercase MỌI nhánh (05/09): dropdown UI gửi lại slug làm kenh_ref, lệch
+    case là trượt cache (Windows FS vốn không phân biệt hoa thường)."""
+    assert slug_tu_link("https://www.youtube.com/watch?v=-Gnrp_caPvo") == "video--gnrp_capvo"
+    assert slug_tu_link("https://youtu.be/frr9AdZXrJc") == "video-frr9adzxrjc"
+    # slug đã có gửi lại qua dropdown -> ra chính nó (idempotent)
+    assert slug_tu_link("video--gnrp_capvo") == "video--gnrp_capvo"
+    assert slug_tu_link("fern-tv") == "fern-tv"
 
 
 def test_slug_link_rac_bao_loi():

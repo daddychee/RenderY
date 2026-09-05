@@ -124,6 +124,17 @@ def current_role(request: Request) -> str:
 # Vai được xem/huỷ việc của MỌI người. 'admin' là V3; 'owner' giữ cho hệ cũ và
 # cho lúc chạy trực tiếp không qua cổng.
 _VAI_TOAN_QUYEN = {"admin", "owner"}
+# Nghiên cứu kênh ref (user 05/09): chỉ manager/owner — đo tốn tải YouTube +
+# lượt GLM, và "chuẩn dựng" là quyết định cấp quản lý, không phải thói quen editor.
+_VAI_NGHIEN_CUU_KENH = {"admin", "owner", "manager"}
+
+
+def _duoc_nghien_cuu_kenh(request: Request) -> bool:
+    """Ngoài CRM (chạy trực tiếp/dev, không có header vai) thì mở — đúng khuôn
+    is_admin: 'owner giữ cho lúc chạy trực tiếp không qua cổng'."""
+    if not behind_crm(request):
+        return True
+    return current_role(request) in _VAI_NGHIEN_CUU_KENH
 
 
 def is_admin(request: Request) -> bool:
@@ -511,7 +522,8 @@ def api_me(request: Request):
     vai = current_role(request)
     return {"nguoi": nguoi, "vai": vai, "qua_crm": behind_crm(request),
             # owner xem/huỷ được job của mọi người; vai khác chỉ job của mình
-            "xem_het": is_admin(request)}
+            "xem_het": is_admin(request),
+            "nghien_cuu_kenh": _duoc_nghien_cuu_kenh(request)}
 
 
 # Nhân sự thấy NAS qua Ổ MẠNG, máy chủ thấy qua ổ đĩa — cùng một chỗ, khác đường.
@@ -558,6 +570,125 @@ def _aigen_pdir(project_id: str) -> Path:
     if not (pdir / "project.json").is_file() and not (pdir / "aigen_duyet.json").is_file():
         raise HTTPException(404, f"Không thấy project {project_id}")
     return pdir
+
+
+# ═════════════════ MODULE KÊNH REF (user 05/09 — khuôn Author Extract) ══════
+# Nghiên cứu kênh = việc LÀM MỘT LẦN có chủ đích (Func 1 Extractor), tách hẳn
+# khỏi form nộp tập (Func 2 chỉ CHỌN từ thư viện). Đo chạy NỀN trên server —
+# trạng thái in-memory; server restart giữa chừng thì mục "đang đo" biến mất,
+# kênh chưa có hồ sơ -> bấm đo lại (đo vốn idempotent nhờ cache).
+_kenh_dang_do: dict = {}          # slug -> {"tt": "dang_do"|"loi", "loi": str}
+_kenh_lock = threading.Lock()
+
+
+class KenhRequest(BaseModel):
+    link: str
+    ten: str = ""
+
+
+@app.get("/api/kenh")
+def api_kenh_list(request: Request):
+    """Thư viện kênh đã nghiên cứu + kênh đang đo — mọi vai xem được."""
+    _require_auth(request)
+    import dataclasses as _dc
+
+    from autoedit.kenh.hoso import HoSoKenh, thu_muc_kenh
+
+    # thu_muc_kenh("") = <root>/kenh (pathlib nuốt segment rỗng) — KHÔNG .parent
+    # (bug bắt bởi test 05/09: .parent trỏ lên data root, danh sách luôn rỗng)
+    goc = thu_muc_kenh("")
+    ra = []
+    if goc.is_dir():
+        for d in sorted(goc.iterdir()):
+            hs = HoSoKenh.doc(d.name) if d.is_dir() else None
+            if hs is not None:
+                ra.append(_dc.asdict(hs))
+    with _kenh_lock:
+        dang = {k: dict(v) for k, v in _kenh_dang_do.items()}
+    return {"kenh": ra, "dang_do": dang,
+            "nghien_cuu": _duoc_nghien_cuu_kenh(request)}
+
+
+def _chay_do_kenh(link: str, ten: str, do_lai: bool = False) -> None:
+    from autoedit.kenh.do_kenh import do_kenh
+
+    try:
+        do_kenh(link, ten=ten, do_lai=do_lai)
+        with _kenh_lock:
+            _kenh_dang_do.pop(ten, None)
+        print(f"[kenh] «{ten}» đo xong", flush=True)
+    except Exception as exc:  # noqa: BLE001 — trạng thái lỗi hiện trên UI
+        with _kenh_lock:
+            _kenh_dang_do[ten] = {"tt": "loi", "loi": str(exc)[:300]}
+        print(f"[kenh] «{ten}» LỖI: {exc}", flush=True)
+
+
+@app.post("/api/kenh")
+def api_kenh_them(req: KenhRequest, request: Request):
+    """Nghiên cứu kênh MỚI — chỉ manager/owner (qua CRM); đo chạy nền."""
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được nghiên cứu kênh mới")
+    from autoedit.kenh.do_kenh import DoKenhError, slug_tu_link
+    from autoedit.kenh.hoso import HoSoKenh
+
+    link = (req.link or "").strip()
+    if not link:
+        raise HTTPException(422, "Dán link kênh YouTube (vd https://www.youtube.com/@fern-tv)")
+    try:
+        ten = req.ten.strip() or slug_tu_link(link)
+    except DoKenhError as exc:
+        raise HTTPException(422, str(exc))
+    if HoSoKenh.doc(ten) is not None:
+        raise HTTPException(409, f"Kênh «{ten}» đã có trong thư viện — dùng nút Đo lại nếu muốn đo mới")
+    with _kenh_lock:
+        if ten in _kenh_dang_do and _kenh_dang_do[ten].get("tt") == "dang_do":
+            raise HTTPException(409, f"Kênh «{ten}» đang đo dở")
+        _kenh_dang_do[ten] = {"tt": "dang_do"}
+    threading.Thread(target=_chay_do_kenh, args=(link, ten), daemon=True,
+                     name=f"kenh-{ten}").start()
+    return {"ok": True, "ten": ten,
+            "ghi_chu": "đang tải + đo nền (~vài phút cho 3 video 360p) — F5 tab này"}
+
+
+@app.post("/api/kenh/{ten}/do-lai")
+def api_kenh_do_lai(ten: str, request: Request):
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được đo lại kênh")
+    from autoedit.kenh.hoso import HoSoKenh
+
+    hs = HoSoKenh.doc(ten)
+    if hs is None:
+        raise HTTPException(404, "Không thấy kênh trong thư viện")
+    if not hs.link:
+        raise HTTPException(422, "Hồ sơ cũ không lưu link gốc — xoá kênh rồi nghiên cứu lại bằng link")
+    with _kenh_lock:
+        if _kenh_dang_do.get(ten, {}).get("tt") == "dang_do":
+            raise HTTPException(409, "Kênh đang đo dở")
+        _kenh_dang_do[ten] = {"tt": "dang_do"}
+    threading.Thread(target=_chay_do_kenh, args=(hs.link, ten, True), daemon=True,
+                     name=f"kenh-{ten}").start()
+    return {"ok": True, "ghi_chu": "đang đo lại nền"}
+
+
+@app.delete("/api/kenh/{ten}")
+def api_kenh_xoa(ten: str, request: Request):
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được xoá kênh")
+    import re as _re
+    import shutil as _shutil
+
+    from autoedit.kenh.hoso import thu_muc_kenh
+
+    if not _re.fullmatch(r"[\w.-]{1,80}", ten):
+        raise HTTPException(422, "Tên kênh không hợp lệ")
+    d = thu_muc_kenh(ten)
+    if not d.is_dir():
+        raise HTTPException(404, "Không thấy kênh")
+    _shutil.rmtree(d, ignore_errors=True)
+    return {"ok": True}
 
 
 @app.get("/mockup")

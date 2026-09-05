@@ -34,6 +34,7 @@ class HoSoKenh:
     """Kết quả đo 1 kênh ref — nguồn sự thật cho 3 chỗ áp: ép nhịp, nhạc, nguồn."""
 
     ten: str                                  # slug kênh (fern-tv, johnnyharris...)
+    link: str = ""                            # link gốc — nút "đo lại" dùng, khỏi dán lại
     nguon: list[str] = field(default_factory=list)   # link/id các video đã đo
     ngay_do: str = ""
     so_video_hoi_tu: int = 0                  # chỉ video 2 thước hội tụ mới được tính

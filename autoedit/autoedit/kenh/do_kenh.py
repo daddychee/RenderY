@@ -40,10 +40,13 @@ def slug_tu_link(link: str) -> str:
         return m.group(1).lower()
     m = re.search(r"(?:watch\?v=|youtu\.be/)([\w-]{6,})", link)
     if m:
-        return f"video-{m.group(1)}"
+        # lowercase NHẤT QUÁN mọi nhánh — dropdown UI gửi lại slug làm kenh_ref,
+        # nhánh fallback vốn lowercase, lệch case là trượt cache (Windows FS
+        # không phân biệt hoa thường nên cache cũ không vỡ).
+        return f"video-{m.group(1)}".lower()
     m = re.search(r"/channel/(UC[\w-]+)", link)
     if m:
-        return m.group(1)
+        return m.group(1).lower()
     # đường cùng: lọc ký tự an toàn làm tên thư mục
     sach = re.sub(r"[^\w.-]+", "-", link.split("//")[-1])[:60].strip("-").lower()
     if not sach:
@@ -193,7 +196,7 @@ def do_kenh(link: str, ten: str = "", so_video: int = SO_VIDEO,
                 f"không video nào của «{ten}» cho số đo tin được (2 thước không "
                 "hội tụ) — thử kênh khác hoặc dán link video cụ thể ít đồ hoạ hơn")
         hs = HoSoKenh(
-            ten=ten, nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
+            ten=ten, link=link, nguon=[f.stem for f in files], so_video_hoi_tu=hoi_tu,
             hook_trung_vi=_median(hooks), hook_ty_le_nhanh=_median(hooks_nhanh),
             than_trung_vi=_median(thans), than_ty_le_nhanh=_median(thans_nhanh),
             than_ty_le_hold=_median(thans_hold),

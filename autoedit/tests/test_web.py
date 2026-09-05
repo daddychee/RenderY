@@ -146,6 +146,63 @@ def test_doc_tooltip_gio_phut_giay():
     assert srv._doc_tooltip(["1:02:15=50"]) == [(3735.0, 50.0)]
 
 
+# ------------------------------ module Kênh Ref (05/09) ----------------------
+class _ReqCRM:
+    """Request giả QUA CRM: loopback + trust proxy + header vai."""
+
+    def __init__(self, vai=""):
+        self.headers = {"x-forwarded-host": "crm.local", "x-remote-role": vai}
+        self.query_params = {}
+        self.client = type("C", (), {"host": "127.0.0.1"})()
+
+
+def test_nghien_cuu_kenh_qua_crm_theo_vai(monkeypatch):
+    """Qua CRM: manager/owner/admin được nghiên cứu, editor(viewer/leader) KHÔNG."""
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    assert srv._duoc_nghien_cuu_kenh(_ReqCRM("manager")) is True
+    assert srv._duoc_nghien_cuu_kenh(_ReqCRM("owner")) is True
+    assert srv._duoc_nghien_cuu_kenh(_ReqCRM("admin")) is True
+    assert srv._duoc_nghien_cuu_kenh(_ReqCRM("leader")) is False
+    assert srv._duoc_nghien_cuu_kenh(_ReqCRM("viewer")) is False
+
+
+def test_nghien_cuu_kenh_ngoai_crm_thi_mo(monkeypatch):
+    """Chạy trực tiếp không qua cổng CRM (dev/máy chủ): mở — đúng khuôn is_admin."""
+    monkeypatch.delenv("RENDERY_TRUST_PROXY", raising=False)
+    r = _ReqCRM("")
+    r.headers = {}
+    assert srv._duoc_nghien_cuu_kenh(r) is True
+
+
+def test_api_kenh_them_trung_bao_409(monkeypatch, tmp_path):
+    """Kênh đã có trong thư viện -> 409 chỉ sang nút Đo lại, không đo đè."""
+    from fastapi import HTTPException
+
+    import autoedit.kenh.hoso as mh
+    monkeypatch.setattr(mh, "resolve_data_root", lambda *a, **k: tmp_path)
+    monkeypatch.delenv("RENDERY_WEB_TOKEN", raising=False)
+    from autoedit.kenh.hoso import HoSoKenh
+    HoSoKenh(ten="fern-tv", so_video_hoi_tu=1).ghi()
+    r = _ReqCRM("")
+    r.headers = {}
+    with pytest.raises(HTTPException) as e:
+        srv.api_kenh_them(srv.KenhRequest(link="https://youtube.com/@fern-tv"), r)
+    assert e.value.status_code == 409
+
+
+def test_api_kenh_list_tra_thu_vien(monkeypatch, tmp_path):
+    import autoedit.kenh.hoso as mh
+    monkeypatch.setattr(mh, "resolve_data_root", lambda *a, **k: tmp_path)
+    monkeypatch.delenv("RENDERY_WEB_TOKEN", raising=False)
+    from autoedit.kenh.hoso import HoSoKenh
+    HoSoKenh(ten="fern-tv", so_video_hoi_tu=2, than_trung_vi=2.1).ghi()
+    r = _ReqCRM("")
+    r.headers = {}
+    d = srv.api_kenh_list(r)
+    assert [k["ten"] for k in d["kenh"]] == ["fern-tv"]
+    assert d["kenh"][0]["than_trung_vi"] == 2.1
+
+
 def test_che_secret():
     assert srv._mask("PEXELS_API_KEY", "abcdefghijklmnop") == "abcd…nop"
     assert srv._mask("PEXELS_API_KEY", "ngan") == "…"

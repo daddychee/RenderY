@@ -133,7 +133,8 @@ def test_LOOPBACK_khong_du_de_mien_token(monkeypatch):
 def test_api_me_tra_danh_tinh_va_quyen(monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = srv.api_me(_Req(user="lam", role="admin", fwd_host="crm:9000"))
-    assert d == {"nguoi": "lam", "vai": "admin", "qua_crm": True, "xem_het": True}
+    assert d == {"nguoi": "lam", "vai": "admin", "qua_crm": True, "xem_het": True,
+                 "nghien_cuu_kenh": True}   # admin duoc nghien cuu kenh ref (05/09)
 
     d2 = srv.api_me(_Req(user="hoa", role="viewer"))
     assert d2["xem_het"] is False and d2["qua_crm"] is False

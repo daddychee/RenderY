@@ -166,6 +166,7 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
   <nav class="tabs">
     <button id="gn-seq" class="on" onclick="doiTrang('seq')">Sequences</button>
     <button id="gn-gen" onclick="doiTrang('gen')">Generation</button>
+    <button id="gn-kenh" onclick="doiTrang('kenh')">Kênh ref</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
 </header>
@@ -221,27 +222,28 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
         </select></div>
       <div class="formrow"><label>Phương án dựng</label>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="optbox"><input type="radio" name="ns-pa" value="stock" checked onchange="doiPA()">
+          <label class="optbox"><input type="radio" name="ns-pa" value="stock" checked>
             <span><b>1 · Toàn footage thật</b>
               <span class="note" style="display:block">Stock + kho có sẵn — không AI,
               không cần video tự quay. Nhanh và rẻ nhất.</span></span></label>
-          <label class="optbox"><input type="radio" name="ns-pa" value="ai" onchange="doiPA()">
+          <label class="optbox"><input type="radio" name="ns-pa" value="ai">
             <span><b>2 · AI bù chỗ thiếu</b>
               <span class="note" style="display:block">Beat không tìm được footage sẽ có
               đề xuất cảnh AI (bạn duyệt mới tốn tiền: ảnh $0.06/cảnh, video ~$0.05/cảnh).</span></span></label>
-          <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay" onchange="doiPA()">
+          <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay">
             <span><b>3 · Footage tôi tự quay</b>
               <span class="note" style="display:block">Đặt sẵn <b>Ref 1.mp4 + Ref 1.srt</b>
               (video + transcript) vào folder chương TRƯỚC khi nộp — tool tự khớp câu và
               cắt clip từ video của bạn, ưu tiên trước stock.</span></span></label>
         </div></div>
-      <div class="formrow"><label>Kênh ref học nhịp</label>
+      <div class="formrow"><label>Phong cách tham chiếu</label>
         <div>
-          <input type="text" id="ns-kenh-ref" class="mono" placeholder="https://www.youtube.com/@fern-tv"
-                 style="width:100%;max-width:420px" onchange="nhoKenhRef()">
-          <div class="note">(tuỳ chọn) tool đo kênh này (nhịp cắt · nhạc · tỷ trọng loại cảnh)
-            làm chuẩn dựng cho phương án đã chọn — thay cho luật cứng. Kênh chỉ tải/đo
-            LẦN ĐẦU (~vài phút trong job), các lần sau dùng lại kết quả.</div>
+          <select id="ns-kenh-ref" style="max-width:280px">
+            <option value="">— không dùng (hồ sơ niche) —</option>
+          </select>
+          <div class="note">Chọn kênh mẫu ĐÃ nghiên cứu cho video này — mỗi video một
+            lựa chọn, không có mặc định. Kênh chưa có?
+            <a onclick="doiTrang('kenh')">Sang tab Kênh ref</a> (manager nghiên cứu).</div>
         </div></div>
       <div class="formrow"><label>Retention tập trước</label>
         <div>
@@ -267,6 +269,45 @@ select{background:var(--panel);color:var(--text);border:1px solid var(--line);
           tập sẵn sàng.</span>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ═════════ KÊNH REF (khuôn Author Extract — nghiên cứu 1 lần, dùng mãi) ═════════ -->
+<section class="man" id="man-kenh">
+  <div class="panel">
+    <h2>Dựng tham chiếu hoạt động thế nào <small>guide — đọc 1 phút</small></h2>
+    <div style="font-size:13px;line-height:1.7">
+      <b>1 · Manager nghiên cứu kênh mẫu</b> (làm MỘT lần mỗi kênh) — dán link kênh
+      YouTube muốn học phong cách (Fern, Johnny Harris, WUFO...). Tool tải 3 video
+      mới nhất bản 360p rồi đo 3 tầng: <b>nhịp cắt</b> (2 thước độc lập, chỉ nhận
+      video 2 thước khớp nhau), <b>nhạc</b> (đường năng lượng, vị trí cao trào),
+      <b>tỷ trọng loại cảnh</b> (AI xem khung hình: tự quay / b-roll / đồ hoạ / AI).
+      Video tải tạm rồi xoá — chỉ giữ hồ sơ số vài KB.<br>
+      <b>2 · Editor chọn kênh khi nộp tập</b> — mỗi video một lựa chọn phong cách
+      riêng, không có mặc định. Không chọn thì tool dựng theo hồ sơ niche như cũ.<br>
+      <b>3 · Tool áp hồ sơ khi dựng</b> — nhịp cắt ép theo số đo của kênh mẫu
+      (hook nổ/leo/êm, chu kỳ bùng...), cuối bài draft tự đo lại và báo mình đạt
+      chuẩn kênh mẫu tới đâu (dòng «ĐO LẠI SAU DỰNG» trong report).<br>
+      <span class="note">Lưu ý: kênh chỉ tải/đo LẦN ĐẦU (tránh YouTube chặn);
+      video ngắn &lt;4 phút bị bỏ; kênh nhiều đồ hoạ nhấp nháy có thể «không hội
+      tụ» — thử dán link video cụ thể ít đồ hoạ hơn.</span>
+    </div>
+  </div>
+
+  <div class="panel" id="p-kenh-them" hidden>
+    <h2>Nghiên cứu kênh mới <small>chỉ manager/owner</small></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input type="text" id="kenh-link" class="mono" placeholder="https://www.youtube.com/@fern-tv"
+             style="flex:1;min-width:280px" onkeydown="if(event.key==='Enter')themKenh()">
+      <input type="text" id="kenh-ten" placeholder="tên (tuỳ chọn)" style="max-width:140px">
+      <button class="btn" id="kenh-nut" onclick="themKenh()">Nghiên cứu</button>
+    </div>
+    <div class="note" id="kenh-msg"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Thư viện kênh <small id="kenh-dem"></small></h2>
+    <div class="tablewrap"><table id="bang-kenh"></table></div>
   </div>
 </section>
 
@@ -312,10 +353,11 @@ async function api(path, opts) {
   return loai.includes('json') ? r.json() : r.text()
 }
 function doiTrang(t) {
-  document.getElementById('man-seq').classList.toggle('on', t === 'seq')
-  document.getElementById('man-gen').classList.toggle('on', t === 'gen')
-  document.getElementById('gn-seq').classList.toggle('on', t === 'seq')
-  document.getElementById('gn-gen').classList.toggle('on', t === 'gen')
+  for (const m of ['seq', 'gen', 'kenh']) {
+    document.getElementById('man-' + m).classList.toggle('on', t === m)
+    document.getElementById('gn-' + m).classList.toggle('on', t === m)
+  }
+  if (t === 'kenh') loadKenh()
 }
 function doiTab(t) {
   document.getElementById('pane-proc').classList.toggle('show', t === 'proc')
@@ -552,20 +594,85 @@ function canhBaoNiche() {
   document.getElementById('ns-niche-canh-bao').hidden = !trong
 }
 
-function paDangChon() {
-  return document.querySelector('input[name="ns-pa"]:checked').value
+/* ── MODULE KÊNH REF (05/09, khuôn Author Extract): thư viện + nghiên cứu ── */
+let ME = {}
+
+async function loadKenh() {
+  let d
+  try { d = await api('/api/kenh') } catch (e) {
+    document.getElementById('bang-kenh').innerHTML =
+      `<tr><td class="err">${esc(e.message)}</td></tr>`
+    return
+  }
+  document.getElementById('p-kenh-them').hidden = !d.nghien_cuu
+  const rows = []
+  for (const [ten, tt] of Object.entries(d.dang_do || {})) {
+    rows.push(`<tr><td class="mono"><b>${esc(ten)}</b></td><td colspan="3">
+      ${tt.tt === 'loi' ? `<span class="hb loi"></span><span class="err">${esc(tt.loi)}</span>`
+        : '<span class="hb run"></span>Đang tải + đo nền…'}</td>
+      <td class="num">${d.nghien_cuu && tt.tt === 'loi'
+        ? `<a onclick="xoaKenhTreo('${esc(ten)}')">bỏ</a>` : ''}</td></tr>`)
+  }
+  for (const k of (d.kenh || [])) {
+    const lc = k.loai_canh || {}
+    const lcTxt = Object.entries(lc).filter(([_, v]) => v > 0)
+      .map(([x, v]) => `${x} ${(v * 100).toFixed(0)}%`).join(' · ') || '—'
+    rows.push(`<tr><td class="mono"><b>${esc(k.ten)}</b><br>
+        <span class="note" style="margin:0">${esc((k.ngay_do || '').slice(0, 10))} ·
+        ${k.so_video_hoi_tu} video</span></td>
+      <td>hook <b>${k.hook_kieu || '?'}</b> ${k.hook_trung_vi}s ·
+        thân ${k.than_trung_vi}s (nhanh ${(k.than_ty_le_nhanh * 100).toFixed(0)}%)</td>
+      <td>${k.bung_chu_ky_s ? 'bùng ' + (k.bung_chu_ky_s / 60).toFixed(1) + 'ph' : 'bùng: —'} ·
+        nhạc drop ${(k.nhac_vi_tri_drop * 100).toFixed(0)}%</td>
+      <td>${lcTxt}</td>
+      <td class="num">${d.nghien_cuu
+        ? `<a onclick="doLaiKenh('${esc(k.ten)}')">đo lại</a> ·
+           <a onclick="xoaKenh('${esc(k.ten)}')" style="color:var(--muted)">xoá</a>` : ''}</td></tr>`)
+  }
+  document.getElementById('bang-kenh').innerHTML =
+    '<tr><th>Kênh</th><th>Nhịp</th><th>Bùng / nhạc</th><th>Loại cảnh</th><th></th></tr>'
+    + (rows.join('') || '<tr><td colspan="5" class="note">Chưa có kênh nào — manager nghiên cứu kênh đầu tiên ở khung trên.</td></tr>')
+  document.getElementById('kenh-dem').textContent = `${(d.kenh || []).length} kênh`
+  capNhatSelectKenh(d.kenh || [])
+  if (Object.values(d.dang_do || {}).some(t => t.tt === 'dang_do')
+      && document.getElementById('man-kenh').classList.contains('on'))
+    setTimeout(loadKenh, 8000)
 }
-function doiPA() {
-  let luu = {}
-  try { luu = JSON.parse(localStorage.getItem('rendery_kenh_ref') || '{}') } catch { }
-  document.getElementById('ns-kenh-ref').value = luu[paDangChon()] || ''
+
+function capNhatSelectKenh(kenh) {
+  const sel = document.getElementById('ns-kenh-ref')
+  if (document.activeElement === sel) return
+  const cu = sel.value
+  sel.innerHTML = '<option value="">— không dùng (hồ sơ niche) —</option>'
+    + kenh.map(k => `<option value="${esc(k.ten)}">${esc(k.ten)}
+        (hook ${k.hook_kieu || '?'} · thân ${k.than_trung_vi}s)</option>`).join('')
+  if ([...sel.options].some(o => o.value === cu)) sel.value = cu
 }
-function nhoKenhRef() {
-  let luu = {}
-  try { luu = JSON.parse(localStorage.getItem('rendery_kenh_ref') || '{}') } catch { }
-  luu[paDangChon()] = document.getElementById('ns-kenh-ref').value.trim()
-  try { localStorage.setItem('rendery_kenh_ref', JSON.stringify(luu)) } catch { }
+
+async function themKenh() {
+  const nut = document.getElementById('kenh-nut'), msg = document.getElementById('kenh-msg')
+  nut.disabled = true
+  try {
+    const r = await api('/api/kenh', {method: 'POST', body: JSON.stringify({
+      link: document.getElementById('kenh-link').value.trim(),
+      ten: document.getElementById('kenh-ten').value.trim()})})
+    msg.textContent = '✓ ' + r.ghi_chu
+    document.getElementById('kenh-link').value = ''
+    loadKenh()
+  } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>` }
+  nut.disabled = false
 }
+async function doLaiKenh(ten) {
+  if (!confirm(`Đo lại «${ten}»? (tải lại 3 video từ YouTube)`)) return
+  try { await api(`/api/kenh/${encodeURIComponent(ten)}/do-lai`, {method: 'POST', body: '{}'}); loadKenh() }
+  catch (e) { alert('Lỗi: ' + e.message) }
+}
+async function xoaKenh(ten) {
+  if (!confirm(`Xoá kênh «${ten}» khỏi thư viện?`)) return
+  try { await api(`/api/kenh/${encodeURIComponent(ten)}`, {method: 'DELETE'}); loadKenh() }
+  catch (e) { alert('Lỗi: ' + e.message) }
+}
+function xoaKenhTreo(ten) { xoaKenh(ten) }
 
 /* ══════════ Generation ══════════ */
 let PID = ''
@@ -790,6 +897,7 @@ async function chotPhien() {
       ` · <a href="/mockup${TOKEN ? '?token=' + TOKEN : ''}" target="_blank" style="color:inherit">mockup</a>`
   } catch { }
   loadJobs()
+  loadKenh()          // nạp thư viện kênh cho dropdown form nộp ngay từ đầu
   setInterval(() => { if (!document.hidden) loadJobs() }, 7000)
 })()
 </script>
