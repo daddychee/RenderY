@@ -587,6 +587,108 @@ class KenhRequest(BaseModel):
     so_video: int = 5          # đo bao nhiêu video (1..8 — trần né YouTube chặn IP)
 
 
+# ═════════════════ OFFLINE (Đợt 2 — user đặt tên 07/09) ═════════════════════
+_offline_dang: dict = {}          # project_id -> {"tt": ..., "ghi_chu": ...}
+_offline_lock = threading.Lock()
+
+
+class OfflineRequest(BaseModel):
+    avd_s: float = 0.0
+    mo_dau_tap_s: float = 0.0
+    kenh_ref: str = ""
+    uu_tien_nguon: str = ""        # "" | ref | envato
+    dia_danh: str = ""
+
+
+def _pdir_offline(project_id: str) -> Path:
+    import re as _re
+
+    if not _re.fullmatch(r"[\w.-]{1,80}", project_id):
+        raise HTTPException(422, "project_id không hợp lệ")
+    d = PROJECTS_DIR / project_id
+    if not d.is_dir():
+        raise HTTPException(404, "Không thấy project")
+    return d
+
+
+@app.post("/api/offline/{project_id}/phan-tich")
+def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request):
+    """Chạy phân tích Offline nền (cắt khối + 4 lớp + ứng viên Library)."""
+    _require_auth(request)
+    d = _pdir_offline(project_id)
+    with _offline_lock:
+        if _offline_dang.get(project_id, {}).get("tt") == "dang":
+            raise HTTPException(409, "Đang phân tích dở")
+        _offline_dang[project_id] = {"tt": "dang", "ghi_chu": ""}
+
+    def _chay():
+        from autoedit.offline import runner as orun
+        try:
+            hd = orun.phan_tich(d, avd_s=req.avd_s, mo_dau_tap_s=req.mo_dau_tap_s,
+                                kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
+                                dia_danh=req.dia_danh,
+                                log=lambda m: print("[offline]", m, flush=True))
+            with _offline_lock:
+                _offline_dang[project_id] = {
+                    "tt": "xong",
+                    "ghi_chu": f"{len(hd['khoi'])} khối · "
+                               + ("ĐỒNG KIỂM" if hd["dong_kiem"] else "AUTO")}
+        except Exception as exc:  # noqa: BLE001
+            with _offline_lock:
+                _offline_dang[project_id] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
+
+    threading.Thread(target=_chay, daemon=True, name=f"offline-{project_id}").start()
+    return {"ok": True, "ghi_chu": "đang phân tích nền"}
+
+
+@app.get("/api/offline/{project_id}")
+def api_offline_doc(project_id: str, request: Request):
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    with _offline_lock:
+        tt = dict(_offline_dang.get(project_id, {}))
+    if hd is None and not tt:
+        raise HTTPException(404, "Chưa phân tích — POST /phan-tich trước")
+    return {"hop_dong": hd, "tt": tt}
+
+
+@app.put("/api/offline/{project_id}")
+def api_offline_luu(project_id: str, request: Request, hd: dict):
+    """Màn Offline lưu bản người chỉnh. Validate tối thiểu: voice bất biến."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    cu = orun.doc(d)
+    if cu is None:
+        raise HTTPException(409, "Chưa có hợp đồng gốc")
+    if len(hd.get("khoi") or []) == 0:
+        raise HTTPException(422, "Hợp đồng rỗng")
+    # voice bất biến: tổng thời lượng NÓI không được đổi so bản gốc
+    def _noi(x):
+        return round(sum(k["v1"] - k["v0"] for k in x["khoi"]), 1)
+    if abs(_noi(hd) - _noi(cu)) > 0.5:
+        raise HTTPException(422, "Tổng thời lượng NÓI thay đổi — voice là bất biến, "
+                                 "chỉ im lặng được chèn/thu")
+    orun.luu(d, hd)
+    return {"ok": True}
+
+
+@app.post("/api/offline/{project_id}/kiem-mp4")
+def api_offline_kiem(project_id: str, request: Request, dai_s: float = 15.0):
+    """Xuất MP4 kiểm ranh (sync tuyệt đối — miễn nhiễm trễ RDP)."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    f = d / f"kiem_ranh_{int(dai_s)}s.mp4"
+    orun.xuat_kiem_mp4(d, f, dai_s=max(5.0, min(60.0, dai_s)))
+    return FileResponse(f, media_type="video/mp4", filename=f.name)
+
+
 # ═════════════════ SỔ TRA (Đợt 1 flow Đường Dây — user chốt 06/09) ═══════════
 # Trang stock nội bộ: 1 ô tìm cho 4 nguồn. Db mở theo request (SQLite mở nhanh,
 # tránh giữ connection xuyên thread của uvicorn).
