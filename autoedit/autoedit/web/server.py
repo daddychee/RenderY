@@ -1591,6 +1591,18 @@ def _xep_tai_ban_sach(hd: dict) -> None:
         pass
 
 
+# NẠP KÉT LÚC KHỞI ĐỘNG (bug user lộ 06/09: phân tích C7 ra 30/30 khối trừu
+# tượng, 0 ứng viên — server không có GLM key vì nap_env chỉ chạy khi ai đó mở
+# /api/ket; mọi lần test trước nạp tay nên không lộ). Fail-open tuyệt đối.
+try:
+    from autoedit.web.ket_v3 import nap_env as _nap_env_khoi_dong
+
+    _nap_env_khoi_dong()
+    print("[khoi-dong] da nap khoa tu ket", flush=True)
+except Exception as _e:  # noqa: BLE001
+    print(f"[khoi-dong] nap ket loi: {str(_e)[:120]}", flush=True)
+
+
 # GIỮ ẤM PHIÊN (go-live 07/09): ping nhẹ mỗi 20h — cookie được dùng đều thì
 # sống lâu hơn hẳn, owner đỡ phải đăng nhập lại. Fail-open tuyệt đối.
 def _giu_am_dinh_ky():
