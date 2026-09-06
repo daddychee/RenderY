@@ -470,11 +470,11 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <header class="top">
   <h1>RENDER<span>Y</span></h1>
   <nav class="tabs">
-    <button id="gn-seq" class="on" onclick="doiTrang('seq')">Overview</button>
+    <button id="gn-seq" class="on" onclick="doiTrang('seq');doiTab('proc')">Overview</button>
     <button id="gn-offline" onclick="doiTrang('offline')">Offline</button>
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
-    <button id="gn-new" onclick="doiTrang('seq');doiTab('new')"
+    <button id="gn-new" onclick="doiTrang('seq',true);doiTab('new');ryGhiUrl('new-sequence')"
             style="margin-left:10px;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
@@ -482,7 +482,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 
 <!-- ═════════ SEQUENCES: Processing + New Sequence chung màn ═════════ -->
 <section class="hep man on" id="man-seq">
-  <nav class="tabs" style="margin-bottom:12px">
+  <!-- nav trong bị TRÙNG với nav chính (user 06/09) — bỏ hiển thị, doiTab giữ
+       nguyên cho code gọi; 2 nút ẩn để classList.toggle không nổ -->
+  <nav class="tabs" style="display:none">
     <button id="tab-proc" class="on" onclick="doiTab('proc')">Overview</button>
     <button id="tab-new" onclick="doiTab('new')">+ New Sequence</button>
   </nav>
@@ -902,7 +904,12 @@ async function api(path, opts) {
   const loai = r.headers.get('content-type') || ''
   return loai.includes('json') ? r.json() : r.text()
 }
-function doiTrang(t) {
+// URL đúng cấu trúc UI (user 06/09): #overview #offline #library #framing-insight
+// #new-sequence · #offline/<sequence>. F5 đứng nguyên chỗ cũ (hash + localStorage
+// dự phòng vì iframe CRM nạp lại src gốc không mang hash).
+const RY_TEN_TAB = {overview: 'seq', offline: 'offline', library: 'sotra',
+                    'framing-insight': 'kenh', 'new-sequence': 'new'}
+function doiTrang(t, khong_ghi) {
   for (const m of ['seq', 'gen', 'kenh', 'sotra', 'offline']) {
     document.getElementById('man-' + m).classList.toggle('on', t === m)
     const nut = document.getElementById('gn-' + m)
@@ -912,7 +919,31 @@ function doiTrang(t) {
   if (t === 'sotra') stVe()
   document.body.classList.toggle('dung-video', t === 'offline')
   if (t === 'offline') ofKhoiDong()
+  if (!khong_ghi) ryGhiUrl(t === 'offline' && OF_PID ? 'offline/' + OF_PID
+    : (Object.keys(RY_TEN_TAB).find(k => RY_TEN_TAB[k] === t) || 'overview'))
 }
+function ryGhiUrl(duong) {
+  try {
+    history.replaceState(null, '', '#' + duong)
+    localStorage.setItem('ry_tab', duong)
+  } catch (e) { }
+}
+function ryKhoiPhucTab() {
+  let duong = (location.hash || '').slice(1)
+  if (!duong) { try { duong = localStorage.getItem('ry_tab') || '' } catch (e) { } }
+  const [goc, pid] = duong.split('/')
+  if (goc === 'new-sequence') { doiTrang('seq', true); doiTab('new'); ryGhiUrl(duong); return }
+  const t = RY_TEN_TAB[goc]
+  if (!t) return
+  if (t === 'offline' && pid) {
+    const sel = document.getElementById('of-project')
+    sel.innerHTML = '<option value="' + esc(pid) + '"></option>'
+    sel.value = pid
+  }
+  doiTrang(t, true)
+  ryGhiUrl(duong)
+}
+document.addEventListener('DOMContentLoaded', ryKhoiPhucTab)
 function doiTab(t) {
   document.getElementById('pane-proc').classList.toggle('show', t === 'proc')
   document.getElementById('pane-new').classList.toggle('show', t === 'new')
@@ -1511,6 +1542,7 @@ async function ofKhoiDong() {
 async function ofNap() {
   OF_PID = document.getElementById('of-project').value || OF_PID
   if (!OF_PID) return
+  ryGhiUrl('offline/' + OF_PID)
   let d
   try { d = await api('/api/offline/' + OF_PID) }
   catch (e) {
@@ -2529,7 +2561,7 @@ async function stVe(giu_trang) {
 
 
   const l = document.getElementById('st-luoi')
-  if (!them) l.innerHTML = ''
+  l.innerHTML = ''                    // phân trang: mỗi trang thay trọn lưới
   for (const c of d.clips) {
     const div = document.createElement('div')
     div.style.cssText = 'border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:var(--panel)'
