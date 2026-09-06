@@ -124,6 +124,20 @@ def _go_json(txt: str) -> dict:
     return json.loads(s[s.index("{"):s.rindex("}") + 1])
 
 
+def _ghi_so(khoa: str, ok: bool, ma_loi: str, t0: float) -> None:
+    """Ghi SỔ GỌI General (viec=doc_hinh_ref) — trước 06/09 các lô đọc hình
+    VÔ HÌNH với Quota log (72 lô/tập không ai thấy). Sổ hỏng không giết việc."""
+    try:
+        import time as _t
+
+        from autoedit import so_goi_nen
+
+        so_goi_nen.ghi("llm", duoi=khoa[-4:], ok=ok, ma_loi=ma_loi,
+                       model=MODEL, viec="doc_hinh_ref", ms=(_t.time() - t0) * 1000)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def doc_lo(anh_loi: list[tuple[Path, str]], timeout: float = 300.0) -> list[DocRa]:
     """[(ảnh, lời thoại quanh cảnh)] -> [DocRa]. Một lần gọi cho cả lô."""
     import requests
@@ -137,14 +151,22 @@ def doc_lo(anh_loi: list[tuple[Path, str]], timeout: float = 300.0) -> list[DocR
                    "text": f"--- Ảnh {j} · lời thoại lúc đó: {loi or '(không có lời)'}"})
         ct.append({"type": "image_url",
                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-    r = requests.post(
-        glm_api_url(), timeout=timeout,
-        headers={"Authorization": f"Bearer {_khoa()}", "Content-Type": "application/json"},
-        json={"model": MODEL, "max_tokens": 4000, "temperature": 0.2,
-              "thinking": {"type": "disabled"},
-              "messages": [{"role": "system", "content": _SYS},
-                           {"role": "user", "content": ct}]})
-    r.raise_for_status()
+    khoa = _khoa()
+    import time as _t
+    _t0 = _t.time()
+    try:
+        r = requests.post(
+            glm_api_url(), timeout=timeout,
+            headers={"Authorization": f"Bearer {khoa}", "Content-Type": "application/json"},
+            json={"model": MODEL, "max_tokens": 4000, "temperature": 0.2,
+                  "thinking": {"type": "disabled"},
+                  "messages": [{"role": "system", "content": _SYS},
+                               {"role": "user", "content": ct}]})
+        r.raise_for_status()
+    except Exception as e:
+        _ghi_so(khoa, False, str(e)[:200], _t0)
+        raise
+    _ghi_so(khoa, True, "", _t0)
     d = r.json()
     kq = _go_json(d["choices"][0]["message"]["content"])
     ra: dict[int, DocRa] = {}

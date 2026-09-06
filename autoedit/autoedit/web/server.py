@@ -735,6 +735,14 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     def _chay():
         from autoedit.offline import runner as orun
         try:
+            # NẠP TƯƠI từ khối General trước mỗi job (user chốt 06/09: mọi API
+            # đi qua General — owner đổi/thu hồi khoá là job kế ăn ngay,
+            # không chờ restart). Fail-open.
+            try:
+                from autoedit.web.ket_v3 import nap_env as _ne
+                _ne()
+            except Exception:  # noqa: BLE001
+                pass
             hd = orun.phan_tich(d, avd_s=req.avd_s, mo_dau_tap_s=req.mo_dau_tap_s,
                                 kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
                                 dia_danh=req.dia_danh, nguoi_tao=nguoi_tao,
