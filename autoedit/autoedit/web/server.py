@@ -782,6 +782,73 @@ def api_offline_thay_mau(project_id: str, request: Request):
     return {"ok": True, "ghi_chu": "đang thay máu nền — draft CapCut sẽ hiện khi xong"}
 
 
+class TrimRequest(BaseModel):
+    clip_id: str
+    t0: float
+    t1: float
+    khoi: int = -1          # >=0: nạp thẳng vào miếng hình này
+    luu_kho: bool = True    # ghi khúc vào Library (chỉ SỔ, không cắt file)
+
+
+@app.post("/api/offline/{project_id}/trim")
+def api_offline_trim(project_id: str, req: TrimRequest, request: Request):
+    """Trim ứng viên ở màn review -> ghi khúc vào Library (mốc in/out, KHÔNG
+    cắt file — đúng nguyên tắc sổ tra không chứa file) + nạp vào miếng hình."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+    from autoedit.sotra import db as sdb
+
+    d = _pdir_offline(project_id)
+    if req.t1 - req.t0 < 0.4:
+        raise HTTPException(422, "Khúc quá ngắn (tối thiểu 0.4s)")
+    conn = sdb.mo()
+    try:
+        goc = conn.execute("SELECT * FROM clip WHERE id=?", (req.clip_id,)).fetchone()
+        if goc is None:
+            raise HTTPException(404, "Không thấy clip trong Library")
+        g = dict(goc)
+        # id khúc: <id gốc>#t0-t1 — truy ngược được về clip mẹ khi thay máu
+        cid = f"{req.clip_id}#{req.t0:.2f}-{req.t1:.2f}"
+        if req.luu_kho:
+            sdb.them_clip(conn, {
+                **{k: g.get(k, "") for k in ("nguon", "url_trang", "url_anh",
+                                             "url_video", "path_local", "tap",
+                                             *sdb.TRUC)},
+                "id": cid, "tieu_de": f"{g.get('tieu_de', '')} [{req.t0:.1f}-{req.t1:.1f}s]",
+                "t0": req.t0, "t1": req.t1, "dai_s": round(req.t1 - req.t0, 2),
+                "tag_nguon": g.get("tag_nguon", "tieu_de")})
+            sdb.ghi_su_kien(conn, cid, "nguoi_thay", tap=project_dir_ten(d),
+                            chi_tiet=f"trim {req.t0:.1f}-{req.t1:.1f} từ {req.clip_id[:40]}")
+            conn.commit()
+    finally:
+        conn.close()
+
+    if req.khoi >= 0:
+        hd = orun.doc(d)
+        if hd is None:
+            raise HTTPException(409, "Chưa phân tích")
+        from autoedit.offline import hinh as mhinh
+
+        hs = mhinh.dam_bao(hd)
+        if not 0 <= req.khoi < len(hs):
+            raise HTTPException(422, "Miếng không tồn tại")
+        h = hs[req.khoi]
+        moi = {"id": cid, "nguon": g.get("nguon", ""),
+               "tieu_de": f"{g.get('tieu_de', '')} [{req.t0:.1f}-{req.t1:.1f}s]",
+               "lop": "L1", "diem": 9.5, "url_anh": g.get("url_anh", ""),
+               "url_video": g.get("url_video", ""), "geo": g.get("geo", ""),
+               "dai_s": round(req.t1 - req.t0, 2)}
+        h["uv"] = [moi] + [u for u in (h.get("uv") or []) if u["id"] != cid]
+        h["chon"] = 0
+        h["nguoi_sua"] = True
+        orun.luu(d, hd)
+    return {"ok": True, "clip_id": cid}
+
+
+def project_dir_ten(d: Path) -> str:
+    return d.name
+
+
 @app.post("/api/offline/{project_id}/dich")
 def api_offline_dich(project_id: str, request: Request):
     """Dịch tiếng Việt cho hợp đồng CŨ (phân tích trước 08/09 chưa có bản dịch)."""

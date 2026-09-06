@@ -547,3 +547,43 @@ def test_phan_tich_gan_ban_dich(du_an, tmp_path, monkeypatch):
                         {i: f"dịch {i}" for i, t in enumerate(loi) if t})
     hd = runner.phan_tich(du_an, llm=_LLM())
     assert hd["khoi"][0]["dich"] == "dịch 0"
+
+
+def test_api_trim_ghi_so_va_nap_vao_mieng(du_an, tmp_path, monkeypatch):
+    """Màn REVIEW+TRIM (user 08/09): trim ứng viên -> ghi KHÚC vào Library
+    (chỉ mốc in/out, KHÔNG cắt file) + nạp thẳng vào miếng hình đang chọn."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.offline import runner
+    from autoedit.web import server
+
+    runner.phan_tich(du_an, llm=_LLM())
+    conn = sdb.mo()
+    sdb.them_clip(conn, {"id": "envato:abc", "nguon": "envato",
+                         "tieu_de": "Quito market wide", "url_video": "http://x/v.mp4",
+                         "geo": "ecuador>andes>quito"})
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(server, "PROJECTS_DIR", du_an.parent)
+    tc = TestClient(server.app)
+    r = tc.post(f"/api/offline/{du_an.name}/trim",
+                json={"clip_id": "envato:abc", "t0": 2.0, "t1": 6.5, "khoi": 0})
+    assert r.status_code == 200
+    cid = r.json()["clip_id"]
+    assert cid == "envato:abc#2.00-6.50"          # id khúc truy ngược được clip mẹ
+
+    conn = sdb.mo()
+    row = dict(conn.execute("SELECT * FROM clip WHERE id=?", (cid,)).fetchone())
+    conn.close()
+    assert row["t0"] == 2.0 and row["t1"] == 6.5   # SỔ giữ mốc, không cắt file
+    assert row["path_local"] == ""                 # không sinh file mới
+    assert row["geo"] == "ecuador>andes>quito"     # thừa kế tag clip mẹ
+
+    hd = runner.doc(du_an)
+    assert hd["hinh"][0]["uv"][0]["id"] == cid and hd["hinh"][0]["chon"] == 0
+    # khúc quá ngắn bị chặn
+    assert tc.post(f"/api/offline/{du_an.name}/trim",
+                   json={"clip_id": "envato:abc", "t0": 1.0, "t1": 1.2}).status_code == 422
