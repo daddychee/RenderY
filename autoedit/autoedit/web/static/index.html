@@ -2291,8 +2291,13 @@ function ofNhacBat(tl) {
   const n = OF_HD && OF_HD.nhac
   const au = ofNhacTl()
   if (!n || !n.url_nghe || !(n.dai_s > 0)) { au.pause(); return }
-  if (au._src !== n.url_nghe) { au._src = n.url_nghe; au.src = n.url_nghe; au.loop = true }
-  au.currentTime = tl % n.dai_s
+  const dich = tl % n.dai_s
+  if (au._src !== n.url_nghe) {
+    au._src = n.url_nghe; au.src = n.url_nghe; au.loop = true
+    // đặt currentTime trước khi metadata nạp có thể bị nuốt -> seek lại khi sẵn
+    au.onloadedmetadata = () => { try { au.currentTime = dich } catch (e) { } }
+  }
+  try { au.currentTime = dich } catch (e) { }
   au.play().catch(() => { })
 }
 function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang phát
@@ -2306,6 +2311,11 @@ function ofPlay() {
   if (!OF_AUDIO) return
   if (OF_AUDIO.paused && !OF_LANG) {
     OF_AUDIO.play(); document.getElementById('of-play').textContent = '❚❚ Dừng'
+    {                                          // nhạc nền vào cùng lúc với voice
+      const t0 = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
+      let i0 = ofK().findLastIndex(k => k.v0 <= t0 + 0.01); if (i0 < 0) i0 = 0
+      ofNhacBat(t0 + ofDoiTruoc(i0))
+    }
     ;(function vong() {
       if (OF_LANG) {                          // đang im lặng nhân tạo (tho_them>0)
         const con = (OF_LANG.den - performance.now()) / 1000
