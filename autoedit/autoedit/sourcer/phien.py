@@ -74,12 +74,22 @@ def _cookies(nha: str) -> list[dict]:
 
 
 def co_phien(nha: str) -> bool:
-    """Có cookie phiên còn hạn trong profile không (kiểm nhanh, không mạng)."""
+    """Đã từng đăng nhập chưa (kiểm nhanh, không mạng).
+
+    Nguồn sự thật là PROFILE trình duyệt — không phải state.json (bug 06/09:
+    state.json chưa được ghi mà profile ĐÃ đăng nhập, tải được 386MB, nhưng
+    hàm này báo 'chưa sống' làm lượt Online bỏ qua tải bản sạch oan). Kiểm
+    thật sự (còn hạn hay không) diễn ra lúc mở trang: thấy nút Sign in = chết.
+    """
     ten = NHA[nha]["cookie_phien"]
     nay = time.time()
-    return any(c.get("name") in ten and (c.get("expires", -1) in (-1, None)
-                                         or c["expires"] > nay)
-               for c in _cookies(nha))
+    if any(c.get("name") in ten and (c.get("expires", -1) in (-1, None)
+                                     or c["expires"] > nay)
+           for c in _cookies(nha)):
+        return True
+    prof = thu_muc_phien(nha) / "profile"
+    return any((prof / d).is_file() for d in
+               ("Default/Network/Cookies", "Default/Cookies", "Cookies"))
 
 
 def dang_nhap(nha: str, cho_captcha_s: int = 300, log=None) -> dict:

@@ -101,8 +101,9 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
     from autoedit.sourcer.phien import co_phien, thu_muc_phien
 
     if not co_phien("envato"):
-        ghi("online: phiên Envato CHƯA sống — bỏ qua tải bản sạch (dùng preview)")
+        ghi("online: chưa từng đăng nhập Envato — bỏ qua tải (dùng preview)")
         return ra
+    # kiểm THẬT (phiên còn hạn?) diễn ra khi mở trang: thấy Sign in là dừng
 
     from playwright.sync_api import sync_playwright
 
@@ -154,6 +155,10 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                 except Exception as exc:  # noqa: BLE001 — clip hỏng không giết lượt
                     ghi(f"online: {u[:8]} LỖI ({str(exc)[:70]}) — giữ preview")
                 time.sleep(random.uniform(*GIAN_S))    # luật rón rén Envato
+            try:                                       # đồng bộ state.json từ profile
+                ctx.storage_state(path=str(thu_muc_phien("envato") / "state.json"))
+            except Exception:  # noqa: BLE001
+                pass
         finally:
             ctx.close()
     return ra
