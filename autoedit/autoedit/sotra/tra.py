@@ -24,7 +24,7 @@ def _tokens(cum) -> set:
 
 
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
-        can_neo: bool = True, suat_ref: int = 2) -> list[dict]:
+        can_neo: bool = True, suat_ref: int = 2, seed: int = 0) -> list[dict]:
     """lop = {"L0": [...], "L1": [...], "L2": [...], "L3": [...]} -> ứng viên xếp
     hạng, mỗi cái kèm `lop` (tầng trúng) + `diem`. Khay chia nhóm theo `lop`.
 
@@ -49,7 +49,12 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     cham, refs = [], []
     for r in rows:
         c = dict(r)
-        chu = " ".join(str(c.get(k) or "") for k in ("tieu_de",) + sdb.TRUC)
+        # vat_the + loi_quanh PHẢI vào điểm (user bắt 06/09: cùng một câu mà
+        # khay ref ra cảnh chẳng liên quan): vat_the là vật NHÌN THẤY trong
+        # hình (giàu nghĩa nhất của ref), loi_quanh là lời quanh cảnh — thiếu
+        # cả hai thì mọi ref 0 điểm, suất giữ chỗ lấy đại 2 cảnh đầu bảng.
+        chu = " ".join(str(c.get(k) or "")
+                       for k in ("tieu_de", "vat_the", "loi_quanh") + sdb.TRUC)
         tt = _tokens([chu])
         la_ref = c["nguon"] in ("ref",)
         co_neo = bool(c.get("geo")) or c["nguon"] in ("ref", "kho")
@@ -68,7 +73,9 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         (refs if la_ref else cham).append(c)
 
     cham.sort(key=lambda c: -c["diem"])
-    refs.sort(key=lambda c: -c["diem"])
+    # ref đồng điểm: RẢI theo seed (mỗi khối một seed) — không thì cả tập bị
+    # đề xuất đúng 2 cảnh đầu bảng cho mọi câu (triệu chứng user thấy 06/09)
+    refs.sort(key=lambda c: (-c["diem"], hash((c["id"], seed)) % 9973))
     # cân nhóm: tối đa 6 mỗi tầng để khay luôn đủ 4 tầng lựa chọn
     gio = {"L1": 0, "L2": 0, "L3": 0}
     ra = []

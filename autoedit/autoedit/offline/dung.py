@@ -31,7 +31,7 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
         uv = tra(conn, {"L0": chu_the_tap, "L1": o.truc_chi,
                         "L2": o.ngu_canh, "L3": o.khong_khi},
                  so=so_moi_khoi + (6 if bo_nguon else 0),
-                 uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo))
+                 uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i)
         if bo_nguon:
             uv = [c for c in uv if c["nguon"] not in bo_nguon][:so_moi_khoi]
         ra.append([{"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
@@ -117,7 +117,8 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
             uv = tra(conn, {"L0": hd.get("chu_the_tap") or [],
                             "L1": k.get("L1") or [], "L2": k.get("L2") or [],
                             "L3": k.get("L3") or []},
-                     so=12, uu_tien_nguon="ref", can_neo=bool(k.get("neo")))
+                     so=12, uu_tien_nguon="ref", can_neo=bool(k.get("neo")),
+                     seed=i)
             tuoi_theo_khoi[i] = [
                 {"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                  "lop": c["lop"], "diem": c["diem"],
