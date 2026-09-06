@@ -173,6 +173,9 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-uv .n{font-size:9.5px; padding:3px 6px; color:var(--muted); white-space:nowrap;
           overflow:hidden; text-overflow:ellipsis}
 .of-uv.dang{border-color:var(--warn); box-shadow:0 0 0 1px var(--warn) inset}
+.of-uv .dangn{position:absolute; left:0; right:0; top:0; background:var(--accent);
+              color:#fff; font-size:9.5px; font-weight:700; letter-spacing:.05em;
+              padding:2px 4px; text-align:center}
 .of-uv .lap{position:absolute; inset:0; background:rgba(224,108,108,.26);
             display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
 #of-cuon-tl{overflow-x:auto; padding:2px 2px 8px}
@@ -1663,6 +1666,14 @@ function ofVeKhay() {
     const khu = u.nguon === 'ref' ? 'ref' : (u.nguon === 'envato' ? 'envato' : 'stock')
     nhom[khu].push([u, j])
   })
+  // clip ĐANG DÙNG của miếng đứng ĐẦU khu của nó (user 06/09): bấm footage nào
+  // trên timeline thì thấy ngay nguồn của nó, không phải lục cả dải
+  if (OF_TIM_KQ === null && Number.isInteger(k.chon)) {
+    for (const ng of ['ref', 'envato', 'stock']) {
+      const i = nhom[ng].findIndex(([, j]) => j === k.chon)
+      if (i > 0) nhom[ng].unshift(nhom[ng].splice(i, 1)[0])
+    }
+  }
   for (const ng of ['ref', 'envato', 'stock']) {
     const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
     document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
@@ -1676,9 +1687,12 @@ function ofVeKhay() {
     for (const [u, j] of nhom[ng]) {
       const lap = ofUvLap(u.id)
       const d = document.createElement('div')
-      d.className = 'of-uv' + (OF_TIM_KQ === null && j === k.chon ? ' dang' : '')
+      const la_dang = OF_TIM_KQ === null && j === k.chon
+      d.className = 'of-uv' + (la_dang ? ' dang' : '')
+      if (la_dang) d.dataset.dang = '1'
       d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
         <video muted loop playsinline preload="none"></video>
+        ${la_dang ? '<div class="dangn">● đang dùng</div>' : ''}
         ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}</div>
         <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
       const v = d.querySelector('video')
@@ -1702,6 +1716,8 @@ function ofVeKhay() {
       }
       dai.appendChild(d)
     }
+    const dg = dai.querySelector('[data-dang]')
+    if (dg) dai.scrollTo({left: 0, top: 0})     // khu có clip đang dùng: về đầu dải
   }
 }
 async function ofGen() {
@@ -1918,7 +1934,10 @@ function ofVeAll(nhe) {
   ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem()
   // KHAY chỉ vẽ lại khi ĐỔI MIẾNG hoặc đổi kết quả tìm — trước đây vẽ lại
   // hàng trăm thẻ <video> sau MỖI thao tác -> app đơ (user báo 08/09)
-  const key = OF_HCHON + '|' + (OF_TIM_KQ ? 'tim:' + OF_TIM_Q : '') + '|' + OF_PHA
+  // key gồm cả .chon: đổi clip trong cùng miếng phải vẽ lại để nhãn 'đang dùng' đúng
+  const kh = ofHinh()[OF_HCHON] || {}
+  const key = OF_HCHON + '|' + kh.chon + '|' + (kh.uv || []).length
+            + '|' + (OF_TIM_KQ ? 'tim:' + OF_TIM_Q : '') + '|' + OF_PHA
   if (nhe !== true && key !== OF_KHAY_KEY) { OF_KHAY_KEY = key; ofVeKhay() }
 }
 function ofPlay() {
