@@ -211,7 +211,7 @@ def _tai_nhac(project_dir: Path, hd: dict, log) -> Path | None:
 
 
 def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
-               ten_draft: str, profile, log) -> Path:
+               ten_draft: str, profile, log, dung_id: dict | None = None) -> Path:
     """Ráp draft CapCut: video sàn 0.8 + freeze; voice đặt gap = tho_them dương."""
     from pycapcut import (AudioMaterial, AudioSegment, ScriptFile, Timerange,
                           TrackType, VideoMaterial, VideoSegment)
@@ -320,7 +320,7 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
         try:
             dong = ["clip_id	url_item	ten_file	ngay"]
             thay = set()
-            for i in dung_id.values() if isinstance(dung_id, dict) else []:
+            for i in (dung_id or {}).values():
                 u = str(i)
                 if not u.startswith("envato:") or u in thay:
                     continue
@@ -396,7 +396,8 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> 
 
         profile = MachineProfile.load()
     ten = f"OFF_{project_dir.name}"
-    draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi)
+    draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi,
+                       dung_id=dung_id)
     from autoedit.offline import hinh as _mh
     kq = {"draft": str(draft), "mieng_co_hinh": len(video),
           "tong_mieng": len(_mh.dam_bao(hd)), "tong_khoi_voice": len(hd["khoi"]),
