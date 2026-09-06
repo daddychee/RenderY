@@ -180,34 +180,37 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
             display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
 #of-vung-tl{display:flex}
 #of-track-nhan{flex:0 0 30px; padding-top:2px}
-#of-track-nhan .o{display:grid; place-items:center; font-size:9.5px; font-weight:700;
+#of-track-nhan .o{display:grid; place-items:center; font-size:11px; font-weight:700;
                   color:var(--muted); border-right:1px solid var(--line);
                   letter-spacing:.04em}
 #of-cuon-tl{overflow-x:auto; padding:2px 2px 8px; flex:1; min-width:0}
 /* thước kiểu NLE (ref Premiere, user 06/09): tick lớn/nhỏ vẽ bằng gradient,
    kéo trên thước = scrub playhead */
-#of-thuoc{position:relative; height:22px; cursor:col-resize;
+#of-thuoc{position:relative; height:24px; cursor:col-resize; margin-bottom:10px;
           border-bottom:1px solid var(--line); user-select:none}
-#of-thuoc span{position:absolute; top:1px; font-size:9.5px; color:var(--muted)}
-#of-dai{position:relative; height:74px}                 /* dải HÌNH */
-#of-dai-au{position:relative; height:40px; margin-top:4px}   /* dải AUDIO */
+#of-thuoc span{position:absolute; top:1px; font-size:11.5px; color:var(--muted)}
+/* mỗi track một LÀN nền riêng, cách nhau rõ (user 06/09: "dính liền khó nhìn") */
+#of-dai{position:relative; height:78px; background:var(--bg); border-radius:6px}
+#of-dai-au{position:relative; height:48px; margin-top:12px; background:var(--bg);
+           border-radius:6px}
 .of-au{position:absolute; top:0; height:100%; border-radius:6px; box-sizing:border-box;
        background:var(--panel); border:1px solid var(--line); overflow:hidden}
-.of-au .t{position:absolute; left:4px; right:3px; top:3px; font-size:9.5px; color:var(--muted);
-          white-space:nowrap; overflow:hidden; max-width:92%}
+.of-au .t{position:absolute; left:6px; right:4px; top:50%; transform:translateY(-50%);
+          font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden;
+          max-width:94%}
 .of-au.chon{outline:2px solid var(--warn); outline-offset:-2px}
 .of-im{position:absolute; top:0; height:100%; border-radius:6px;
        background:repeating-linear-gradient(135deg,var(--bg) 0 6px,var(--panel) 6px 12px);
        border:1px dashed var(--line)}
 .of-im .n{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-          font-size:9px; color:var(--muted); white-space:nowrap}
+          font-size:11.5px; color:var(--muted); white-space:nowrap}
 .of-mieng{position:absolute; top:0; height:100%; border:1px solid var(--line);
           border-radius:7px; overflow:hidden; background:var(--panel); cursor:pointer}
 .of-mieng img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.9}
-.of-mieng .i{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--muted);
-             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
-.of-mieng .d{position:absolute; left:3px; bottom:3px; font-size:9.5px;
-             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
+.of-mieng .i{position:absolute; left:4px; top:4px; font-size:11px; color:#e8eaed;
+             background:rgba(0,0,0,.7); padding:1px 6px; border-radius:4px; z-index:2}
+.of-mieng .d{position:absolute; left:4px; bottom:4px; font-size:11.5px; color:#e8eaed;
+             background:rgba(0,0,0,.7); padding:1px 6px; border-radius:4px; z-index:2}
 .of-mieng.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:4}
 .of-mieng.tho{background:color-mix(in srgb, var(--ok, #5cb98a) 14%, var(--panel)); border-color:var(--ok, #5cb98a)}      /* miếng nằm trong khoảng thở */
 .of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
@@ -241,7 +244,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-tho .nh{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
             font-size:10px; color:#39414b; font-weight:700; white-space:nowrap}
 .of-tho.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
-#of-ph{position:absolute; top:-22px; bottom:-44px; width:2px; background:var(--warn);
+#of-ph{position:absolute; top:-34px; bottom:-60px; width:2px; background:var(--warn);
        pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
 #of-ph::before{content:''; position:absolute; top:0; left:-5px;   /* đầu kéo ▼ */
                border:6px solid transparent; border-top:9px solid var(--warn)}
@@ -743,9 +746,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     </div>
     <div id="of-vung-tl">
       <div id="of-track-nhan">
-        <div style="height:24px"></div>
-        <div class="o" style="height:74px">V1</div>
-        <div class="o" style="height:40px;margin-top:4px">A1</div>
+        <div style="height:34px"></div>
+        <div class="o" style="height:78px">V1</div>
+        <div class="o" style="height:48px;margin-top:12px">A1</div>
       </div>
       <div id="of-cuon-tl">
         <div id="of-thuoc"></div>
