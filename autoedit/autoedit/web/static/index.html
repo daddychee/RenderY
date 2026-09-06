@@ -236,6 +236,9 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-ph{position:absolute; top:-15px; bottom:-44px; width:2px; background:var(--warn);
        pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
 #of-thuoc, #of-dai, #of-dai-au{cursor:text}   /* click nền = đặt playhead */
+.of-mieng .x{position:absolute; top:1px; right:3px; font-size:11px; cursor:pointer;
+             color:#fff; text-shadow:0 0 3px #000; z-index:4; padding:0 2px}
+.of-mieng .x:hover{color:var(--bad)}
 #st-tabs .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fi-eb{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted);font-weight:700;margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .fi-body p,.fi-body li{font-size:13.5px;line-height:1.75;margin:6px 0}
@@ -714,31 +717,27 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 
   <div class="panel" id="of-tl" hidden>
-    <div class="note" style="margin:0 0 6px" id="of-cc"></div>
+    <!-- thanh cong cu GON (user 06/09): timecode to + Add Shot + Phuong an + Play -->
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
-      <span class="note" style="margin:0"><b style="color:#69aee0">HÌNH</b> cắt tự do ·
-        <b style="color:#9fb3c8">AUDIO</b> bất biến</span>
-      <button class="btn ghost small" id="of-play" onclick="ofPlay()">▶ Phát</button>
-      <span class="note mono" id="of-tc" style="margin:0;min-width:74px">00:00.0</span>
-      <span class="note" id="of-stat" style="margin:0"></span>
-      <span style="width:1px;height:20px;background:var(--line)"></span>
-      <button class="btn ghost small" onclick="ofThemMieng()" title="chẻ miếng hình tại playhead">⊞ Thêm hình</button>
-      <button class="btn ghost small" onclick="ofBoMieng()" title="bỏ miếng đang chọn">⊟ Bỏ miếng</button>
-      <button class="btn ghost small" onclick="ofUndo()" title="Ctrl+Z">↶</button>
-      <button class="btn ghost small" onclick="ofRedo()" title="Ctrl+Shift+Z">↷</button>
-      <button class="btn ghost small" onclick="ofHotKey()" title="bảng phím tắt">⌨</button>
-        <button class="btn ghost small" onclick="ofPhuongAn()" title="rút thăm lại hình cho miếng chưa chỉnh tay">⟳ Phương án</button>
-      <input type="text" id="of-tim" placeholder="tìm trong Library..." style="flex:1;max-width:300px;margin-left:10px" oninput="ofTimDebounce()">
-      <span class="note" id="of-tim-nhan" style="margin:0"></span>
+      <span class="mono" id="of-tc"
+            style="font-size:21px;font-weight:700;letter-spacing:.04em;min-width:104px">00:00.0</span>
+      <button class="btn ghost small" onclick="ofAddShot()"
+              title="chia đều shot đang chọn — bấm lần nữa chia nhỏ thêm (phím e)">⊞ Add Shot</button>
+      <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
+              title="đổi footage của shot đang chọn sang phương án kế (phím d)">⟳ Phương án</button>
       <span style="flex:1"></span>
       <span id="of-zoom" class="note" style="margin:0">zoom
         <input type="range" min="6" max="90" value="14" oninput="ofZoom(this.value)">
         <span id="of-zoom-n" class="mono">14</span> px/s</span>
+      <button class="btn" id="of-play" onclick="ofPlay()" style="min-width:92px">▶ Play</button>
     </div>
     <div id="of-cuon-tl">
       <div id="of-thuoc"></div>
       <div id="of-dai"><div id="of-ph"></div></div>
       <div id="of-dai-au"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:3px">
+      <button class="btn ghost small" onclick="ofHotKey()" title="bảng phím tắt (phím ?)">⌨ hotkey</button>
     </div>
   </div>
 </section>
@@ -749,7 +748,8 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   <div class="r"><span>Hình thở +1s / −1s</span><span><kbd>q</kbd><kbd>w</kbd></span></div>
   <div class="r"><span>Hoàn tác / Làm lại</span><span><kbd>Ctrl+Z</kbd><kbd>⇧+Ctrl+Z</kbd></span></div>
   <div class="r"><span>Phát / Dừng</span><span><kbd>Space</kbd></span></div>
-  <div class="r"><span>Thêm / Bỏ miếng hình</span><span><kbd>e</kbd><kbd>r</kbd></span></div>
+  <div class="r"><span>Add Shot (chia đều shot chọn)</span><span><kbd>e</kbd></span></div>
+  <div class="r"><span>Xóa shot đang chọn</span><span><kbd>r</kbd><kbd>Del</kbd></span></div>
   <div class="r"><span>Miếng trước / sau</span><span><kbd>←</kbd><kbd>→</kbd></span></div>
   <div class="r"><span>Đổi hình miếng đang chọn</span><span><kbd>d</kbd></span></div>
   <div class="r" style="margin-top:6px;border-top:1px solid var(--line);padding-top:7px">
@@ -1270,12 +1270,13 @@ document.addEventListener('keydown', e => {
     return
   }
   if (e.ctrlKey || e.altKey || e.metaKey) return
-  if (k === '1') { e.preventDefault(); ofZoomBuoc(+1) }
+  if (k === ' ') { e.preventDefault(); ofPlay() }   // bảng ghi Space mà chưa có handler
+  else if (k === '1') { e.preventDefault(); ofZoomBuoc(+1) }
   else if (k === '2') { e.preventDefault(); ofZoomBuoc(-1) }
   else if (k === 'q') { e.preventDefault(); ofTho(1) }
   else if (k === 'w') { e.preventDefault(); ofTho(-1) }
-  else if (k === 'e') { e.preventDefault(); ofThemMieng() }
-  else if (k === 'r') { e.preventDefault(); ofBoMieng() }
+  else if (k === 'e') { e.preventDefault(); ofAddShot() }
+  else if (k === 'r' || e.key === 'Delete') { e.preventDefault(); ofBoMieng() }
   else if (k === 'd') { e.preventDefault(); ofDoiHinh(OF_HCHON) }
   else if (k === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); ofHotKey() }
   else if (e.key === 'Escape') {
@@ -1532,7 +1533,10 @@ function ofVeTL() {
     d.style.width = Math.max(h.dur * OF_PXS - 2, 1) + 'px'   // không min-width (08/09)
     d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
       ${h.dur * OF_PXS > 30 ? `<span class="i">${String(j + 1).padStart(2, '0')}${h.nguoi_sua ? ' ✎' : ''}</span>` : ''}
-      ${h.dur * OF_PXS > 52 ? `<span class="d mono">${h.dur.toFixed(1)}s</span>` : ''}`
+      ${h.dur * OF_PXS > 52 ? `<span class="d mono">${h.dur.toFixed(1)}s</span>` : ''}
+      ${j === OF_HCHON ? '<span class="x" title="xóa shot (Delete)">✕</span>' : ''}`
+    const nx = d.querySelector('.x')
+    if (nx) nx.onclick = e2 => { e2.stopPropagation(); ofBoMieng() }
     d.onclick = e => {
       if (e.target.classList.contains('mep')) return
       OF_HCHON = j
@@ -1603,6 +1607,43 @@ function ofKeoMep(e, j, mep, el) {
     ofVeAll()
   }
   document.addEventListener('mousemove', keo); document.addEventListener('mouseup', xong)
+}
+/* ADD SHOT (user 06/09): bấm 1 = chia đôi shot đang chọn, bấm tiếp = chia 3,
+   chia 4... — luôn chia ĐỀU LẠI TỪ SHOT GỐC, user tự kéo mép sau. Không đụng
+   ranh voice: chỉ dựng lại các miếng trong đúng vùng của shot gốc. */
+let OF_ADD = null                 // {t0, dur, n} — vùng shot gốc đang chia
+async function ofAddShot() {
+  const hs = ofHinh(), h = hs[OF_HCHON]
+  if (!h) { toastOf('Click chọn một shot trước'); return }
+  // cùng vùng gốc (shot đang chọn nằm trong vùng lần chia trước) -> n+1
+  const trong_vung = OF_ADD && h.t0 >= OF_ADD.t0 - 0.01
+                   && h.t0 + h.dur <= OF_ADD.t0 + OF_ADD.dur + 0.01
+  const vung = trong_vung ? OF_ADD : {t0: h.t0, dur: h.dur, n: 1,
+                                      uv: h.uv || [], chon: h.chon,
+                                      khoi_goc: h.khoi_goc, goc: {...h}}
+  const n = vung.n + 1
+  if (vung.dur / n < 0.4) { toastOf(`Shot ${vung.dur.toFixed(1)}s chia ${n} là quá vụn (<0.4s/miếng)`); return }
+  ofChup()
+  // dựng lại: bỏ mọi miếng trong vùng, thay bằng n miếng đều nhau
+  const giu = hs.filter(x => !(x.t0 >= vung.t0 - 0.01 && x.t0 + x.dur <= vung.t0 + vung.dur + 0.01))
+  const buoc = vung.dur / n
+  for (let j = 0; j < n; j++) {
+    giu.push({t0: +(vung.t0 + j * buoc).toFixed(3), dur: +buoc.toFixed(3),
+              khoi_goc: vung.khoi_goc, nguoi_sua: true,
+              uv: vung.uv, chon: j === 0 ? vung.chon : -1})
+  }
+  giu.sort((a, b) => a.t0 - b.t0)
+  OF_HD.hinh = giu
+  vung.n = n; OF_ADD = vung
+  clearTimeout(OF_LUU_T)
+  try {
+    await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)})
+    const d = await api('/api/offline/' + OF_PID)
+    if (d.hop_dong) OF_HD = d.hop_dong
+    OF_HCHON = OF_HD.hinh.findIndex(x => Math.abs(x.t0 - vung.t0) < 0.02)
+    toastOf(`⊞ Shot chia ${n} phần đều — kéo mép để chỉnh`)
+  } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
+  ofVeAll()
 }
 async function ofThemMieng() {
   // dòng cũ bị vá hỏng (const t = OF_AUDIO; ofChup() ? ... : 0) -> t là ELEMENT
@@ -1697,7 +1738,8 @@ let OF_TIM_Q = '', OF_TIM_T = 0, OF_TIM_KQ = null
 function ofTimDebounce() {
   clearTimeout(OF_TIM_T)
   OF_TIM_T = setTimeout(async () => {
-    OF_TIM_Q = document.getElementById('of-tim').value.trim()
+    const _oti = document.getElementById('of-tim')
+    OF_TIM_Q = _oti ? _oti.value.trim() : ''
     OF_TIM_KQ = null
     if (OF_TIM_Q) {
       try {
@@ -1714,7 +1756,8 @@ function ofVeKhay() {
   if (OF_PHA !== 2) return
   const k = ofHinh()[OF_HCHON] || ofK()[OF_CHON] || {}
   const ds = OF_TIM_KQ !== null ? OF_TIM_KQ : (k.uv || [])
-  document.getElementById('of-tim-nhan').textContent = OF_TIM_KQ !== null
+  const _otn = document.getElementById('of-tim-nhan')
+  if (_otn) _otn.textContent = OF_TIM_KQ !== null
     ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của miếng hình ${OF_HCHON + 1}`
   // 3 KHỐI: ref · envato · stock (pexels+pixabay+kho+AI gộp) — user 08/09
   const nhom = {ref: [], envato: [], stock: []}
@@ -1767,7 +1810,8 @@ function ofVeKhay() {
         } else k.chon = j
         k.nguoi_sua = true
         toastOf(`Miếng ${OF_HCHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
-        OF_TIM_KQ = null; document.getElementById('of-tim').value = ''
+        OF_TIM_KQ = null
+        const _ot2 = document.getElementById('of-tim'); if (_ot2) _ot2.value = ''
         ofLuu(); ofVeAll()
       }
       dai.appendChild(d)
@@ -1975,16 +2019,9 @@ function ofVeXem() {
   }
 }
 function ofVeStat() {
-  const ks = ofK(), lap = ofKiemLap().size
-  const hs = ofHinh()
-  const co = hs.filter(k => ofUv(k)).length
-  document.getElementById('of-stat').textContent = OF_PHA === 1
-    ? `${ks.length} khối voice · ${ks.filter(k => (k.tho || 0) >= 0.5).length} khoảng thở · ${hs.length} miếng hình`
-    : `hình ${co}/${hs.length} miếng · lặp<60s ${lap}`
-  document.getElementById('of-cc').textContent = OF_PHA === 1
-    ? 'PHA 1 — nghe voice kiểm ranh; khối trắng = hình thở. Phím: 1/2 zoom · q/w thở ±1s · Ctrl+Z hoàn tác · ⌨ xem tất cả.'
-    : 'PHA 2 — click ứng viên = dùng cả clip · double-click = mở cửa sổ trim (ghi tọa độ, không tạo file).'
+  // thanh cong cu gon (06/09): bo of-stat + of-cc — so lieu xem o tooltip/khay
 }
+
 let OF_KHAY_KEY = ''
 function ofVeAll(nhe) {
   ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem()
