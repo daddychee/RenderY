@@ -35,6 +35,28 @@ _MOOD_NOI_BO = {
 }
 _TRA_MOOD = {goc: nb for nb, ds in _MOOD_NOI_BO.items() for goc in ds}
 
+# mood CHƯƠNG (GLM tả tự do: sober, serious, grim...) -> vocab nội bộ.
+# Bug 06/09: chương LI100 ra mood "sober" — không có trong bảng nên không hút
+# được track nào, modal trống trơn dù Epidemic đầy nhạc hợp.
+_TRA_MOOD_CHUONG = {
+    "tense": "tense", "suspense": "tense", "serious": "tense", "grim": "tense",
+    "urgent": "tense", "dramatic": "tense", "dark": "tense", "ominous": "tense",
+    "sober": "tense", "somber": "sad", "sad": "sad", "melancholic": "sad",
+    "mournful": "sad", "tragic": "sad", "calm": "calm", "peaceful": "calm",
+    "hopeful": "calm", "serene": "calm", "gentle": "calm", "warm": "calm",
+    "nostalgic": "calm", "upbeat": "upbeat", "energetic": "upbeat",
+    "lively": "upbeat", "joyful": "upbeat", "playful": "upbeat",
+    "chaotic": "chaotic", "frantic": "chaotic", "hectic": "chaotic",
+    "epic": "epic", "grand": "epic", "majestic": "epic",
+}
+
+
+def quy_mood_chuong(mood_tu_do: str) -> str:
+    """Mood chương (chữ tự do của GLM) -> vocab nội bộ; lạ quá thì giữ nguyên
+    (đề xuất sẽ hút Epidemic bằng term search thay vì filter mood)."""
+    m = (mood_tu_do or "").strip().lower()
+    return _TRA_MOOD_CHUONG.get(m, m)
+
 
 def quy_mood(moods_goc: list[str]) -> str:
     """[mood Epidemic] -> mood nội bộ ĐẦU TIÊN khớp (thứ tự Epidemic = độ mạnh)."""

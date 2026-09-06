@@ -1227,7 +1227,7 @@ def api_offline_nhac(project_id: str, request: Request):
     hd = orun.doc(_pdir_offline(project_id))
     if hd is None:
         raise HTTPException(409, "Chưa phân tích")
-    mood = _mood_chuong(hd)
+    mood = _nhac.quy_mood_chuong(_mood_chuong(hd))
     than = float((hd.get("framing") or {}).get("than") or 0)
     energy = "high" if 0 < than < 3.5 else ("medium" if than < 5 else "low")
     conn = _sdb.mo()
@@ -1239,11 +1239,13 @@ def api_offline_nhac(project_id: str, request: Request):
                           (mood,)).fetchone()[0] if mood else 0
         if mood and co < 40:                  # mood này còn mỏng -> hút tươi
             goc = _nhac._MOOD_NOI_BO.get(mood) or ()
-            if goc:
-                try:
+            try:
+                if goc:
                     _nhac.hut_epidemic(conn, moods=goc[0], so_trang=1)
-                except Exception:  # noqa: BLE001 — mạng hỏng thì dùng cái đang có
-                    pass
+                else:                         # mood lạ -> term search vẫn ăn
+                    _nhac.hut_epidemic(conn, tu_khoa=mood, so_trang=1)
+            except Exception:  # noqa: BLE001 — mạng hỏng thì dùng cái đang có
+                pass
         dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
                            kenh=(hd.get("ma_tap") or "")[:2])
     finally:

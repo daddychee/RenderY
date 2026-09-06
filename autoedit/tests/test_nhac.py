@@ -151,3 +151,12 @@ def test_api_nhac_de_xuat_va_chon(tmp_path, monkeypatch):
     # bỏ nhạc
     r = tc.post("/api/offline/proj/nhac/chon", json={"id": ""})
     assert r.status_code == 200 and orun.doc(d).get("nhac") is None
+
+
+def test_quy_mood_chuong_chu_tu_do():
+    """Bug 06/09: chương ra mood "sober" (GLM tả tự do) — không quy đổi được
+    thì không hút nổi track nào, modal trống."""
+    assert nhac.quy_mood_chuong("sober") == "tense"
+    assert nhac.quy_mood_chuong("Somber") == "sad"
+    assert nhac.quy_mood_chuong("tense") == "tense"
+    assert nhac.quy_mood_chuong("weird-mood") == "weird-mood"   # lạ: giữ nguyên
