@@ -146,8 +146,10 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
 #of-khay{flex:1 1 0; min-height:0; display:none; flex-direction:column; gap:8px}
 #of-khay.on{display:flex}
+/* 3 KHỐI (user 08/09): REF | ENVATO hàng trên · STOCK gộp hàng dưới */
 #of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
-        grid-template-rows:1.4fr 1fr; gap:10px}
+        grid-template-rows:1.5fr 1fr; gap:10px}
+#of-khu .of-khu.phu{grid-column:1 / -1}
 .of-khu.rong{flex:0 0 44px}
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
@@ -695,10 +697,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
           <span class="note" id="of-tim-nhan" style="margin:0"></span>
         </div>
         <div id="of-khu">
-          <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
           <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
-          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS <span id="of-n-pexels"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pexels"></div></div>
-          <div class="of-khu phu"><h4 style="color:#5b9bd5">PIXABAY · KHO · AI <span id="of-n-pixabay"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-pixabay"></div></div>
+          <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
+          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS · PIXABAY · KHO · AI <span id="of-n-stock"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-stock"></div></div>
         </div>
       </div>
     </div>
@@ -1608,17 +1609,22 @@ function ofVeKhay() {
   const ds = OF_TIM_KQ !== null ? OF_TIM_KQ : (k.uv || [])
   document.getElementById('of-tim-nhan').textContent = OF_TIM_KQ !== null
     ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của miếng hình ${OF_HCHON + 1}`
-  const nhom = {envato: [], ref: [], pexels: [], pixabay: []}
+  // 3 KHỐI: ref · envato · stock (pexels+pixabay+kho+AI gộp) — user 08/09
+  const nhom = {ref: [], envato: [], stock: []}
   ds.forEach((u, j) => {
-    const khu = u.nguon === 'aigen' ? 'pixabay' : u.nguon   // AI nằm khu phụ 2
-    ;(nhom[khu] || nhom.pixabay).push([u, j])
+    const khu = u.nguon === 'ref' ? 'ref' : (u.nguon === 'envato' ? 'envato' : 'stock')
+    nhom[khu].push([u, j])
   })
-  for (const ng of ['envato', 'ref', 'pexels', 'pixabay']) {
+  for (const ng of ['ref', 'envato', 'stock']) {
     const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
     document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
     const khu = dai.parentElement
     khu.classList.toggle('rong', !nhom[ng].length)
-    if (!nhom[ng].length) { dai.innerHTML = '<span class="note" style="margin:0">—</span>'; continue }
+    if (!nhom[ng].length) {
+      dai.innerHTML = '<span class="note" style="margin:0">' +
+        (ng === 'stock' ? 'chưa hút Pexels/Pixabay cho từ khóa này' : '—') + '</span>'
+      continue
+    }
     for (const [u, j] of nhom[ng]) {
       const lap = ofUvLap(u.id)
       const d = document.createElement('div')
