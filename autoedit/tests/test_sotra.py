@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import time
+
 import pytest
 
 from autoedit.sotra import db as sdb
@@ -269,3 +271,68 @@ def test_ung_vien_mang_t0_t1_cho_hover_ref(conn, tmp_path):
     r = [c for c in uv[0] if c["id"].startswith("ref:")]
     assert r, "ref phải lọt vào ứng viên"
     assert r[0]["t0"] == 120.0 and r[0]["t1"] == 124.0
+
+
+# --------------------------------------------- API nạp ref (việc 6)
+def test_api_nap_ref_chan_duong_sai(tmp_path, monkeypatch):
+    """Thư mục không có / không có mp4 -> 422 ngay, không mở luồng nền."""
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.web import server
+
+    monkeypatch.setattr(server, "_duoc_nghien_cuu_kenh", lambda r: True)
+    tc = TestClient(server.app)
+    assert tc.post("/api/sotra/nap-ref",
+                   json={"thu_muc": str(tmp_path / "khong_co")}).status_code == 422
+    trong = tmp_path / "trong"
+    trong.mkdir()
+    assert tc.post("/api/sotra/nap-ref", json={"thu_muc": str(trong)}).status_code == 422
+
+
+def test_api_nap_ref_chi_manager(tmp_path, monkeypatch):
+    """Nạp ref tốn tiền LLM thật -> viewer không được chạy."""
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.web import server
+
+    monkeypatch.setattr(server, "_duoc_nghien_cuu_kenh", lambda r: False)
+    d = tmp_path / "tap"
+    d.mkdir()
+    (d / "r.mp4").write_bytes(b"v")
+    r = TestClient(server.app).post("/api/sotra/nap-ref", json={"thu_muc": str(d)})
+    assert r.status_code == 403
+
+
+def test_api_nap_ref_chay_nen_va_bao_tien_do(tmp_path, monkeypatch):
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.web import server
+
+    monkeypatch.setattr(server, "_duoc_nghien_cuu_kenh", lambda r: True)
+    server._sotra_nap_ref.clear()
+    goi = {}
+
+    def _gia(conn, thu_muc, tap="", quoc_gia="", doc_hinh=True, log=None):
+        goi.update({"quoc_gia": quoc_gia, "doc_hinh": doc_hinh})
+        if log:
+            log("sotra: «r.mp4» -> 5 cảnh")
+        return 5
+
+    monkeypatch.setattr("autoedit.sotra.hut.nap_ref_tap", _gia)
+    d = tmp_path / "tap"
+    d.mkdir()
+    (d / "r.mp4").write_bytes(b"v")
+    tc = TestClient(server.app)
+    assert tc.post("/api/sotra/nap-ref",
+                   json={"thu_muc": str(d), "quoc_gia": "ecuador"}).status_code == 200
+    for _ in range(50):                       # luồng nền: chờ tới khi xong
+        if server._sotra_nap_ref.get("tt") in ("xong", "loi"):
+            break
+        time.sleep(0.05)
+    assert server._sotra_nap_ref["tt"] == "xong", server._sotra_nap_ref
+    assert "+5 cảnh" in server._sotra_nap_ref["ghi_chu"]
+    assert goi == {"quoc_gia": "ecuador", "doc_hinh": True}
+    assert tc.get("/api/sotra/nap-ref").json()["tt"] == "xong"

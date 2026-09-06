@@ -619,6 +619,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span class="note" id="st-dem" style="margin:0"></span>
       <span class="note" id="st-hut-tt" style="margin:0"></span>
       <span style="flex:1"></span>
+      <button class="btn ghost small" id="st-nap-ref" onclick="stNapRef()" hidden>⧉ Nạp ref của tập</button>
       <button class="btn ghost small" id="st-hut-nut" onclick="stHut()" hidden>⛏ Hút thêm theo từ khóa này</button>
     </div>
     <div id="st-luoi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(240px,15vw,320px),1fr));gap:12px"></div>
@@ -2016,6 +2017,7 @@ async function stVe(them) {
     ? '<span class="hb run"></span>đang hút nền: ' + esc(ht.ghi_chu || '')
     : (ht.tt ? esc('hút gần nhất: ' + (ht.ghi_chu || '')) : '')
   document.getElementById('st-hut-nut').hidden = !(ME.nghien_cuu_kenh && ST_Q.trim())
+  document.getElementById('st-nap-ref').hidden = !ME.nghien_cuu_kenh
   document.getElementById('st-trong').hidden = ST_DS.length > 0
   document.getElementById('st-them').hidden = d.clips.length < 60
 
@@ -2101,6 +2103,40 @@ async function stHut() {
     setTimeout(() => stVe(), 25000)
   } catch (e) { alert('Lỗi: ' + e.message) }
   nut.disabled = false
+}
+
+/* NẠP REF: cắt video ref của tập thành CẢNH QUAY + đọc hình -> Library.
+   Mất ~5 phút/tập nên chạy nền, hỏi tiến độ mỗi 3s. */
+let ST_REF_T = null
+async function stNapRef() {
+  const thu_muc = prompt('Thư mục tập trên NAS (chứa ref *.mp4):',
+    localStorage.getItem('ry_ref_dir') || '')
+  if (!thu_muc) return
+  const quoc_gia = prompt('Quốc gia của tập (gắn vào mọi cảnh, vd ecuador):', '') || ''
+  try { localStorage.setItem('ry_ref_dir', thu_muc) } catch (e) { }
+  const nut = document.getElementById('st-nap-ref')
+  nut.disabled = true
+  try {
+    await api('/api/sotra/nap-ref', {method: 'POST', body: JSON.stringify(
+      {thu_muc, quoc_gia, tap: '', doc_hinh: true})})
+    stRefTheoDoi()
+  } catch (e) { alert('Lỗi: ' + e.message); nut.disabled = false }
+}
+function stRefTheoDoi() {
+  clearInterval(ST_REF_T)
+  const tt = document.getElementById('st-hut-tt')
+  ST_REF_T = setInterval(async () => {
+    let d
+    try { d = await api('/api/sotra/nap-ref') } catch (e) { return }
+    if (d.tt === 'dang') {
+      tt.innerHTML = '<span class="hb run"></span>nạp ref: ' + esc(d.ghi_chu || '')
+      return
+    }
+    clearInterval(ST_REF_T)
+    document.getElementById('st-nap-ref').disabled = false
+    tt.textContent = (d.tt === 'loi' ? '⚠ ' : '✓ ') + (d.ghi_chu || '')
+    if (d.tt === 'xong') stVe()
+  }, 3000)
 }
 
 /* ── FRAMING INSIGHT (khuôn Author Extract): dropdown hồ sơ + thân mô tả ── */

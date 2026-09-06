@@ -1095,6 +1095,72 @@ def api_sotra_hut(req: SoTraHutRequest, request: Request):
     return {"ok": True, "ghi_chu": "đang hút nền — kết quả tự hiện thêm"}
 
 
+class SoTraNapRefRequest(BaseModel):
+    thu_muc: str                      # thư mục tập trên NAS (chứa *.mp4 [+ .srt])
+    tap: str = ""
+    quoc_gia: str = ""                # gắn cứng geo cấp tập
+    doc_hinh: bool = True
+
+
+_sotra_nap_ref: dict = {}
+
+
+@app.get("/api/sotra/nap-ref")
+def api_sotra_nap_ref_tt(request: Request):
+    """Tiến độ phiên nạp ref (UI hỏi mỗi 3s)."""
+    _require_auth(request)
+    with _sotra_lock:
+        return dict(_sotra_nap_ref) or {"tt": ""}
+
+
+@app.post("/api/sotra/nap-ref")
+def api_sotra_nap_ref(req: SoTraNapRefRequest, request: Request):
+    """Cắt video ref trong thư mục tập thành CẢNH QUAY + đọc hình -> Library.
+
+    Chạy nền vì tốn ~5 phút/tập (đo: quét scene 52' hết 78s, trích ảnh ~60s,
+    đọc hình ~3 phút). Manager/owner mới được chạy — tốn tiền LLM thật.
+    """
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được nạp ref")
+    thu_muc = Path(req.thu_muc)
+    if not thu_muc.is_dir():
+        raise HTTPException(422, f"Không thấy thư mục «{req.thu_muc}»")
+    if not any(thu_muc.rglob("*.mp4")):
+        raise HTTPException(422, "Thư mục không có file .mp4 nào")
+    with _sotra_lock:
+        if _sotra_nap_ref.get("tt") == "dang":
+            raise HTTPException(409, "Đang có phiên nạp ref chạy dở")
+        _sotra_nap_ref.clear()
+        _sotra_nap_ref.update({"tt": "dang", "ghi_chu": "đang quét cảnh..."})
+
+    def _chay():
+        from autoedit.sotra import db as _sdb
+        from autoedit.sotra.hut import nap_ref_tap
+
+        def _log(m):
+            print("[sotra]", m, flush=True)
+            with _sotra_lock:
+                _sotra_nap_ref["ghi_chu"] = m.replace("sotra: ", "")
+
+        try:
+            conn = _sdb.mo()
+            try:
+                n = nap_ref_tap(conn, thu_muc, tap=req.tap,
+                                quoc_gia=req.quoc_gia, doc_hinh=req.doc_hinh,
+                                log=_log)
+            finally:
+                conn.close()
+            with _sotra_lock:
+                _sotra_nap_ref.update({"tt": "xong", "ghi_chu": f"+{n} cảnh vào Library"})
+        except Exception as exc:  # noqa: BLE001
+            with _sotra_lock:
+                _sotra_nap_ref.update({"tt": "loi", "ghi_chu": str(exc)[:200]})
+
+    threading.Thread(target=_chay, daemon=True, name="sotra-nap-ref").start()
+    return {"ok": True, "ghi_chu": "đang nạp nền — mất ~5 phút mỗi tập"}
+
+
 @app.get("/api/kenh")
 def api_kenh_list(request: Request):
     """Thư viện kênh đã nghiên cứu + kênh đang đo — mọi vai xem được."""
