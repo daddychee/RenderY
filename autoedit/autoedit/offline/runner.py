@@ -193,7 +193,9 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             ung_vien = dung.do_ung_vien(
                 c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
                 # chương AUTO: không đốt license Envato (user chốt 06/09)
-                bo_nguon=() if dong_kiem else ("envato",))
+                bo_nguon=() if dong_kiem else ("envato",),
+                # rào cứng theo tập (06/09): geo lệch/ref tập khác không chảy vào
+                geo_tap=dia_danh, tap=_ma_tap(project_dir))
             chon = dung.chon_mac_dinh(ds_khoi, ung_vien)
         finally:
             if conn is None:
@@ -206,6 +208,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         "phien_ban": 1,
         "ngay": datetime.now(timezone.utc).isoformat(),
         "ma_tap": _ma_tap(project_dir),
+        "dia_danh": dia_danh,
         "nguoi_tao": nguoi_tao,          # AI TẠO sequence -> người đó mới được sửa
         "ngay_tao": datetime.now(timezone.utc).isoformat(),
         "offset": offset, "tong_voice": round(het - offset, 2),

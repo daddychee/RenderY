@@ -17,7 +17,7 @@ CHOT_NEO_S = 30.0
 
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                 uu_tien_nguon: str = "", so_moi_khoi: int = 12,
-                bo_nguon: tuple = ()) -> list[list[dict]]:
+                bo_nguon: tuple = (), geo_tap: str = "", tap: str = "") -> list[list[dict]]:
     """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library.
 
     bo_nguon (user chốt 06/09): chương AUTO sau mốc AVD ít người xem tới —
@@ -31,7 +31,8 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
         uv = tra(conn, {"L0": chu_the_tap, "L1": o.truc_chi,
                         "L2": o.ngu_canh, "L3": o.khong_khi},
                  so=so_moi_khoi + (6 if bo_nguon else 0),
-                 uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i)
+                 uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i,
+                 geo_tap=geo_tap, tap=tap)
         if bo_nguon:
             uv = [c for c in uv if c["nguon"] not in bo_nguon]
         # user chốt 06/09: clip NGẮN hơn phần nói của khối không được chảy vào
@@ -125,7 +126,8 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
                             "L1": k.get("L1") or [], "L2": k.get("L2") or [],
                             "L3": k.get("L3") or []},
                      so=12, uu_tien_nguon="ref", can_neo=bool(k.get("neo")),
-                     seed=i)
+                     seed=i, geo_tap=hd.get("dia_danh") or "",
+                     tap=hd.get("ma_tap") or "")
             tuoi_theo_khoi[i] = [
                 {"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                  "lop": c["lop"], "diem": c["diem"],

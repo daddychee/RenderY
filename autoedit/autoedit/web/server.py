@@ -718,6 +718,7 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
                 req.avd_s = float(o.get("avd_phut") or 6) * 60
                 req.kenh_ref = o.get("kenh_ref") or ""
                 req.uu_tien_nguon = req.uu_tien_nguon or o.get("uu_tien_nguon") or "ref"
+                req.dia_danh = req.dia_danh or o.get("dia_danh") or ""
         except Exception:  # noqa: BLE001 — không tra được job thì mặc định
             req.avd_s = req.avd_s or 360.0
     # mốc bắt đầu chương tính MỌI TRƯỜNG HỢP (kể cả avd_s gửi tường minh) —
@@ -2247,6 +2248,7 @@ class JobRequest(BaseModel):
     # không nhập thông số) — phan-tich đọc lại từ opts của job.
     avd_phut: float = 6.0
     uu_tien_nguon: str = "ref"
+    dia_danh: str = ""            # rào cứng geo (06/09): city Ecuador không vào Nepal
     # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
     retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
     retention_dai: str = ""        # "28:25" hoặc "1:02:15"
@@ -2306,7 +2308,8 @@ def api_add_job(req: JobRequest, request: Request):
                               "phuong_an": ("stock" if req.phuong_an == "doi_thu"
                                             else req.phuong_an), "kenh_ref": req.kenh_ref,
                               "avd_phut": req.avd_phut,
-                              "uu_tien_nguon": req.uu_tien_nguon})
+                              "uu_tien_nguon": req.uu_tien_nguon,
+                              "dia_danh": req.dia_danh})
         job = q.get_job(conn, jid)
         return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid),
                 "retention": bao_cao_ret}

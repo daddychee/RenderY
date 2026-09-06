@@ -24,7 +24,8 @@ def _tokens(cum) -> set:
 
 
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
-        can_neo: bool = True, suat_ref: int = 2, seed: int = 0) -> list[dict]:
+        can_neo: bool = True, suat_ref: int = 2, seed: int = 0,
+        geo_tap: str = "", tap: str = "") -> list[dict]:
     """lop = {"L0": [...], "L1": [...], "L2": [...], "L3": [...]} -> ứng viên xếp
     hạng, mỗi cái kèm `lop` (tầng trúng) + `diem`. Khay chia nhóm theo `lop`.
 
@@ -57,6 +58,17 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
                        for k in ("tieu_de", "vat_the", "loi_quanh") + sdb.TRUC)
         tt = _tokens([chu])
         la_ref = c["nguon"] in ("ref",)
+        # RÀO CỨNG THEO TẬP (user chốt 06/09: "city ở Ecuador không thể chảy
+        # vào Nepal; person ở châu Phi không thể chảy vào Mỹ"):
+        # 1. ref của tập KHÁC không bao giờ sang tập này
+        if la_ref and tap and (c.get("tap") or "") != tap:
+            continue
+        # 2. clip mang geo LỆCH với địa danh tập -> loại hẳn (geo trống thì qua
+        #    cửa như stock trung tính — không được cộng điểm neo)
+        gt = _tokens([geo_tap]) if geo_tap else set()
+        gc = _tokens([(c.get("geo") or "").replace(">", " ")])
+        if gt and gc and not (gt & gc):
+            continue
         co_neo = bool(c.get("geo")) or c["nguon"] in ("ref", "kho")
         # CỬA L0: thuộc thế giới video (neo địa lý HOẶC trúng chủ thể tập)
         if can_neo and not (co_neo or la_ref or (tt & l0)):
@@ -69,6 +81,10 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         d += DIEM_NEO if co_neo else 0
         if uu_tien_nguon and c["nguon"] == uu_tien_nguon:
             d += DIEM_UU_TIEN_NGUON
+        # 3. kho b-roll của TẬP KHÁC mà không rõ geo: đè xuống đáy khay —
+        #    tra tay vẫn thấy, máy không bao giờ tự chọn
+        if c["nguon"] == "kho" and tap and (c.get("tap") or "") != tap and not gc:
+            d -= 6.0
         c["lop"], c["diem"] = tang, round(d, 1)
         (refs if la_ref else cham).append(c)
 
