@@ -632,6 +632,28 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     d = _pdir_offline(project_id)
     nguoi_tao = current_user(request)
     # Thông số dựng lấy từ JOB lúc nộp tập (user 06/09) — request rỗng là mặc định
+    def _mo_dau_tap_s() -> float:
+        """Chương này bắt đầu ở giây bao nhiêu của TẬP = tổng voice các chương
+        TRƯỚC nó (thứ tự H -> C1.. -> E). Bug chặn go-live user bắt 06/09:
+        không ai tính -> luôn 0 -> MỌI chương thành đồng kiểm, AUTO chết."""
+        from autoedit.offline.runner import _thu_muc_nas
+        from autoedit.project import ffprobe_duration
+        from autoedit.web.chapters import doc_chuong
+
+        nas = _thu_muc_nas(d)
+        if nas is None:
+            return 0.0
+        chuong, _ = doc_chuong(nas.parent)
+        tong = 0.0
+        for ch in chuong:                      # đã SẮP đúng thứ tự
+            if ch.path.name.lower() == nas.name.lower():
+                return round(tong, 2)
+            for f in sorted(ch.path.iterdir()):
+                if f.suffix.lower() in (".mp3", ".wav"):
+                    tong += ffprobe_duration(f) or 0.0
+                    break
+        return 0.0                             # không thấy chương -> coi như đầu tập
+
     if not req.avd_s and not req.kenh_ref:
         try:
             from autoedit.web import queue as _q
@@ -648,6 +670,13 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
                 req.uu_tien_nguon = req.uu_tien_nguon or o.get("uu_tien_nguon") or "ref"
         except Exception:  # noqa: BLE001 — không tra được job thì mặc định
             req.avd_s = req.avd_s or 360.0
+    # mốc bắt đầu chương tính MỌI TRƯỜNG HỢP (kể cả avd_s gửi tường minh) —
+    # nằm trong if trên là gửi avd_s tay thì mốc lại về 0, mọi chương đồng kiểm
+    if not req.mo_dau_tap_s:
+        try:
+            req.mo_dau_tap_s = _mo_dau_tap_s()
+        except Exception:  # noqa: BLE001
+            pass
     with _offline_lock:
         if _offline_dang.get(project_id, {}).get("tt") == "dang":
             raise HTTPException(409, "Đang phân tích dở")
@@ -660,11 +689,29 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
                                 kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
                                 dia_danh=req.dia_danh, nguoi_tao=nguoi_tao,
                                 log=lambda m: print("[offline]", m, flush=True))
+            # CHƯƠNG AUTO (sau mốc AVD — user chốt: "chia 2 hệ đồng kiểm và
+            # auto", đóng nốt 06/09 trước go-live): máy tự dùng lựa chọn mặc
+            # định -> KHÓA SỔ -> bản ONLINE luôn. Người vẫn mở xem/sửa được
+            # sau đó (sửa xong bấm Online lại). Fail-open: gãy khúc nào thì
+            # dừng ở trạng thái trước đó, không phá hợp đồng.
+            if not hd["dong_kiem"]:
+                try:
+                    print(f"[offline] {project_id}: AUTO — máy tự khóa sổ + Online",
+                          flush=True)
+                    hd["trang_thai"] = "khoa"
+                    orun.luu(d, hd)
+                    from autoedit.offline import thay_mau as _tm
+
+                    _tm.thay_mau(d, log=lambda m: print("[online-auto]", m, flush=True))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[offline] {project_id}: AUTO gãy ({str(exc)[:120]}) — "
+                          "để người xử tiếp", flush=True)
             with _offline_lock:
                 _offline_dang[project_id] = {
                     "tt": "xong",
                     "ghi_chu": f"{len(hd['khoi'])} khối · "
-                               + ("ĐỒNG KIỂM" if hd["dong_kiem"] else "AUTO")}
+                               + ("ĐỒNG KIỂM" if hd["dong_kiem"] else
+                                  "AUTO — máy đã khóa sổ + chạy bản Online")}
         except Exception as exc:  # noqa: BLE001
             with _offline_lock:
                 _offline_dang[project_id] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
@@ -1488,6 +1535,23 @@ def _xep_tai_ban_sach(hd: dict) -> None:
         threading.Thread(target=_chay, daemon=True, name="tai-nen").start()
     except Exception:  # noqa: BLE001 — xếp hàng hỏng không được chặn lưu
         pass
+
+
+# GIỮ ẤM PHIÊN (go-live 07/09): ping nhẹ mỗi 20h — cookie được dùng đều thì
+# sống lâu hơn hẳn, owner đỡ phải đăng nhập lại. Fail-open tuyệt đối.
+def _giu_am_dinh_ky():
+    import time as _t
+    while True:
+        _t.sleep(20 * 3600)
+        try:
+            from autoedit.sourcer.phien import giu_am
+
+            giu_am(log=lambda m: print("[phien]", m, flush=True))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+threading.Thread(target=_giu_am_dinh_ky, daemon=True, name="giu-am-phien").start()
 
 
 @app.get("/api/phien")

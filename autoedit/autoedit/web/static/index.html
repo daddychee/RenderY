@@ -1511,6 +1511,9 @@ function ofInfo() {
   document.getElementById('of-info').innerHTML =
     `<b style="color:var(--text)">${esc(OF_HD.ma_tap || OF_PID)}</b>`
     + (ai ? ` · ✍ ${esc(ai)}` : '') + (ngay ? ` · ${esc(ngay)}` : '')
+    + (OF_HD.avd_s > 0 ? (OF_HD.dong_kiem
+        ? ' · <b style="color:var(--warn)">ĐỒNG KIỂM</b>'
+        : ' · <b style="color:var(--ok,#5cb98a)">AUTO</b>') : '')
     + (OF_KHOA_SUA ? ' · <span style="color:var(--bad)">chỉ xem</span>' : '')
 }
 

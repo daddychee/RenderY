@@ -187,7 +187,17 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                     except Exception:  # noqa: BLE001
                         pass
                     if pg.locator('a:has-text("Sign in")').count():
-                        ghi("online: phiên Envato HẾT HẠN giữa chừng — dừng lượt tải")
+                        # TỰ CỨU (go-live 07/09): phiên chết -> đóng lượt, thử
+                        # đăng nhập lại bằng mật khẩu trong két (1 lần); captcha
+                        # cần người thì cửa sổ hiện trên desktop server như luật.
+                        ghi("online: phiên Envato HẾT HẠN — thử tự đăng nhập lại...")
+                        try:
+                            ctx.close()
+                        except Exception:  # noqa: BLE001
+                            pass
+                        from autoedit.sourcer.phien import dang_nhap
+                        kq_dn = dang_nhap("envato", cho_captcha_s=120, log=log)
+                        ghi(f"online: đăng nhập lại -> {kq_dn.get('ghi_chu', '')[:70]}")
                         break
                     with pg.expect_download(timeout=300_000) as dl:
                         pg.locator('button:has-text("Download")').first.click()
