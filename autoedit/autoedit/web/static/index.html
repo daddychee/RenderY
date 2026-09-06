@@ -43,7 +43,12 @@ body.dung-video{overflow:hidden}                 /* màn Offline: không cuộn 
 header.top{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
   padding:2px 0 10px;min-height:38px}
 header.top .ai{margin-left:auto;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;max-width:34vw}
+  text-overflow:ellipsis;max-width:34vw;font-size:12px}
+/* TRONG CRM: CRM đã có thanh tiêu đề riêng (logo + ngày + người dùng) — tool
+   ẩn phần trùng, chỉ giữ NAV (user báo trùng lặp navigator 08/09) */
+body.trong-crm header.top h1{display:none}
+body.trong-crm header.top .ai{display:none}
+body.trong-crm header.top{padding:0 0 8px;min-height:32px}
 header.top h1{font-size:17px;flex:0 0 auto;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
 header.top h1 span{color:var(--accent)}
 nav.tabs{display:flex;gap:4px;flex-wrap:nowrap;align-items:center;flex:1 1 auto;min-width:0}
@@ -2229,6 +2234,11 @@ function doiTen() {
 let ME = {}
 ;(async () => {
   try { ME = await api('/api/me') } catch { }
+  // Nhúng trong CRM -> ẩn logo/tên trùng thanh CRM. Nhận diện bằng IFRAME
+  // (chắc chắn hơn cờ qua_crm: cờ đó còn đòi RENDERY_TRUST_PROXY=1, tắt là
+  // header lại chồng — user báo 08/09)
+  const trongKhung = (function () { try { return window.self !== window.top } catch (e) { return true } })()
+  document.body.classList.toggle('trong-crm', trongKhung || !!ME.qua_crm)
   veNguoiDung(ME.nguoi || '')
   loadJobs()
   loadKenh()          // nạp thư viện kênh cho dropdown form nộp ngay từ đầu
