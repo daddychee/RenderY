@@ -1166,6 +1166,125 @@ def api_sotra_nap_ref(req: SoTraNapRefRequest, request: Request):
     return {"ok": True, "ghi_chu": "đang nạp nền — mất ~5 phút mỗi tập"}
 
 
+class NhacHutRequest(BaseModel):
+    tu_khoa: str = ""
+    moods: str = ""                   # slug Epidemic: suspense, dreamy...
+    so_trang: int = 2
+
+
+@app.get("/api/sotra/nhac")
+def api_nhac_tim(request: Request, q: str = "", mood: str = "", limit: int = 40):
+    """Tra kho nhạc — mọi vai xem/nghe được."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb, nhac as _nhac
+
+    conn = _sdb.mo()
+    try:
+        return {"tracks": _nhac.tim_nhac(conn, q=q, mood=mood, limit=limit)}
+    finally:
+        conn.close()
+
+
+@app.post("/api/sotra/nhac/hut")
+def api_nhac_hut(req: NhacHutRequest, request: Request):
+    """Hút metadata Epidemic (không file, ~5s/2 trang) — manager/owner."""
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner được hút nguồn")
+    from autoedit.sotra import db as _sdb, nhac as _nhac
+
+    conn = _sdb.mo()
+    try:
+        n = _nhac.hut_epidemic(conn, tu_khoa=req.tu_khoa, moods=req.moods,
+                               so_trang=max(1, min(5, req.so_trang)))
+    finally:
+        conn.close()
+    return {"ok": True, "moi": n}
+
+
+def _mood_chuong(hd: dict) -> str:
+    """Mood đa số các khối của chương — trục chính chọn nhạc (mood là trụ)."""
+    from collections import Counter
+
+    dem = Counter((k.get("mood") or "").strip().lower()
+                  for k in hd.get("khoi") or [] if k.get("mood"))
+    return dem.most_common(1)[0][0] if dem else ""
+
+
+@app.get("/api/offline/{project_id}/nhac")
+def api_offline_nhac(project_id: str, request: Request):
+    """Đề xuất nhạc cho CHƯƠNG này (user chốt 06/09: nhạc theo chương).
+
+    energy suy từ Framing: thân cắt nhanh (<3.5s) cần high, <5s medium, còn
+    lại low. Kho chưa có track hợp mood -> tự hút 1 trang Epidemic theo mood.
+    """
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+    from autoedit.sotra import db as _sdb, nhac as _nhac
+
+    hd = orun.doc(_pdir_offline(project_id))
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    mood = _mood_chuong(hd)
+    than = float((hd.get("framing") or {}).get("than") or 0)
+    energy = "high" if 0 < than < 3.5 else ("medium" if than < 5 else "low")
+    conn = _sdb.mo()
+    try:
+        dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
+                           kenh=(hd.get("ma_tap") or "")[:2])
+        if len(dx) < 3 and mood:              # kho mỏng -> hút thêm đúng mood
+            goc = _nhac._MOOD_NOI_BO.get(mood) or ()
+            if goc:
+                try:
+                    _nhac.hut_epidemic(conn, moods=goc[0], so_trang=1)
+                    dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
+                                       kenh=(hd.get("ma_tap") or "")[:2])
+                except Exception:  # noqa: BLE001 — mạng hỏng thì trả cái đang có
+                    pass
+    finally:
+        conn.close()
+    return {"mood": mood, "energy": energy, "tracks": dx,
+            "dang_chon": hd.get("nhac") or None}
+
+
+class NhacChonRequest(BaseModel):
+    id: str = ""                      # "" = bỏ nhạc
+
+
+@app.post("/api/offline/{project_id}/nhac/chon")
+def api_offline_nhac_chon(project_id: str, req: NhacChonRequest, request: Request):
+    """Gắn track cho chương -> hd['nhac'] + sự kiện duoc_chon."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+    from autoedit.sotra import db as _sdb
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    _gac_quyen_sua(request, hd)
+    if not req.id:
+        hd.pop("nhac", None)
+        orun.luu(d, hd)
+        return {"ok": True, "nhac": None}
+    conn = _sdb.mo()
+    try:
+        r = conn.execute("SELECT * FROM nhac WHERE id=?", (req.id,)).fetchone()
+        if r is None:
+            raise HTTPException(404, "Không thấy track trong kho")
+        t = dict(r)
+        conn.execute("INSERT INTO su_kien(clip_id, tap, loai, ts) VALUES(?,?,?,?)",
+                     (req.id, hd.get("ma_tap") or "",
+                      "duoc_chon", datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+    finally:
+        conn.close()
+    hd["nhac"] = {k: t[k] for k in ("id", "tieu_de", "nghe_si", "mood", "bpm",
+                                    "energy", "dai_s", "url_nghe")}
+    orun.luu(d, hd)
+    return {"ok": True, "nhac": hd["nhac"]}
+
+
 @app.get("/api/kenh")
 def api_kenh_list(request: Request):
     """Thư viện kênh đã nghiên cứu + kênh đang đo — mọi vai xem được."""

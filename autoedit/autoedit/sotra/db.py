@@ -71,6 +71,24 @@ CREATE TABLE IF NOT EXISTS phien_hut(
   ph INTEGER PRIMARY KEY AUTOINCREMENT,
   tu_khoa TEXT, nguon TEXT, so_moi INTEGER, so_trung INTEGER, ts TEXT);
 CREATE TABLE IF NOT EXISTS alias(tu TEXT PRIMARY KEY, chuan TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS nhac(
+  id TEXT PRIMARY KEY,             -- epidemic:<id> — bất biến, cho MÁY
+  nguon TEXT NOT NULL DEFAULT 'epidemic',
+  tieu_de TEXT DEFAULT '', nghe_si TEXT DEFAULT '',
+  mood TEXT DEFAULT '',            -- đã quy về vocab NỘI BỘ (tense/calm/...)
+  mood_goc TEXT DEFAULT '',        -- mood Epidemic nguyên bản, không mất tin
+  genre TEXT DEFAULT '',
+  bpm INTEGER DEFAULT 0,
+  energy TEXT DEFAULT '',          -- low|medium|high
+  dai_s REAL DEFAULT 0,
+  co_loi INTEGER DEFAULT 0,        -- hasVocals: chặn mặc định (đè voice đọc)
+  url_nghe TEXT DEFAULT '',        -- lqMp3Url 128kbps — TRỌN bài, công khai
+  url_anh TEXT DEFAULT '', url_trang TEXT DEFAULT '',
+  path_local TEXT DEFAULT '',      -- bản sạch sau khi tải qua két
+  trang_thai TEXT DEFAULT 'preview',   -- preview|da_tai|loai_tru
+  ngay_them TEXT DEFAULT '');
+CREATE VIRTUAL TABLE IF NOT EXISTS nhac_fts USING fts5(
+  id UNINDEXED, chu, tokenize='porter unicode61');
 """
 
 # Bộ alias GỐC (Việt→Anh + đồng nghĩa hay gặp) — người bổ sung dần qua UI.

@@ -183,6 +183,29 @@ def _cat_voice(project_dir: Path, hd: dict, log) -> dict[int, Path]:
     return ra
 
 
+def _tai_nhac(project_dir: Path, hd: dict, log) -> Path | None:
+    """Preview 128kbps của track đã chọn -> assets_offline/. Bản sạch thay sau
+    khi có tài khoản Epidemic trong két (đúng khuôn Envato preview/bản sạch)."""
+    n = hd.get("nhac") or {}
+    url = n.get("url_nghe") or ""
+    if not url:
+        return None
+    f = project_dir / "assets_offline" / f"nhac_{(n.get('id') or 'x').split(':')[-1]}.mp3"
+    if f.is_file() and f.stat().st_size > 0:
+        return f
+    try:
+        import urllib.request
+
+        f.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        f.write_bytes(urllib.request.urlopen(req, timeout=120).read())
+        log(f"thay-mau: nhạc «{n.get('tieu_de')}» {f.stat().st_size // 1024}KB")
+        return f
+    except Exception as exc:  # noqa: BLE001 — nhạc hỏng KHÔNG giết draft
+        log(f"thay-mau: tải nhạc LỖI ({str(exc)[:80]}) — draft không nhạc")
+        return None
+
+
 def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
                ten_draft: str, profile, log) -> Path:
     """Ráp draft CapCut: video sàn 0.8 + freeze; voice đặt gap = tho_them dương."""
@@ -250,6 +273,34 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
             am, Timerange(round(t0 * SEC),
                           min(am.duration - SAFETY_US,
                               round(((t1 - t0) + tho_that) * SEC)))), "voice")
+
+    # ---- TRACK NHẠC (user chốt 06/09): ducking theo voice + fade chương ----
+    nhac_f = _tai_nhac(project_dir, hd, log)
+    if nhac_f is not None:
+        from autoedit.offline.nhac_mix import (FADE_RA_S, FADE_VAO_S, cat_lap,
+                                               duong_am_luong)
+
+        script.add_track(TrackType.audio, "nhac")
+        nm = AudioMaterial(str(nhac_f))
+        dai_nhac = nm.duration / SEC
+        tong = mhinh.tong_dai(hd["khoi"])
+        kf = duong_am_luong(hd["khoi"])
+        mieng_nhac = cat_lap(dai_nhac, tong)
+        for j, (bat_dau, dai) in enumerate(mieng_nhac):
+            seg = AudioSegment(nm, Timerange(round(bat_dau * SEC), round(dai * SEC)),
+                               source_timerange=Timerange(0, round(dai * SEC)),
+                               volume=1.0)
+            # keyframe ducking RƠI TRONG miếng này (mốc tương đối theo miếng)
+            for t, v in kf:
+                if bat_dau - 0.01 <= t <= bat_dau + dai + 0.01:
+                    seg.add_keyframe(max(0, round((t - bat_dau) * SEC)), v)
+            # fade chương chỉ ở miếng ĐẦU (vào) và miếng CUỐI (ra)
+            vao = round(FADE_VAO_S * SEC) if j == 0 else 0
+            ra_ = round(FADE_RA_S * SEC) if j == len(mieng_nhac) - 1 else 0
+            if vao or ra_:
+                seg.add_fade(vao, ra_)
+            script.add_segment(seg, "nhac")
+        log(f"thay-mau: nhạc {len(mieng_nhac)} miếng · {len(kf)} keyframe ducking")
 
     # overwrite: thay máu là thao tác LẶP LẠI theo thiết kế (sửa đường dây ->
     # thay máu lại) — draft cùng tên phải được đè, không bắt user xoá tay

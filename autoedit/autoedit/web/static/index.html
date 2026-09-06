@@ -228,6 +228,23 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
           box-shadow:0 6px 22px rgba(0,0,0,.4); max-width:70vw; white-space:nowrap;
           overflow:hidden; text-overflow:ellipsis}
 #of-toast.mo{display:block}
+#of-nhac-cs{position:fixed; inset:0; background:rgba(0,0,0,.72); display:none;
+            place-items:center; z-index:78; padding:4vh 4vw}
+#of-nhac-cs.mo{display:grid}
+#of-nhac-cs .hop{width:min(760px, 94vw); max-height:82vh; display:flex;
+                 flex-direction:column; background:var(--panel);
+                 border:1px solid var(--line); border-radius:14px; overflow:hidden}
+#of-nhac-cs .dau{display:flex; align-items:center; padding:11px 14px;
+                 border-bottom:1px solid var(--line); font-size:14px}
+#of-nhac-ds{overflow-y:auto; padding:6px 0}
+.of-track{display:flex; align-items:center; gap:12px; padding:8px 14px;
+          border-bottom:1px solid var(--line); font-size:13px}
+.of-track img{width:44px; height:44px; border-radius:6px; object-fit:cover; flex:0 0 44px}
+.of-track .tt{flex:1; min-width:0}
+.of-track .tt b{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.of-track .tt small{color:var(--muted)}
+.of-track.dang{background:var(--accent-soft)}
+.of-track .btn{flex:0 0 auto}
 #of-hot h4{font-size:11px; text-transform:uppercase; letter-spacing:.08em;
            color:var(--muted); margin:0 0 8px}
 #of-hot div.r{display:flex; justify-content:space-between; align-items:center;
@@ -686,6 +703,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <span class="note" id="of-luu-tt" style="margin:0;color:#5cb98a"></span>
     <span style="flex:1"></span>
 
+    <button class="btn ghost" id="of-nhac-nut" onclick="ofNhacMo()" title="nhạc nền của chương — máy đề xuất theo mood">♪ Nhạc</button>
     <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
   </div>
 
@@ -771,6 +789,19 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 
 <div id="of-hot"></div>
 <div id="of-toast"></div>
+<!-- NHẠC CHƯƠNG (user chốt 06/09): đề xuất theo mood, nghe trọn preview -->
+<div id="of-nhac-cs" onclick="if(event.target.id==='of-nhac-cs')ofNhacDong()">
+  <div class="hop">
+    <div class="dau"><b>♪ Nhạc nền chương</b>
+      <span class="note" id="of-nhac-mo-ta" style="margin:0 0 0 10px"></span>
+      <span style="flex:1"></span>
+      <button class="btn ghost small" onclick="ofNhacDong()">Đóng (Esc)</button>
+    </div>
+    <div id="of-nhac-dang" class="note" style="padding:8px 14px;margin:0" hidden></div>
+    <div id="of-nhac-ds"></div>
+    <audio id="of-nhac-audio"></audio>
+  </div>
+</div>
 
 <!-- CỬA SỔ REVIEW + TRIM (user 08/09: double-click ứng viên mới mở) -->
 <div id="of-trim-cs" onclick="if(event.target.id==='of-trim-cs')ofDongTrim()">
@@ -1345,6 +1376,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Escape') {
     document.getElementById('of-hot').classList.remove('mo')
     if (document.getElementById('of-trim-cs').classList.contains('mo')) ofDongTrim()
+    if (document.getElementById('of-nhac-cs').classList.contains('mo')) ofNhacDong()
   }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault()
@@ -1695,6 +1727,63 @@ function ofKeoMep(e, j, mep, el) {
   }
   document.addEventListener('mousemove', keo); document.addEventListener('mouseup', xong)
 }
+/* ── NHẠC CHƯƠNG: đề xuất theo mood, nghe trọn preview 128kbps ── */
+let OF_NHAC_PHAT = ''
+async function ofNhacMo() {
+  if (!OF_PID) return
+  document.getElementById('of-nhac-cs').classList.add('mo')
+  document.getElementById('of-nhac-ds').innerHTML = '<div class="note" style="padding:14px">đang tìm nhạc hợp mood chương…</div>'
+  let d
+  try { d = await api('/api/offline/' + OF_PID + '/nhac') }
+  catch (e) { document.getElementById('of-nhac-ds').innerHTML = `<div class="err" style="margin:14px">${esc(e.message)}</div>`; return }
+  document.getElementById('of-nhac-mo-ta').textContent =
+    d.mood ? `mood chương: ${d.mood} · energy: ${d.energy}` : 'chương chưa có mood (chạy phân tích trước)'
+  const dc = document.getElementById('of-nhac-dang')
+  dc.hidden = !d.dang_chon
+  if (d.dang_chon) dc.innerHTML = `Đang gắn: <b>${esc(d.dang_chon.tieu_de)}</b>
+    <span style="cursor:pointer;color:var(--bad);margin-left:8px" onclick="ofNhacChon('')">✕ bỏ nhạc</span>`
+  const ds = document.getElementById('of-nhac-ds'); ds.innerHTML = ''
+  for (const t of (d.tracks || [])) {
+    const r = document.createElement('div')
+    r.className = 'of-track' + (d.dang_chon && d.dang_chon.id === t.id ? ' dang' : '')
+    r.innerHTML = `<img src="${esc(t.url_anh)}" loading="lazy">
+      <div class="tt"><b>${esc(t.tieu_de)} <small>· ${esc(t.nghe_si)}</small></b>
+        <small>${esc(t.mood)} · ${esc(t.energy)} · ${t.bpm}bpm · ${Math.round(t.dai_s / 60)}p${String(Math.round(t.dai_s) % 60).padStart(2, '0')} — ${esc(t.ly_do)}</small></div>
+      <button class="btn ghost small nghe">▶ Nghe</button>
+      <button class="btn small">Chọn</button>`
+    const [nghe, chon] = r.querySelectorAll('button')
+    nghe.onclick = () => ofNhacNghe(t, nghe)
+    chon.onclick = () => ofNhacChon(t.id)
+    ds.appendChild(r)
+  }
+  if (!(d.tracks || []).length)
+    ds.innerHTML = '<div class="note" style="padding:14px">Kho chưa có track hợp — thử hút thêm ở Library.</div>'
+}
+function ofNhacNghe(t, nut) {
+  const au = document.getElementById('of-nhac-audio')
+  if (OF_NHAC_PHAT === t.id && !au.paused) {
+    au.pause(); nut.textContent = '▶ Nghe'; OF_NHAC_PHAT = ''
+    return
+  }
+  document.querySelectorAll('#of-nhac-ds .nghe').forEach(b => b.textContent = '▶ Nghe')
+  au.src = t.url_nghe; au.play().catch(() => { })
+  nut.textContent = '❚❚ Dừng'; OF_NHAC_PHAT = t.id
+}
+async function ofNhacChon(id) {
+  try {
+    const r = await api('/api/offline/' + OF_PID + '/nhac/chon',
+                        {method: 'POST', body: JSON.stringify({id})})
+    if (OF_HD) OF_HD.nhac = r.nhac || undefined
+    toastOf(r.nhac ? `♪ Chương gắn «${esc(r.nhac.tieu_de)}» — draft sẽ có ducking + fade` : 'Đã bỏ nhạc chương')
+    ofNhacMo()                                      // vẽ lại danh sách + nhãn đang gắn
+  } catch (e) { toastOf('Lỗi: ' + e.message) }
+}
+function ofNhacDong() {
+  document.getElementById('of-nhac-cs').classList.remove('mo')
+  const au = document.getElementById('of-nhac-audio'); au.pause()
+  OF_NHAC_PHAT = ''
+}
+
 /* ADD SHOT (user 06/09): bấm 1 = chia đôi shot đang chọn, bấm tiếp = chia 3,
    chia 4... — luôn chia ĐỀU LẠI TỪ SHOT GỐC, user tự kéo mép sau. Không đụng
    ranh voice: chỉ dựng lại các miếng trong đúng vùng của shot gốc. */
