@@ -73,30 +73,31 @@ def test_chong_lap_track_da_len_final(conn):
 
 
 # ---------------------------------------------------------- đường âm lượng
-def test_ducking_ha_truoc_cau_nha_sau_cau():
-    khoi = [{"v0": 5.0, "v1": 9.0, "tho": 8.0, "tho_them": 0.0}]
+def test_tho_ngan_nhac_giu_deu():
+    """Luật user 06/09: thở 1-2s nhạc GIỮ NGUYÊN nền — to nhỏ liên tục rất vụn."""
+    khoi = [{"v0": 0.0, "v1": 4.0, "tho": 1.0, "tho_them": 0.0},
+            {"v0": 5.0, "v1": 9.0, "tho": 2.5, "tho_them": 0.0}]
     kf = duong_am_luong(khoi)
-    d = dict(kf)
-    assert d[0.0] == 0.9                           # mở chương nhạc to
-    assert d[4.7] == 0.9 and d[5.0] == 0.25        # hạ 0.3s trước câu
-    assert d[9.0] == 0.25 and d[9.4] == 0.9        # nhả 0.4s sau câu
+    assert kf == [(0.0, 0.25)], "không khoảng thở nào đủ 3s -> chỉ 1 keyframe nền"
 
 
-def test_tho_ngan_khong_nhap_nho():
-    """2 câu cách nhau 0.5s: nhạc GIỮ THẤP, không kịp lên rồi xuống."""
-    khoi = [{"v0": 0.0, "v1": 4.0, "tho": 0.5, "tho_them": 0.0},
-            {"v0": 4.5, "v1": 8.0, "tho": 2.0, "tho_them": 0.0}]
-    kf = duong_am_luong(khoi)
-    giua = [v for t, v in kf if 4.0 < t < 4.5]
-    assert not any(v == 0.9 for v in giua), "không được nhô lên trong khe 0.5s"
-
-
-def test_ducking_tinh_tren_truc_timeline_co_tho_them():
-    """tho_them dịch mốc voice -> keyframe phải theo trục TIMELINE, không phải audio."""
-    khoi = [{"v0": 0.0, "v1": 3.0, "tho": 1.0, "tho_them": 2.0},
-            {"v0": 4.0, "v1": 7.0, "tho": 0.0, "tho_them": 0.0}]
+def test_tho_dai_moi_nhich_20_phan_tram():
+    khoi = [{"v0": 0.0, "v1": 4.0, "tho": 5.0, "tho_them": 0.0},   # thở 5s >= 3s
+            {"v0": 9.0, "v1": 12.0, "tho": 1.0, "tho_them": 0.0}]  # thở 1s: im
     d = dict(duong_am_luong(khoi))
-    assert d[6.0] == 0.25                          # câu 2 vào tại 4+2=6 trên timeline
+    assert d[0.0] == 0.25
+    assert d[4.0] == 0.25 and d[4.4] == 0.3        # dốc lên trong thở dài
+    assert d[8.7] == 0.3 and d[9.0] == 0.25        # hạ về nền trước câu kế
+    assert all(t <= 9.0 for t in d), "thở 1s cuối không sinh keyframe nào"
+
+
+def test_nhich_tinh_tren_truc_timeline_co_tho_them():
+    """tho_them kéo dài khoảng lặng: 1.5s + 2s = 3.5s >= 3s -> được nhích."""
+    khoi = [{"v0": 0.0, "v1": 3.0, "tho": 1.5, "tho_them": 2.0},
+            {"v0": 4.5, "v1": 7.0, "tho": 0.0, "tho_them": 0.0}]
+    d = dict(duong_am_luong(khoi))
+    assert d[3.4] == 0.3                           # nhích trong khoảng lặng 3-6.5
+    assert d[6.5] == 0.25                          # câu 2 vào tại 4.5+2=6.5
 
 
 def test_cat_lap_track_ngan_hon_chuong():

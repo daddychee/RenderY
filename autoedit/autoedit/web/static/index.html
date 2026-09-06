@@ -2307,10 +2307,18 @@ function ofNhacBat(tl) {
   au.play().catch(e => toastOf('♪ lỗi phát nhạc: ' + e.message))
 }
 function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang phát
+  // Luật user 06/09: nhạc GIỮ ĐỀU 0.25 — thở ngắn không đụng (to nhỏ liên tục
+  // rất vụn); chỉ khoảng lặng >= 3s mới nhích lên 0.30 (+20%).
   const au = ofNhacTl()
   if (au.paused) return
-  const noi = ofMoc().some(([t0, t1]) => t0 <= tl && tl < t1)
-  au.volume = noi ? 0.25 : 0.9
+  const moc = ofMoc()
+  let v = 0.25
+  for (let i = 0; i < moc.length; i++) {
+    const t1 = moc[i][1]
+    const b = i + 1 < moc.length ? moc[i + 1][0] : moc[i][2]
+    if (tl >= t1 && tl < b && b - t1 >= 3.0) { v = 0.30; break }
+  }
+  au.volume = v
 }
 function ofNhacNgung() { ofNhacTl().pause() }
 function ofPlay() {

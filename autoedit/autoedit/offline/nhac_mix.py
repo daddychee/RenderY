@@ -9,56 +9,41 @@ Hàm ở đây THUẦN (không đụng pycapcut) để test bằng số; thay_ma
 """
 from __future__ import annotations
 
-CAO = 0.9            # nhạc khi không có voice (khoảng thở, mở/đóng chương)
-THAP = 0.25          # nhạc khi voice đang nói
-DOC_XUONG_S = 0.30   # nhạc hạ xuống TRƯỚC khi câu bắt đầu
-DOC_LEN_S = 0.40     # nhạc nhả lên SAU khi câu dứt
+NEN = 0.25           # mức NỀN của nhạc — giữ đều suốt, kể cả thở ngắn
+CAO = 0.30           # thở DÀI: nhích lên +20% so với nền (user chốt 06/09)
+NGUONG_THO_S = 3.0   # thở >= mức này mới được nhích — thở 1s mà nhấp nhô là vụn
+DOC_LEN_S = 0.40     # dốc nhích lên ở đầu khoảng thở dài
+DOC_XUONG_S = 0.30   # dốc hạ về nền trước khi câu kế vào
 FADE_VAO_S = 1.5     # đầu chương
 FADE_RA_S = 2.0      # cuối chương
 
 
-def _gop_noi(khoang: list[tuple[float, float]], ke: float) -> list[tuple[float, float]]:
-    """Gộp các khoảng cách nhau < `ke` — thở quá ngắn thì nhạc GIỮ THẤP luôn,
-    không nhấp nhô lên-xuống trong nửa giây (nghe rất amateur)."""
-    if not khoang:
-        return []
-    ra = [list(khoang[0])]
-    for a, b in khoang[1:]:
-        if a - ra[-1][1] < ke:
-            ra[-1][1] = b
-        else:
-            ra.append([a, b])
-    return [(a, b) for a, b in ra]
+def duong_am_luong(khoi: list[dict], nen: float = NEN, cao: float = CAO,
+                   nguong_s: float = NGUONG_THO_S, len_s: float = DOC_LEN_S,
+                   xuong_s: float = DOC_XUONG_S) -> list[tuple[float, float]]:
+    """[(giây TIMELINE, volume)] cho cả chương.
 
-
-def duong_am_luong(khoi: list[dict], cao: float = CAO, thap: float = THAP,
-                   xuong_s: float = DOC_XUONG_S, len_s: float = DOC_LEN_S,
-                   ) -> list[tuple[float, float]]:
-    """[(giây TIMELINE, volume)] — keyframe ducking cho cả chương.
-
-    Mỗi vùng NÓI (đã gộp các vùng sát nhau): nhạc bắt đầu hạ `xuong_s` trước
-    câu, chạm `thap` đúng lúc câu vào, giữ tới hết câu, nhả lên `cao` sau
-    `len_s`. Ngoài vùng nói nhạc ở `cao`.
+    Luật user chốt 06/09 (thay bản ducking bậc thang cũ): nhạc giữ ĐỀU ở mức
+    nền — thở ngắn không đụng tới, vì "đôi khi hình thở chỉ có 1s, to nhỏ như
+    vậy rất vụn". Chỉ khoảng thở >= nguong_s mới nhích lên +20%, có dốc lên ở
+    đầu và dốc hạ trước khi câu kế vào.
     """
     from autoedit.offline.hinh import moc_timeline
 
     moc = moc_timeline(khoi)
+    kf: list[tuple[float, float]] = [(0.0, nen)]
     if not moc:
-        return [(0.0, cao)]
-    noi = _gop_noi([(t0, t1) for t0, t1, _ in moc], ke=xuong_s + len_s + 0.2)
-    kf: list[tuple[float, float]] = []
-    if noi[0][0] - xuong_s > 0.05:
-        kf.append((0.0, cao))                       # chương mở bằng nhạc to
-    for a, b in noi:
-        xa = max(0.0, a - xuong_s)
-        if kf and kf[-1][0] >= xa:                  # dính keyframe trước -> bỏ nhịp lên
-            kf.pop()
-        else:
-            kf.append((xa, cao))
-        kf.append((max(0.0, a), thap))
-        kf.append((b, thap))
-        kf.append((b + len_s, cao))
-    return [(round(t, 3), v) for t, v in kf]
+        return kf
+    # khoảng lặng = giữa t1 nói của khối này và t0 nói của khối kế
+    for i, (_t0, t1, _tt) in enumerate(moc):
+        b = moc[i + 1][0] if i + 1 < len(moc) else moc[i][2]
+        if b - t1 < nguong_s:
+            continue
+        kf.append((t1, nen))
+        kf.append((round(t1 + len_s, 3), cao))
+        kf.append((round(b - xuong_s, 3), cao))
+        kf.append((round(b, 3), nen))
+    return kf
 
 
 def cat_lap(dai_nhac_s: float, dai_chuong_s: float) -> list[tuple[float, float]]:
