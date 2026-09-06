@@ -1429,14 +1429,29 @@ function ofVeLoi() {
     + (k.neo ? '' : '<span class="of-chip l3">nơi khác — miễn neo</span>')
     + (k.mood ? `<span class="of-chip l3">mood ${esc(k.mood)}</span>` : '')
 }
-function ofTho(delta) {
+async function ofTho(delta) {
+  // BUG 08/09: bản cũ sửa tho_them rồi vẽ NGAY bằng dải hình CŨ (server mới là
+  // bên tính lại dải hình, mà ofLuu debounce 0.7s) -> voice trượt còn hình đứng
+  // yên đúng như user thấy. Nay: PUT NGAY rồi NẠP LẠI hợp đồng từ server.
+  const k = ofK()[OF_CHON]; if (!k || !OF_HD) return
   ofChup()
-  const k = ofK()[OF_CHON]; if (!k) return
   const san = -(Math.max((k.tho || 0) - 0.2, 0))
-  k.tho_them = Math.round(Math.max(san, (k.tho_them || 0) + delta) * 10) / 10
+  const cu_gt = k.tho_them || 0
+  k.tho_them = Math.round(Math.max(san, cu_gt + delta) * 10) / 10
+  if (k.tho_them === cu_gt) { OF_UNDO.pop(); toastOf('Đã chạm sàn im lặng 0.2s'); return }
   k.nguoi_sua = true
-  toastOf(`Khối ${OF_CHON + 1}: thở ${(k.tho || 0).toFixed(1)}s ${k.tho_them >= 0 ? '+' : ''}${k.tho_them}s — voice bất biến`)
-  ofLuu(); ofVeAll()
+  clearTimeout(OF_LUU_T)                       // huỷ debounce, gửi thẳng
+  try {
+    await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)})
+    const d = await api('/api/offline/' + OF_PID)   // lấy dải hình server đã đồng bộ
+    if (d.hop_dong) OF_HD = d.hop_dong
+    toastOf(`Khối ${OF_CHON + 1}: hình thở ${((k.tho || 0) + (k.tho_them || 0)).toFixed(1)}s` +
+            ` (${k.tho_them >= 0 ? '+' : ''}${k.tho_them}s) — voice+hình sau trượt cùng nhau`)
+  } catch (e) {
+    OF_UNDO.pop(); k.tho_them = cu_gt
+    toastOf('Lỗi: ' + e.message)
+  }
+  ofVeAll()
 }
 let OF_TIM_Q = '', OF_TIM_T = 0, OF_TIM_KQ = null
 function ofTimDebounce() {
