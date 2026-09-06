@@ -46,15 +46,20 @@ def thu_muc_phien(nha: str) -> Path:
 
 
 def doc_tai_khoan(nha: str) -> tuple[str, str]:
-    """(email, mật khẩu) từ két General — dạng `email|mật_khẩu`. Rỗng nếu chưa nhập."""
+    """(email, mật khẩu) từ két General. Chuẩn 06/09: 2 TRƯỜNG RIÊNG — email ở
+    `tai_khoan` (metadata), mật khẩu ở `key` (ngăn bí mật). Khoá kiểu cũ
+    `email|mật_khẩu` nhét một ô vẫn đọc được (tương thích ngược)."""
     from autoedit.web.ket_v3 import doc_ket
 
     viec = NHA[nha]["viec"]
     for k in ((doc_ket() or {}).get(viec) or {}).get("khoa") or []:
-        chuoi = (k.get("key") or "").strip()
-        if "|" in chuoi:
-            email, mk = chuoi.split("|", 1)
-            return email.strip(), mk.strip()
+        email = (k.get("tai_khoan") or "").strip()
+        mk = (k.get("key") or "").strip()
+        if email and mk:
+            return email, mk
+        if "|" in mk:                       # khuôn cũ một ô
+            e, m = mk.split("|", 1)
+            return e.strip(), m.strip()
     return "", ""
 
 
