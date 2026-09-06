@@ -188,7 +188,7 @@ def test_bo_qua_thu_muc_ket_qua_cua_chinh_tool(tmp_path):
     d = tom_tat(tap)
     assert d["san_sang"] is True, d["loi"]
     assert d["so_chuong"] == 3
-    assert [c["ma"] for c in d["chuong"]] == ["H", "C1"]
+    assert [c["ma"] for c in d["chuong"]] == ["H", "C1", "E"]
 
 
 def test_ten_thu_muc_giao_khop_giua_hai_module():
