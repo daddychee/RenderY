@@ -135,15 +135,19 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                     _tai(url, dich)
                     time.sleep(random.uniform(*GIAN_NHIP))
                 elif nguon == "envato":
-                    # CHỜ KÉT (user đưa tài khoản sau): thử dự bị trước đã
-                    if any(x["id"].split(":")[0] != "envato" for x in thu_tu):
-                        raise RuntimeError("chờ két Envato — thử dự bị")
-                    if not c.get("url_video"):
-                        raise RuntimeError("thiếu preview")
-                    _tai(c["url_video"], dich)       # preview watermark TẠM
-                    warns.append(f"khối {i + 1}: Envato preview WATERMARK tạm — "
-                                 "thay bản sạch khi có két")
-                    time.sleep(random.uniform(*GIAN_NHIP))
+                    sach = c.get("path_local") or ""
+                    if sach and Path(sach).is_file():
+                        # BẢN SẠCH đã tải (online) — cắt đoạn dùng cho nhẹ assets
+                        t0s = float(c.get("t0") or 0)
+                        dai = (float(c.get("t1") or 0) - t0s) if float(c.get("t1") or 0) > t0s                             else k["dur"] + 2.0
+                        cat_clip(Path(sach), t0s, dai + 0.3, dich)
+                    else:
+                        if not c.get("url_video"):
+                            raise RuntimeError("thiếu preview")
+                        _tai(c["url_video"], dich)       # preview watermark TẠM
+                        warns.append(f"miếng {i + 1}: Envato preview WATERMARK — "
+                                     "phiên Envato sống rồi bấm Online lại là sạch")
+                        time.sleep(random.uniform(*GIAN_NHIP))
                 else:
                     raise RuntimeError("nguồn không có đường lấy")
                 if dich.is_file() and dich.stat().st_size > 5_000:
@@ -326,6 +330,23 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> 
 
     c = conn or sdb.mo()
     try:
+        # BẢN ONLINE (user chốt 06/09 — thuật ngữ dựng phim: offline duyệt xong
+        # thì conform bản online với media sạch): tải bản sạch Envato cho các
+        # shot ĐANG CHỌN trước khi ráp. Fail-open — thiếu phiên/hỏng clip nào
+        # thì clip đó dùng preview, draft vẫn ra.
+        try:
+            from autoedit.offline import hinh as _mh
+            from autoedit.sourcer import tai_sach
+
+            can = [h["uv"][h["chon"]]["id"] for h in _mh.dam_bao(hd)
+                   if 0 <= h.get("chon", -1) < len(h.get("uv") or [])
+                   and h["uv"][h["chon"]].get("nguon") == "envato"]
+            if can:
+                ghi(f"online: {len(set(tai_sach._uuid_goc(x) for x in can))} clip "
+                    "Envato cần bản sạch — tải 1 luồng giãn 2-5s")
+                tai_sach.tai_nhieu(c, can, log=ghi)
+        except Exception as exc:  # noqa: BLE001
+            ghi(f"online: tải bản sạch LỖI ({str(exc)[:80]}) — dùng preview")
         video, dung_id, warns = relocate(project_dir, hd, c, ghi, ark=ark)
         # phản biện: ghi sổ theo clip THẬT được dùng (dự bị tính là dự bị —
         # test 07/09 bắt bug ghi nhầm theo clip 'được chọn' đã chết)

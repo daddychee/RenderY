@@ -837,7 +837,7 @@ def api_offline_thay_mau(project_id: str, request: Request):
     khoa = f"{project_id}:thaymau"
     with _offline_lock:
         if _offline_dang.get(khoa, {}).get("tt") == "dang":
-            raise HTTPException(409, "Đang thay máu dở")
+            raise HTTPException(409, "Đang làm bản Online dở")
         _offline_dang[khoa] = {"tt": "dang", "ghi_chu": "tải bản thật + ráp draft..."}
 
     def _chay():
@@ -855,7 +855,7 @@ def api_offline_thay_mau(project_id: str, request: Request):
                 _offline_dang[khoa] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
 
     threading.Thread(target=_chay, daemon=True, name=khoa).start()
-    return {"ok": True, "ghi_chu": "đang thay máu nền — draft CapCut sẽ hiện khi xong"}
+    return {"ok": True, "ghi_chu": "đang làm bản ONLINE nền — draft CapCut sẽ hiện khi xong"}
 
 
 class TrimRequest(BaseModel):
@@ -1012,7 +1012,7 @@ def api_offline_khoa(project_id: str, request: Request):
     _gac_quyen_sua(request, hd)
     hd["trang_thai"] = "khoa"
     orun.luu(d, hd)
-    return {"ok": True, "ghi_chu": f"đã khóa sổ {len(hd['khoi'])} khối — chờ thay máu (đợt 5)"}
+    return {"ok": True, "ghi_chu": f"đã khóa sổ {len(hd['khoi'])} khối — bấm Export timeline để ra bản Online"}
 
 
 @app.post("/api/offline/{project_id}/kiem-mp4")
