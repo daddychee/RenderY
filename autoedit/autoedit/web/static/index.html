@@ -684,7 +684,11 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       Kho chưa có kết quả cho từ khóa này — bấm «⛏ Hút thêm» để tra thẳng Envato/Pexels/Pixabay (manager).
     </div>
     <div style="text-align:center;margin-top:12px">
-      <button class="btn ghost small" id="st-them" onclick="stThem()" hidden>Xem thêm ↓</button>
+      <span id="st-pager" style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:4px" hidden>
+        <button class="btn ghost small" id="st-truoc" onclick="stTrang(-1)">« Trước</button>
+        <span class="note mono" id="st-trang-n" style="margin:0">Trang 1</span>
+        <button class="btn ghost small" id="st-sau" onclick="stTrang(1)">Sau »</button>
+      </span>
     </div>
   </div>
 
@@ -2470,7 +2474,10 @@ function ofPlay() {
 }
 
 /* ── SỔ TRA: trang stock nội bộ — 1 ô tìm, 4 nguồn, hover-play ── */
-let ST_Q = '', ST_NGUON = '', ST_NEO = false, ST_OFFSET = 0, ST_DS = [], ST_CHON = null
+let ST_Q = '', ST_NGUON = '', ST_NEO = false, ST_DS = [], ST_CHON = null
+// PHÂN TRANG (user chốt 06/09): mỗi trang 60 CARD; offset dòng thô của từng
+// trang xếp trong stack — Trước = lùi stack, Sau = offset_tiep server trả
+let ST_TRANG = [0], ST_TR = 0, ST_OFFSET_TIEP = 0
 let ST_TIMER = 0
 
 function stAnh(c) {                 // thumbnail: web hotlink, local qua endpoint
@@ -2484,18 +2491,24 @@ function stVideo(c) {
 const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
                 ref: '#a98ee0', kho: '#8a93a0', aigen: '#d9a441'}
 
-async function stVe(them) {
-  if (!them) ST_OFFSET = 0
+async function stVe(giu_trang) {
+  if (!giu_trang) { ST_TRANG = [0]; ST_TR = 0 }
   if (ST_NGUON === 'nhac') { stVeNhac(); return }   // kho nhạc: lưới riêng
   let d
   try {
     d = await api(`/api/sotra?q=${encodeURIComponent(ST_Q)}&nguon=${ST_NGUON}` +
-                  `&neo=${ST_NEO ? 1 : 0}&limit=60&offset=${ST_OFFSET}`)
+                  `&neo=${ST_NEO ? 1 : 0}&limit=60&offset=${ST_TRANG[ST_TR]}`)
   } catch (e) {
     document.getElementById('st-dem').innerHTML = `<span class="err">${esc(e.message)}</span>`
     return
   }
-  ST_DS = them ? ST_DS.concat(d.clips) : d.clips
+  ST_DS = d.clips
+  ST_OFFSET_TIEP = d.offset_tiep || 0
+  const pg = document.getElementById('st-pager')
+  pg.hidden = (ST_TR === 0 && d.het)
+  document.getElementById('st-truoc').disabled = ST_TR === 0
+  document.getElementById('st-sau').disabled = !!d.het
+  document.getElementById('st-trang-n').textContent = 'Trang ' + (ST_TR + 1)
   const dem = d.dem || {}
   let tong = 0
   for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho', 'aigen', 'nhac']) {
@@ -2513,8 +2526,7 @@ async function stVe(them) {
   document.getElementById('st-hut-nut').hidden = !(ME.nghien_cuu_kenh && ST_Q.trim())
   document.getElementById('st-nap-ref').hidden = !ME.nghien_cuu_kenh
   document.getElementById('st-trong').hidden = ST_DS.length > 0
-  // dua theo co het cua SERVER (dong tho) — dem clip da gop la an nut oan
-  document.getElementById('st-them').hidden = !!d.het
+
 
   const l = document.getElementById('st-luoi')
   if (!them) l.innerHTML = ''
@@ -2572,7 +2584,14 @@ function stNeo() {
   document.getElementById('st-neo').classList.toggle('on', ST_NEO)
   stVe()
 }
-function stThem() { ST_OFFSET += 60; stVe(true) }
+function stTrang(huong) {
+  if (huong > 0) {
+    if (ST_TR === ST_TRANG.length - 1) ST_TRANG.push(ST_OFFSET_TIEP)
+    ST_TR++
+  } else if (ST_TR > 0) ST_TR--
+  stVe(true)
+  document.getElementById('st-luoi').scrollIntoView({behavior: 'smooth'})
+}
 function stMo(c) {
   ST_CHON = c
   const v = document.getElementById('st-v'), a = document.getElementById('st-a')

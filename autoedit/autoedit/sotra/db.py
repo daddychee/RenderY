@@ -256,16 +256,28 @@ def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         sql = (f"SELECT c.*, bm25(clip_fts) AS hang FROM clip_fts f "
                f"JOIN clip c ON c.id=f.id WHERE clip_fts MATCH ? AND {' AND '.join(dk)} "
                f"ORDER BY hang LIMIT ? OFFSET ?")
-        rows = conn.execute(sql, [fts, *tham, limit, offset]).fetchall()
+        lay = lambda o, n: conn.execute(sql, [fts, *tham, n, o]).fetchall()  # noqa: E731
     else:
         sql = (f"SELECT c.* FROM clip c WHERE {' AND '.join(dk)} "
                f"ORDER BY c.ngay_them DESC LIMIT ? OFFSET ?")
-        rows = conn.execute(sql, [*tham, limit, offset]).fetchall()
-    # bug user bắt 06/09: UI ẩn "Xem thêm" khi trang trả <60 CLIP, nhưng gộp
-    # trùng hiển thị làm 60 DÒNG thô co còn 15-40 clip -> nút ẩn oan từ trang
-    # đầu, kho 871 mà mắt thấy <100. meta['het'] nói sự thật theo DÒNG THÔ.
-    if meta is not None:
-        meta["het"] = len(rows) < limit
+        lay = lambda o, n: conn.execute(sql, [*tham, n, o]).fetchall()  # noqa: E731
+    # PHÂN TRANG THEO CARD (user chốt 06/09: "mỗi page 60 video"): gộp trùng
+    # tiêu đề làm 60 dòng thô co còn 15-40 card, nên đọc thô TỪNG MẺ tới khi đủ
+    # `limit` card hiển thị; meta trả offset_tiep (dòng thô đã ngốn) + het.
+    rows = []
+    o = offset
+    het = False
+    while True:
+        me = lay(o, 150)
+        rows.extend(me)
+        o += len(me)
+        if len(me) < 150:
+            het = True
+            break
+        # đủ ước lượng cho limit card? gộp thử nhanh bằng đếm tiêu đề
+        if len({(r["nguon"], (r["tieu_de"] or "").strip().lower())
+                for r in rows}) >= limit + 5:
+            break
     ra, nhom = [], {}
     for r in rows:
         d = dict(r)
@@ -276,7 +288,30 @@ def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
             continue
         d["so_ban"] = 1
         nhom[khoa] = d
+        if len(ra) >= limit:                  # đã đủ card cho trang này
+            continue
+        d["_vt"] = len(rows) if r is rows[-1] else 0
         ra.append(d)
+    if meta is not None:
+        if len(nhom) > limit:                 # còn card thừa -> chưa hết
+            het = False
+        meta["het"] = het and len(nhom) <= limit
+        # offset_tiep: vị trí dòng thô NGAY SAU card cuối của trang
+        dem_card, tiep = 0, offset
+        for j, r in enumerate(rows):
+            khoa2 = (r["nguon"], (r["tieu_de"] or "").strip().lower())
+            d2 = nhom.get(khoa2)
+            if d2 is not None and d2 is not True:
+                dem_card += 1
+                nhom[khoa2] = True            # đánh dấu đã đếm
+                if dem_card == limit:
+                    tiep = offset + j + 1
+                    break
+        else:
+            tiep = o
+        meta["offset_tiep"] = tiep
+    for d in ra:
+        d.pop("_vt", None)
     # nhãn "đã dùng ở tập" — chống lặp giữa các tập ngay lúc chọn
     if ra:
         dau = {r["id"]: r for r in ra}

@@ -1160,7 +1160,8 @@ def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
     with _sotra_lock:
         hut = dict(_sotra_dang_hut)
     return {"clips": kq, "dem": dem, "hut": hut,
-            "het": meta_tim.get("het", True)}
+            "het": meta_tim.get("het", True),
+            "offset_tiep": meta_tim.get("offset_tiep", 0)}
 
 
 @app.get("/api/sotra/clip")
