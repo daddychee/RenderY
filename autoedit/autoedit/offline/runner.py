@@ -58,6 +58,64 @@ def _ma_tap(project_dir: Path) -> str:
     return m.group(1) if m else project_dir.name
 
 
+def _thu_muc_nas(project_dir: Path) -> Path | None:
+    r"""Thư mục CHƯƠNG trên NAS (nơi có ref) suy từ project.json.
+
+    `project_dir` là thư mục làm việc local (`projects/c7-2026...`) — ref không
+    nằm ở đó mà ở NAS, cạnh kịch bản gốc: `...\RenderY\C7\`.
+    """
+    try:
+        p = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))
+        goc = (p.get("inputs") or {}).get("original_script_path") or ""
+    except Exception:  # noqa: BLE001
+        return None
+    if not goc:
+        return None
+    d = Path(goc).parent
+    return d if d.is_dir() else None
+
+
+def nap_ref_cua_tap(conn, project_dir: Path, ma_tap: str = "",
+                    dia_danh: str = "", log=None) -> int:
+    """Ref của tập vào Library ngay lúc TẠO SEQUENCE (user chốt 06/09).
+
+    Ref nằm ở hai chỗ (khuôn sourcer/refvideo): `RenderY/Ref*.mp4` dùng chung
+    cả tập, và `RenderY/<chương>/Ref*.mp4` riêng chương. Cả hai đều nạp — clip
+    đã có trong Library thì `them_clip` bỏ qua, nên chạy lại không tốn gì.
+
+    Fail-open: hỏng phần ref KHÔNG được giết việc tạo sequence — chương vẫn
+    dựng bằng Envato/Pexels như thường, chỉ mất footage từ ref.
+
+    Tốn thời gian thật (đo 06/09: ref 23 phút mất 19 phút, phần lớn là đọc
+    hình). Chạy trong luồng nền của phan_tich nên không chặn ai.
+    """
+    def ghi(m):
+        if log:
+            log(m)
+
+    try:
+        from autoedit.sotra.hut import nap_ref_tap
+
+        project_dir = Path(project_dir)
+        goc = _thu_muc_nas(project_dir)
+        if goc is None:
+            ghi("offline: không suy được thư mục NAS của chương — bỏ nạp ref")
+            return 0
+        # ref RIÊNG chương + ref CHUNG cả tập (RenderY/) — khuôn sourcer/refvideo
+        tong = 0
+        for t in (goc, goc.parent):
+            if not t.is_dir() or not any(t.glob("*.mp4")):
+                continue
+            tong += nap_ref_tap(conn, t, tap=ma_tap or project_dir.name,
+                                quoc_gia=dia_danh, doc_hinh=True, log=log)
+        if tong:
+            ghi(f"offline: ref của tập -> +{tong} cảnh vào Library")
+        return tong
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        ghi(f"offline: nạp ref LỖI ({str(exc)[:90]}) — bỏ qua, dựng bằng nguồn khác")
+        return 0
+
+
 def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
               kenh_ref: str = "", uu_tien_nguon: str = "", dia_danh: str = "",
               nguoi_tao: str = "", llm=None, conn=None, log=None) -> dict:
@@ -112,6 +170,10 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
 
         c = conn or sdb.mo()
         try:
+            # REF CỦA TẬP vào Library NGAY LÚC TẠO SEQUENCE (user chốt 06/09) —
+            # phải xong TRƯỚC do_ung_vien, nếu không khay ref rỗng ở lần đầu.
+            nap_ref_cua_tap(c, project_dir, ma_tap=_ma_tap(project_dir),
+                            dia_danh=dia_danh, log=log)
             ung_vien = dung.do_ung_vien(c, ds_khoi, lop_ds, chu_the,
                                         uu_tien_nguon=uu_tien_nguon)
             chon = dung.chon_mac_dinh(ds_khoi, ung_vien)

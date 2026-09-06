@@ -493,8 +493,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
           <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay">
             <span><b>3 · Footage tôi tự quay</b>
               <span class="note" style="display:block">Đặt sẵn <b>Ref 1.mp4 + Ref 1.srt</b>
-              (video + transcript) vào folder chương TRƯỚC khi nộp — tool tự khớp câu và
-              cắt clip từ video của bạn, ưu tiên trước stock.</span></span></label>
+              vào folder chương (hoặc RenderY/ để cả tập dùng chung) TRƯỚC khi nộp —
+              tool cắt video ref thành từng CẢNH QUAY, đọc nội dung mỗi cảnh rồi đưa
+              vào Library, ưu tiên trước stock. Mất ~20 phút cho mỗi giờ ref, chạy nền.</span></span></label>
         </div></div>
       <div class="formrow"><label>Phong cách tham chiếu</label>
         <div>
@@ -619,7 +620,8 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span class="note" id="st-dem" style="margin:0"></span>
       <span class="note" id="st-hut-tt" style="margin:0"></span>
       <span style="flex:1"></span>
-      <button class="btn ghost small" id="st-nap-ref" onclick="stNapRef()" hidden>⧉ Nạp ref của tập</button>
+      <button class="btn ghost small" id="st-nap-ref" onclick="stNapRef()" hidden
+              title="Ref tự vào Library khi tạo sequence — nút này để nạp lại thư mục khác">⧉ Nạp lại ref</button>
       <button class="btn ghost small" id="st-hut-nut" onclick="stHut()" hidden>⛏ Hút thêm theo từ khóa này</button>
     </div>
     <div id="st-luoi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(240px,15vw,320px),1fr));gap:12px"></div>

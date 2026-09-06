@@ -638,3 +638,83 @@ def test_autosave_luu_nhanh(du_an, tmp_path, monkeypatch):
     assert runner.doc(du_an)["khoi"][0]["tho_them"] == 1.5
     hd["khoi"][0]["v1"] += 5                                   # đổi phần NÓI -> chặn
     assert tc.post(f"/api/offline/{du_an.name}/luu-nhanh", json=hd).status_code == 422
+
+
+# ------------------------------- ref vào Library lúc TẠO SEQUENCE (user 06/09)
+def test_suy_thu_muc_nas_tu_project_json(tmp_path):
+    """project_dir là thư mục local (`projects/c7-...`); ref nằm ở NAS cạnh kịch
+    bản gốc. Suy sai đường dẫn = không bao giờ tìm thấy ref."""
+    from autoedit.offline.runner import _thu_muc_nas
+
+    nas = tmp_path / "RenderY" / "C7"
+    nas.mkdir(parents=True)
+    d = tmp_path / "proj"
+    d.mkdir()
+    (d / "project.json").write_text(json.dumps(
+        {"inputs": {"original_script_path": str(nas / "C7.txt")}}), encoding="utf-8")
+    assert _thu_muc_nas(d) == nas
+    (d / "project.json").write_text("{}", encoding="utf-8")
+    assert _thu_muc_nas(d) is None
+
+
+def test_nap_ref_cua_tap_lay_ca_2_cap(tmp_path, monkeypatch):
+    """Ref RIÊNG chương + ref CHUNG cả tập (RenderY/) đều phải nạp."""
+    from autoedit.offline import runner as orun
+
+    nas = tmp_path / "RenderY" / "C7"
+    nas.mkdir(parents=True)
+    (nas / "Ref 2.mp4").write_bytes(b"v")            # riêng chương
+    (nas.parent / "Ref 1.mp4").write_bytes(b"v")     # chung cả tập
+    d = tmp_path / "proj"
+    d.mkdir()
+    (d / "project.json").write_text(json.dumps(
+        {"inputs": {"original_script_path": str(nas / "C7.txt")}}), encoding="utf-8")
+
+    goi = []
+
+    def _gia(conn, thu_muc, tap="", quoc_gia="", doc_hinh=True, log=None):
+        goi.append((Path(thu_muc).name, quoc_gia))
+        return 3
+
+    monkeypatch.setattr("autoedit.sotra.hut.nap_ref_tap", _gia)
+    n = orun.nap_ref_cua_tap(None, d, ma_tap="LI104", dia_danh="tibet")
+    assert n == 6 and len(goi) == 2
+    assert {g[0] for g in goi} == {"C7", "RenderY"}
+    assert all(g[1] == "tibet" for g in goi), "địa danh phải thành geo cấp tập"
+
+
+def test_nap_ref_hong_khong_giet_tao_sequence(tmp_path, monkeypatch):
+    """Fail-open: ref hỏng thì chương vẫn dựng bằng Envato/Pexels."""
+    from autoedit.offline import runner as orun
+
+    nas = tmp_path / "RenderY" / "C7"
+    nas.mkdir(parents=True)
+    (nas / "Ref 1.mp4").write_bytes(b"v")
+    d = tmp_path / "proj"
+    d.mkdir()
+    (d / "project.json").write_text(json.dumps(
+        {"inputs": {"original_script_path": str(nas / "C7.txt")}}), encoding="utf-8")
+
+    def _no(*a, **k):
+        raise RuntimeError("GLM chết")
+
+    monkeypatch.setattr("autoedit.sotra.hut.nap_ref_tap", _no)
+    log = []
+    assert orun.nap_ref_cua_tap(None, d, log=log.append) == 0
+    assert any("nạp ref LỖI" in m for m in log)
+
+
+def test_khong_co_mp4_thi_bo_qua(tmp_path, monkeypatch):
+    from autoedit.offline import runner as orun
+
+    nas = tmp_path / "RenderY" / "C7"
+    nas.mkdir(parents=True)
+    d = tmp_path / "proj"
+    d.mkdir()
+    (d / "project.json").write_text(json.dumps(
+        {"inputs": {"original_script_path": str(nas / "C7.txt")}}), encoding="utf-8")
+    goi = []
+    monkeypatch.setattr("autoedit.sotra.hut.nap_ref_tap",
+                        lambda *a, **k: goi.append(1) or 0)
+    assert orun.nap_ref_cua_tap(None, d) == 0
+    assert not goi, "không có .mp4 thì đừng gọi nạp"
