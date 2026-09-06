@@ -178,9 +178,17 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
               padding:2px 4px; text-align:center}
 .of-uv .lap{position:absolute; inset:0; background:rgba(224,108,108,.26);
             display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
-#of-cuon-tl{overflow-x:auto; padding:2px 2px 8px}
-#of-thuoc{position:relative; height:15px}
-#of-thuoc span{position:absolute; font-size:10px; color:var(--muted)}
+#of-vung-tl{display:flex}
+#of-track-nhan{flex:0 0 30px; padding-top:2px}
+#of-track-nhan .o{display:grid; place-items:center; font-size:9.5px; font-weight:700;
+                  color:var(--muted); border-right:1px solid var(--line);
+                  letter-spacing:.04em}
+#of-cuon-tl{overflow-x:auto; padding:2px 2px 8px; flex:1; min-width:0}
+/* thước kiểu NLE (ref Premiere, user 06/09): tick lớn/nhỏ vẽ bằng gradient,
+   kéo trên thước = scrub playhead */
+#of-thuoc{position:relative; height:22px; cursor:col-resize;
+          border-bottom:1px solid var(--line); user-select:none}
+#of-thuoc span{position:absolute; top:1px; font-size:9.5px; color:var(--muted)}
 #of-dai{position:relative; height:74px}                 /* dải HÌNH */
 #of-dai-au{position:relative; height:40px; margin-top:4px}   /* dải AUDIO */
 .of-au{position:absolute; top:0; height:100%; border-radius:6px; box-sizing:border-box;
@@ -233,8 +241,10 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-tho .nh{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
             font-size:10px; color:#39414b; font-weight:700; white-space:nowrap}
 .of-tho.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
-#of-ph{position:absolute; top:-15px; bottom:-44px; width:2px; background:var(--warn);
+#of-ph{position:absolute; top:-22px; bottom:-44px; width:2px; background:var(--warn);
        pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
+#of-ph::before{content:''; position:absolute; top:0; left:-5px;   /* đầu kéo ▼ */
+               border:6px solid transparent; border-top:9px solid var(--warn)}
 #of-thuoc, #of-dai, #of-dai-au{cursor:text}   /* click nền = đặt playhead */
 .of-mieng .x{position:absolute; top:1px; right:3px; font-size:11px; cursor:pointer;
              color:#fff; text-shadow:0 0 3px #000; z-index:4; padding:0 2px}
@@ -731,10 +741,17 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         <span id="of-zoom-n" class="mono">14</span> px/s</span>
       <button class="btn" id="of-play" onclick="ofPlay()" style="min-width:92px">▶ Play</button>
     </div>
-    <div id="of-cuon-tl">
-      <div id="of-thuoc"></div>
-      <div id="of-dai"><div id="of-ph"></div></div>
-      <div id="of-dai-au"></div>
+    <div id="of-vung-tl">
+      <div id="of-track-nhan">
+        <div style="height:24px"></div>
+        <div class="o" style="height:74px">V1</div>
+        <div class="o" style="height:40px;margin-top:4px">A1</div>
+      </div>
+      <div id="of-cuon-tl">
+        <div id="of-thuoc"></div>
+        <div id="of-dai"><div id="of-ph"></div></div>
+        <div id="of-dai-au"></div>
+      </div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:3px">
       <button class="btn ghost small" onclick="ofHotKey()" title="bảng phím tắt (phím ?)">⌨ hotkey</button>
@@ -742,19 +759,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 </section>
 
-<div id="of-hot">
-  <h4>Phím tắt · Offline</h4>
-  <div class="r"><span>Zoom in / out</span><span><kbd>1</kbd><kbd>2</kbd></span></div>
-  <div class="r"><span>Hình thở +1s / −1s</span><span><kbd>q</kbd><kbd>w</kbd></span></div>
-  <div class="r"><span>Hoàn tác / Làm lại</span><span><kbd>Ctrl+Z</kbd><kbd>⇧+Ctrl+Z</kbd></span></div>
-  <div class="r"><span>Phát / Dừng</span><span><kbd>Space</kbd></span></div>
-  <div class="r"><span>Add Shot (chia đều shot chọn)</span><span><kbd>e</kbd></span></div>
-  <div class="r"><span>Xóa shot đang chọn</span><span><kbd>r</kbd><kbd>Del</kbd></span></div>
-  <div class="r"><span>Miếng trước / sau</span><span><kbd>←</kbd><kbd>→</kbd></span></div>
-  <div class="r"><span>Đổi hình miếng đang chọn</span><span><kbd>d</kbd></span></div>
-  <div class="r" style="margin-top:6px;border-top:1px solid var(--line);padding-top:7px">
-    <span>Đóng bảng</span><span><kbd>?</kbd> hoặc <kbd>Esc</kbd></span></div>
-</div>
+<div id="of-hot"></div>
 
 <!-- CỬA SỔ REVIEW + TRIM (user 08/09: double-click ứng viên mới mở) -->
 <div id="of-trim-cs" onclick="if(event.target.id==='of-trim-cs')ofDongTrim()">
@@ -1256,28 +1261,75 @@ async function _ofKhoiPhuc(tu, sang) {
 }
 const ofUndo = () => _ofKhoiPhuc(OF_UNDO, OF_REDO).then(() => toastOf('↶ Hoàn tác'))
 const ofRedo = () => _ofKhoiPhuc(OF_REDO, OF_UNDO).then(() => toastOf('↷ Làm lại'))
-function ofHotKey() { document.getElementById('of-hot').classList.toggle('mo') }
-
-/* ---- HOTKEY (user chốt 08/09) — chỉ khi đang ở tab Offline, không gõ input ---- */
+/* ---- HOTKEY TÙY CHỈNH (user 06/09): click phím trong bảng -> gõ phím mới.
+   Lưu localStorage máy từng người; "đặt lại" về mặc định. ---- */
+const OF_PHIM_MD = {play: ' ', zin: '1', zout: '2', thoP: 'q', thoM: 'w',
+                    add: 'e', xoa: 'r', doi: 'd'}
+const OF_PHIM_TEN = {play: 'Phát / Dừng', zin: 'Zoom in', zout: 'Zoom out',
+                     thoP: 'Hình thở +1s', thoM: 'Hình thở −1s',
+                     add: 'Add Shot (chia đều shot chọn)', xoa: 'Xóa shot đang chọn',
+                     doi: 'Đổi hình shot đang chọn'}
+const OF_PHIM_HAM = {play: () => ofPlay(), zin: () => ofZoomBuoc(1),
+                     zout: () => ofZoomBuoc(-1), thoP: () => ofTho(1),
+                     thoM: () => ofTho(-1), add: () => ofAddShot(),
+                     xoa: () => ofBoMieng(), doi: () => ofDoiHinh(OF_HCHON)}
+let OF_PHIM = {...OF_PHIM_MD}
+try { OF_PHIM = {...OF_PHIM_MD, ...JSON.parse(localStorage.getItem('ry_hotkey') || '{}')} } catch (e) { }
+const ofPhimNhan = k => k === ' ' ? 'Space' : (k || '—').toUpperCase()
+function ofVeHot() {
+  const co = document.getElementById('of-hot')
+  co.innerHTML = '<h4>Phím tắt · Offline <span style="float:right;cursor:pointer;'
+    + 'text-transform:none;letter-spacing:0" onclick="ofPhimMacDinh()">↺ đặt lại</span></h4>'
+    + '<div class="note" style="margin:0 0 6px">Click một phím để gán phím khác</div>'
+    + Object.keys(OF_PHIM_TEN).map(a =>
+        `<div class="r"><span>${OF_PHIM_TEN[a]}</span>` +
+        `<kbd class="doi" data-a="${a}" style="cursor:pointer">${ofPhimNhan(OF_PHIM[a])}</kbd></div>`).join('')
+    + '<div class="r"><span>Xóa shot (cố định)</span><span><kbd>Del</kbd></span></div>'
+    + '<div class="r"><span>Hoàn tác / Làm lại</span><span><kbd>Ctrl+Z</kbd><kbd>⇧+Ctrl+Z</kbd></span></div>'
+    + '<div class="r"><span>Shot trước / sau</span><span><kbd>←</kbd><kbd>→</kbd></span></div>'
+    + '<div class="r" style="margin-top:6px;border-top:1px solid var(--line);padding-top:7px">'
+    + '<span>Đóng bảng</span><span><kbd>?</kbd> hoặc <kbd>Esc</kbd></span></div>'
+  co.querySelectorAll('kbd.doi').forEach(el => el.onclick = () => ofGanPhim(el.dataset.a, el))
+}
+function ofGanPhim(a, el) {
+  el.textContent = '…'
+  const bat = ev => {
+    ev.preventDefault(); ev.stopPropagation()
+    const km = (ev.key || '').toLowerCase()
+    if (['control', 'shift', 'alt', 'meta'].includes(km)) return   // chờ phím thật
+    document.removeEventListener('keydown', bat, true)
+    if (km === 'escape') { ofVeHot(); return }
+    for (const b in OF_PHIM) if (OF_PHIM[b] === km) OF_PHIM[b] = ''  // gỡ trùng
+    OF_PHIM[a] = km
+    try { localStorage.setItem('ry_hotkey', JSON.stringify(OF_PHIM)) } catch (e) { }
+    ofVeHot()
+  }
+  document.addEventListener('keydown', bat, true)
+}
+function ofPhimMacDinh() {
+  OF_PHIM = {...OF_PHIM_MD}
+  try { localStorage.removeItem('ry_hotkey') } catch (e) { }
+  ofVeHot()
+}
+function ofHotKey() {
+  const co = document.getElementById('of-hot')
+  if (!co.classList.contains('mo')) ofVeHot()
+  co.classList.toggle('mo')
+}
 document.addEventListener('keydown', e => {
   if (!document.getElementById('man-offline').classList.contains('on')) return
   const t = e.target.tagName
   if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return
   const k = e.key.toLowerCase()
-  if (e.ctrlKey && k === 'z') {            // Ctrl+Z / Ctrl+Shift+Z
+  if (e.ctrlKey && k === 'z') {            // Ctrl+Z / Ctrl+Shift+Z — cố định
     e.preventDefault()
     e.shiftKey ? ofRedo() : ofUndo()
     return
   }
   if (e.ctrlKey || e.altKey || e.metaKey) return
-  if (k === ' ') { e.preventDefault(); ofPlay() }   // bảng ghi Space mà chưa có handler
-  else if (k === '1') { e.preventDefault(); ofZoomBuoc(+1) }
-  else if (k === '2') { e.preventDefault(); ofZoomBuoc(-1) }
-  else if (k === 'q') { e.preventDefault(); ofTho(1) }
-  else if (k === 'w') { e.preventDefault(); ofTho(-1) }
-  else if (k === 'e') { e.preventDefault(); ofAddShot() }
-  else if (k === 'r' || e.key === 'Delete') { e.preventDefault(); ofBoMieng() }
-  else if (k === 'd') { e.preventDefault(); ofDoiHinh(OF_HCHON) }
+  const act = Object.keys(OF_PHIM).find(a => OF_PHIM[a] === k)
+  if (act) { e.preventDefault(); OF_PHIM_HAM[act]() }
+  else if (e.key === 'Delete') { e.preventDefault(); ofBoMieng() }
   else if (k === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); ofHotKey() }
   else if (e.key === 'Escape') {
     document.getElementById('of-hot').classList.remove('mo')
@@ -1557,8 +1609,28 @@ function ofVeTL() {
   const buoc = OF_PXS < 10 ? 15 : (OF_PXS < 25 ? 5 : 2)
   for (let x = 0; x <= tong; x += buoc) {
     const v = document.createElement('span')
-    v.className = 'mono'; v.style.left = (x * OF_PXS) + 'px'; v.textContent = ofFmt(x)
+    v.className = 'mono'; v.style.left = (x * OF_PXS + 3) + 'px'; v.textContent = ofFmt(x)
     th.appendChild(v)
+  }
+  // tick lớn tại mỗi nhãn, tick nhỏ chia 5 — vẽ bằng gradient, không tốn DOM
+  const lon = buoc * OF_PXS, nho = lon / 5
+  th.style.backgroundImage =
+    `repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px ${lon}px),` +
+    `repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px ${nho}px)`
+  th.style.backgroundSize = '100% 13px, 100% 6px'
+  th.style.backgroundRepeat = 'no-repeat, no-repeat'
+  th.style.backgroundPosition = 'left bottom, left bottom'
+  if (!th._keo) {                        // kéo trên thước = SCRUB (ref Premiere)
+    th._keo = 1
+    th.onmousedown = e0 => {
+      e0.preventDefault()
+      const r = th.getBoundingClientRect()
+      const dat = ev => ofDatPh((ev.clientX - r.left) / OF_PXS)
+      dat(e0)
+      const xong = () => { document.removeEventListener('mousemove', dat)
+                           document.removeEventListener('mouseup', xong) }
+      document.addEventListener('mousemove', dat); document.addEventListener('mouseup', xong)
+    }
   }
   const W = tong * OF_PXS + 60
   dai.style.width = th.style.width = dauA.style.width = W + 'px'
