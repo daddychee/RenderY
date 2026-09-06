@@ -101,6 +101,17 @@ def _khoa() -> str:
 
     k = glm_api_keys()
     if not k:
+        # Tiến trình server không tự có khoá trong env — nap_env chỉ chạy ở
+        # /api/ket. Sự cố 06/09: nạp 866 cảnh vào production, cả 72 lô đọc hình
+        # fail âm thầm vì thiếu khoá -> vision=0, kho chỉ còn từ khóa từ lời.
+        try:
+            from autoedit.web.ket_v3 import nap_env
+
+            nap_env()
+            k = glm_api_keys()
+        except Exception:  # noqa: BLE001 — két hỏng thì báo thiếu khoá như cũ
+            pass
+    if not k:
         raise RuntimeError(
             "Thiếu khoá GLM — két V3: General › API Keys › rendery › chia_beat.")
     return k[0]
