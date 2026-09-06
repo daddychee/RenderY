@@ -1430,6 +1430,53 @@ def api_offline_nhac_chon(project_id: str, req: NhacChonRequest, request: Reques
     return {"ok": True, "nhac": hd["nhac"]}
 
 
+@app.get("/api/phien")
+def api_phien(request: Request):
+    """Trạng thái phiên Envato/Epidemic (chấm ● cạnh nút Export)."""
+    _require_auth(request)
+    from autoedit.sourcer import phien as _ph
+
+    return _ph.trang_thai()
+
+
+_phien_dang: dict = {}
+
+
+@app.post("/api/phien/dang-nhap")
+def api_phien_dang_nhap(request: Request, nha: str):
+    """Máy tự đăng nhập bằng tài khoản trong két; captcha -> cửa sổ hiện trên
+    desktop server để người bấm. Manager/owner mới được kích."""
+    _require_auth(request)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Chỉ manager/owner")
+    from autoedit.sourcer import phien as _ph
+
+    if nha not in _ph.NHA:
+        raise HTTPException(422, "nhà lạ (envato|epidemic)")
+    with _sotra_lock:
+        if _phien_dang.get(nha) == "dang":
+            raise HTTPException(409, "Đang có phiên đăng nhập chạy dở")
+        _phien_dang[nha] = "dang"
+
+    def _chay():
+        try:
+            kq = _ph.dang_nhap(nha, log=lambda m: print("[phien]", m, flush=True))
+            with _sotra_lock:
+                _phien_dang[nha] = "xong" if kq["ok"] else f"loi: {kq['ghi_chu']}"
+        except Exception as exc:  # noqa: BLE001
+            with _sotra_lock:
+                _phien_dang[nha] = f"loi: {str(exc)[:150]}"
+
+    threading.Thread(target=_chay, daemon=True, name=f"phien-{nha}").start()
+    return {"ok": True, "ghi_chu": "đang đăng nhập — captcha sẽ hiện trên desktop server"}
+
+
+@app.get("/api/phien/dang-nhap")
+def api_phien_dang_nhap_tt(request: Request, nha: str):
+    _require_auth(request)
+    return {"tt": _phien_dang.get(nha, "")}
+
+
 @app.get("/api/kenh")
 def api_kenh_list(request: Request):
     """Thư viện kênh đã nghiên cứu + kênh đang đo — mọi vai xem được."""

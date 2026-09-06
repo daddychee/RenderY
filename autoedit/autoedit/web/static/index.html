@@ -711,6 +711,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <span class="note" id="of-luu-tt" style="margin:0;color:#5cb98a"></span>
     <span style="flex:1"></span>
 
+    <span class="note mono" id="of-phien" style="margin:0;cursor:pointer"
+          title="phiên tải bản sạch — click để máy đăng nhập lại (manager)"
+          onclick="ofPhienDangNhap()"></span>
     <button class="btn ghost" id="of-nhac-nut" onclick="ofNhacMo()" title="nhạc nền của chương — máy đề xuất theo mood">♪ Nhạc</button>
     <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
   </div>
@@ -1432,7 +1435,26 @@ function ofNoiTrim() {
   if (a && !a._noi) { a._noi = 1; a.onmousedown = e => ofTrimKeo(e, true) }
   if (b && !b._noi) { b._noi = 1; b.onmousedown = e => ofTrimKeo(e, false) }
 }
+async function ofVePhien() {
+  try {
+    const d = await api('/api/phien')
+    const dot = x => x.co_phien ? '●' : (x.co_tai_khoan ? '◐' : '○')
+    document.getElementById('of-phien').innerHTML =
+      `<span style="color:${d.envato.co_phien ? 'var(--ok,#5cb98a)' : 'var(--muted)'}">${dot(d.envato)} Envato</span> ` +
+      `<span style="color:${d.epidemic.co_phien ? 'var(--ok,#5cb98a)' : 'var(--muted)'}">${dot(d.epidemic)} Epidemic</span>`
+  } catch (e) { }
+}
+async function ofPhienDangNhap() {
+  const nha = prompt('Đăng nhập lại nhà nào? (envato / epidemic)', 'envato')
+  if (!nha) return
+  try {
+    await api('/api/phien/dang-nhap?nha=' + encodeURIComponent(nha.trim()), {method: 'POST'})
+    toastOf('Máy đang đăng nhập ' + nha + ' — nếu có captcha, cửa sổ sẽ hiện TRÊN DESKTOP SERVER, bấm giúp một cái')
+    setTimeout(ofVePhien, 20000)
+  } catch (e) { toastOf('Lỗi: ' + e.message) }
+}
 async function ofKhoiDong() {
+  ofVePhien()
   ofNoiTrim()
   ofNoiPh()
   // dropdown project (mới nhất trước) + dropdown framing
