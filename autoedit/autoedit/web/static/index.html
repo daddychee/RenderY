@@ -1287,7 +1287,7 @@ document.addEventListener('keydown', e => {
     OF_HCHON = Math.max(0, Math.min(hs.length - 1, OF_HCHON + (e.key === 'ArrowRight' ? 1 : -1)))
     const h = hs[OF_HCHON]
     if (h && h.khoi_goc !== undefined) OF_CHON = Math.min(h.khoi_goc, ofK().length - 1)
-    if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
+    OF_LANG = null; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
     ofVeAll()
   }
 })
@@ -1502,7 +1502,7 @@ function ofVeTL() {
       if (e.target.classList.contains('mep')) return
       OF_HCHON = j
       OF_CHON = (h.khoi_goc !== undefined && h.khoi_goc < ofK().length) ? h.khoi_goc : OF_CHON
-      if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
+      OF_LANG = null; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
       ofVeAll()
     }
     d.ondblclick = e => { e.preventDefault(); ofDoiHinh(j) }
@@ -1955,22 +1955,57 @@ function ofVeAll(nhe) {
             + '|' + (OF_TIM_KQ ? 'tim:' + OF_TIM_Q : '') + '|' + OF_PHA
   if (nhe !== true && key !== OF_KHAY_KEY) { OF_KHAY_KEY = key; ofVeKhay() }
 }
+/* PHÁT TRUNG THỰC với tho_them (user bắt 06/09: nhãn "3.2s im" nhưng tai chỉ
+   nghe 1.2s). Master gốc chỉ chứa im lặng THẬT (tho); tho_them chỉ tồn tại
+   trong draft xuất ra. Nay vòng phát thực thi tho_them cả hai chiều:
+     nới (+): audio DỪNG đúng bấy nhiêu giây ở vùng trắng, playhead vẫn chạy
+     co (−): audio NHẢY QUA phần im lặng thừa trong master                  */
+let OF_LANG = null                    // {den, tl1, tiep} — đang đứng im vùng nới
 function ofPlay() {
   if (!OF_AUDIO) return
-  if (OF_AUDIO.paused) {
+  if (OF_AUDIO.paused && !OF_LANG) {
     OF_AUDIO.play(); document.getElementById('of-play').textContent = '❚❚ Dừng'
     ;(function vong() {
+      if (OF_LANG) {                          // đang im lặng nhân tạo (tho_them>0)
+        const con = (OF_LANG.den - performance.now()) / 1000
+        if (con > 0) {
+          const tl = OF_LANG.tl1 - con
+          document.getElementById('of-tc').textContent = ofFmt(tl)
+          document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
+          requestAnimationFrame(vong); return
+        }
+        OF_AUDIO.currentTime = (OF_HD.offset || 0) + OF_LANG.tiep + 0.01
+        OF_LANG = null
+        OF_AUDIO.play()
+        requestAnimationFrame(vong); return  // play() async — đừng rơi xuống check paused
+      }
       if (!OF_AUDIO || OF_AUDIO.paused) return
-      const t = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
-      document.getElementById('of-tc').textContent = ofFmt(t)
-      let i = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
-      document.getElementById('of-ph').style.left = ((t + ofDoiTruoc(i)) * OF_PXS) + 'px'
+      const off = OF_HD.offset || 0
+      const t = Math.max(0, OF_AUDIO.currentTime - off)      // trục AUDIO master
+      const ks = ofK()
+      let i = ks.findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
+      const k = ks[i], them = k.tho_them || 0
+      const henKe = ks[i + 1] ? ks[i + 1].v0 : k.v1 + (k.tho || 0)
+      if (them < -0.01) {
+        // thở ĐÃ CO: master còn nguyên im lặng cũ -> nhảy qua phần thừa
+        const hetIm = k.v1 + Math.max(0, (k.tho || 0) + them)
+        if (t >= hetIm - 0.005 && t < henKe - 0.03) OF_AUDIO.currentTime = off + henKe
+      } else if (them > 0.01 && ks[i + 1] && t >= henKe - 0.03) {
+        // thở NỚI: hết im lặng thật -> DỪNG audio đúng them giây (vùng trắng)
+        OF_AUDIO.pause()
+        OF_LANG = {den: performance.now() + them * 1000, tl1: ofMoc()[i][2], tiep: henKe}
+        requestAnimationFrame(vong); return
+      }
+      const tl = t + ofDoiTruoc(i)                           // trục TIMELINE
+      document.getElementById('of-tc').textContent = ofFmt(tl)
+      document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
       // đang phát: KHÔNG vẽ lại khay (hàng trăm thẻ video) — chỉ đổi lời +
       // preview + highlight. Khay cập nhật khi user CLICK miếng (08/09 fix đơ)
       if (i !== OF_CHON) {
         OF_CHON = i
         const hs = ofHinh()
-        const hj = hs.findIndex(h => h.t0 <= t + 0.01 && t < h.t0 + h.dur)
+        // miếng hình tra theo trục TIMELINE (bản cũ dùng t audio -> lệch khi có tho_them)
+        const hj = hs.findIndex(h => h.t0 <= tl + 0.01 && tl < h.t0 + h.dur)
         if (hj >= 0 && hj !== OF_HCHON) OF_HCHON = hj
         ofVeLoi(); ofVeXem()
         document.querySelectorAll('.of-mieng').forEach((el, j) => el.classList.toggle('chon', j === OF_HCHON))
@@ -1978,7 +2013,10 @@ function ofPlay() {
       }
       requestAnimationFrame(vong)
     })()
-  } else { OF_AUDIO.pause(); document.getElementById('of-play').textContent = '▶ Phát' }
+  } else {
+    OF_AUDIO.pause(); OF_LANG = null
+    document.getElementById('of-play').textContent = '▶ Phát'
+  }
 }
 
 /* ── SỔ TRA: trang stock nội bộ — 1 ô tìm, 4 nguồn, hover-play ── */
