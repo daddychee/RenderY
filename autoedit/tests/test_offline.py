@@ -427,3 +427,27 @@ def test_api_thao_tac_dai_hinh(du_an, tmp_path, monkeypatch):
     assert r.json()["loi"] == []
     r2 = tc.post(f"/api/offline/{du_an.name}/hinh", json={"thao_tac": "bo", "idx": 1})
     assert r2.status_code == 200 and len(r2.json()["hinh"]) == n0
+
+
+def test_giam_tho_khong_de_khoi_ke():
+    """User bắt 08/09: giảm thở khối 1 -> khối 2 'đè' sang khối 1. Kiểm bất biến
+    ở tầng dữ liệu: mọi khối giữ NGUYÊN độ dài nói, khối sau bắt đầu ĐÚNG lúc
+    im lặng khối trước kết thúc (không bao giờ sớm hơn)."""
+    from autoedit.offline import hinh as mh
+
+    hd = {"khoi": [{"v0": 0.0, "v1": 2.4, "tho": 1.2, "tho_them": 0.0},
+                   {"v0": 3.6, "v1": 5.6, "tho": 1.7, "tho_them": 0.0},
+                   {"v0": 7.3, "v1": 12.2, "tho": 1.4, "tho_them": 0.0}]}
+    dai_goc = [k["v1"] - k["v0"] for k in hd["khoi"]]
+    for delta in (-1.0, -1.0, +2.0, -0.5):
+        hd["khoi"][0]["tho_them"] = round(hd["khoi"][0]["tho_them"] + delta, 2)
+        # sàn: im lặng không bao giờ âm
+        hd["khoi"][0]["tho_them"] = max(hd["khoi"][0]["tho_them"], -(hd["khoi"][0]["tho"] - 0.2))
+        moc = mh.moc_timeline(hd["khoi"])
+        for i, (t0, t1, tt) in enumerate(moc):
+            assert (t1 - t0) == pytest.approx(dai_goc[i], abs=0.001), "độ dài NÓI đổi"
+            assert tt >= t1 - 0.001, "im lặng âm"
+            if i + 1 < len(moc):
+                assert moc[i + 1][0] >= tt - 0.001, (
+                    f"khối {i + 2} bắt đầu {moc[i + 1][0]} TRƯỚC khi khối {i + 1} "
+                    f"kết thúc im lặng {tt} — đè lên nhau")

@@ -98,9 +98,9 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-thuoc span{position:absolute; font-size:10px; color:var(--muted)}
 #of-dai{position:relative; height:74px}                 /* dải HÌNH */
 #of-dai-au{position:relative; height:40px; margin-top:4px}   /* dải AUDIO */
-.of-au{position:absolute; top:0; height:100%; border-radius:6px;
+.of-au{position:absolute; top:0; height:100%; border-radius:6px; box-sizing:border-box;
        background:#243447; border:1px solid #31465e; overflow:hidden}
-.of-au .t{position:absolute; left:5px; top:3px; font-size:9.5px; color:#9fb3c8;
+.of-au .t{position:absolute; left:4px; right:3px; top:3px; font-size:9.5px; color:#9fb3c8;
           white-space:nowrap; overflow:hidden; max-width:92%}
 .of-au.chon{outline:2px solid var(--warn); outline-offset:-2px}
 .of-im{position:absolute; top:0; height:100%; border-radius:6px;
@@ -1279,8 +1279,13 @@ function ofVeTL() {
     const a = document.createElement('div')
     a.className = 'of-au' + (i === OF_CHON ? ' chon' : '')
     a.style.left = (t0 * OF_PXS) + 'px'
-    a.style.width = Math.max((t1 - t0) * OF_PXS - 2, 10) + 'px'
-    a.innerHTML = `<span class="t">${esc((k.loi || '').slice(0, 60))}</span>`
+    // ĐÚNG tỷ lệ, không min-width: ép rộng tối thiểu làm khối nong ra ĐÈ khối
+    // kế khi zoom nhỏ / thở bị thu (user bắt 08/09). Hẹp quá thì zoom lên xem.
+    a.style.width = Math.max((t1 - t0) * OF_PXS - 2, 1) + 'px'
+    a.title = `${esc((k.loi || '').slice(0, 90))} — ${(t1 - t0).toFixed(2)}s`
+    const rongA = (t1 - t0) * OF_PXS
+    a.innerHTML = rongA > 34
+      ? `<span class="t">${esc((k.loi || '').slice(0, Math.max(4, Math.floor(rongA / 6))))}</span>` : ''
     a.onclick = () => { OF_CHON = i; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + k.v0 + .02; ofVeAll() }
     dauA.appendChild(a)
     if (tt - t1 > 0.05) {
@@ -1301,10 +1306,10 @@ function ofVeTL() {
     d.className = 'of-mieng' + (trong_tho ? ' tho' : '') + (j === OF_HCHON ? ' chon' : '')
                   + (lap.has(h.khoi_goc) ? ' lap' : '')
     d.style.left = (h.t0 * OF_PXS) + 'px'
-    d.style.width = Math.max(h.dur * OF_PXS - 2, 14) + 'px'
+    d.style.width = Math.max(h.dur * OF_PXS - 2, 1) + 'px'   // không min-width (08/09)
     d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
-      <span class="i">${String(j + 1).padStart(2, '0')}${h.nguoi_sua ? ' ✎' : ''}</span>
-      <span class="d mono">${h.dur.toFixed(1)}s</span>`
+      ${h.dur * OF_PXS > 30 ? `<span class="i">${String(j + 1).padStart(2, '0')}${h.nguoi_sua ? ' ✎' : ''}</span>` : ''}
+      ${h.dur * OF_PXS > 52 ? `<span class="d mono">${h.dur.toFixed(1)}s</span>` : ''}`
     d.onclick = e => {
       if (e.target.classList.contains('mep')) return
       OF_HCHON = j
@@ -1344,10 +1349,10 @@ function ofKeoMep(e, j, mep, el) {
   const keo = ev => {
     const dx = (ev.clientX - x0) / OF_PXS
     dur = Math.max(0.4, Math.min(d0 + dx, d0 + s0 - 0.4))
-    el.style.width = Math.max(dur * OF_PXS - 2, 14) + 'px'
+    el.style.width = Math.max(dur * OF_PXS - 2, 1) + 'px'
     if (elB && elB.classList.contains('of-mieng')) {
       elB.style.left = ((hs[j].t0 + dur) * OF_PXS) + 'px'
-      elB.style.width = Math.max((d0 + s0 - dur) * OF_PXS - 2, 14) + 'px'
+      elB.style.width = Math.max((d0 + s0 - dur) * OF_PXS - 2, 1) + 'px'
     }
     document.getElementById('of-stat').textContent =
       `miếng ${j + 1}: ${dur.toFixed(1)}s → miếng ${j + 2}: ${(d0 + s0 - dur).toFixed(1)}s`
