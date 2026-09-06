@@ -753,7 +753,20 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
             # định -> KHÓA SỔ -> bản ONLINE luôn. Người vẫn mở xem/sửa được
             # sau đó (sửa xong bấm Online lại). Fail-open: gãy khúc nào thì
             # dừng ở trạng thái trước đó, không phá hợp đồng.
-            if not hd["dong_kiem"]:
+            # AUTO chỉ tự chạy khi CÓ HÌNH THẬT. Rà go-live 06/09: khay rỗng
+            # (GLM hỏng / kho chưa có chủ đề) mà vẫn tự khóa sổ là giao draft
+            # RÁC kèm nhãn "✓draft" — editor tưởng xong, tệ hơn không làm gì.
+            co_hinh = sum(1 for k in hd.get("khoi") or [] if (k.get("uv") or []))
+            tong_k = max(1, len(hd.get("khoi") or []))
+            if not hd["dong_kiem"] and co_hinh < tong_k * 0.5:
+                hd.setdefault("canh_bao", []).append(
+                    f"AUTO DỪNG: chỉ {co_hinh}/{tong_k} khối có ứng viên — "
+                    "kho chưa đủ hình cho chủ đề này. Hút thêm ở Library rồi "
+                    "Phân tích lại, hoặc duyệt tay.")
+                orun.luu(d, hd)
+                print(f"[offline] {project_id}: AUTO DỪNG — khay mỏng "
+                      f"({co_hinh}/{tong_k})", flush=True)
+            elif not hd["dong_kiem"]:
                 try:
                     print(f"[offline] {project_id}: AUTO — máy tự khóa sổ + Online",
                           flush=True)
@@ -2241,8 +2254,10 @@ class JobRequest(BaseModel):
     aigen: bool = False        # user 04/09: cổng tắt/bật AI gen khi nộp job
     # 3 PHƯƠNG ÁN DỰNG (user 05/09): stock | ai | tu_quay — logic/phong cách khác
     # nhau, học từ kênh ref thay luật cứng. PA "ai" tự kéo aigen bật ở make.
-    phuong_an: str = "doi_thu"    # 06/09 còn 2 PA: doi_thu | tu_quay (pipeline
-                                  # hiểu stock/tu_quay -> doi_thu chuẩn hóa ở add_job)
+    # UI 06/09 còn 2 lựa chọn (doi_thu | tu_quay) nhưng PIPELINE chỉ hiểu
+    # stock|ai|tu_quay — mặc định GIỮ "stock", doi_thu chuẩn hóa ngay khi nhận.
+    # (Đổi mặc định thành doi_thu là job chết ở cli: "phải là stock|ai|tu_quay".)
+    phuong_an: str = "stock"
     kenh_ref: str = ""         # link kênh YouTube ref (đo trong worker, cache theo kênh)
     # THÔNG SỐ OFFLINE khai lúc NỘP TẬP (user 06/09: Offline chỉ chọn + xem,
     # không nhập thông số) — phan-tich đọc lại từ opts của job.
@@ -2260,6 +2275,8 @@ class JobRequest(BaseModel):
 
 @app.post("/api/jobs")
 def api_add_job(req: JobRequest, request: Request):
+    if req.phuong_an == "doi_thu":       # nhãn UI -> tên pipeline hiểu được
+        req.phuong_an = "stock"
     """Xếp 1 thư mục TẬP vào hàng đợi (job = cả tập, gồm nhiều chương)."""
     _require_auth(request)
     from autoedit.web import queue as q
@@ -2305,8 +2322,7 @@ def api_add_job(req: JobRequest, request: Request):
                         nguoi=current_user(request) or req.nguoi.strip()[:40],
                         opts={"niche": req.niche, "align_backend": req.align_backend,
                               "no_sub": req.no_sub, "aigen": req.aigen,
-                              "phuong_an": ("stock" if req.phuong_an == "doi_thu"
-                                            else req.phuong_an), "kenh_ref": req.kenh_ref,
+                              "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref,
                               "avd_phut": req.avd_phut,
                               "uu_tien_nguon": req.uu_tien_nguon,
                               "dia_danh": req.dia_danh})

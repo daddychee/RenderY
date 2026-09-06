@@ -33,6 +33,10 @@ THU_MUC_CON = "RenderY"          # tên thư mục con trong thư mục tập
 # (31/08). Tên phải khớp compose.thu_muc_giao().
 THU_MUC_GIAO = "Compose Timeline"
 
+# QUY ƯỚC CHẶT — user chốt 30/08 "tên khác bị báo lỗi, KHÔNG đoán bừa".
+# Rà go-live 06/09 có ý nới (team quen "Hook"/"End") nhưng đó là đảo quyết định
+# đã chốt: đoán bừa "chapter1" -> C1 có thể sai thứ tự chương. Giữ chặt, thay
+# vào đó thông báo lỗi nói RÕ phải đặt tên gì.
 _HOOK = re.compile(r"^H$", re.IGNORECASE)
 _CHAP = re.compile(r"^C(\d+)$", re.IGNORECASE)
 _END = re.compile(r"^E$", re.IGNORECASE)
@@ -111,7 +115,10 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
             continue          # thư mục KẾT QUẢ của chính tool, không phải chương
         pt = phan_tich_ten(d.name)
         if pt is None:
-            loi.append(f"'{d.name}' sai quy ước — chỉ nhận H (hook), C1/C2/... (chương), E (kết)")
+            loi.append(
+                f"Thư mục '{d.name}' sai quy ước. Đổi tên thành: H (hook) · "
+                f"C1 C2 C3... (chương) · E (kết). CHỈ chữ cái + số, không viết "
+                f"'Hook' hay 'Chapter 1'.")
             continue
         ma, thu_tu, nhan = pt
         s, v, srt = _kiem_file(d)

@@ -161,6 +161,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     ghi(f"offline: {len(ds_khoi)} khối theo hơi thở · offset {offset}s")
 
     # 4 lớp — fail-open
+    _loi_4lop = ""
     try:
         lo = lop4.gan_lop([k.loi for k in ds_khoi], dia_danh=dia_danh, llm=llm)
         chu_the = lo.chu_the_tap
@@ -169,6 +170,9 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         ghi(f"offline: 4 lớp LỖI ({str(exc)[:90]}) — khối trừu tượng, duyệt pha 1 vẫn chạy")
         chu_the = []
         lop_ds = [lop4.LopKhoi(khoi=i, truu_tuong=True) for i in range(len(ds_khoi))]
+        # Rà go-live 06/09: GLM chết -> mọi khối trừu tượng -> khay RỖNG. Trước
+        # đây im lặng, editor bấm "Đổ video" mà chẳng có gì (đúng lỗi user gặp).
+        _loi_4lop = str(exc)[:90]
 
     # DỊCH tiếng Việt cho panel duyệt (user 08/09) — fail-open
     from autoedit.offline import dich as mdich
@@ -226,6 +230,9 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             "khoa": False, "nguoi_sua": False,
         } for i, k in enumerate(ds_khoi)],
         "canh_bao": ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
+                    + ([f"GÁN NGHĨA HỎNG ({_loi_4lop}) — khay sẽ rỗng. Kiểm khoá "
+                        "GLM ở General › API Keys rồi Phân tích lại."]
+                       if _loi_4lop else [])
                     + _canh_bao_phien(dong_kiem),
     }
     # DẢI HÌNH tách khỏi dải VOICE (08/09) — sinh 1-1, người chẻ thêm trong UI
