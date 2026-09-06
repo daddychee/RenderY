@@ -233,8 +233,9 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-tho .nh{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
             font-size:10px; color:#39414b; font-weight:700; white-space:nowrap}
 .of-tho.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
-#of-ph{position:absolute; top:-15px; bottom:0; width:2px; background:var(--warn);
+#of-ph{position:absolute; top:-15px; bottom:-44px; width:2px; background:var(--warn);
        pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
+#of-thuoc, #of-dai, #of-dai-au{cursor:text}   /* click nền = đặt playhead */
 #st-tabs .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fi-eb{text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted);font-weight:700;margin:18px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .fi-body p,.fi-body li{font-size:13.5px;line-height:1.75;margin:6px 0}
@@ -1306,6 +1307,20 @@ function ofZoomBuoc(huong) {
   if (el) el.scrollIntoView({block: 'nearest', inline: 'center'})
 }
 
+function ofNoiPh() {
+  const cuon = document.getElementById('of-cuon-tl')
+  if (!cuon || cuon._ph) return
+  cuon._ph = 1
+  cuon.addEventListener('click', e => {
+    const t = e.target
+    const nen = t.id === 'of-thuoc' || t.id === 'of-dai' || t.id === 'of-dai-au'
+             || (t.parentElement && t.parentElement.id === 'of-thuoc')
+             || t.classList.contains('of-im') || t.classList.contains('n')
+    if (!nen || !OF_HD) return
+    const r = document.getElementById('of-thuoc').getBoundingClientRect()
+    ofDatPh((e.clientX - r.left) / OF_PXS)
+  })
+}
 function ofNoiTrim() {
   const a = document.getElementById('of-tay-a'), b = document.getElementById('of-tay-b')
   if (a && !a._noi) { a._noi = 1; a.onmousedown = e => ofTrimKeo(e, true) }
@@ -1313,6 +1328,7 @@ function ofNoiTrim() {
 }
 async function ofKhoiDong() {
   ofNoiTrim()
+  ofNoiPh()
   // dropdown project (mới nhất trước) + dropdown framing
   try {
     const ds = await api('/api/projects')
@@ -1452,6 +1468,25 @@ function ofMoc() {                       // mốc timeline của từng khối
 }
 const ofHinh = () => (OF_HD && OF_HD.hinh) ? OF_HD.hinh : []
 const ofTong = () => { const m = ofMoc(); return m.length ? m[m.length - 1][2] : 0 }
+/* ── PLAYHEAD ĐẶT ĐƯỢC (gói C, user 06/09): click thước/nền/vùng im -> phát từ đó ── */
+function ofTlSangAudio(tl) {           // giây TIMELINE -> giây trên master
+  const ks = ofK(); if (!ks.length) return 0
+  const moc = ofMoc()
+  let i = moc.findLastIndex(m => m[0] <= tl); if (i < 0) i = 0
+  const henKe = ks[i + 1] ? ks[i + 1].v0 : ks[i].v1 + (ks[i].tho || 0)
+  const them = ks[i].tho_them || 0
+  // click vào vùng trắng NỚI: master không có giây tương ứng -> đầu câu kế
+  if (them > 0.01 && tl > moc[i][2] - them) return henKe + 0.01
+  return Math.max(0, Math.min(tl - ofDoiTruoc(i), henKe))
+}
+function ofDatPh(tl) {
+  if (!OF_HD) return
+  tl = Math.max(0, Math.min(tl, ofTong()))
+  OF_LANG = null
+  if (OF_AUDIO) OF_AUDIO.currentTime = (OF_HD.offset || 0) + ofTlSangAudio(tl)
+  document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
+  document.getElementById('of-tc').textContent = ofFmt(tl)
+}
 
 function ofVeTL() {
   const dai = document.getElementById('of-dai')
@@ -1523,6 +1558,12 @@ function ofVeTL() {
   }
   const W = tong * OF_PXS + 60
   dai.style.width = th.style.width = dauA.style.width = W + 'px'
+  // playhead theo audio hiện tại — luôn hiện, không chỉ lúc phát
+  if (OF_AUDIO && !OF_LANG) {
+    const tA = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
+    let ii = ofK().findLastIndex(k => k.v0 <= tA + 0.01); if (ii < 0) ii = 0
+    document.getElementById('of-ph').style.left = ((tA + ofDoiTruoc(ii)) * OF_PXS) + 'px'
+  }
 }
 function ofZoom(v) {
   OF_PXS = +v
