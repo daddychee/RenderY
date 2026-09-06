@@ -296,6 +296,56 @@ def api_projects(request: Request):
     return {"projects": _list_projects(), "jobs": jobs}
 
 
+@app.get("/api/offline/tap-list")
+def api_offline_tap_list(request: Request):
+    """Danh sách TẬP -> chương cho màn Offline (user hỏi 06/09: "các chương
+    được đưa ra thế nào?"). Mỗi chương: nhãn thật (H/C1/E), hệ (đồng kiểm/
+    auto), trạng thái làm tới đâu — thay cho dropdown project id thô."""
+    _require_auth(request)
+    import re as _re
+
+    from autoedit.offline import runner as orun
+
+    tap: dict[str, list] = {}
+    for d in sorted(PROJECTS_DIR.iterdir(), key=lambda x: x.stat().st_mtime,
+                    reverse=True):
+        if not (d / "project.json").is_file():
+            continue
+        try:
+            pj = json.loads((d / "project.json").read_text(encoding="utf-8"))
+            goc = (pj.get("inputs") or {}).get("original_script_path") or ""
+        except Exception:  # noqa: BLE001
+            continue
+        m = _re.search(r"[\/]([A-Z]{2,4}\d{2,4})", goc)
+        # khong co ma chuan (vd thu muc test) -> ten thu muc TAP (cha cua RenderY)
+        ma = m.group(1) if m else (Path(goc).parent.parent.parent.name[:18] or "khac")
+        nhan = Path(goc).parent.name.upper() if goc else d.name
+        hd = orun.doc(d)
+        if hd is None:
+            tt, he = "chua_phan_tich", ""
+        else:
+            tt = hd.get("trang_thai") or "pha1"
+            he = "dong_kiem" if hd.get("dong_kiem", True) else "auto"
+        draft = Path(r"F:/OutlierY Nas 2/Tool Edit/Capcut Draft/CapCut Drafts")             / f"OFF_{d.name}"
+        tap.setdefault(ma, []).append({
+            "project_id": d.name, "nhan": nhan, "trang_thai": tt, "he": he,
+            "co_draft": draft.is_dir()})
+        if len(tap) > 12:
+            break
+    # chương trong tập sắp theo thứ tự H -> C1.. -> E
+    def _tt(n):
+        n = n.upper()
+        if n == "H":
+            return 0
+        if n == "E":
+            return 999
+        m2 = _re.fullmatch(r"C(\d+)", n)
+        return int(m2.group(1)) if m2 else 500
+    for ma in tap:
+        tap[ma].sort(key=lambda c: _tt(c["nhan"]))
+    return {"tap": [{"ma": ma, "chuong": cs} for ma, cs in tap.items()]}
+
+
 @app.get("/api/project/{project_id}")
 def api_project(project_id: str, request: Request):
     _require_auth(request)

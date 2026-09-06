@@ -239,6 +239,13 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
           box-shadow:0 6px 22px rgba(0,0,0,.4); max-width:70vw; white-space:nowrap;
           overflow:hidden; text-overflow:ellipsis}
 #of-toast.mo{display:block}
+/* CHIP CHƯƠNG (user 06/09: "các chương được đưa ra thế nào trong Offline") */
+.of-ch{padding:4px 11px; border-radius:7px; border:1px solid var(--line); cursor:pointer;
+       font-size:12px; font-weight:600; background:var(--panel); color:var(--muted)}
+.of-ch:hover{border-color:var(--accent)}
+.of-ch.dang{background:var(--accent); color:#fff; border-color:var(--accent)}
+.of-ch .tt{font-weight:400; font-size:10px; margin-left:5px; opacity:.85}
+.of-ch.auto{border-color:var(--ok,#5cb98a)}
 #of-nhac-cs{position:fixed; inset:0; background:rgba(0,0,0,.72); display:none;
             place-items:center; z-index:78; padding:4vh 4vw}
 #of-nhac-cs.mo{display:grid}
@@ -705,7 +712,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <section class="man" id="man-offline">
   <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <span style="text-transform:uppercase;letter-spacing:.07em;font-size:11.5px;color:var(--muted);font-weight:700">Offline</span>
-    <select id="of-project" style="min-width:230px" onchange="ofNap()"></select>
+    <select id="of-tap" style="min-width:110px" onchange="ofVeChuong()"></select>
+    <span id="of-chuong" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+    <select id="of-project" hidden onchange="ofNap()"></select>
     <span class="note" id="of-info" style="margin:0"></span>
     <span class="note" id="of-pha-nhan" style="margin:0"></span>
     <span class="note" id="of-luu-tt" style="margin:0;color:#5cb98a"></span>
@@ -1453,26 +1462,50 @@ async function ofPhienDangNhap() {
     setTimeout(ofVePhien, 20000)
   } catch (e) { toastOf('Lỗi: ' + e.message) }
 }
+let OF_TAPS = []
+const OF_TT_NHAN = {chua_phan_tich: 'chưa', pha1: 'duyệt khối', pha2: 'đổ hình',
+                    khoa: 'khóa sổ'}
+function ofVeChuong() {
+  const ma = document.getElementById('of-tap').value
+  const t = OF_TAPS.find(x => x.ma === ma)
+  const o = document.getElementById('of-chuong'); o.innerHTML = ''
+  if (!t) return
+  for (const c of t.chuong) {
+    const b = document.createElement('button')
+    b.className = 'of-ch' + (c.he === 'auto' ? ' auto' : '') + (c.project_id === OF_PID ? ' dang' : '')
+    b.innerHTML = `${esc(c.nhan)}<span class="tt">${c.he === 'auto' ? 'AUTO' : ''}` +
+      ` ${c.co_draft ? '✓draft' : esc(OF_TT_NHAN[c.trang_thai] || c.trang_thai)}</span>`
+    b.title = c.project_id + (c.he === 'auto' ? ' — máy tự dựng sau mốc AVD' : ' — đồng kiểm')
+    b.onclick = () => {
+      const sel = document.getElementById('of-project')
+      sel.innerHTML = '<option value="' + esc(c.project_id) + '"></option>'
+      sel.value = c.project_id
+      ofNap()
+      ofVeChuong()
+    }
+    o.appendChild(b)
+  }
+}
 async function ofKhoiDong() {
   ofVePhien()
   ofNoiTrim()
   ofNoiPh()
-  // dropdown project (mới nhất trước) + dropdown framing
+  // TẬP -> CHIP CHƯƠNG (user 06/09): mỗi chương một chip H/C1../E kèm hệ +
+  // trạng thái — thay dropdown project id thô không ai đọc nổi
   try {
-    const ds = await api('/api/projects')
-    const sel = document.getElementById('of-project')
+    OF_TAPS = (await api('/api/offline/tap-list')).tap || []
+    const sel = document.getElementById('of-tap')
     const cu = sel.value
-    sel.innerHTML = '<option value="">— chọn project —</option>' +
-      (ds.projects || ds || []).slice(0, 40).map(p =>
-        `<option value="${esc(p.project_id)}">${esc(p.project_id)} · ${esc((p.title || '').slice(0, 30))}</option>`).join('')
-    if (cu) sel.value = cu
-  } catch (e) { /* projects lỗi thì vẫn vào được bằng tay */ }
+    sel.innerHTML = OF_TAPS.map(t => `<option value="${esc(t.ma)}">${esc(t.ma)}</option>`).join('')
+    if (cu && OF_TAPS.some(t => t.ma === cu)) sel.value = cu
+    ofVeChuong()
+  } catch (e) { }
   // dropdown Framing đã dời về New Sequence (user 06/09)
   if (OF_PID) ofNap()
 }
 
 async function ofNap() {
-  OF_PID = document.getElementById('of-project').value
+  OF_PID = document.getElementById('of-project').value || OF_PID
   if (!OF_PID) return
   let d
   try { d = await api('/api/offline/' + OF_PID) }
