@@ -71,11 +71,16 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #man-offline.on{display:flex; flex-direction:column; gap:10px;
                 height:calc(100vh - 78px); min-height:520px}
 #man-offline .panel{flex:0 0 auto}
-#of-than{display:flex; gap:12px; align-items:stretch; flex:1 1 0; min-height:0}
-#of-trai{flex:0 0 clamp(340px, 26vw, 480px); display:flex; flex-direction:column;
-         gap:10px; min-height:0}
+/* 4 KHỐI VUÔNG (user 08/09): PREVIEW to nhất chiếm cột trái trọn chiều cao;
+   REF · ENVATO · STOCK xếp bên phải */
+#of-than{display:grid; gap:12px; flex:1 1 0; min-height:0;
+         grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr);
+         grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+#of-trai{grid-row:1 / span 2; min-height:0; display:flex; flex-direction:column}
+#of-phai{grid-row:1 / span 2; min-width:0; display:flex; flex-direction:column; min-height:0}
+
 /* 2 MÀN 50/50 (user 08/09): trên review+trim footage, dưới preview timeline */
-.of-man{flex:1 1 50%; min-height:0; display:flex; flex-direction:column;
+.of-man{flex:1 1 100%; min-height:0; display:flex; flex-direction:column;
         background:var(--panel); border:1px solid var(--line); border-radius:10px;
         overflow:hidden}
 .of-man .dau{display:flex; align-items:center; gap:8px; padding:6px 10px;
@@ -141,15 +146,13 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-chip{background:rgba(105,174,224,.14); color:#69aee0; border-radius:999px; padding:1px 10px}
 .of-chip.l1{background:rgba(217,164,65,.15); color:var(--warn)}
 .of-chip.l3{background:rgba(138,147,160,.14); color:var(--muted)}
-#of-phai{flex:1 1 0; min-width:0; display:flex; flex-direction:column; min-height:0}
 #of-hd{flex:1; display:grid; place-items:center; color:var(--muted);
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
 #of-khay{flex:1 1 0; min-height:0; display:none; flex-direction:column; gap:8px}
 #of-khay.on{display:flex}
 /* 3 KHỐI (user 08/09): REF | ENVATO hàng trên · STOCK gộp hàng dưới */
-#of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
-        grid-template-rows:1.5fr 1fr; gap:10px}
-#of-khu .of-khu.phu{grid-column:1 / -1}
+#of-khu{flex:1 1 0; min-height:0; display:grid;
+        grid-template-rows:repeat(3, minmax(0, 1fr)); gap:10px}
 .of-khu.rong{flex:0 0 44px}
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
