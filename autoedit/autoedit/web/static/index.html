@@ -193,6 +193,17 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-dai{position:relative; height:78px; background:var(--bg); border-radius:6px}
 #of-dai-au{position:relative; height:48px; margin-top:12px; background:var(--bg);
            border-radius:6px}
+#of-dai-nh{position:relative; height:26px; margin-top:8px; background:var(--bg);
+           border-radius:6px; cursor:pointer}
+.of-nh{position:absolute; top:0; height:100%; border-radius:6px; overflow:hidden;
+       background:color-mix(in srgb, var(--accent) 22%, var(--panel));
+       border:1px solid var(--accent); display:flex; align-items:center}
+.of-nh span{font-size:10.5px; color:var(--text); padding:0 8px; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis}
+.of-nh.lap{opacity:.75}
+#of-dai-nh .rong{position:absolute; inset:0; display:grid; place-items:center;
+                 font-size:10.5px; color:var(--muted); border:1px dashed var(--line);
+                 border-radius:6px}
 .of-au{position:absolute; top:0; height:100%; border-radius:6px; box-sizing:border-box;
        background:var(--panel); border:1px solid var(--line); overflow:hidden}
 .of-au .t{position:absolute; left:6px; right:4px; top:50%; transform:translateY(-50%);
@@ -267,7 +278,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-tho .nh{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
             font-size:10px; color:#39414b; font-weight:700; white-space:nowrap}
 .of-tho.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
-#of-ph{position:absolute; top:-34px; bottom:-60px; width:2px; background:var(--warn);
+#of-ph{position:absolute; top:-34px; bottom:-94px; width:2px; background:var(--warn);
        pointer-events:none; z-index:5; box-shadow:0 0 6px rgba(232,163,61,.7)}
 #of-ph::before{content:''; position:absolute; top:0; left:-5px;   /* đầu kéo ▼ */
                border:6px solid transparent; border-top:9px solid var(--warn)}
@@ -775,11 +786,13 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         <div style="height:34px"></div>
         <div class="o" style="height:78px">V1</div>
         <div class="o" style="height:48px;margin-top:12px">A1</div>
+        <div class="o" style="height:26px;margin-top:8px">A2</div>
       </div>
       <div id="of-cuon-tl">
         <div id="of-thuoc"></div>
         <div id="of-dai"><div id="of-ph"></div></div>
         <div id="of-dai-au"></div>
+        <div id="of-dai-nh" onclick="ofNhacMo()" title="nhạc nền chương — click để đổi"></div>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:3px">
@@ -801,6 +814,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <div id="of-nhac-dang" class="note" style="padding:8px 14px;margin:0" hidden></div>
     <div id="of-nhac-ds"></div>
     <audio id="of-nhac-audio"></audio>
+<audio id="of-nhac-tl"></audio>
   </div>
 </div>
 
@@ -1586,6 +1600,8 @@ function ofDatPh(tl) {
   tl = Math.max(0, Math.min(tl, ofTong()))
   OF_LANG = null
   if (OF_AUDIO) OF_AUDIO.currentTime = (OF_HD.offset || 0) + ofTlSangAudio(tl)
+  const nAu = ofNhacTl()
+  if (!nAu.paused && OF_HD.nhac && OF_HD.nhac.dai_s > 0) nAu.currentTime = tl % OF_HD.nhac.dai_s
   document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
   document.getElementById('of-tc').textContent = ofFmt(tl)
 }
@@ -1681,8 +1697,25 @@ function ofVeTL() {
       document.addEventListener('mousemove', dat); document.addEventListener('mouseup', xong)
     }
   }
+  // ── lan A2: NHẠC chương (user 06/09: "chọn rồi phải chảy xuống timeline") ──
+  const nh = document.getElementById('of-dai-nh'); nh.innerHTML = ''
+  if (OF_HD.nhac && OF_HD.nhac.dai_s > 0) {
+    let t = 0, lan = 0
+    while (t < tong - 0.01) {
+      const dai_m = Math.min(OF_HD.nhac.dai_s, tong - t)
+      const o = document.createElement('div')
+      o.className = 'of-nh' + (lan > 0 ? ' lap' : '')
+      o.style.left = (t * OF_PXS) + 'px'
+      o.style.width = Math.max(dai_m * OF_PXS, 1) + 'px'
+      o.innerHTML = `<span>♪ ${esc(OF_HD.nhac.tieu_de)}${lan > 0 ? ' (lặp)' : ''} · ducking tự động</span>`
+      nh.appendChild(o)
+      t += OF_HD.nhac.dai_s; lan++
+    }
+  } else {
+    nh.innerHTML = '<div class="rong">♪ chưa chọn nhạc — click để máy đề xuất theo mood chương</div>'
+  }
   const W = tong * OF_PXS + 60
-  dai.style.width = th.style.width = dauA.style.width = W + 'px'
+  dai.style.width = th.style.width = dauA.style.width = nh.style.width = W + 'px' 
   // playhead theo audio hiện tại — luôn hiện, không chỉ lúc phát
   if (OF_AUDIO && !OF_LANG) {
     const tA = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
@@ -1776,6 +1809,7 @@ async function ofNhacChon(id) {
                         {method: 'POST', body: JSON.stringify({id})})
     if (OF_HD) OF_HD.nhac = r.nhac || undefined
     toastOf(r.nhac ? `♪ Chương gắn «${esc(r.nhac.tieu_de)}» — draft sẽ có ducking + fade` : 'Đã bỏ nhạc chương')
+    ofVeTL()                                        // lan A2 đổi ngay
     ofNhacMo()                                      // vẽ lại danh sách + nhãn đang gắn
   } catch (e) { toastOf('Lỗi: ' + e.message) }
 }
@@ -2250,6 +2284,24 @@ function ofVeAll(nhe) {
      nới (+): audio DỪNG đúng bấy nhiêu giây ở vùng trắng, playhead vẫn chạy
      co (−): audio NHẢY QUA phần im lặng thừa trong master                  */
 let OF_LANG = null                    // {den, tl1, tiep} — đang đứng im vùng nới
+/* nhạc nền PHÁT THẬT trong preview (user 06/09: chọn nhạc phải nghe thấy) —
+   ducking sống: 0.25 khi voice đang nói, 0.9 khi thở/đầu-cuối chương */
+function ofNhacTl() { return document.getElementById('of-nhac-tl') }
+function ofNhacBat(tl) {
+  const n = OF_HD && OF_HD.nhac
+  const au = ofNhacTl()
+  if (!n || !n.url_nghe || !(n.dai_s > 0)) { au.pause(); return }
+  if (au._src !== n.url_nghe) { au._src = n.url_nghe; au.src = n.url_nghe; au.loop = true }
+  au.currentTime = tl % n.dai_s
+  au.play().catch(() => { })
+}
+function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang phát
+  const au = ofNhacTl()
+  if (au.paused) return
+  const noi = ofMoc().some(([t0, t1]) => t0 <= tl && tl < t1)
+  au.volume = noi ? 0.25 : 0.9
+}
+function ofNhacNgung() { ofNhacTl().pause() }
 function ofPlay() {
   if (!OF_AUDIO) return
   if (OF_AUDIO.paused && !OF_LANG) {
@@ -2261,6 +2313,7 @@ function ofPlay() {
           const tl = OF_LANG.tl1 - con
           document.getElementById('of-tc').textContent = ofFmt(tl)
           document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
+          ofNhacTheo(tl)                       // vùng thở: nhạc vẫn chạy, volume cao
           requestAnimationFrame(vong); return
         }
         OF_AUDIO.currentTime = (OF_HD.offset || 0) + OF_LANG.tiep + 0.01
@@ -2268,7 +2321,7 @@ function ofPlay() {
         OF_AUDIO.play()
         requestAnimationFrame(vong); return  // play() async — đừng rơi xuống check paused
       }
-      if (!OF_AUDIO || OF_AUDIO.paused) return
+      if (!OF_AUDIO || OF_AUDIO.paused) { ofNhacNgung(); return }
       const off = OF_HD.offset || 0
       const t = Math.max(0, OF_AUDIO.currentTime - off)      // trục AUDIO master
       const ks = ofK()
@@ -2286,6 +2339,7 @@ function ofPlay() {
         requestAnimationFrame(vong); return
       }
       const tl = t + ofDoiTruoc(i)                           // trục TIMELINE
+      ofNhacTheo(tl)
       document.getElementById('of-tc').textContent = ofFmt(tl)
       document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
       // đang phát: KHÔNG vẽ lại khay (hàng trăm thẻ video) — chỉ đổi lời +
@@ -2303,7 +2357,7 @@ function ofPlay() {
       requestAnimationFrame(vong)
     })()
   } else {
-    OF_AUDIO.pause(); OF_LANG = null
+    OF_AUDIO.pause(); OF_LANG = null; ofNhacNgung()
     document.getElementById('of-play').textContent = '▶ Phát'
   }
 }
