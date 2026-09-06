@@ -73,11 +73,12 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #man-offline .panel{flex:0 0 auto}
 /* 4 KHỐI VUÔNG (user 08/09): PREVIEW to nhất chiếm cột trái trọn chiều cao;
    REF · ENVATO · STOCK xếp bên phải */
+/* 4 KHỐI NẰM NGANG (user 08/09): PREVIEW to nhất | REF | ENVATO | STOCK */
 #of-than{display:grid; gap:12px; flex:1 1 0; min-height:0;
-         grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr);
-         grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
-#of-trai{grid-row:1 / span 2; min-height:0; display:flex; flex-direction:column}
-#of-phai{grid-row:1 / span 2; min-width:0; display:flex; flex-direction:column; min-height:0}
+         grid-template-columns:minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+         grid-template-rows:minmax(0, 1fr)}
+#of-trai{min-height:0; display:flex; flex-direction:column}
+#of-phai{display:contents}          /* 3 khối nguồn thành ô ngang của lưới cha */
 
 /* 2 MÀN 50/50 (user 08/09): trên review+trim footage, dưới preview timeline */
 .of-man{flex:1 1 100%; min-height:0; display:flex; flex-direction:column;
@@ -134,8 +135,9 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 
 #of-khung .rong{position:absolute; inset:0; display:grid; place-items:center;
                 color:var(--muted); font-size:13px; text-align:center; line-height:1.6}
-#of-nhan{position:absolute; left:8px; top:8px; background:rgba(0,0,0,.7);
-         padding:3px 10px; border-radius:7px; font-size:11.5px; z-index:2}
+#of-nhan{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+         white-space:nowrap; text-transform:none; letter-spacing:0;
+         font-weight:400; font-size:11.5px; color:var(--muted)}
 #of-loi-p{flex:1; overflow:auto; background:var(--panel); border:1px solid var(--line);
           border-radius:10px; padding:9px 12px; min-height:0}
 #of-cau{font-size:14px}
@@ -148,21 +150,22 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-chip.l3{background:rgba(138,147,160,.14); color:var(--muted)}
 #of-hd{flex:1; display:grid; place-items:center; color:var(--muted);
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
-#of-khay{flex:1 1 0; min-height:0; display:none; flex-direction:column; gap:8px}
-#of-khay.on{display:flex}
+#of-khay{display:contents}
+#of-hd{grid-column:2 / span 3; display:grid; place-items:center; color:var(--muted);
+       border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
 /* 3 KHỐI (user 08/09): REF | ENVATO hàng trên · STOCK gộp hàng dưới */
-#of-khu{flex:1 1 0; min-height:0; display:grid;
-        grid-template-rows:repeat(3, minmax(0, 1fr)); gap:10px}
-.of-khu.rong{flex:0 0 44px}
+#of-khu{display:contents}
+
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
 .of-khu h4{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
            display:flex; gap:7px; align-items:center; margin:0 0 5px}
 .of-khu h4 .g{flex:1; height:1px; background:var(--line)}
-.of-cuon{flex:1 1 0; min-height:0; display:flex; gap:8px; overflow-x:auto; align-items:center}
-.of-uv{flex:0 0 240px; position:relative; border:1px solid var(--line); border-radius:8px;
+.of-cuon{flex:1 1 0; min-height:0; display:flex; flex-direction:column; gap:8px;
+         overflow-y:auto; overflow-x:hidden; align-items:stretch}
+.of-uv{flex:0 0 auto; position:relative; border:1px solid var(--line); border-radius:8px;
        overflow:hidden; cursor:pointer; background:#000}
-.of-khu.phu .of-uv{flex-basis:180px}
+
 .of-uv .cap{position:relative; aspect-ratio:16/9; background:#000}
 .of-uv .cap img,.of-uv .cap video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .of-uv .cap video{opacity:0}
@@ -655,7 +658,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <span class="note" id="of-stat" style="margin:0"></span>
     <span style="flex:1"></span>
     <button class="btn ghost small" onclick="ofPhuongAn()" title="ranh mềm + rút thăm — khối ✎ giữ nguyên">⟳ Phương án</button>
-    <button class="btn ghost small" onclick="window.open('/api/offline/'+OF_PID+'/kiem-mp4','_blank')" title="MP4 sync tuyệt đối — miễn nhiễm trễ RDP">🎞 MP4 kiểm</button>
+
     <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
   </div>
 
@@ -695,10 +698,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         +1s/−1s ở panel trái · ⟳ phương án khác<br>
         xong bấm <b style="color:var(--warn)">Duyệt khối → Đổ video</b></div>
       <div id="of-khay">
-        <div style="display:flex;gap:10px;align-items:center">
-          <input type="text" id="of-tim" placeholder="tìm trong Library... (đổ vào 4 khu)" style="flex:1;max-width:460px" oninput="ofTimDebounce()">
-          <span class="note" id="of-tim-nhan" style="margin:0"></span>
-        </div>
+
         <div id="of-khu">
           <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
           <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
@@ -718,6 +718,8 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <button class="btn ghost small" onclick="ofUndo()" title="Ctrl+Z">↶</button>
       <button class="btn ghost small" onclick="ofRedo()" title="Ctrl+Shift+Z">↷</button>
       <button class="btn ghost small" onclick="ofHotKey()" title="bảng phím tắt">⌨</button>
+        <input type="text" id="of-tim" placeholder="tìm trong Library..." style="flex:1;max-width:320px;margin-left:12px" oninput="ofTimDebounce()">
+      <span class="note" id="of-tim-nhan" style="margin:0"></span>
       <span style="flex:1"></span>
       <span id="of-zoom" class="note" style="margin:0">zoom
         <input type="range" min="6" max="90" value="14" oninput="ofZoom(this.value)">
@@ -1366,7 +1368,7 @@ function ofCapPha() {
   document.getElementById('of-khay').classList.toggle('on', OF_PHA === 2)
   document.getElementById('of-nut-pha').textContent =
     OF_PHA === 1 ? 'Duyệt khối → Đổ video'
-    : (OF_HD && OF_HD.trang_thai === 'khoa' ? '🩸 Thay máu → Draft' : '✔ Khóa sổ chương')
+    : (OF_HD && OF_HD.trang_thai === 'khoa' ? '⬇ Tải footage → CapCut' : '✔ Khóa sổ chương')
 }
 
 function ofLuu() {                       // debounce PUT — voice bất biến server gác
@@ -1716,13 +1718,13 @@ async function ofDoiPha() {
     try {
       const r = await api('/api/offline/' + OF_PID + '/khoa-so', {method: 'POST', body: '{}'})
       OF_HD.trang_thai = 'khoa'; ofCapPha()
-      document.getElementById('of-nut-pha').textContent = '🩸 Thay máu → Draft'
+      document.getElementById('of-nut-pha').textContent = '⬇ Tải footage → CapCut'
       toastOf('✔ ' + r.ghi_chu)
     } catch (e) { alert('Lỗi: ' + e.message) }
   } else {
     try {
       const r = await api('/api/offline/' + OF_PID + '/thay-mau', {method: 'POST', body: '{}'})
-      toastOf('🩸 ' + r.ghi_chu)
+      toastOf('⬇ ' + r.ghi_chu)
       const canh = setInterval(async () => {
         const d = await api('/api/offline/' + OF_PID)
         const tt = Object.values(d.tt || {}).length ? d.tt : null
