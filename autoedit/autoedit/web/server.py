@@ -989,6 +989,8 @@ def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
         kq = _sdb.tim(conn, q=q, nguon=nguon, chi_neo=bool(neo), tap=tap,
                       limit=max(1, min(200, limit)), offset=max(0, offset))
         dem = _sdb.dem_theo_nguon(conn)
+        dem["nhac"] = conn.execute(
+            "SELECT COUNT(*) FROM nhac WHERE trang_thai != 'loai_tru'").fetchone()[0]
     finally:
         conn.close()
     with _sotra_lock:
@@ -1230,17 +1232,20 @@ def api_offline_nhac(project_id: str, request: Request):
     energy = "high" if 0 < than < 3.5 else ("medium" if than < 5 else "low")
     conn = _sdb.mo()
     try:
-        dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
-                           kenh=(hd.get("ma_tap") or "")[:2])
-        if len(dx) < 3 and mood:              # kho mỏng -> hút thêm đúng mood
+        # FLOW user chốt 06/09: nhạc CHẢY VÀO OFFLINE TRƯỚC — chương cần thì
+        # hút theo mood của chương, track đọng lại thành kho; Library chỉ là
+        # nơi xem cái đã tích tụ. Kho lớn từ nhu cầu thật, không trữ trước.
+        co = conn.execute("SELECT COUNT(*) FROM nhac WHERE mood=? AND co_loi=0",
+                          (mood,)).fetchone()[0] if mood else 0
+        if mood and co < 40:                  # mood này còn mỏng -> hút tươi
             goc = _nhac._MOOD_NOI_BO.get(mood) or ()
             if goc:
                 try:
                     _nhac.hut_epidemic(conn, moods=goc[0], so_trang=1)
-                    dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
-                                       kenh=(hd.get("ma_tap") or "")[:2])
-                except Exception:  # noqa: BLE001 — mạng hỏng thì trả cái đang có
+                except Exception:  # noqa: BLE001 — mạng hỏng thì dùng cái đang có
                     pass
+        dx = _nhac.de_xuat(conn, mood=mood, energy=energy,
+                           kenh=(hd.get("ma_tap") or "")[:2])
     finally:
         conn.close()
     return {"mood": mood, "energy": energy, "tracks": dx,

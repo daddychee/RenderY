@@ -197,4 +197,21 @@ def tim_nhac(conn, q: str = "", mood: str = "", limit: int = 40) -> list[dict]:
         d = dict(r)
         d.pop("hang", None)
         ra.append(d)
+    # nhãn "đã dùng": track chảy qua tập nào (flow 06/09 — Library là nơi xem
+    # cái đã tích tụ, nên phải thấy được vết sử dụng)
+    if ra:
+        dau = ",".join("?" * len(ra))
+        dung: dict[str, list] = {}
+        for cid, tap, loai in conn.execute(
+                f"SELECT clip_id, tap, loai FROM su_kien WHERE clip_id IN ({dau}) "
+                f"AND loai IN ('duoc_chon','len_final')", [d["id"] for d in ra]):
+            if tap:
+                dung.setdefault(cid, []).append((tap, loai))
+        for d in ra:
+            v = dung.get(d["id"]) or []
+            fin = sorted({t for t, lo in v if lo == "len_final"})
+            chon = sorted({t for t, lo in v if lo == "duoc_chon"})
+            d["da_dung"] = (" · ".join(f"✓{t}" for t in fin[-3:])
+                            + (" " if fin and chon else "")
+                            + " ".join(chon[-3:] if not fin else [])).strip()
     return ra

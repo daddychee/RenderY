@@ -651,6 +651,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <button class="btn ghost small" data-n="ref" onclick="stNguon(this)">Ref <small id="st-d-ref"></small></button>
       <button class="btn ghost small" data-n="kho" onclick="stNguon(this)">Kho cũ <small id="st-d-kho"></small></button>
       <button class="btn ghost small" data-n="aigen" onclick="stNguon(this)">AI <small id="st-d-aigen"></small></button>
+      <button class="btn ghost small" data-n="nhac" onclick="stNguon(this)">♪ Nhạc <small id="st-d-nhac"></small></button>
       <button class="btn ghost small" id="st-neo" onclick="stNeo()">⚑ có neo</button>
     </div>
   </div>
@@ -2326,6 +2327,7 @@ const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
 
 async function stVe(them) {
   if (!them) ST_OFFSET = 0
+  if (ST_NGUON === 'nhac') { stVeNhac(); return }   // kho nhạc: lưới riêng
   let d
   try {
     d = await api(`/api/sotra?q=${encodeURIComponent(ST_Q)}&nguon=${ST_NGUON}` +
@@ -2337,8 +2339,8 @@ async function stVe(them) {
   ST_DS = them ? ST_DS.concat(d.clips) : d.clips
   const dem = d.dem || {}
   let tong = 0
-  for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho', 'aigen']) {
-    tong += dem[n] || 0
+  for (const n of ['envato', 'pexels', 'pixabay', 'ref', 'kho', 'aigen', 'nhac']) {
+    if (n !== 'nhac') tong += dem[n] || 0
     const el = document.getElementById('st-d-' + n)
     if (el) el.textContent = dem[n] ? (dem[n] >= 1000 ? (dem[n] / 1000).toFixed(1) + 'k' : dem[n]) : ''
   }
@@ -2396,6 +2398,10 @@ function stNguon(nut) {
   document.querySelectorAll('#st-tabs [data-n]').forEach(b => b.classList.remove('on'))
   nut.classList.add('on')
   ST_NGUON = nut.dataset.n
+  if (ST_NGUON !== 'nhac') {
+    document.getElementById('st-luoi').style.gridTemplateColumns = ''
+    const au = document.getElementById('of-nhac-audio'); if (au) au.pause()
+  }
   stVe()
 }
 function stNeo() {
@@ -2470,6 +2476,40 @@ function stRefTheoDoi() {
     tt.textContent = (d.tt === 'loi' ? '⚠ ' : '✓ ') + (d.ghi_chu || '')
     if (d.tt === 'xong') stVe()
   }, 3000)
+}
+
+/* KHO NHẠC trong Library (flow user chốt 06/09: nhạc chảy vào OFFLINE trước —
+   chương cần thì hút theo mood — rồi đọng lại đây; tab này là nơi XEM cái đã
+   tích tụ + vết đã dùng tập nào). */
+let ST_NHAC_PHAT = ''
+async function stVeNhac() {
+  let d
+  try { d = await api('/api/sotra/nhac?q=' + encodeURIComponent(ST_Q) + '&limit=80') }
+  catch (e) { document.getElementById('st-dem').innerHTML = `<span class="err">${esc(e.message)}</span>`; return }
+  const ds = d.tracks || []
+  document.getElementById('st-dem').textContent = `${ds.length} track — kho lớn dần theo tập, không trữ trước`
+  document.getElementById('st-trong').hidden = ds.length > 0
+  const luoi = document.getElementById('st-luoi'); luoi.innerHTML = ''
+  luoi.style.gridTemplateColumns = 'repeat(auto-fill, minmax(320px, 1fr))'
+  for (const t of ds) {
+    const o = document.createElement('div')
+    o.className = 'of-track'
+    o.style.border = '1px solid var(--line)'; o.style.borderRadius = '9px'
+    o.innerHTML = `<img src="${esc(t.url_anh)}" loading="lazy">
+      <div class="tt"><b>${esc(t.tieu_de)} <small>· ${esc(t.nghe_si)}</small></b>
+        <small>${esc(t.mood)} · ${esc(t.energy)} · ${t.bpm}bpm${t.co_loi ? ' · <span style="color:var(--bad)">có lời</span>' : ''}</small>
+        ${t.da_dung ? `<small style="color:var(--ok,#5cb98a)">đã dùng: ${esc(t.da_dung)}</small>` : ''}</div>
+      <button class="btn ghost small nghe">▶</button>`
+    const nut = o.querySelector('button')
+    nut.onclick = () => {
+      const au = document.getElementById('of-nhac-audio')
+      if (ST_NHAC_PHAT === t.id && !au.paused) { au.pause(); nut.textContent = '▶'; ST_NHAC_PHAT = ''; return }
+      document.querySelectorAll('#st-luoi .nghe').forEach(b => b.textContent = '▶')
+      au.src = t.url_nghe; au.play().catch(() => { })
+      nut.textContent = '❚❚'; ST_NHAC_PHAT = t.id
+    }
+    luoi.appendChild(o)
+  }
 }
 
 /* ── FRAMING INSIGHT (khuôn Author Extract): dropdown hồ sơ + thân mô tả ── */
