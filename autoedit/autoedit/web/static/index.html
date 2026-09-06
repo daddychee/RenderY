@@ -1660,7 +1660,22 @@ function ofVeTL() {
       OF_LANG = null; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
       ofVeAll()
     }
-    d.ondblclick = e => { e.preventDefault(); ofDoiHinh(j) }
+    // RULE user 06/09: double-click shot = mở CLIP GỐC để trim lại sạch nhất
+    // (bản cũ tự bịa: dblclick = Pull sang phương án khác — user không hề yêu cầu;
+    // Pull vẫn ở nút ⟳ và phím d)
+    d.ondblclick = e => {
+      e.preventDefault()
+      OF_HCHON = j
+      if (h.khoi_goc !== undefined) OF_CHON = Math.min(h.khoi_goc, ofK().length - 1)
+      const u = ofUv(h)
+      if (!u) { toastOf('Shot chưa có hình — chọn từ khay trước'); return }
+      const goc = {...u}
+      if (goc.id && goc.id.includes('#')) {   // khúc đã trim -> lùi về clip mẹ
+        goc.id = goc.id.split('#')[0]
+        delete goc.t0; delete goc.t1
+      }
+      ofReview(goc)
+    }
     const mep = document.createElement('span'); mep.className = 'mep'
     mep.onmousedown = e => ofKeoMep(e, j, mep, d)
     d.appendChild(mep)
