@@ -87,6 +87,17 @@ CREATE TABLE IF NOT EXISTS nhac(
   path_local TEXT DEFAULT '',      -- bản sạch sau khi tải qua két
   trang_thai TEXT DEFAULT 'preview',   -- preview|da_tai|loai_tru
   ngay_them TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS beat(
+  id TEXT PRIMARY KEY,             -- beat:<tap>-<video>:<t0>-<t1>
+  tap TEXT DEFAULT '', video TEXT DEFAULT '',
+  t0 REAL DEFAULT 0, t1 REAL DEFAULT 0,
+  loi_goc TEXT DEFAULT '',         -- lời gốc (ref Ecuador: tiếng Bulgaria)
+  loi_dich TEXT DEFAULT '',        -- đợt 2: dịch sang Anh
+  topic TEXT DEFAULT '',           -- đợt 2: LỚP NGHĨA (chỉ đọc lời, không đọc hình)
+  metaphor INTEGER DEFAULT 0,      -- đợt 2: beat mang ẩn dụ -> shot không route thẳng
+  so_cau INTEGER DEFAULT 0,
+  ngay TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS idx_beat_tap ON beat(tap);
 CREATE TABLE IF NOT EXISTS giay_phep(
   gp INTEGER PRIMARY KEY AUTOINCREMENT,
   clip_id TEXT NOT NULL,           -- envato:<uuid>
@@ -134,7 +145,8 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
         pass
     # ref cắt theo cảnh (06/09): vật thể nhìn thấy trong hình + độ khớp lời-hình
     for _cot, _kieu in (("vat_the", "TEXT DEFAULT ''"), ("khop", "INTEGER DEFAULT 0"),
-                        ("loi_quanh", "TEXT DEFAULT ''"), ("may_dong", "INTEGER DEFAULT 0")):
+                        ("loi_quanh", "TEXT DEFAULT ''"), ("may_dong", "INTEGER DEFAULT 0"),
+                        ("beat_id", "TEXT DEFAULT ''")):
         try:
             conn.execute(f"ALTER TABLE clip ADD COLUMN {_cot} {_kieu}")
         except sqlite3.OperationalError:
