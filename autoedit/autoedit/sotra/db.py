@@ -237,7 +237,8 @@ def ap_alias(conn, chu: str) -> str:
 
 
 def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
-        tap: str = "", limit: int = 60, offset: int = 0) -> list[dict]:
+        tap: str = "", limit: int = 60, offset: int = 0,
+        meta: dict | None = None) -> list[dict]:
     """Ô tìm của trang Sổ Tra — FTS + lọc. Không q -> mới nhất trước."""
     dk, tham = ["c.trang_thai != 'loai_tru'"], []
     if nguon:
@@ -260,6 +261,11 @@ def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         sql = (f"SELECT c.* FROM clip c WHERE {' AND '.join(dk)} "
                f"ORDER BY c.ngay_them DESC LIMIT ? OFFSET ?")
         rows = conn.execute(sql, [*tham, limit, offset]).fetchall()
+    # bug user bắt 06/09: UI ẩn "Xem thêm" khi trang trả <60 CLIP, nhưng gộp
+    # trùng hiển thị làm 60 DÒNG thô co còn 15-40 clip -> nút ẩn oan từ trang
+    # đầu, kho 871 mà mắt thấy <100. meta['het'] nói sự thật theo DÒNG THÔ.
+    if meta is not None:
+        meta["het"] = len(rows) < limit
     ra, nhom = [], {}
     for r in rows:
         d = dict(r)

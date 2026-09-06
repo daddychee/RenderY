@@ -2513,7 +2513,8 @@ async function stVe(them) {
   document.getElementById('st-hut-nut').hidden = !(ME.nghien_cuu_kenh && ST_Q.trim())
   document.getElementById('st-nap-ref').hidden = !ME.nghien_cuu_kenh
   document.getElementById('st-trong').hidden = ST_DS.length > 0
-  document.getElementById('st-them').hidden = d.clips.length < 60
+  // dua theo co het cua SERVER (dong tho) — dem clip da gop la an nut oan
+  document.getElementById('st-them').hidden = !!d.het
 
   const l = document.getElementById('st-luoi')
   if (!them) l.innerHTML = ''

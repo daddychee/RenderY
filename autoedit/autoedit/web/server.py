@@ -1148,8 +1148,10 @@ def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
 
     conn = _sdb.mo()
     try:
+        meta_tim: dict = {}
         kq = _sdb.tim(conn, q=q, nguon=nguon, chi_neo=bool(neo), tap=tap,
-                      limit=max(1, min(200, limit)), offset=max(0, offset))
+                      limit=max(1, min(200, limit)), offset=max(0, offset),
+                      meta=meta_tim)
         dem = _sdb.dem_theo_nguon(conn)
         dem["nhac"] = conn.execute(
             "SELECT COUNT(*) FROM nhac WHERE trang_thai != 'loai_tru'").fetchone()[0]
@@ -1157,7 +1159,8 @@ def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
         conn.close()
     with _sotra_lock:
         hut = dict(_sotra_dang_hut)
-    return {"clips": kq, "dem": dem, "hut": hut}
+    return {"clips": kq, "dem": dem, "hut": hut,
+            "het": meta_tim.get("het", True)}
 
 
 @app.get("/api/sotra/clip")
