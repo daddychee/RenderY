@@ -309,6 +309,38 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
     # overwrite: thay máu là thao tác LẶP LẠI theo thiết kế (sửa đường dây ->
     # thay máu lại) — draft cùng tên phải được đè, không bắt user xoá tay
     draft = package_draft(json.loads(script.dumps()), ten_draft, profile, overwrite=True)
+    # (6) user chốt 06/09: "team copy folder về máy cá nhân — source và license
+    # nằm trong đó". Media đã tự chứa trong materials/ (placeholder tương đối);
+    # ghi thêm GIAY_PHEP.txt: mỗi clip Envato dùng trong tập — item URL, file,
+    # ngày license — đối soát được với My Downloads.
+    try:
+        from autoedit.sotra import db as _sdb2
+
+        c2 = _sdb2.mo()
+        try:
+            dong = ["clip_id	url_item	ten_file	ngay"]
+            thay = set()
+            for i in dung_id.values() if isinstance(dung_id, dict) else []:
+                u = str(i)
+                if not u.startswith("envato:") or u in thay:
+                    continue
+                thay.add(u)
+                goc = u.split("#")[0]
+                r = c2.execute(
+                    "SELECT url_item, ten_file, ngay FROM giay_phep "
+                    "WHERE clip_id=? ORDER BY gp DESC LIMIT 1", (goc,)).fetchone()
+                if r:
+                    dong.append(f"{u}	{r['url_item']}	{r['ten_file']}	{r['ngay']}")
+                else:
+                    dong.append(f"{u}	(chưa có bản licensed — đang dùng preview)		")
+            if len(dong) > 1:
+                (Path(draft) / "GIAY_PHEP.txt").write_text(
+                    "\n".join(dong), encoding="utf-8")
+                log(f"online: GIAY_PHEP.txt — {len(dong) - 1} clip Envato")
+        finally:
+            c2.close()
+    except Exception as exc:  # noqa: BLE001 — sổ hỏng không giết draft
+        log(f"online: ghi GIAY_PHEP lỗi ({str(exc)[:70]})")
     log(f"thay-mau: draft {draft}")
     return draft
 

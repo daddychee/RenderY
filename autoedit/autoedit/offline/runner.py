@@ -116,6 +116,22 @@ def nap_ref_cua_tap(conn, project_dir: Path, ma_tap: str = "",
         return 0
 
 
+def _canh_bao_phien(dong_kiem: bool) -> list[str]:
+    """(4) user chốt 06/09: sequence tạo xong phải BIẾT NGAY phiên Envato sống
+    chưa — đừng để dựng 2 tiếng rồi Export mới lộ watermark."""
+    if not dong_kiem:
+        return []                      # chương auto không dùng envato
+    try:
+        from autoedit.sourcer.phien import co_phien
+
+        if not co_phien("envato"):
+            return ["Phiên Envato CHƯA sống — bản Online sẽ ra preview watermark. "
+                    "Click chấm ◐ Envato cạnh nút ♪ Nhạc để máy đăng nhập."]
+    except Exception:  # noqa: BLE001
+        pass
+    return []
+
+
 def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
               kenh_ref: str = "", uu_tien_nguon: str = "", dia_danh: str = "",
               nguoi_tao: str = "", llm=None, conn=None, log=None) -> dict:
@@ -174,8 +190,10 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             # phải xong TRƯỚC do_ung_vien, nếu không khay ref rỗng ở lần đầu.
             nap_ref_cua_tap(c, project_dir, ma_tap=_ma_tap(project_dir),
                             dia_danh=dia_danh, log=log)
-            ung_vien = dung.do_ung_vien(c, ds_khoi, lop_ds, chu_the,
-                                        uu_tien_nguon=uu_tien_nguon)
+            ung_vien = dung.do_ung_vien(
+                c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
+                # chương AUTO: không đốt license Envato (user chốt 06/09)
+                bo_nguon=() if dong_kiem else ("envato",))
             chon = dung.chon_mac_dinh(ds_khoi, ung_vien)
         finally:
             if conn is None:
@@ -204,7 +222,8 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             "uv": ung_vien[i], "chon": chon[i],
             "khoa": False, "nguoi_sua": False,
         } for i, k in enumerate(ds_khoi)],
-        "canh_bao": ([f"{len(lap)} khối vi phạm luật 60s"] if lap else []),
+        "canh_bao": ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
+                    + _canh_bao_phien(dong_kiem),
     }
     # DẢI HÌNH tách khỏi dải VOICE (08/09) — sinh 1-1, người chẻ thêm trong UI
     from autoedit.offline import hinh as mhinh

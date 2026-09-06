@@ -16,8 +16,13 @@ CHOT_NEO_S = 30.0
 
 
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
-                uu_tien_nguon: str = "", so_moi_khoi: int = 12) -> list[list[dict]]:
-    """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library."""
+                uu_tien_nguon: str = "", so_moi_khoi: int = 12,
+                bo_nguon: tuple = ()) -> list[list[dict]]:
+    """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library.
+
+    bo_nguon (user chốt 06/09): chương AUTO sau mốc AVD ít người xem tới —
+    không đốt license Envato vào đó, chỉ dùng pexels/pixabay/ref/kho.
+    """
     from autoedit.sotra.tra import tra
 
     ra = []
@@ -25,8 +30,10 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
         o = lop[i]
         uv = tra(conn, {"L0": chu_the_tap, "L1": o.truc_chi,
                         "L2": o.ngu_canh, "L3": o.khong_khi},
-                 so=so_moi_khoi, uu_tien_nguon=uu_tien_nguon,
-                 can_neo=bool(o.neo))
+                 so=so_moi_khoi + (6 if bo_nguon else 0),
+                 uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo))
+        if bo_nguon:
+            uv = [c for c in uv if c["nguon"] not in bo_nguon][:so_moi_khoi]
         ra.append([{"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                     "lop": c["lop"], "diem": c["diem"],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
