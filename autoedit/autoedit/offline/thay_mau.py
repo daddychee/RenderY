@@ -89,7 +89,11 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
     ra: dict[int, Path] = {}
     dung_id: dict[int, str] = {}          # clip THẬT được dùng (dự bị tính là nó)
     warns: list[str] = []
-    for i, k in enumerate(hd["khoi"]):
+    # relocate theo DẢI HÌNH (08/09): mỗi MIẾNG hình một file — khoảng thở có
+    # thể chứa nhiều miếng, miếng có thể trải qua nhiều khối voice
+    from autoedit.offline import hinh as mhinh
+
+    for i, k in enumerate(mhinh.dam_bao(hd)):
         ung = (k.get("uv") or [])
         thu_tu = ([ung[k["chon"]]] if 0 <= k.get("chon", -1) < len(ung) else []) + \
                  [u for j, u in enumerate(ung) if j != k.get("chon")]
@@ -98,13 +102,12 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
             cid = u["id"]
             nguon = cid.split(":")[0]
             c = _clip_db(conn, cid) or {}
-            dich = assets / f"k{i:02d}_{sdb.slug(u.get('tieu_de', ''), 24)}{'.png' if nguon == 'aigen' else '.mp4'}"
+            dich = assets / f"h{i:02d}_{sdb.slug(u.get('tieu_de', ''), 24)}{'.png' if nguon == 'aigen' else '.mp4'}"
             try:
                 if nguon == "ref" and c.get("path_local"):
                     dem = 0.3
                     cat_clip(Path(c["path_local"]), max(0.0, float(c["t0"]) - 0),
-                             min(float(c["t1"]) - float(c["t0"]) + dem,
-                                 (k["v1"] - k["v0"]) + (k.get("tho") or 0) + 2.0),
+                             min(float(c["t1"]) - float(c["t0"]) + dem, k["dur"] + 2.0),
                              dich)
                 elif nguon == "kho" and c.get("path_local") and Path(c["path_local"]).is_file():
                     import shutil
@@ -154,15 +157,15 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                     conn.execute("UPDATE clip SET trang_thai='link_chet' WHERE id=?", (cid,))
                 continue
         if dat is None:
-            warns.append(f"khối {i + 1}: KHÔNG lấy được nguồn nào — timeline hở, editor đắp")
+            warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — timeline hở, editor đắp")
         else:
             ra[i] = dat
-        log(f"thay-mau: khối {i + 1}/{len(hd['khoi'])} -> {dat.name if dat else 'HỞ'}")
+        log(f"thay-mau: miếng {i + 1}/{len(mhinh.dam_bao(hd))} -> {dat.name if dat else 'HỞ'}")
     return ra, dung_id, warns
 
 
 def _cat_voice(project_dir: Path, hd: dict, log) -> dict[int, Path]:
-    """Cắt master theo khối (offset+v0 .. v1+thở tự nhiên) — lời + ngắt gốc."""
+    """Cắt master theo DẢI KHỐI (voice), index = khối — độc lập dải hình."""
     ra = {}
     seg_dir = project_dir / "assets_offline"
     off = hd["offset"]
@@ -194,49 +197,63 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
     script.add_track(TrackType.video, "video_l1")
     script.add_track(TrackType.audio, "voice")
 
-    cursor = 0.0
-    for i, k in enumerate(hd["khoi"]):
-        noi = k["v1"] - k["v0"]
-        tho = max(0.0, (k.get("tho") or 0) + min(0.0, k.get("tho_them") or 0))
-        them = max(0.0, k.get("tho_them") or 0)
-        o_dai = noi + tho + them                       # hình phủ TRỌN cả thở
-        t0_us, dai_us = round(cursor * SEC), round(o_dai * SEC)
+    from autoedit.offline import hinh as mhinh
+
+    # ---- TRACK VIDEO: theo DẢI HÌNH (miếng cắt tự do, 08/09) ----
+    # KHÍT MÉP microsecond: t0 của miếng sau = HẾT của miếng trước. Làm tròn
+    # từng miếng riêng lẻ sinh chồng lấn 10ms -> pycapcut SegmentOverlap
+    # (bắt thật 08/09 khi chẻ 2 miếng vào khoảng thở 8.5s).
+    ds_hinh = mhinh.dam_bao(hd)
+    mep_us = [round(ds_hinh[0]["t0"] * SEC)] if ds_hinh else []
+    for h in ds_hinh:
+        mep_us.append(mep_us[-1] + round(h["dur"] * SEC))
+    for i, h in enumerate(ds_hinh):
         f = video.get(i)
-        if f is not None:
-            if f.suffix.lower() == ".png":             # ảnh AI -> tĩnh (Ken Burns đợt sau)
-                m = VideoMaterial(str(f))
-                script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us),
-                                                source_timerange=Timerange(0, dai_us)),
+        if f is None:
+            continue
+        t0_us, dai_us = mep_us[i], mep_us[i + 1] - mep_us[i]
+        m = VideoMaterial(str(f))
+        if f.suffix.lower() == ".png":                 # ảnh AI -> tĩnh
+            script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us),
+                                            source_timerange=Timerange(0, dai_us)),
+                               "video_l1")
+            continue
+        avail = m.duration - SAFETY_US
+        if avail >= round(dai_us * SPEED):
+            script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us), speed=SPEED),
+                               "video_l1")
+        else:
+            toc = avail / dai_us
+            if toc < SPEED_MIN and (dai_us - round(avail / SPEED)) >= SEC // 2:
+                dv = round(avail / SPEED)              # sàn 0.8: 0.9x + freeze
+                script.add_segment(VideoSegment(m, Timerange(t0_us, dv), speed=SPEED),
                                    "video_l1")
+                fz = _freeze_frame(f, f.parent)
+                if fz is not None:
+                    script.add_segment(VideoSegment(
+                        VideoMaterial(str(fz)), Timerange(t0_us + dv, dai_us - dv),
+                        source_timerange=Timerange(0, dai_us - dv)), "video_l1")
             else:
-                m = VideoMaterial(str(f))
-                avail = m.duration - SAFETY_US
-                if avail >= round(dai_us * SPEED):
-                    script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us), speed=SPEED),
-                                       "video_l1")
-                else:
-                    toc = avail / dai_us
-                    if toc < SPEED_MIN and (dai_us - round(avail / SPEED)) >= SEC // 2:
-                        dv = round(avail / SPEED)      # sàn 0.8: chạy 0.9x + freeze
-                        script.add_segment(VideoSegment(m, Timerange(t0_us, dv), speed=SPEED),
-                                           "video_l1")
-                        fz = _freeze_frame(f, f.parent)
-                        if fz is not None:
-                            script.add_segment(VideoSegment(
-                                VideoMaterial(str(fz)), Timerange(t0_us + dv, dai_us - dv),
-                                source_timerange=Timerange(0, dai_us - dv)), "video_l1")
-                    else:
-                        script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us),
-                                                        source_timerange=Timerange(0, avail),
-                                                        speed=toc), "video_l1")
+                script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us),
+                                                source_timerange=Timerange(0, avail),
+                                                speed=toc), "video_l1")
+
+    # ---- TRACK VOICE: theo DẢI KHỐI, mốc timeline riêng (bất biến) ----
+    for i, (t0, t1, _tt) in enumerate(mhinh.moc_timeline(hd["khoi"])):
         vf = voice.get(i)
-        if vf is not None:
-            am = AudioMaterial(str(vf))
-            script.add_segment(AudioSegment(
-                am, Timerange(t0_us, min(am.duration - SAFETY_US,
-                                         round((noi + tho) * SEC)))), "voice")
-        cursor += o_dai
-    draft = package_draft(json.loads(script.dumps()), ten_draft, profile)
+        if vf is None:
+            continue
+        k = hd["khoi"][i]
+        tho_that = max(0.0, (k.get("tho") or 0) + min(0.0, k.get("tho_them") or 0))
+        am = AudioMaterial(str(vf))
+        script.add_segment(AudioSegment(
+            am, Timerange(round(t0 * SEC),
+                          min(am.duration - SAFETY_US,
+                              round(((t1 - t0) + tho_that) * SEC)))), "voice")
+
+    # overwrite: thay máu là thao tác LẶP LẠI theo thiết kế (sửa đường dây ->
+    # thay máu lại) — draft cùng tên phải được đè, không bắt user xoá tay
+    draft = package_draft(json.loads(script.dumps()), ten_draft, profile, overwrite=True)
     log(f"thay-mau: draft {draft}")
     return draft
 
@@ -276,8 +293,10 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> 
         profile = MachineProfile.load()
     ten = f"OFF_{project_dir.name}"
     draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi)
-    kq = {"draft": str(draft), "khoi_co_hinh": len(video),
-          "tong_khoi": len(hd["khoi"]), "canh_bao": warns}
+    from autoedit.offline import hinh as _mh
+    kq = {"draft": str(draft), "mieng_co_hinh": len(video),
+          "tong_mieng": len(_mh.dam_bao(hd)), "tong_khoi_voice": len(hd["khoi"]),
+          "canh_bao": warns}
     (project_dir / "thay_mau.json").write_text(
         json.dumps(kq, ensure_ascii=False, indent=1), encoding="utf-8")
     return kq

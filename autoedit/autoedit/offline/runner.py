@@ -122,6 +122,10 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         } for i, k in enumerate(ds_khoi)],
         "canh_bao": ([f"{len(lap)} khối vi phạm luật 60s"] if lap else []),
     }
+    # DẢI HÌNH tách khỏi dải VOICE (08/09) — sinh 1-1, người chẻ thêm trong UI
+    from autoedit.offline import hinh as mhinh
+
+    hd["hinh"] = mhinh.sinh_tu_khoi(hd["khoi"])
     (project_dir / TEN_HOP_DONG).write_text(
         json.dumps(hd, ensure_ascii=False, indent=1), encoding="utf-8")
     ghi(f"offline: hợp đồng ghi xong — {len(ds_khoi)} khối · "
@@ -131,7 +135,13 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
 
 def doc(project_dir: Path) -> dict | None:
     f = Path(project_dir) / TEN_HOP_DONG
-    return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+    if not f.is_file():
+        return None
+    hd = json.loads(f.read_text(encoding="utf-8"))
+    from autoedit.offline import hinh as mhinh
+
+    mhinh.dam_bao(hd)          # hợp đồng cũ (chỉ có khoi[]) -> sinh hinh[] 1-1
+    return hd
 
 
 def luu(project_dir: Path, hd: dict) -> None:

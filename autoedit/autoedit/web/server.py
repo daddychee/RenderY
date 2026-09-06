@@ -673,7 +673,16 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     if abs(_noi(hd) - _noi(cu)) > 0.5:
         raise HTTPException(422, "Tổng thời lượng NÓI thay đổi — voice là bất biến, "
                                  "chỉ im lặng được chèn/thu")
+    from autoedit.offline import hinh as mhinh
+
+    # thở đổi -> mốc voice dịch -> dời dải hình theo khối gốc (không để hình trôi)
+    moc_cu = mhinh.moc_timeline(cu.get("khoi") or [])
+    mhinh.dam_bao(hd)
+    mhinh.dong_bo_sau_tho(hd, moc_cu)
+    loi_hinh = mhinh.kiem(hd)
     orun.luu(d, hd)
+    if loi_hinh:
+        return {"ok": True, "canh_bao_hinh": loi_hinh}
     return {"ok": True}
 
 
@@ -709,6 +718,41 @@ def api_offline_gen(project_id: str, req: OfflineGenRequest, request: Request):
     return {"ok": True, "ghi_chu": "đang gen nền — ảnh tự rơi vào khay khối"}
 
 
+class OfflineHinhRequest(BaseModel):
+    thao_tac: str            # them | bo | keo_mep
+    idx: int = -1
+    tai_giay: float = 0.0
+    dur: float = 0.0
+
+
+@app.post("/api/offline/{project_id}/hinh")
+def api_offline_hinh(project_id: str, req: OfflineHinhRequest, request: Request):
+    """Thao tác DẢI HÌNH (08/09: tách hình/voice như phần mềm dựng)."""
+    _require_auth(request)
+    from autoedit.offline import hinh as mhinh
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    if req.thao_tac == "them":
+        j = mhinh.them_mieng(hd, req.tai_giay)
+        if j < 0:
+            raise HTTPException(422, "Không có miếng nào phủ mốc này")
+    elif req.thao_tac == "bo":
+        if not mhinh.bo_mieng(hd, req.idx):
+            raise HTTPException(422, "Không bỏ được (miếng cuối cùng?)")
+    elif req.thao_tac == "keo_mep":
+        if not mhinh.keo_mep(hd, req.idx, req.dur):
+            raise HTTPException(422, "Không kéo được mép miếng cuối")
+    else:
+        raise HTTPException(422, "thao_tac lạ")
+    loi = mhinh.kiem(hd)
+    orun.luu(d, hd)
+    return {"ok": True, "hinh": hd["hinh"], "loi": loi}
+
+
 @app.post("/api/offline/{project_id}/thay-mau")
 def api_offline_thay_mau(project_id: str, request: Request):
     """THAY MÁU (Đợt 5): chương KHÓA SỔ -> tải bản thật + ráp draft CapCut (nền)."""
@@ -728,7 +772,7 @@ def api_offline_thay_mau(project_id: str, request: Request):
                 _offline_dang[khoa] = {
                     "tt": "xong",
                     "ghi_chu": f"draft {Path(kq['draft']).name} · hình "
-                               f"{kq['khoi_co_hinh']}/{kq['tong_khoi']}"
+                               f"{kq['mieng_co_hinh']}/{kq['tong_mieng']} miếng"
                                + (f" · {len(kq['canh_bao'])} cảnh báo" if kq["canh_bao"] else "")}
         except Exception as exc:  # noqa: BLE001
             with _offline_lock:

@@ -96,7 +96,32 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-cuon-tl{overflow-x:auto; padding:2px 2px 8px}
 #of-thuoc{position:relative; height:15px}
 #of-thuoc span{position:absolute; font-size:10px; color:var(--muted)}
-#of-dai{position:relative; height:90px}
+#of-dai{position:relative; height:74px}                 /* dải HÌNH */
+#of-dai-au{position:relative; height:40px; margin-top:4px}   /* dải AUDIO */
+.of-au{position:absolute; top:0; height:100%; border-radius:6px;
+       background:#243447; border:1px solid #31465e; overflow:hidden}
+.of-au .t{position:absolute; left:5px; top:3px; font-size:9.5px; color:#9fb3c8;
+          white-space:nowrap; overflow:hidden; max-width:92%}
+.of-au.chon{outline:2px solid var(--warn); outline-offset:-2px}
+.of-im{position:absolute; top:0; height:100%; border-radius:6px;
+       background:repeating-linear-gradient(135deg,#1b2029 0 6px,#161a21 6px 12px);
+       border:1px dashed #2f3742}
+.of-im .n{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+          font-size:9px; color:#6b7684; white-space:nowrap}
+.of-mieng{position:absolute; top:0; height:100%; border:1px solid var(--line);
+          border-radius:7px; overflow:hidden; background:#22303f; cursor:pointer}
+.of-mieng img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.9}
+.of-mieng .i{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--muted);
+             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
+.of-mieng .d{position:absolute; left:3px; bottom:3px; font-size:9.5px;
+             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
+.of-mieng.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:4}
+.of-mieng.tho{background:#2b3a2f; border-color:#3d5544}      /* miếng nằm trong khoảng thở */
+.of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
+               cursor:ew-resize; z-index:5}
+.of-mieng .mep:hover,.of-mieng .mep.dang{background:rgba(232,163,61,.45)}
+#of-zoom{display:flex; align-items:center; gap:6px}
+#of-zoom input{width:110px}
 .of-khoi{position:absolute; top:0; height:100%; border:1px solid var(--line); border-radius:7px;
          background:#22303f; cursor:pointer; overflow:hidden}
 .of-khoi img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.88}
@@ -591,7 +616,21 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 
   <div class="panel" id="of-tl" hidden>
     <div class="note" style="margin:0 0 6px" id="of-cc"></div>
-    <div id="of-cuon-tl"><div id="of-thuoc"></div><div id="of-dai"><div id="of-ph"></div></div></div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+      <span class="note" style="margin:0"><b style="color:#69aee0">HÌNH</b> cắt tự do ·
+        <b style="color:#9fb3c8">AUDIO</b> bất biến</span>
+      <button class="btn ghost small" onclick="ofThemMieng()" title="chẻ miếng hình tại playhead">⊞ Thêm hình</button>
+      <button class="btn ghost small" onclick="ofBoMieng()" title="bỏ miếng đang chọn">⊟ Bỏ miếng</button>
+      <span style="flex:1"></span>
+      <span id="of-zoom" class="note" style="margin:0">zoom
+        <input type="range" min="6" max="90" value="14" oninput="ofZoom(this.value)">
+        <span id="of-zoom-n" class="mono">14</span> px/s</span>
+    </div>
+    <div id="of-cuon-tl">
+      <div id="of-thuoc"></div>
+      <div id="of-dai"><div id="of-ph"></div></div>
+      <div id="of-dai-au"></div>
+    </div>
   </div>
 </section>
 
@@ -1017,7 +1056,7 @@ function canhBaoNiche() {
 }
 
 /* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
-let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_PXS = 14
+let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_HCHON = 0, OF_PXS = 14
 let OF_AUDIO = null, OF_LUU_T = 0
 const ofK = () => (OF_HD ? OF_HD.khoi : [])
 const ofUv = k => (k && k.uv && k.chon >= 0 && k.uv[k.chon]) ? k.uv[k.chon] : null
@@ -1118,55 +1157,149 @@ function toastOf(m) {
 
 /* ---------- timeline ---------- */
 const ofDoiTruoc = i => ofK().slice(0, i).reduce((a, k) => a + (k.tho_them || 0), 0)
+function ofMoc() {                       // mốc timeline của từng khối
+  const ra = []; let doi = 0
+  for (const k of ofK()) {
+    const t0 = k.v0 + doi, t1 = k.v1 + doi
+    const nghi = Math.max(0, (k.tho || 0) + (k.tho_them || 0))
+    ra.push([t0, t1, t1 + nghi]); doi += (k.tho_them || 0)
+  }
+  return ra
+}
+const ofHinh = () => (OF_HD && OF_HD.hinh) ? OF_HD.hinh : []
+const ofTong = () => { const m = ofMoc(); return m.length ? m[m.length - 1][2] : 0 }
+
 function ofVeTL() {
   const dai = document.getElementById('of-dai')
-  ;[...dai.querySelectorAll('.of-khoi,.of-tho')].forEach(e => e.remove())
-  const ks = ofK()
-  const lap = ofKiemLap()
-  ks.forEach((k, i) => {
-    const u = ofUv(k)
-    const d = document.createElement('div')
-    let tong = ''
-    if (k.cau_id !== undefined) {
-      const cung = ks.filter(x => x.cau_id === k.cau_id)
-      if (cung.length > 1) tong = cung.indexOf(k) % 2 ? ' tongB' : ''
-    }
-    d.className = 'of-khoi' + tong + (i === OF_CHON ? ' chon' : '') + (lap.has(i) ? ' lap' : '')
-    d.style.left = ((k.v0 + ofDoiTruoc(i)) * OF_PXS) + 'px'
-    d.style.width = Math.max((k.v1 - k.v0) * OF_PXS - 2, 16) + 'px'
-    d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
-      <span class="i">${String(i + 1).padStart(2, '0')}${k.nguoi_sua ? ' ✎' : ''}</span>
-      <span class="d mono">${(k.v1 - k.v0).toFixed(1)}s</span>`
-    d.onclick = () => { OF_CHON = i; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + k.v0 + .02; ofVeAll() }
-    d.ondblclick = e => { e.preventDefault(); ofDoiHinh(i) }
-    dai.appendChild(d)
-    const nghi = (k.tho || 0) + (k.tho_them || 0)
-    if (nghi > 0.05) {
-      const b = document.createElement('div')
-      b.className = 'of-tho' + (i === OF_CHON ? ' chon' : '')
-      b.style.left = ((k.v1 + ofDoiTruoc(i)) * OF_PXS + 1) + 'px'
-      b.style.width = Math.max(nghi * OF_PXS - 3, 6) + 'px'
-      b.innerHTML = `<span class="nh">${nghi * OF_PXS > 30 ? nghi.toFixed(1) + 's' + (k.tho_them ? '✚' : '') : ''}</span>`
-      b.onclick = () => { OF_CHON = i; ofVeAll() }
-      dai.appendChild(b)
+  const dauA = document.getElementById('of-dai-au')
+  ;[...dai.querySelectorAll('.of-mieng')].forEach(e => e.remove())
+  dauA.innerHTML = ''
+  const moc = ofMoc(), lap = ofKiemLap()
+  // ── dải AUDIO (bất biến): khối nói + vùng im lặng ──
+  moc.forEach(([t0, t1, tt], i) => {
+    const k = ofK()[i]
+    const a = document.createElement('div')
+    a.className = 'of-au' + (i === OF_CHON ? ' chon' : '')
+    a.style.left = (t0 * OF_PXS) + 'px'
+    a.style.width = Math.max((t1 - t0) * OF_PXS - 2, 10) + 'px'
+    a.innerHTML = `<span class="t">${esc((k.loi || '').slice(0, 60))}</span>`
+    a.onclick = () => { OF_CHON = i; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + k.v0 + .02; ofVeAll() }
+    dauA.appendChild(a)
+    if (tt - t1 > 0.05) {
+      const im = document.createElement('div')
+      im.className = 'of-im'
+      im.style.left = (t1 * OF_PXS) + 'px'
+      im.style.width = ((tt - t1) * OF_PXS) + 'px'
+      im.innerHTML = `<span class="n">${(tt - t1) * OF_PXS > 26 ? (tt - t1).toFixed(1) + 's im' : ''}</span>`
+      im.onclick = () => { OF_CHON = i; ofVeAll() }
+      dauA.appendChild(im)
     }
   })
-  const tong = ks.length ? Math.max(...ks.map((k, i) => k.v1 + (k.tho || 0) + ofDoiTruoc(i) + (k.tho_them || 0))) : 0
+  // ── dải HÌNH (cắt tự do) ──
+  ofHinh().forEach((h, j) => {
+    const u = (h.uv && h.chon >= 0) ? h.uv[h.chon] : null
+    const trong_tho = moc.some(([, t1, tt]) => h.t0 >= t1 - 0.05 && tt - t1 > 0.05)
+    const d = document.createElement('div')
+    d.className = 'of-mieng' + (trong_tho ? ' tho' : '') + (j === OF_HCHON ? ' chon' : '')
+                  + (lap.has(h.khoi_goc) ? ' lap' : '')
+    d.style.left = (h.t0 * OF_PXS) + 'px'
+    d.style.width = Math.max(h.dur * OF_PXS - 2, 14) + 'px'
+    d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
+      <span class="i">${String(j + 1).padStart(2, '0')}${h.nguoi_sua ? ' ✎' : ''}</span>
+      <span class="d mono">${h.dur.toFixed(1)}s</span>`
+    d.onclick = e => {
+      if (e.target.classList.contains('mep')) return
+      OF_HCHON = j
+      OF_CHON = (h.khoi_goc !== undefined && h.khoi_goc < ofK().length) ? h.khoi_goc : OF_CHON
+      if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + Math.max(0, h.t0 - ofDoiTruoc(OF_CHON))
+      ofVeAll()
+    }
+    d.ondblclick = e => { e.preventDefault(); ofDoiHinh(j) }
+    const mep = document.createElement('span'); mep.className = 'mep'
+    mep.onmousedown = e => ofKeoMep(e, j, mep, d)
+    d.appendChild(mep)
+    dai.appendChild(d)
+  })
+  const tong = ofTong()
   const th = document.getElementById('of-thuoc'); th.innerHTML = ''
-  for (let x = 0; x <= tong; x += 5) {
+  const buoc = OF_PXS < 10 ? 15 : (OF_PXS < 25 ? 5 : 2)
+  for (let x = 0; x <= tong; x += buoc) {
     const v = document.createElement('span')
     v.className = 'mono'; v.style.left = (x * OF_PXS) + 'px'; v.textContent = ofFmt(x)
     th.appendChild(v)
   }
-  document.getElementById('of-dai').style.width = th.style.width = (tong * OF_PXS + 60) + 'px'
+  const W = tong * OF_PXS + 60
+  dai.style.width = th.style.width = dauA.style.width = W + 'px'
+}
+function ofZoom(v) {
+  OF_PXS = +v
+  document.getElementById('of-zoom-n').textContent = v
+  ofVeTL()
+}
+function ofKeoMep(e, j, mep, el) {
+  e.preventDefault(); e.stopPropagation()
+  const hs = ofHinh(); if (j >= hs.length - 1) { toastOf('Miếng cuối neo hết timeline'); return }
+  mep.classList.add('dang')
+  const x0 = e.clientX, d0 = hs[j].dur, s0 = hs[j + 1].dur
+  const elB = el.nextElementSibling
+  let dur = d0
+  const keo = ev => {
+    const dx = (ev.clientX - x0) / OF_PXS
+    dur = Math.max(0.4, Math.min(d0 + dx, d0 + s0 - 0.4))
+    el.style.width = Math.max(dur * OF_PXS - 2, 14) + 'px'
+    if (elB && elB.classList.contains('of-mieng')) {
+      elB.style.left = ((hs[j].t0 + dur) * OF_PXS) + 'px'
+      elB.style.width = Math.max((d0 + s0 - dur) * OF_PXS - 2, 14) + 'px'
+    }
+    document.getElementById('of-stat').textContent =
+      `miếng ${j + 1}: ${dur.toFixed(1)}s → miếng ${j + 2}: ${(d0 + s0 - dur).toFixed(1)}s`
+  }
+  const xong = async () => {
+    document.removeEventListener('mousemove', keo); document.removeEventListener('mouseup', xong)
+    mep.classList.remove('dang')
+    if (Math.abs(dur - d0) > 0.05) {
+      try {
+        const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
+          body: JSON.stringify({thao_tac: 'keo_mep', idx: j, dur: dur})})
+        OF_HD.hinh = r.hinh
+        toastOf(`Miếng ${j + 1} = ${dur.toFixed(1)}s`)
+      } catch (er) { toastOf('Lỗi: ' + er.message) }
+    }
+    ofVeAll()
+  }
+  document.addEventListener('mousemove', keo); document.addEventListener('mouseup', xong)
+}
+async function ofThemMieng() {
+  const t = OF_AUDIO ? Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0)) : 0
+  const moc = ofMoc()
+  let i = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
+  const tl = t + ofDoiTruoc(i)                     // giây trên trục TIMELINE
+  try {
+    const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
+      body: JSON.stringify({thao_tac: 'them', tai_giay: tl})})
+    OF_HD.hinh = r.hinh
+    toastOf('⊞ Thêm miếng hình tại ' + ofFmt(tl) + ' — chọn hình từ khay')
+    ofVeAll()
+  } catch (e) { toastOf('Lỗi: ' + e.message) }
+}
+async function ofBoMieng() {
+  if (OF_HCHON < 0) { toastOf('Click một miếng hình trước'); return }
+  try {
+    const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
+      body: JSON.stringify({thao_tac: 'bo', idx: OF_HCHON})})
+    OF_HD.hinh = r.hinh
+    OF_HCHON = Math.max(0, OF_HCHON - 1)
+    toastOf('⊟ Đã bỏ miếng — miếng cạnh nở ra phủ chỗ')
+    ofVeAll()
+  } catch (e) { toastOf('Lỗi: ' + e.message) }
 }
 function ofKiemLap() {
-  const v = new Set(), ks = ofK()
+  const v = new Set(), ks = ofHinh()
   ks.forEach((k, i) => {
     const u = ofUv(k); if (!u) return
     for (let j = 0; j < i; j++) {
       const w = ofUv(ks[j])
-      if (w && w.id === u.id && (k.v0 - ks[j].v0) < 60) { v.add(i); v.add(j) }
+      if (w && w.id === u.id && (k.t0 - ks[j].t0) < 60) { v.add(i); v.add(j) }
     }
   })
   return v
@@ -1216,10 +1349,10 @@ function ofTimDebounce() {
 }
 function ofVeKhay() {
   if (OF_PHA !== 2) return
-  const k = ofK()[OF_CHON] || {}
+  const k = ofHinh()[OF_HCHON] || ofK()[OF_CHON] || {}
   const ds = OF_TIM_KQ !== null ? OF_TIM_KQ : (k.uv || [])
   document.getElementById('of-tim-nhan').textContent = OF_TIM_KQ !== null
-    ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của khối ${OF_CHON + 1}`
+    ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của miếng hình ${OF_HCHON + 1}`
   const nhom = {envato: [], ref: [], pexels: [], pixabay: []}
   ds.forEach((u, j) => {
     const khu = u.nguon === 'aigen' ? 'pixabay' : u.nguon   // AI nằm khu phụ 2
@@ -1241,12 +1374,12 @@ function ofVeKhay() {
       d.onmouseenter = () => v && v.play().catch(() => {})
       d.onmouseleave = () => v && v.pause()
       d.onclick = () => {
-        if (OF_TIM_KQ !== null) {              // kết quả Library -> THÊM vào uv khối
+        if (OF_TIM_KQ !== null) {              // kết quả Library -> THÊM vào uv miếng
           k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
           k.chon = 0
         } else k.chon = j
         k.nguoi_sua = true
-        toastOf(`Khối ${OF_CHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
+        toastOf(`Miếng ${OF_HCHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
         OF_TIM_KQ = null; document.getElementById('of-tim').value = ''
         ofLuu(); ofVeAll()
       }
@@ -1265,36 +1398,36 @@ async function ofGen() {
   } catch (e) { alert('Lỗi: ' + e.message) }
 }
 function ofUvLap(uid) {
-  const ks = ofK(), k0 = ks[OF_CHON]
+  const ks = ofHinh(), k0 = ks[OF_HCHON] || {t0: 0}
   return ks.some((k, j) => { const w = ofUv(k)
-    return j !== OF_CHON && w && w.id === uid && Math.abs(k.v0 - k0.v0) < 60 })
+    return j !== OF_HCHON && w && w.id === uid && Math.abs(k.t0 - k0.t0) < 60 })
 }
 function ofDoiHinh(i) {
-  const k = ofK()[i]; if (!k || !k.uv || k.uv.length < 2 || OF_PHA !== 2) return
+  const k = ofHinh()[i]; if (!k || !k.uv || k.uv.length < 2 || OF_PHA !== 2) return
   let c = k.chon
   for (let n = 1; n <= k.uv.length; n++) {
     const t = (k.chon + n) % k.uv.length
     if (!ofUvLap(k.uv[t].id)) { c = t; break }
   }
-  k.chon = c; k.nguoi_sua = true; OF_CHON = i
-  toastOf(`Khối ${i + 1} → «${esc((k.uv[c].tieu_de || '').slice(0, 44))}»`)
+  k.chon = c; k.nguoi_sua = true; OF_HCHON = i
+  toastOf(`Miếng ${i + 1} → «${esc((k.uv[c].tieu_de || '').slice(0, 44))}»`)
   ofLuu(); ofVeAll()
 }
 function ofPhuongAn() {
-  const ks = ofK(); if (!ks.length) return
+  const ks = ofHinh(); if (!ks.length) return
   let doi = 0
   if (OF_PHA === 2) {
     const dung = {}
     ks.forEach(k => {
-      if (k.nguoi_sua || !k.uv || !k.uv.length) { const u = ofUv(k); if (u) dung[u.id] = k.v0; return }
+      if (k.nguoi_sua || !k.uv || !k.uv.length) { const u = ofUv(k); if (u) dung[u.id] = k.t0; return }
       const top = k.uv.slice(0, Math.min(6, k.uv.length))
       let c = Math.floor(Math.random() * top.length)
       for (let n = 0; n < top.length; n++) {
         const j = (c + n) % top.length
         const g = dung[top[j].id]
-        if (g === undefined || Math.abs(k.v0 - g) >= 60) { c = j; break }
+        if (g === undefined || Math.abs(k.t0 - g) >= 60) { c = j; break }
       }
-      k.chon = c; dung[top[c].id] = k.v0; doi++
+      k.chon = c; dung[top[c].id] = k.t0; doi++
     })
   } else toastOf('Pha 1: phương án ranh mềm sẽ có ở bản kế — hiện chỉnh tay chẻ/thở')
   if (doi) { toastOf(`⟳ Phương án mới: ${doi} khối đổi — khối ✎ giữ nguyên`); ofLuu(); ofVeAll() }
@@ -1330,7 +1463,7 @@ async function ofDoiPha() {
   }
 }
 function ofVeXem() {
-  const k = ofK()[OF_CHON] || {}, u = ofUv(k)
+  const k = ofHinh()[OF_HCHON] || {}, u = ofUv(k)
   const co = OF_PHA === 2 && u
   const anh = document.getElementById('of-anh'), vid = document.getElementById('of-video')
   anh.hidden = true; vid.hidden = true; vid.pause()
@@ -1341,17 +1474,18 @@ function ofVeXem() {
     if (vs) { vid.src = vs; vid.hidden = false; vid.play().catch(() => {}) }
     else { anh.src = ofAnh(u); anh.hidden = false }
     document.getElementById('of-nhan').innerHTML =
-      `<b>Khối ${String(OF_CHON + 1).padStart(2, '0')}</b> · ${esc((u.tieu_de || '').slice(0, 42))}`
+      `<b>Miếng ${String(OF_HCHON + 1).padStart(2, '0')}</b> · ${esc((u.tieu_de || '').slice(0, 40))}`
   } else if (OF_PHA === 2) {
-    document.getElementById('of-rong').innerHTML = 'Khối ' + (OF_CHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
+    document.getElementById('of-rong').innerHTML = 'Miếng ' + (OF_HCHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
   }
 }
 function ofVeStat() {
   const ks = ofK(), lap = ofKiemLap().size
-  const co = ks.filter(k => ofUv(k)).length
+  const hs = ofHinh()
+  const co = hs.filter(k => ofUv(k)).length
   document.getElementById('of-stat').textContent = OF_PHA === 1
-    ? `${ks.length} khối theo hơi thở · ${ks.filter(k => (k.tho || 0) >= 0.5).length} khoảng thở`
-    : `hình ${co}/${ks.length} · lặp<60s ${lap}`
+    ? `${ks.length} khối voice · ${ks.filter(k => (k.tho || 0) >= 0.5).length} khoảng thở · ${hs.length} miếng hình`
+    : `hình ${co}/${hs.length} miếng · lặp<60s ${lap}`
   document.getElementById('of-cc').textContent = OF_PHA === 1
     ? 'PHA 1 — nghe voice kiểm ranh; khối trắng = hình thở; +1s/−1s là ÂM THANH thật (voice bất biến).'
     : 'PHA 2 — khối đã khóa ranh. Click khối → 4 khu ứng viên; double-click = hình kế; search nối Library.'

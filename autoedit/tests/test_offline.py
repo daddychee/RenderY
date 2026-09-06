@@ -297,14 +297,17 @@ def test_thay_mau_chuong_khoa(du_an, tmp_path, monkeypatch, profile_gia):
     uv_ok = {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok", "lop": "L1",
              "diem": 5, "url_anh": "", "url_video": "", "geo": "", "dai_s": 8}
     for k in hd["khoi"]:
-        k["uv"] = [uv_chet, uv_ok]      # chọn mặc định = clip CHẾT -> phải rơi về dự bị
+        k["uv"] = [uv_chet, uv_ok]
         k["chon"] = 0
+    for h in hd["hinh"]:                # relocate đọc DẢI HÌNH (08/09)
+        h["uv"] = [uv_chet, uv_ok]      # chọn mặc định = clip CHẾT -> phải rơi về dự bị
+        h["chon"] = 0
     hd["khoi"][0]["tho_them"] = 1.0     # +1s: hình phủ thêm, voice gap im thật
     hd["trang_thai"] = "khoa"
     runner.luu(du_an, hd)
 
     kq = thay_mau(du_an, profile=profile_gia, log=lambda m: None)
-    assert kq["khoi_co_hinh"] == kq["tong_khoi"] == 2
+    assert kq["mieng_co_hinh"] == kq["tong_mieng"] == 2   # 2 miếng hình 1-1 với khối
     d = json.loads((Path(kq["draft"]) / "draft_content.json").read_text(encoding="utf-8"))
     tr = {t["name"]: t for t in d["tracks"]}
     assert len(tr["video_l1"]["segments"]) >= 2
@@ -332,3 +335,95 @@ def test_thay_mau_doi_khoa_so(du_an, tmp_path, monkeypatch, profile_gia):
     runner.phan_tich(du_an, llm=_LLM())
     with pytest.raises(RuntimeError, match="KHÓA SỔ"):
         thay_mau(du_an, profile=profile_gia)
+
+
+# ------------------------------------------------ DẢI HÌNH tách voice (08/09)
+def _hd_gia():
+    return {"khoi": [{"v0": 0.0, "v1": 4.0, "tho": 8.0, "tho_them": 0.0, "loi": "a",
+                      "uv": [], "chon": -1},
+                     {"v0": 12.0, "v1": 16.0, "tho": 0.0, "tho_them": 0.0, "loi": "b",
+                      "uv": [], "chon": -1}]}
+
+
+def test_hinh_sinh_1_1_va_moc():
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    hs = mh.dam_bao(hd)
+    assert len(hs) == 2
+    assert hs[0]["t0"] == 0.0 and hs[0]["dur"] == 12.0    # phủ trọn nói + thở 8s
+    assert mh.tong_dai(hd["khoi"]) == 16.0
+
+
+def test_them_nhieu_mieng_trong_khoang_tho():
+    """Chính nhu cầu user 08/09: khoảng thở 8s chứa được NHIỀU footage."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    j1 = mh.them_mieng(hd, 6.0)      # chẻ trong vùng thở
+    j2 = mh.them_mieng(hd, 9.0)
+    assert j1 > 0 and j2 > 0
+    hs = hd["hinh"]
+    assert len(hs) == 4
+    trong_tho = [h for h in hs if h["t0"] >= 4.0 and h["t0"] < 12.0]
+    assert len(trong_tho) >= 2                            # >=2 miếng trong 1 khoảng thở
+    assert mh.kiem(hd) == []                              # liền mạch, phủ hết
+
+
+def test_mieng_trai_qua_nhieu_khoi_voice():
+    """Miếng hình được phép vượt ranh lời (giữ hình xuyên câu)."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    mh.keo_mep(hd, 0, 14.0)                               # miếng 1 ăn sang khối 2
+    assert hd["hinh"][0]["dur"] == 14.0
+    assert hd["hinh"][1]["t0"] == 14.0 and hd["hinh"][1]["dur"] == 2.0
+    assert mh.kiem(hd) == []
+
+
+def test_bo_mieng_khong_ho():
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 6.0)
+    n = len(hd["hinh"])
+    assert mh.bo_mieng(hd, 1)
+    assert len(hd["hinh"]) == n - 1 and mh.kiem(hd) == []
+
+
+def test_dong_bo_sau_khi_doi_tho():
+    """+1s làm mốc voice dịch -> miếng hình dời theo khối gốc, không trôi."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    moc_cu = mh.moc_timeline(hd["khoi"])
+    hd["khoi"][0]["tho_them"] = 2.0                       # thở 8 -> 10s
+    mh.dong_bo_sau_tho(hd, moc_cu)
+    assert hd["hinh"][0]["dur"] == pytest.approx(14.0, abs=0.01)   # ô nở theo
+    assert hd["hinh"][1]["t0"] == pytest.approx(14.0, abs=0.01)    # khối 2 dời đúng
+    assert mh.kiem(hd) == []
+
+
+def test_api_thao_tac_dai_hinh(du_an, tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.offline import runner
+    from autoedit.web import server
+
+    runner.phan_tich(du_an, llm=_LLM())
+    monkeypatch.setattr(server, "PROJECTS_DIR", du_an.parent)
+    tc = TestClient(server.app)
+    n0 = len(runner.doc(du_an)["hinh"])
+    r = tc.post(f"/api/offline/{du_an.name}/hinh",
+                json={"thao_tac": "them", "tai_giay": 0.5})
+    assert r.status_code == 200 and len(r.json()["hinh"]) == n0 + 1
+    assert r.json()["loi"] == []
+    r2 = tc.post(f"/api/offline/{du_an.name}/hinh", json={"thao_tac": "bo", "idx": 1})
+    assert r2.status_code == 200 and len(r2.json()["hinh"]) == n0
