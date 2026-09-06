@@ -89,9 +89,18 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
                                     object-fit:contain}
 .of-khung-v .rong{position:absolute; inset:0; display:grid; place-items:center;
                   color:var(--muted); font-size:12.5px; text-align:center; padding:12px}
+/* CỬA SỔ REVIEW+TRIM: to gần trọn màn, mở bằng double-click ứng viên */
+#of-trim-cs{position:fixed; inset:0; background:rgba(0,0,0,.78); display:none;
+            place-items:center; z-index:80; padding:3vh 3vw}
+#of-trim-cs.mo{display:grid}
+#of-trim-cs .hop{width:min(1200px, 92vw); height:min(86vh, 780px); display:flex;
+                 flex-direction:column; background:var(--panel);
+                 border:1px solid var(--line); border-radius:14px; overflow:hidden}
+#of-trim-cs .dau{display:flex; align-items:center; gap:10px; padding:10px 14px;
+                 border-bottom:1px solid var(--line); font-size:13.5px}
 /* thanh trim */
-#of-trim{flex:0 0 auto; padding:7px 10px 9px; border-top:1px solid var(--line)}
-#of-trim-thanh{position:relative; height:26px; background:var(--bg);
+#of-trim{flex:0 0 auto; padding:10px 14px 13px; border-top:1px solid var(--line)}
+#of-trim-thanh{position:relative; height:34px; background:var(--bg);
                border:1px solid var(--line); border-radius:6px; cursor:pointer}
 #of-trim-vung{position:absolute; top:0; bottom:0; background:var(--accent-soft);
               border-left:2px solid var(--accent); border-right:2px solid var(--accent)}
@@ -125,15 +134,16 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-khay.on{display:flex}
 #of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
         grid-template-rows:1.4fr 1fr; gap:10px}
+.of-khu.rong{flex:0 0 44px}
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
 .of-khu h4{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
            display:flex; gap:7px; align-items:center; margin:0 0 5px}
 .of-khu h4 .g{flex:1; height:1px; background:var(--line)}
 .of-cuon{flex:1 1 0; min-height:0; display:flex; gap:8px; overflow-x:auto; align-items:center}
-.of-uv{flex:0 0 168px; position:relative; border:1px solid var(--line); border-radius:8px;
+.of-uv{flex:0 0 240px; position:relative; border:1px solid var(--line); border-radius:8px;
        overflow:hidden; cursor:pointer; background:#000}
-.of-khu.phu .of-uv{flex-basis:126px}
+.of-khu.phu .of-uv{flex-basis:180px}
 .of-uv .cap{position:relative; aspect-ratio:16/9; background:#000}
 .of-uv .cap img,.of-uv .cap video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .of-uv .cap video{opacity:0}
@@ -648,40 +658,15 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 
   <div id="of-than" hidden>
     <div id="of-trai">
-      <!-- MÀN TRÊN: review + trim footage ứng viên (không đụng timeline) -->
-      <div class="of-man" id="of-man-review">
-        <div class="dau">REVIEW <span class="ten" id="of-rv-ten">— chọn một ứng viên bên phải</span></div>
-        <div class="of-khung-v" id="of-rv-khung">
-          <video id="of-rv-video" muted loop playsinline></video>
-          <img id="of-rv-anh" alt="" hidden>
-          <div class="rong" id="of-rv-rong">Click ứng viên trong khay để xem<br>rồi trim đúng khúc cần dùng</div>
-        </div>
-        <div id="of-trim" hidden>
-          <div id="of-trim-thanh">
-            <div id="of-trim-vung"></div>
-            <div class="tay" id="of-tay-a"></div>
-            <div class="tay" id="of-tay-b"></div>
-            <div id="of-trim-ph"></div>
-          </div>
-          <div id="of-trim-hang">
-            <span class="mono" id="of-trim-so">0.0 – 0.0s</span>
-            <span style="flex:1"></span>
-            <button class="btn ghost small" onclick="ofTrimPhat()">▶ nghe khúc</button>
-            <button class="btn small" onclick="ofTrimDung()">Dùng khúc này</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MÀN DƯỚI: preview timeline + kịch bản (lời gốc + dịch) -->
       <div class="of-man" id="of-man-timeline">
-        <div class="dau">TIMELINE <span class="ten" id="of-nhan"></span></div>
+        <div class="dau">PREVIEW <span class="ten" id="of-nhan"></span></div>
         <div class="of-khung-v" id="of-khung">
           <video id="of-video" muted loop playsinline hidden></video>
           <img id="of-anh" alt="" hidden>
           <div class="rong" id="of-rong">PHA 1 — duyệt cấu trúc khối<br>chưa đổ hình</div>
         </div>
-        <div id="of-loi-p" style="flex:0 0 auto; max-height:38%; overflow:auto;
-             padding:10px 12px; border-top:1px solid var(--line)">
+        <div id="of-loi-p" style="flex:0 0 auto; max-height:42%; overflow:auto;
+             padding:11px 13px; border-top:1px solid var(--line)">
           <div id="of-cau">—</div><div id="of-lop"></div>
         </div>
       </div>
@@ -739,6 +724,37 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   <div class="r"><span>Đổi hình miếng đang chọn</span><span><kbd>d</kbd></span></div>
   <div class="r" style="margin-top:6px;border-top:1px solid var(--line);padding-top:7px">
     <span>Đóng bảng</span><span><kbd>?</kbd> hoặc <kbd>Esc</kbd></span></div>
+</div>
+
+<!-- CỬA SỔ REVIEW + TRIM (user 08/09: double-click ứng viên mới mở) -->
+<div id="of-trim-cs" onclick="if(event.target.id==='of-trim-cs')ofDongTrim()">
+  <div class="hop">
+    <div class="dau">
+      <b id="of-rv-ten">—</b>
+      <span style="flex:1"></span>
+      <span class="note mono" id="of-trim-so" style="margin:0">0.0 – 0.0s</span>
+      <button class="btn ghost small" onclick="ofDongTrim()">Đóng (Esc)</button>
+    </div>
+    <div class="of-khung-v" id="of-rv-khung" style="flex:1 1 0">
+      <video id="of-rv-video" muted loop playsinline controls></video>
+      <img id="of-rv-anh" alt="" hidden>
+    </div>
+    <div id="of-trim">
+      <div id="of-trim-thanh">
+        <div id="of-trim-vung"></div>
+        <div class="tay" id="of-tay-a"></div>
+        <div class="tay" id="of-tay-b"></div>
+        <div id="of-trim-ph"></div>
+      </div>
+      <div id="of-trim-hang">
+        <span class="note" style="margin:0">Kéo 2 vạch chọn khúc — chỉ GHI TỌA ĐỘ, không tạo file mới</span>
+        <span style="flex:1"></span>
+        <button class="btn ghost small" onclick="ofTrimPhat()">▶ nghe khúc</button>
+        <button class="btn ghost small" onclick="ofTrimHet()">⟲ cả clip</button>
+        <button class="btn" onclick="ofTrimDung()">Dùng khúc này</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═════════ GENERATION ═════════ -->
@@ -1220,7 +1236,10 @@ document.addEventListener('keydown', e => {
   else if (k === 'r') { e.preventDefault(); ofBoMieng() }
   else if (k === 'd') { e.preventDefault(); ofDoiHinh(OF_HCHON) }
   else if (k === '?' || (e.key === '/' && e.shiftKey)) { e.preventDefault(); ofHotKey() }
-  else if (e.key === 'Escape') document.getElementById('of-hot').classList.remove('mo')
+  else if (e.key === 'Escape') {
+    document.getElementById('of-hot').classList.remove('mo')
+    if (document.getElementById('of-trim-cs').classList.contains('mo')) ofDongTrim()
+  }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault()
     const hs = ofHinh(); if (!hs.length) return
@@ -1578,6 +1597,8 @@ function ofVeKhay() {
   for (const ng of ['envato', 'ref', 'pexels', 'pixabay']) {
     const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
     document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
+    const khu = dai.parentElement
+    khu.classList.toggle('rong', !nhom[ng].length)
     if (!nhom[ng].length) { dai.innerHTML = '<span class="note" style="margin:0">—</span>'; continue }
     for (const [u, j] of nhom[ng]) {
       const lap = ofUvLap(u.id)
@@ -1594,8 +1615,8 @@ function ofVeKhay() {
         if (!v.src && vsrc) v.src = vsrc
         v.play().catch(() => {}) }
       d.onmouseleave = () => { if (v) v.pause() }
-      d.onclick = () => ofReview(u)          // 1 click = XEM ở màn review
-      d.ondblclick = () => {                   // double-click = dùng ngay (không trim)
+      d.ondblclick = () => ofReview(u)       // double-click = mở CỬA SỔ trim
+      d.onclick = () => {                      // 1 click = dùng cả clip
         ofChup()
         if (OF_TIM_KQ !== null) {
           k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
@@ -1688,7 +1709,15 @@ async function ofDoiPha() {
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
+function ofDongTrim() {
+  document.getElementById('of-trim-cs').classList.remove('mo')
+  const v = document.getElementById('of-rv-video')
+  v.pause(); v.removeAttribute('src'); v.load()
+}
+function ofTrimHet() { OF_RV_T0 = 0; OF_RV_T1 = OF_RV_DAI; ofVeTrim() }
 function ofReview(u) {
+  document.getElementById('of-trim-cs').classList.add('mo')
+  ofNoiTrim()
   OF_RV = u
   const v = document.getElementById('of-rv-video'), a = document.getElementById('of-rv-anh')
   document.getElementById('of-rv-ten').textContent = u.tieu_de || u.nhan || ''
@@ -1751,7 +1780,8 @@ async function ofTrimDung() {
     const d = await api('/api/offline/' + OF_PID)
     if (d.hop_dong) OF_HD = d.hop_dong
     OF_KHAY_KEY = ''
-    toastOf(`✔ Miếng ${OF_HCHON + 1} dùng khúc ${OF_RV_T0.toFixed(1)}–${OF_RV_T1.toFixed(1)}s · đã ghi Library`)
+    toastOf(`✔ Miếng ${OF_HCHON + 1} dùng khúc ${OF_RV_T0.toFixed(1)}–${OF_RV_T1.toFixed(1)}s (chỉ ghi tọa độ)`)
+    ofDongTrim()
     ofVeAll()
   } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
 }
@@ -1785,7 +1815,7 @@ function ofVeStat() {
     : `hình ${co}/${hs.length} miếng · lặp<60s ${lap}`
   document.getElementById('of-cc').textContent = OF_PHA === 1
     ? 'PHA 1 — nghe voice kiểm ranh; khối trắng = hình thở. Phím: 1/2 zoom · q/w thở ±1s · Ctrl+Z hoàn tác · ⌨ xem tất cả.'
-    : 'PHA 2 — khối đã khóa ranh. Click khối → 4 khu ứng viên; double-click = hình kế; search nối Library.'
+    : 'PHA 2 — click ứng viên = dùng cả clip · double-click = mở cửa sổ trim (ghi tọa độ, không tạo file).'
 }
 let OF_KHAY_KEY = ''
 function ofVeAll(nhe) {
