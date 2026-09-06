@@ -141,19 +141,83 @@ def test_khai_quat_kho_cu(conn, tmp_path):
     assert kq_tim[0]["id"] == "kho:h-test-1:b012_quito-market-stall_ab12cd.mp4"
 
 
-# ------------------------------------------------------------ nạp ref từ srt
-def test_nap_ref_tap(conn, tmp_path):
-    from autoedit.sotra.hut import nap_ref_tap
+# --------------------------------------------- nạp ref: cắt theo CẢNH QUAY
+def _gia_lap_ref(monkeypatch, canh, docs=None):
+    """Giả lập scene-detect + trích ảnh + đọc hình (không chạm ffmpeg/mạng)."""
+    import autoedit.sotra.hut as h
+    from autoedit.sotra.canh import Canh
+    from autoedit.sotra.doc_canh import DocRa
 
-    (tmp_path / "ref 1.srt").write_text(
-        "1\n00:00:05,000 --> 00:00:11,000\nfamily cooking dinner at home\n\n"
-        "2\n00:00:12,000 --> 00:00:13,000\nqua ngan\n\n", encoding="utf-8")
-    (tmp_path / "ref 1.mp4").write_bytes(b"v")
-    moi = nap_ref_tap(conn, tmp_path, tap="LI100")
-    assert moi == 1                                     # câu 1s bị bỏ
-    r = sdb.tim(conn, q="cooking")[0]
-    assert r["id"] == "ref:LI100-ref 1:5-11"
-    assert r["t0"] == 5.0 and r["t1"] == 11.0
+    monkeypatch.setattr("autoedit.sotra.canh.cat_canh",
+                        lambda v, **k: [Canh(*c) for c in canh])
+    monkeypatch.setattr("autoedit.sotra.doc_canh.trich_anh",
+                        lambda v, t0, t1, dich, **k: dich)
+    monkeypatch.setattr("autoedit.sotra.doc_canh.doc_nhieu",
+                        lambda al, **k: docs or [DocRa(i=j + 1) for j in range(len(al))])
+    return h
+
+
+def test_nap_ref_cat_theo_canh_khong_theo_cau(conn, tmp_path, monkeypatch):
+    """Đổi 06/09: đơn vị ref là CÚ MÁY, không phải câu phụ đề. Phụ đề chỉ làm
+    `loi_quanh` — 11% cảnh không có câu nào chồng vẫn phải vào kho."""
+    from autoedit.sotra.doc_canh import DocRa
+
+    h = _gia_lap_ref(monkeypatch, [(0.0, 5.0, False), (5.0, 9.0, True)],
+                     docs=[DocRa(i=1, subject="worker lifting box",
+                                 vat_the="bananas, box, pallet", shot="medium",
+                                 mood="tense", khop=2),
+                           DocRa(i=2, subject="street at night", vat_the="cars, lights")])
+    (tmp_path / "r.srt").write_text(
+        "1\n00:00:01,000 --> 00:00:03,000\nnarco cocaine shipment\n\n", encoding="utf-8")
+    (tmp_path / "r.mp4").write_bytes(b"v")
+
+    assert h.nap_ref_tap(conn, tmp_path, tap="LI100", quoc_gia="ecuador") == 2
+    c = {r["id"]: r for r in conn.execute("SELECT * FROM clip")}
+    a = c["ref:LI100-r:0.00-5.00"]
+    assert a["subject"] == "worker lifting box" and a["tag_nguon"] == "vision"
+    assert a["loi_quanh"] == "narco cocaine shipment"   # phụ đề = ngữ cảnh
+    assert a["geo"] == "ecuador"                         # gắn cứng cấp tập
+    assert a["frame_dau"], "mỗi cảnh phải có ảnh đại diện"
+    b = c["ref:LI100-r:5.00-9.00"]
+    assert b["loi_quanh"] == "", "cảnh không có câu chồng vẫn phải vào kho"
+    assert b["may_dong"] == 1
+
+
+def test_tra_duoc_bang_vat_the(conn, tmp_path, monkeypatch):
+    """`vat_the` phải nằm trong FTS — đó là lý do thêm trục này: tra "bananas"
+    phải ra thùng Burberry giấu ma túy (v1 chỉ ghi "box" nên tra không ra)."""
+    from autoedit.sotra.doc_canh import DocRa
+
+    h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)],
+                     docs=[DocRa(i=1, subject="hand holding box",
+                                 vat_the="hand, burberry box, bananas, plastic wrap")])
+    (tmp_path / "r.mp4").write_bytes(b"v")
+    h.nap_ref_tap(conn, tmp_path, tap="LI100", quoc_gia="ecuador")
+    assert sdb.tim(conn, q="bananas"), "tra vật thể trong hình phải ra cảnh"
+
+
+def test_bo_phu_de_cua_phim_khac(conn, tmp_path, monkeypatch):
+    """Gặp thật 06/09: `ref 2.srt` trùng MD5 với `ref 1.srt` nhưng video 23'
+    vs 52' — dùng bừa thì 228 cảnh bị gán lời phim khác."""
+    h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)])
+    (tmp_path / "r.srt").write_text(
+        "1\n00:50:00,000 --> 00:50:05,000\nloi phim khac\n\n", encoding="utf-8")
+    (tmp_path / "r.mp4").write_bytes(b"v")
+    log = []
+    h.nap_ref_tap(conn, tmp_path, tap="LI100", log=log.append)
+    r = conn.execute("SELECT loi_quanh FROM clip").fetchone()
+    assert r["loi_quanh"] == "", "phụ đề lệch phải bị bỏ, không gán bừa"
+    assert any("phim khác" in m for m in log)
+
+
+def test_doc_hinh_hong_van_nap_duoc(conn, tmp_path, monkeypatch):
+    """GLM chết thì kho vẫn phải có cảnh (tạm lấy từ khóa từ lời)."""
+    h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)])
+    (tmp_path / "r.srt").write_text(
+        "1\n00:00:01,000 --> 00:00:03,000\npolice patrol street\n\n", encoding="utf-8")
+    (tmp_path / "r.mp4").write_bytes(b"v")
+    assert h.nap_ref_tap(conn, tmp_path, tap="LI100") == 1
+    assert conn.execute("SELECT tag_nguon FROM clip").fetchone()[0] == "tieu_de"
 
 
 # ------------------------------------------------------------ API

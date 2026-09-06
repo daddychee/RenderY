@@ -147,32 +147,105 @@ def phien_hut(conn, tu_khoas: list[str], nguons: list[str],
 
 
 # ------------------------------------------------------------ REF của tập
-def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", toi_thieu_s: float = 2.5,
-                log=None) -> int:
-    """Quét *.srt + .mp4 cùng tên trong thư mục tập -> mỗi câu thoại đủ dài là
-    một KHÚC ref (id mang timecode). File KHÔNG copy — chỉ ghi path + t0/t1."""
+def doc_srt(srt: Path) -> list[tuple[float, float, str]]:
+    """[(t0, t1, lời)] từ file .srt."""
+    txt = srt.read_text(encoding="utf-8", errors="replace")
+    ra = []
+    for m in re.finditer(r"(\d\d):(\d\d):(\d\d),(\d+)\s*-->\s*"
+                         r"(\d\d):(\d\d):(\d\d),(\d+)\s*\n(.+?)(?:\n\n|\Z)",
+                         txt, re.S):
+        g = m.groups()
+        t0 = int(g[0]) * 3600 + int(g[1]) * 60 + int(g[2]) + int(g[3]) / 1000
+        t1 = int(g[4]) * 3600 + int(g[5]) * 60 + int(g[6]) + int(g[7]) / 1000
+        ra.append((t0, t1, re.sub(r"\s+", " ", g[8]).strip()))
+    return ra
+
+
+def loi_chong(cau: list[tuple[float, float, str]], t0: float, t1: float,
+              gioi_han: int = 200) -> str:
+    """Lời thoại CHỒNG THỜI GIAN với cảnh — làm ngữ cảnh, KHÔNG làm từ khóa."""
+    return " ".join(c[2] for c in cau if c[1] > t0 and c[0] < t1)[:gioi_han]
+
+
+def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
+                doc_hinh: bool = True, log=None) -> int:
+    """Quét *.mp4 trong thư mục tập -> mỗi CẢNH QUAY là một khúc ref.
+
+    Đổi 06/09 (user chốt): trước cắt theo CÂU PHỤ ĐỀ, nay cắt theo CẢNH QUAY.
+    Phụ đề chồng thời gian chỉ làm `loi_quanh` (ngữ cảnh) — từ khóa do đọc HÌNH
+    sinh ra. Lý do đo được: 11% cảnh không có phụ đề nào chồng (mà đó là b-roll
+    đẹp nhất), 19% có >=3 câu trộn ý, và phụ đề ref là tiếng Bulgaria nên dựa
+    vào nó thì vẫn phải gọi LLM.
+
+    `quoc_gia` gắn CỨNG vào geo mọi cảnh của tập — GLM đọc geo chỉ ra 3/12 cảnh
+    (giới hạn thật, nhắc trong prompt không sửa được), mà cả file ref quay ở một
+    nước nên gắn cứng vừa rẻ vừa chắc đúng.
+
+    File KHÔNG copy — chỉ ghi path_local + t0/t1 (luật cứng của Library).
+    """
+    from autoedit.sotra.canh import cat_canh
+    from autoedit.sotra.doc_canh import doc_nhieu, trich_anh
+
     thu_muc_tap = Path(thu_muc_tap)
     tap = tap or thu_muc_tap.name
     moi = 0
-    for srt in sorted(thu_muc_tap.rglob("*.srt")):
-        vid = srt.with_suffix(".mp4")
-        if not vid.is_file():
+    for vid in sorted(thu_muc_tap.rglob("*.mp4")):
+        cs = cat_canh(vid)
+        if not cs:
             continue
-        txt = srt.read_text(encoding="utf-8", errors="replace")
-        for m in re.finditer(r"(\d\d):(\d\d):(\d\d),\d+\s*-->\s*"
-                             r"(\d\d):(\d\d):(\d\d),\d+\s*\n(.+?)(?:\n\n|\Z)", txt, re.S):
-            g = m.groups()
-            t0 = int(g[0]) * 3600 + int(g[1]) * 60 + int(g[2])
-            t1 = int(g[3]) * 3600 + int(g[4]) * 60 + int(g[5])
-            if t1 - t0 < toi_thieu_s:
-                continue
-            loi = re.sub(r"\s+", " ", g[6]).strip()[:120]
-            r = {"id": sdb.lam_id("ref", f"{tap}-{vid.stem}", f"{t0}-{t1}"),
-                 "nguon": "ref", "tieu_de": loi, "path_local": str(vid),
-                 "t0": float(t0), "t1": float(t1), "dai_s": float(t1 - t0),
-                 "tap": tap, **tag_tu_tieu_de(loi)}
+        srt = vid.with_suffix(".srt")
+        cau = doc_srt(srt) if srt.is_file() else []
+        # Phụ đề DÀI HƠN video = .srt của phim khác bị copy nhầm tên. Gặp thật
+        # 06/09: `ref 2.srt` trùng MD5 với `ref 1.srt` nhưng video 23' vs 52' —
+        # nếu cứ dùng thì 228 cảnh bị gán lời của phim khác. Thà không có lời.
+        if cau and cau[-1][1] > cs[-1].t1 + 60:
+            if log:
+                log(f"sotra: ⚠ «{srt.name}» dài tới {cau[-1][1]:.0f}s nhưng "
+                    f"«{vid.name}» chỉ {cs[-1].t1:.0f}s — phụ đề của phim khác, BỎ")
+            cau = []
+        if log:
+            log(f"sotra: «{vid.name}» -> {len(cs)} cảnh"
+                + (f", {len(cau)} câu phụ đề" if cau else ", không có phụ đề"))
+
+        # ---- việc 4: ảnh đại diện mỗi cảnh (15KB/ảnh, KHÔNG cắt video) ----
+        thu = sdb.goc_so_tra() / "frames"
+        ho_so = []
+        for c in cs:
+            cid = sdb.lam_id("ref", f"{tap}-{vid.stem}", f"{c.t0:.2f}-{c.t1:.2f}")
+            anh = trich_anh(vid, c.t0, c.t1,
+                            thu / sdb.ten_frame(cid, vid.stem, "dau"))
+            ho_so.append((c, cid, anh, loi_chong(cau, c.t0, c.t1)))
+
+        # ---- việc 2: đọc hình theo lô ----
+        docs = {}
+        if doc_hinh:
+            co_anh = [(h[2], h[3]) for h in ho_so if h[2]]
+            if co_anh:
+                kq = doc_nhieu(co_anh, log=log)
+                for h, d in zip([h for h in ho_so if h[2]], kq):
+                    docs[h[1]] = d
+
+        for c, cid, anh, loi in ho_so:
+            d = docs.get(cid)
+            # geo: tên nước gắn cứng cấp tập + chi tiết GLM đọc được (nếu có)
+            geo = ">".join(x for x in (quoc_gia.lower().strip(),
+                                       (d.geo.lower() if d else "")) if x)
+            r = {"id": cid, "nguon": "ref",
+                 "tieu_de": (d.subject if d and d.subject else loi[:120]) or vid.stem,
+                 "path_local": str(vid), "t0": float(c.t0), "t1": float(c.t1),
+                 "dai_s": float(c.dai), "tap": tap,
+                 "loi_quanh": loi, "may_dong": int(c.may_dong),
+                 "frame_dau": str(anh) if anh else "",
+                 "tag_nguon": "vision" if d and d.subject else "tieu_de"}
+            if d and d.subject:
+                r.update({"subject": d.subject, "vat_the": d.vat_the,
+                          "action": d.action, "setting": d.setting, "geo": geo,
+                          "people": d.people, "shot": d.shot, "mood": d.mood,
+                          "khop": d.khop})
+            else:                       # đọc hình hỏng/tắt -> tạm dùng lời
+                r.update({**tag_tu_tieu_de(loi), "geo": geo})
             moi += sdb.them_clip(conn, r)
-    conn.commit()
+        conn.commit()
     if log:
-        log(f"sotra: nạp ref «{tap}»: +{moi} khúc")
+        log(f"sotra: nạp ref «{tap}»: +{moi} cảnh")
     return moi

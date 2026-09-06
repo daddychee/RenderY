@@ -107,6 +107,13 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE clip ADD COLUMN tieu_de_goc TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
+    # ref cắt theo cảnh (06/09): vật thể nhìn thấy trong hình + độ khớp lời-hình
+    for _cot, _kieu in (("vat_the", "TEXT DEFAULT ''"), ("khop", "INTEGER DEFAULT 0"),
+                        ("loi_quanh", "TEXT DEFAULT ''"), ("may_dong", "INTEGER DEFAULT 0")):
+        try:
+            conn.execute(f"ALTER TABLE clip ADD COLUMN {_cot} {_kieu}")
+        except sqlite3.OperationalError:
+            pass
     if conn.execute("SELECT COUNT(*) FROM alias").fetchone()[0] == 0:
         conn.executemany("INSERT OR IGNORE INTO alias(tu, chuan) VALUES(?,?)",
                          list(_ALIAS_GOC.items()))
@@ -141,16 +148,22 @@ def ten_frame(clip_id: str, tieu_de: str, vai: str) -> str:
 
 # ------------------------------------------------------------ ghi
 def _chu_fts(r: dict) -> str:
-    return " ".join(str(r.get(k) or "") for k in ("tieu_de",) + TRUC).replace(">", " ")
+    # vat_the PHẢI có trong FTS: đó là lý do thêm trục này (tra "bananas" phải
+    # ra được thùng Burberry giấu ma túy). Bỏ sót = trục thành vô dụng.
+    return " ".join(str(r.get(k) or "")
+                    for k in ("tieu_de", "vat_the") + TRUC).replace(">", " ")
 
 
 def them_clip(conn: sqlite3.Connection, r: dict) -> bool:
     """Upsert 1 clip. Trả True nếu MỚI. Trường lạ bị bỏ qua (fail-soft)."""
     cot = ["id", "nguon", "tieu_de", "url_trang", "url_anh", "url_video",
            "path_local", "t0", "t1", "dai_s", *TRUC, "tag_nguon",
-           "frame_dau", "frame_cuoi", "tu_khoa_hut", "tap", "trang_thai"]
+           "frame_dau", "frame_cuoi", "tu_khoa_hut", "tap", "trang_thai",
+           "vat_the", "khop", "loi_quanh", "may_dong"]
     d = {k: r.get(k, "") for k in cot}
     d["trang_thai"] = r.get("trang_thai") or "song"   # "" đè default SQL là bẫy
+    for _so in ("khop", "may_dong"):                  # cột INTEGER: "" là bẫy
+        d[_so] = int(r.get(_so) or 0)
     d["ngay_them"] = datetime.now(timezone.utc).isoformat()
     moi = conn.execute("SELECT 1 FROM clip WHERE id=?", (d["id"],)).fetchone() is None
     if moi:
