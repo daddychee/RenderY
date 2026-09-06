@@ -55,7 +55,9 @@ def tim_url_item(conn, uuid: str, tu_khoa: str, tieu_de: str = "",
     rồi mới tới từ khóa hút. Đo 06/09: chỉ dùng từ khóa hút trượt 5/11 clip
     (item trôi khỏi trang 1-2 sau vài ngày xếp hạng đổi).
     """
-    cach = [t for t in (tieu_de.strip(), tu_khoa.strip()) if t]
+    # tiêu đề CẮT 7 TỪ: query dài Envato redirect -> 500 (đo 06/09)
+    td_ngan = " ".join(tieu_de.split()[:7])
+    cach = [t for t in (td_ngan, tu_khoa.strip()) if t]
     for truy in cach:
       for trang in (1, 2):
         q = urllib.parse.quote_plus(truy)
@@ -69,10 +71,22 @@ def tim_url_item(conn, uuid: str, tu_khoa: str, tieu_de: str = "",
             continue
         vt = [m.start() for m in re.finditer(re.escape(uuid), h)
               if m.start() > 100_000]                 # bỏ vùng preload ở <head>
-        if not vt:
+        if vt:
+            sau = [m.group(1) for m in _MAU_ITEM.finditer(h) if m.start() > vt[0]][:2]
+        elif truy == td_ngan:
+            # cover một số item dạng files/<số>/preview.jpg — KHÔNG chứa uuid nên
+            # dò trên trang search mù (5/11 clip trượt vì đúng lỗi này 06/09).
+            # Tiêu đề là tên chính xác -> lấy 3 kết quả đầu, verify ở trang item.
+            thay, sau = set(), []
+            for m in _MAU_ITEM.finditer(h):
+                if m.start() > 100_000 and m.group(1) not in thay:
+                    thay.add(m.group(1))
+                    sau.append(m.group(1))
+                if len(sau) >= 3:
+                    break
+        else:
             continue
-        sau = [m.group(1) for m in _MAU_ITEM.finditer(h) if m.start() > vt[0]]
-        for duong in sau[:2]:
+        for duong in sau:
             item = "https://elements.envato.com" + duong
             try:
                 h2 = urllib.request.urlopen(
@@ -141,7 +155,15 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                             tieu_de=(c["tieu_de"] or "").split("[")[0] if c else "",
                             log=log)
                     if not url:
-                        ghi(f"online: {u[:8]} KHÔNG tìm được trang item — giữ preview")
+                        # tìm bằng cả TÊN CHÍNH XÁC không ra -> item nhiều khả năng
+                        # đã bị GỠ khỏi Envato (preview CDN vẫn chạy nên kho không
+                        # biết). Đánh dấu để lượt sau bỏ qua nhanh, editor thấy
+                        # trên khay mà Pull clip khác nếu cần bản sạch.
+                        conn.execute("UPDATE clip SET url_trang='' WHERE id LIKE ?",
+                                     (f"envato:{u}%",))
+                        conn.commit()
+                        ghi(f"online: {u[:8]} item có thể ĐÃ GỠ khỏi Envato — giữ "
+                            "preview; Pull clip khác nếu cần bản sạch")
                         continue
                     pg.goto(url, timeout=90_000)
                     pg.wait_for_timeout(2500)
