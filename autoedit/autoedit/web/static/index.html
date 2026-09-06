@@ -2126,7 +2126,7 @@ async function ofDoiPha() {
 }
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
-let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0, OF_RV_GOC = 0
+let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
 async function ofGoiY(u) {
   // gợi ý clip TƯƠNG TỰ: tra Library bằng từ khóa rút từ tiêu đề clip đang xem
   const ds = document.getElementById('of-goiy-ds')
@@ -2160,15 +2160,8 @@ async function ofReview(u) {
   document.getElementById('of-trim-cs').classList.add('mo')
   ofNoiTrim()
   OF_RV = u
-  // video đang xem là KHÚC (thời gian tương đối) — trim phải cộng offset gốc
-  // của khúc lấy từ DB, không thì ghi tọa độ sai vào Library
-  OF_RV_GOC = 0
-  if (!u.url_video && u.id) {
-    try {
-      const info = await api('/api/sotra/clip?id=' + encodeURIComponent(u.id))
-      if (info.t1 > info.t0) OF_RV_GOC = +info.t0 || 0
-    } catch (e) { }
-  }
+  // tọa độ trim gửi TƯƠNG ĐỐI theo khúc đang xem — SERVER tự cộng mốc gốc
+  // (06/09: bản client-cộng dính race/JS cũ -> 12 khúc ghi 0.0-x tuyệt đối)
   const v = document.getElementById('of-rv-video'), a = document.getElementById('of-rv-anh')
   document.getElementById('of-rv-ten').textContent = u.tieu_de || u.nhan || ''
   const vsrc = ofVid(u)
@@ -2225,8 +2218,8 @@ async function ofTrimDung() {
   ofChup()
   try {
     const r = await api('/api/offline/' + OF_PID + '/trim', {method: 'POST',
-      body: JSON.stringify({clip_id: OF_RV.id, t0: +(OF_RV_GOC + OF_RV_T0).toFixed(2),
-                            t1: +(OF_RV_GOC + OF_RV_T1).toFixed(2), khoi: OF_HCHON, luu_kho: true})})
+      body: JSON.stringify({clip_id: OF_RV.id, t0: +OF_RV_T0.toFixed(2),
+                            t1: +OF_RV_T1.toFixed(2), khoi: OF_HCHON, luu_kho: true})})
     const d = await api('/api/offline/' + OF_PID)
     if (d.hop_dong) OF_HD = d.hop_dong
     OF_KHAY_KEY = ''

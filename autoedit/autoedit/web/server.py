@@ -915,7 +915,15 @@ def api_offline_trim(project_id: str, req: TrimRequest, request: Request):
         if goc is None:
             raise HTTPException(404, "Không thấy clip trong Library")
         g = dict(goc)
-        # id khúc: <id gốc>#t0-t1 — truy ngược được về clip mẹ khi thay máu
+        # TỌA ĐỘ TƯƠNG ĐỐI (06/09): cửa sổ review phát KHÚC nên t0/t1 client gửi
+        # tính từ đầu khúc — SERVER tự cộng mốc gốc của clip mẹ. Bản cũ bắt client
+        # cộng -> race/JS cũ là ghi 0.0-3.8 tuyệt đối = màn đen đầu file 52 phút
+        # (user bắt bằng ảnh, 12 khúc hỏng trong kho).
+        goc_t0 = float(g.get("t0") or 0)
+        if goc_t0 > 0:
+            req.t0, req.t1 = round(goc_t0 + req.t0, 2), round(goc_t0 + req.t1, 2)
+            if float(g.get("t1") or 0) > 0:
+                req.t1 = min(req.t1, round(float(g["t1"]) + 0.5, 2))
         cid = f"{req.clip_id}#{req.t0:.2f}-{req.t1:.2f}"
         if req.luu_kho:
             sdb.them_clip(conn, {
