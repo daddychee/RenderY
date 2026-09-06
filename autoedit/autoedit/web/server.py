@@ -695,6 +695,29 @@ def api_offline_doc(project_id: str, request: Request):
                 _c.close()
         except Exception:  # noqa: BLE001 — làm tươi hỏng không chặn đọc
             pass
+        # HÂM CACHE khúc ref đang TRÊN TIMELINE (nền, fail-open) — lần phát đầu
+        # không phải chờ ffmpeg cắt từng shot 2s một
+        try:
+            can = []
+            for h in hd.get("hinh") or []:
+                uv, ch = h.get("uv") or [], int(h.get("chon", -1))
+                if 0 <= ch < len(uv):
+                    u = uv[ch]
+                    if u.get("nguon") == "ref" and float(u.get("t1") or 0) > 0:
+                        can.append(u["id"])
+            if can:
+                def _ham(ids=can):
+                    from autoedit.sotra import db as _sdb2
+                    from autoedit.sotra.media import khuc_clip as _kc
+                    c2 = _sdb2.mo()
+                    try:
+                        for i in ids:
+                            _kc(c2, i)
+                    finally:
+                        c2.close()
+                threading.Thread(target=_ham, daemon=True, name="ham-khuc").start()
+        except Exception:  # noqa: BLE001
+            pass
     with _offline_lock:
         tt = dict(_offline_dang.get(project_id, {}))
     if hd is None and not tt:
@@ -1078,6 +1101,25 @@ def api_sotra_video(request: Request, id: str):
     if r is None or not r[0] or not Path(r[0]).is_file():
         raise HTTPException(404, "Không có file local")
     return FileResponse(Path(r[0]), media_type="video/mp4")
+
+
+@app.get("/api/sotra/khuc")
+def api_sotra_khuc(request: Request, id: str):
+    """Khúc preview NHỎ cho clip local có tọa độ (đo 06/09: shot ref bắt trình
+    duyệt mở file gốc 1GB -> đơ; khúc 960px ~1MB đưa ref về cùng hạng envato).
+    Lần đầu cắt ~2s rồi cache vĩnh viễn trong prev_cache/."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+    from autoedit.sotra.media import khuc_clip
+
+    conn = _sdb.mo()
+    try:
+        f = khuc_clip(conn, id)
+    finally:
+        conn.close()
+    if f is None:
+        raise HTTPException(404, "Không cắt được khúc (clip thiếu file/tọa độ)")
+    return FileResponse(f, media_type="video/mp4")
 
 
 @app.post("/api/sotra/clip/loi")

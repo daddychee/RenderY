@@ -6,6 +6,7 @@ chỉ ref/kho (file trên đĩa, trình duyệt không tự đọc được) c�
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -39,4 +40,40 @@ def frame_clip(conn, clip_id: str, vai: str = "dau") -> Path | None:
         return None
     conn.execute(f"UPDATE clip SET frame_{vai}=? WHERE id=?", (str(dich), clip_id))
     conn.commit()
+    return dich
+
+
+def khuc_clip(conn, clip_id: str) -> Path | None:
+    """KHÚC preview nhỏ cho clip local có tọa độ — cắt 1 lần, cache vĩnh viễn.
+
+    Vì sao (đo 06/09): shot ref bắt trình duyệt mở FILE GỐC 1GB 1080p trên NAS
+    qua 2 tầng proxy — dò moov, Range seek, decode từ keyframe cách 4-7s → preview
+    đơ. Envato mượt vì preview chỉ ~4MB. Khúc cắt sẵn 960px đưa ref về cùng
+    hạng cân: ~0.5-1MB/khúc, lần đầu tốn ~2s ffmpeg rồi cache mãi.
+
+    KHÔNG vi phạm luật "không cắt file": đây là CACHE PREVIEW (xóa được, dựng
+    lại được), sổ vẫn chỉ ghi tọa độ; draft/thay máu vẫn cắt từ file gốc.
+    """
+    r = conn.execute("SELECT * FROM clip WHERE id=?", (clip_id,)).fetchone()
+    if r is None:
+        return None
+    c = dict(r)
+    video = Path(c.get("path_local") or "")
+    t0, t1 = float(c.get("t0") or 0), float(c.get("t1") or 0)
+    if not video.is_file() or t1 <= t0:
+        return None
+    dich = sdb.goc_so_tra() / "prev_cache" / (
+        re.sub(r"[^\w-]", "_", clip_id) + ".mp4")
+    if dich.is_file() and dich.stat().st_size > 0:
+        return dich
+    dich.parent.mkdir(parents=True, exist_ok=True)
+    r2 = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
+         "-i", str(video), "-vf", "scale=960:-2", "-c:v", "libx264",
+         "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "96k",
+         "-movflags", "+faststart", "-y", str(dich)],
+        capture_output=True, timeout=180)
+    if r2.returncode != 0 or not dich.is_file() or dich.stat().st_size == 0:
+        dich.unlink(missing_ok=True)
+        return None
     return dich

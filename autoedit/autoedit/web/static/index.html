@@ -1297,12 +1297,11 @@ function ofAnh(u) {
 }
 function ofVid(u) {
   if (u.url_video) return u.url_video
-  // ref là file 52 phút/1GB: KHÔNG có #t= thì trình duyệt tải từ byte 0 để dò tới
-  // giây cần xem (đo 06/09: hover 1 khúc 4s = tải 1.076.201.806 byte). Có #t= thì
-  // nó gửi Range đúng đoạn — server đã trả 206 sẵn.
-  const q = `/api/sotra/video?id=${encodeURIComponent(u.id)}`
+  // Clip local có tọa độ -> KHÚC cắt sẵn 960px (~1MB, cache server). Đo 06/09:
+  // mở file gốc 1GB qua 2 tầng proxy + decode 1080p từ keyframe xa = preview đơ.
   const a = +u.t0 || 0, b = +u.t1 || 0
-  return b > a ? `${q}#t=${a.toFixed(2)},${b.toFixed(2)}` : q
+  if (b > a) return `/api/sotra/khuc?id=${encodeURIComponent(u.id)}`
+  return `/api/sotra/video?id=${encodeURIComponent(u.id)}`
 }
 
 /* ---- UNDO / REDO: chụp ảnh hợp đồng trước mỗi thao tác đổi ---- */
@@ -2410,9 +2409,9 @@ function stAnh(c) {                 // thumbnail: web hotlink, local qua endpoin
 function stVideo(c) {
   if (c.url_video) return c.url_video
   if (!c.path_local) return ''
-  // ref/kho: phát file local; ref có t0/t1 -> media fragment nhảy đúng KHÚC
-  const mang = (c.t1 > c.t0) ? `#t=${c.t0},${c.t1}` : ''
-  return `/api/sotra/video?id=${encodeURIComponent(c.id)}` + mang
+  // clip local có tọa độ -> khúc cắt sẵn (nhẹ); cả file -> stream trực tiếp
+  if (c.t1 > c.t0) return `/api/sotra/khuc?id=${encodeURIComponent(c.id)}`
+  return `/api/sotra/video?id=${encodeURIComponent(c.id)}`
 }
 const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
                 ref: '#a98ee0', kho: '#8a93a0', aigen: '#d9a441'}
