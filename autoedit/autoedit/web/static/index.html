@@ -2316,7 +2316,7 @@ function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang ph�
   for (let i = 0; i < moc.length; i++) {
     const t1 = moc[i][1]
     const b = i + 1 < moc.length ? moc[i + 1][0] : moc[i][2]
-    if (tl >= t1 && tl < b && b - t1 >= 3.0) { v = 0.30; break }
+    if (tl >= t1 && tl < b && b - t1 >= 3.0) { v = 0.40; break }   // +4dB, xem nhac_mix.py
   }
   au.volume = v
 }

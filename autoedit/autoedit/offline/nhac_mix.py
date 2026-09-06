@@ -10,7 +10,8 @@ Hàm ở đây THUẦN (không đụng pycapcut) để test bằng số; thay_ma
 from __future__ import annotations
 
 NEN = 0.25           # mức NỀN của nhạc — giữ đều suốt, kể cả thở ngắn
-CAO = 0.30           # thở DÀI: nhích lên +20% so với nền (user chốt 06/09)
+CAO = 0.40           # thở DÀI: +4dB so với nền — đo theo tai: +1.6dB (0.30) không ai
+                     # nhận ra, +11dB (0.9 bản đầu) là shock; +4dB là điểm cân
 NGUONG_THO_S = 3.0   # thở >= mức này mới được nhích — thở 1s mà nhấp nhô là vụn
 DOC_LEN_S = 0.40     # dốc nhích lên ở đầu khoảng thở dài
 DOC_XUONG_S = 0.30   # dốc hạ về nền trước khi câu kế vào

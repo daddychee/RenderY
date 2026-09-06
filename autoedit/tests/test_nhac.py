@@ -86,8 +86,8 @@ def test_tho_dai_moi_nhich_20_phan_tram():
             {"v0": 9.0, "v1": 12.0, "tho": 1.0, "tho_them": 0.0}]  # thở 1s: im
     d = dict(duong_am_luong(khoi))
     assert d[0.0] == 0.25
-    assert d[4.0] == 0.25 and d[4.4] == 0.3        # dốc lên trong thở dài
-    assert d[8.7] == 0.3 and d[9.0] == 0.25        # hạ về nền trước câu kế
+    assert d[4.0] == 0.25 and d[4.4] == 0.4        # dốc lên trong thở dài
+    assert d[8.7] == 0.4 and d[9.0] == 0.25        # hạ về nền trước câu kế
     assert all(t <= 9.0 for t in d), "thở 1s cuối không sinh keyframe nào"
 
 
@@ -96,7 +96,7 @@ def test_nhich_tinh_tren_truc_timeline_co_tho_them():
     khoi = [{"v0": 0.0, "v1": 3.0, "tho": 1.5, "tho_them": 2.0},
             {"v0": 4.5, "v1": 7.0, "tho": 0.0, "tho_them": 0.0}]
     d = dict(duong_am_luong(khoi))
-    assert d[3.4] == 0.3                           # nhích trong khoảng lặng 3-6.5
+    assert d[3.4] == 0.4                           # nhích trong khoảng lặng 3-6.5
     assert d[6.5] == 0.25                          # câu 2 vào tại 4.5+2=6.5
 
 
