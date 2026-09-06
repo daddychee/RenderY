@@ -30,7 +30,9 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
         ra.append([{"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                     "lop": c["lop"], "diem": c["diem"],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
-                    "geo": c.get("geo", ""), "dai_s": c.get("dai_s", 0)}
+                    "geo": c.get("geo", ""), "dai_s": c.get("dai_s", 0),
+                    # t0/t1 để UI gắn #t= — không có thì hover ref tải cả file 1GB
+                    "t0": c.get("t0", 0), "t1": c.get("t1", 0)}
                    for c in uv])
     return ra
 

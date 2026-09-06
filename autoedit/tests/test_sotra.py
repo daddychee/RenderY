@@ -184,3 +184,24 @@ def test_api_sotra(tmp_path, monkeypatch):
     r2 = tc.get("/api/sotra/clip?id=envato:1")
     assert r2.status_code == 200 and r2.json()["clip"]["tieu_de"] == "Quito Market Morning"
     assert tc.get("/api/sotra/clip?id=envato:khong-co").status_code == 404
+
+
+def test_ung_vien_mang_t0_t1_cho_hover_ref(conn, tmp_path):
+    """ref là file 52'/1GB: ứng viên PHẢI mang t0/t1 để UI gắn #t= — thiếu thì
+    trình duyệt tải từ byte 0 dò tới giây cần xem (đo 06/09: hover khúc 4s =
+    tải 1.076.201.806 byte, 5.9s; có #t= còn 512KB/0.012s)."""
+    from autoedit.offline.dung import do_ung_vien
+    from autoedit.sotra.db import them_clip
+
+    them_clip(conn, {"id": "ref:LI100-r1:120-124", "nguon": "ref",
+                     "tieu_de": "police patrol street", "path_local": "/x/r1.mp4",
+                     "t0": 120.0, "t1": 124.0, "dai_s": 4.0,
+                     "subject": "police patrol", "setting": "street"})
+    conn.commit()
+
+    class _O:
+        truc_chi = ["police patrol"]; ngu_canh = ["street"]; khong_khi = []; neo = ""
+    uv = do_ung_vien(conn, [{"loi": "x"}], [_O()], ["police"])
+    r = [c for c in uv[0] if c["id"].startswith("ref:")]
+    assert r, "ref phải lọt vào ứng viên"
+    assert r[0]["t0"] == 120.0 and r[0]["t1"] == 124.0

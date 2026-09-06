@@ -1221,7 +1221,13 @@ function ofAnh(u) {
   return u.url_anh || `/api/sotra/frame?id=${encodeURIComponent(u.id)}&vai=dau`
 }
 function ofVid(u) {
-  return u.url_video || `/api/sotra/video?id=${encodeURIComponent(u.id)}`
+  if (u.url_video) return u.url_video
+  // ref là file 52 phút/1GB: KHÔNG có #t= thì trình duyệt tải từ byte 0 để dò tới
+  // giây cần xem (đo 06/09: hover 1 khúc 4s = tải 1.076.201.806 byte). Có #t= thì
+  // nó gửi Range đúng đoạn — server đã trả 206 sẵn.
+  const q = `/api/sotra/video?id=${encodeURIComponent(u.id)}`
+  const a = +u.t0 || 0, b = +u.t1 || 0
+  return b > a ? `${q}#t=${a.toFixed(2)},${b.toFixed(2)}` : q
 }
 
 /* ---- UNDO / REDO: chụp ảnh hợp đồng trước mỗi thao tác đổi ---- */
@@ -1648,7 +1654,8 @@ function ofTimDebounce() {
       try {
         const d = await api('/api/sotra?q=' + encodeURIComponent(OF_TIM_Q) + '&limit=40')
         OF_TIM_KQ = (d.clips || []).map(c => ({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
-          lop: 'TIM', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo}))
+          lop: 'TIM', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo,
+          t0: c.t0, t1: c.t1}))
       } catch (e) { }
     }
     ofVeKhay()
