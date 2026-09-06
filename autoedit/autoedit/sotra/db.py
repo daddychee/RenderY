@@ -87,6 +87,13 @@ CREATE TABLE IF NOT EXISTS nhac(
   path_local TEXT DEFAULT '',      -- bản sạch sau khi tải qua két
   trang_thai TEXT DEFAULT 'preview',   -- preview|da_tai|loai_tru
   ngay_them TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS giay_phep(
+  gp INTEGER PRIMARY KEY AUTOINCREMENT,
+  clip_id TEXT NOT NULL,           -- envato:<uuid>
+  url_item TEXT DEFAULT '',        -- trang item lúc tải (bằng chứng đối soát)
+  ten_file TEXT DEFAULT '',        -- tên file Envato đặt (khớp My Downloads)
+  bytes INTEGER DEFAULT 0,
+  ngay TEXT DEFAULT '');
 CREATE VIRTUAL TABLE IF NOT EXISTS nhac_fts USING fts5(
   id UNINDEXED, chu, tokenize='porter unicode61');
 """

@@ -48,6 +48,10 @@ def hut_envato(tu_khoa: str, trang: int = 1) -> list[dict]:
                          r'([0-9a-f-]{36})/watermarked_preview/watermarked_preview\.mp4', h):
         mp4[m.group(1)] = m.group(0)
     ra, thay = [], set()
+    # URL ITEM THẬT (user chốt 06/09 — "ghi URL + mã đuôi, đừng chỉ tên file"):
+    # card = ảnh cover -> item-href ĐẦU TIÊN SAU ảnh (đã verify 06/09). Thiếu mã
+    # là sau này item trôi hạng không tìm lại được để tải bản licensed.
+    mau_item = re.compile(r'href="(/[a-z0-9][a-z0-9-]{10,}-[A-Z0-9]{7,8})"')
     mau = (r'<img[^>]+src="(https://elements-resized\.envatousercontent\.com/'
            r'elements-video-cover-images/([0-9a-f-]{36})/video_preview/'
            r'video_preview_\d{4}\.jpg[^"]*)"[^>]*alt="([^"]{5,160})"')
@@ -57,8 +61,9 @@ def hut_envato(tu_khoa: str, trang: int = 1) -> list[dict]:
             continue
         thay.add(uid)
         ten = re.sub(r"\s+", " ", m.group(3)).strip()
+        href = next((x.group(1) for x in mau_item.finditer(h, m.end())), "")
         ra.append({"id": sdb.lam_id("envato", uid), "nguon": "envato", "tieu_de": ten,
-                   "url_trang": f"https://elements.envato.com/stock-video/item-{uid}",
+                   "url_trang": ("https://elements.envato.com" + href) if href else "",
                    "url_anh": m.group(1).replace("&amp;", "&"),
                    "url_video": mp4.get(uid, ""), "tu_khoa_hut": tu_khoa,
                    **tag_tu_tieu_de(ten)})

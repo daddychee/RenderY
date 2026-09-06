@@ -20,6 +20,7 @@ from __future__ import annotations
 import random
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -154,16 +155,30 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                             conn, u, (c["tu_khoa_hut"] or "") if c else "",
                             tieu_de=(c["tieu_de"] or "").split("[")[0] if c else "",
                             log=log)
+                    # KIỂM SỐNG rẻ trước khi mở trình duyệt (user chốt 06/09:
+                    # "404 = item đã gỡ, không có đường chính thức — thay shot")
+                    if url:
+                        try:
+                            h3 = urllib.request.urlopen(
+                                urllib.request.Request(url, headers={"User-Agent": UA}),
+                                timeout=45).read(200_000).decode("utf-8", "replace")
+                            if "no longer available" in h3.lower():
+                                url = ""
+                        except urllib.error.HTTPError as e:
+                            if e.code == 404:
+                                url = ""
                     if not url:
                         # tìm bằng cả TÊN CHÍNH XÁC không ra -> item nhiều khả năng
                         # đã bị GỠ khỏi Envato (preview CDN vẫn chạy nên kho không
                         # biết). Đánh dấu để lượt sau bỏ qua nhanh, editor thấy
                         # trên khay mà Pull clip khác nếu cần bản sạch.
-                        conn.execute("UPDATE clip SET url_trang='' WHERE id LIKE ?",
-                                     (f"envato:{u}%",))
+                        # link_chet: khay gợi ý TỰ LOẠI (tra lọc 'song'), miếng
+                        # đang dùng vẫn resolve được id — editor thấy và Pull
+                        conn.execute("UPDATE clip SET trang_thai='link_chet' "
+                                     "WHERE id LIKE ?", (f"envato:{u}%",))
                         conn.commit()
-                        ghi(f"online: {u[:8]} item có thể ĐÃ GỠ khỏi Envato — giữ "
-                            "preview; Pull clip khác nếu cần bản sạch")
+                        ghi(f"online: {u[:8]} item ĐÃ GỠ khỏi Envato — đánh link_chet; "
+                            "Pull clip khác cho shot này")
                         continue
                     pg.goto(url, timeout=90_000)
                     pg.wait_for_timeout(2500)
@@ -186,6 +201,14 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                     # mất khỏi khay gợi ý — path_local có mặt = đã tải bản sạch
                     conn.execute("UPDATE clip SET path_local=? WHERE id LIKE ?",
                                  (str(f), f"envato:{u}%"))
+                    # SỔ GIẤY PHÉP (user chốt 06/09: mỗi video down cần license
+                    # đi kèm; My Downloads của Envato là sổ cái, đây là bản đối
+                    # soát local — item, URL, ngày, dung lượng)
+                    conn.execute(
+                        "INSERT INTO giay_phep(clip_id, url_item, ten_file, bytes, ngay) "
+                        "VALUES(?,?,?,?,datetime('now'))",
+                        (f"envato:{u}", url, dl.value.suggested_filename or "",
+                         f.stat().st_size))
                     conn.commit()
                     ghi(f"online: {so}/{len(can)} ✔ {f.stat().st_size / 1e6:.0f}MB "
                         f"«{(dl.value.suggested_filename or '')[:36]}»")
