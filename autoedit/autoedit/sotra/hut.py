@@ -41,7 +41,9 @@ def hut_envato(tu_khoa: str, trang: int = 1) -> list[dict]:
     login; ảnh cover phải GIỮ NGUYÊN query (có chữ ký, tự chế là 403); video
     preview watermarked URL BỀN không ký."""
     q = urllib.parse.quote_plus(tu_khoa)
-    url = f"https://elements.envato.com/stock-video/{q}" + (f"?page={trang}" if trang > 1 else "")
+    # orientation=horizontal (user chốt 06/09: bỏ video dọc ngay từ nguồn)
+    url = (f"https://elements.envato.com/stock-video/{q}?orientation=horizontal"
+           + (f"&page={trang}" if trang > 1 else ""))
     h = _get(url).decode("utf-8", "replace")
     mp4: dict[str, str] = {}
     for m in re.finditer(r'https://video-previews\.elements\.envatousercontent\.com/'
@@ -61,6 +63,10 @@ def hut_envato(tu_khoa: str, trang: int = 1) -> list[dict]:
             continue
         thay.add(uid)
         ten = re.sub(r"\s+", " ", m.group(3)).strip()
+        # user chốt 06/09: greenscreen/chroma/video dọc KHÔNG vào kho
+        if re.search(r"green\s*screen|chroma|vertical|portrait|9\s*:\s*16",
+                     ten, re.I):
+            continue
         href = next((x.group(1) for x in mau_item.finditer(h, m.end())), "")
         ra.append({"id": sdb.lam_id("envato", uid), "nguon": "envato", "tieu_de": ten,
                    "url_trang": ("https://elements.envato.com" + href) if href else "",

@@ -209,8 +209,13 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                     ra[u] = f
                     # KHÔNG đổi trang_thai: tra() lọc ='song', đổi là clip biến
                     # mất khỏi khay gợi ý — path_local có mặt = đã tải bản sạch
-                    conn.execute("UPDATE clip SET path_local=? WHERE id LIKE ?",
-                                 (str(f), f"envato:{u}%"))
+                    try:                       # tự học duration (envato scraping không có)
+                        from autoedit.project import ffprobe_duration
+                        dai_that = ffprobe_duration(f) or 0
+                    except Exception:  # noqa: BLE001
+                        dai_that = 0
+                    conn.execute("UPDATE clip SET path_local=?, dai_s=? WHERE id LIKE ?",
+                                 (str(f), dai_that, f"envato:{u}%"))
                     # SỔ GIẤY PHÉP (user chốt 06/09: mỗi video down cần license
                     # đi kèm; My Downloads của Envato là sổ cái, đây là bản đối
                     # soát local — item, URL, ngày, dung lượng)

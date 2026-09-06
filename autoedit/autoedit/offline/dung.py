@@ -33,7 +33,14 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                  so=so_moi_khoi + (6 if bo_nguon else 0),
                  uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i)
         if bo_nguon:
-            uv = [c for c in uv if c["nguon"] not in bo_nguon][:so_moi_khoi]
+            uv = [c for c in uv if c["nguon"] not in bo_nguon]
+        # user chốt 06/09: clip NGẮN hơn phần nói của khối không được chảy vào
+        # khối đó. Chỉ áp khi dai_s là SỐ THẬT (>0) — envato scraping chưa có
+        # duration ('' — bẫy SQLite: ''>0 là TRUE, phải ép float phía Python),
+        # tải bản sạch xong ffprobe sẽ tự học dần.
+        can = float(k.v1 - k.v0) if hasattr(k, "v1") else             float((k.get("v1") or 0) - (k.get("v0") or 0))
+        uv = [c for c in uv
+              if not (0 < float(c.get("dai_s") or 0) < can)][:so_moi_khoi]
         ra.append([{"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                     "lop": c["lop"], "diem": c["diem"],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
