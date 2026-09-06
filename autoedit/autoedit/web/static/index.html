@@ -31,7 +31,13 @@
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--text);
   font:14px/1.5 'Inter',-apple-system,'Segoe UI',Roboto,sans-serif}
-#app{max-width:1180px;margin:0 auto;padding:16px}
+/* FULL MÀN HÌNH (user 08/09: đây là ứng dụng dựng video) — bỏ cột 1180px.
+   Nội dung dạng ĐỌC (form nộp, cài đặt) vẫn kẹp bề rộng dễ đọc bằng .hep;
+   màn dựng (Offline) và lưới (Library) ăn trọn bề ngang. */
+html,body{height:100%}
+#app{width:100%;max-width:none;margin:0;padding:12px 18px 16px}
+body.dung-video{overflow:hidden}                 /* màn Offline: không cuộn trang */
+.hep{max-width:1180px;margin:0 auto}
 header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0 14px}
 header.top h1{font-size:20px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
 header.top h1 span{color:var(--accent)}
@@ -52,7 +58,12 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .chip b.w{color:var(--warn)}
 .chip span{color:var(--muted);font-size:12px}
 /* ── OFFLINE (Đợt 4 — UI 2 pha chốt 07/09) ── */
-#of-than{display:flex; gap:12px; align-items:stretch; min-height:430px}
+#man-offline.on{display:flex; flex-direction:column; gap:10px;
+                height:calc(100vh - 96px); min-height:520px}
+#man-offline .panel{flex:0 0 auto}
+#of-than{display:flex; gap:12px; align-items:stretch; flex:1 1 0; min-height:0}
+#of-trai{flex:0 0 clamp(280px, 22vw, 420px)}
+#of-tl{flex:0 0 auto}
 #of-trai{flex:0 0 320px; display:flex; flex-direction:column; gap:9px}
 #of-khung{position:relative; aspect-ratio:16/9; background:#000;
           border:1px solid var(--line); border-radius:10px; overflow:hidden}
@@ -73,7 +84,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
 #of-khay{flex:1 1 0; min-height:0; display:none; flex-direction:column; gap:8px}
 #of-khay.on{display:flex}
-#of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:1fr 1fr;
+#of-khu{flex:1 1 0; min-height:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
         grid-template-rows:1.4fr 1fr; gap:10px}
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
@@ -338,7 +349,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 </header>
 
 <!-- ═════════ SEQUENCES: Processing + New Sequence chung màn ═════════ -->
-<section class="man on" id="man-seq">
+<section class="hep man on" id="man-seq">
   <nav class="tabs" style="margin-bottom:12px">
     <button id="tab-proc" class="on" onclick="doiTab('proc')">Overview</button>
     <button id="tab-new" onclick="doiTab('new')">+ New Sequence</button>
@@ -536,7 +547,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span style="flex:1"></span>
       <button class="btn ghost small" id="st-hut-nut" onclick="stHut()" hidden>⛏ Hút thêm theo từ khóa này</button>
     </div>
-    <div id="st-luoi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+    <div id="st-luoi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(240px,15vw,320px),1fr));gap:12px"></div>
     <div class="note" id="st-trong" style="text-align:center;padding:26px 0" hidden>
       Kho chưa có kết quả cho từ khóa này — bấm «⛏ Hút thêm» để tra thẳng Envato/Pexels/Pixabay (manager).
     </div>
@@ -662,7 +673,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 </div>
 
 <!-- ═════════ GENERATION ═════════ -->
-<section class="man" id="man-gen">
+<section class="hep man" id="man-gen">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <select id="sel-phien" onchange="chonPhien(this.value)">
       <option value="">— chọn chương có phiên AI —</option>
@@ -710,6 +721,7 @@ function doiTrang(t) {
   }
   if (t === 'kenh') loadKenh()
   if (t === 'sotra') stVe()
+  document.body.classList.toggle('dung-video', t === 'offline')
   if (t === 'offline') ofKhoiDong()
 }
 function doiTab(t) {
