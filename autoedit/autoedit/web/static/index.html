@@ -38,10 +38,15 @@ html,body{height:100%}
 #app{width:100%;max-width:none;margin:0;padding:12px 18px 16px}
 body.dung-video{overflow:hidden}                 /* màn Offline: không cuộn trang */
 .hep{max-width:1180px;margin:0 auto}
-header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0 14px}
-header.top h1{font-size:20px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
+/* 1 HÀNG duy nhất (08/09): logo + tab + người dùng — không xuống dòng, không
+   chồng với header CRM phía trên; app nằm trong iframe CRM nên header phải mỏng */
+header.top{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
+  padding:2px 0 10px;min-height:38px}
+header.top .ai{margin-left:auto;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:34vw}
+header.top h1{font-size:17px;flex:0 0 auto;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
 header.top h1 span{color:var(--accent)}
-nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs{display:flex;gap:4px;flex-wrap:nowrap;align-items:center;flex:1 1 auto;min-width:0}
 nav.tabs button{border:0;background:none;color:var(--muted);padding:7px 13px;
   border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;font-family:inherit}
 nav.tabs button.on{background:var(--accent-soft);color:var(--accent)}
@@ -59,7 +64,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .chip span{color:var(--muted);font-size:12px}
 /* ── OFFLINE (Đợt 4 — UI 2 pha chốt 07/09) ── */
 #man-offline.on{display:flex; flex-direction:column; gap:10px;
-                height:calc(100vh - 96px); min-height:520px}
+                height:calc(100vh - 78px); min-height:520px}
 #man-offline .panel{flex:0 0 auto}
 #of-than{display:flex; gap:12px; align-items:stretch; flex:1 1 0; min-height:0}
 #of-trai{flex:0 0 clamp(280px, 22vw, 420px)}
@@ -343,7 +348,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
     <button id="gn-new" onclick="doiTrang('seq');doiTab('new')"
-            style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
+            style="margin-left:10px;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
   </nav>
   <span class="ai" id="nguoi-dung"></span>
 </header>
@@ -1284,6 +1289,8 @@ function ofVeTL() {
   const dauA = document.getElementById('of-dai-au')
   ;[...dai.querySelectorAll('.of-mieng')].forEach(e => e.remove())
   dauA.innerHTML = ''
+  const fragA = document.createDocumentFragment()
+  const fragH = document.createDocumentFragment()
   const moc = ofMoc(), lap = ofKiemLap()
   // ── dải AUDIO (bất biến): khối nói + vùng im lặng ──
   moc.forEach(([t0, t1, tt], i) => {
@@ -1299,7 +1306,7 @@ function ofVeTL() {
     a.innerHTML = rongA > 34
       ? `<span class="t">${esc((k.loi || '').slice(0, Math.max(4, Math.floor(rongA / 6))))}</span>` : ''
     a.onclick = () => { OF_CHON = i; if (OF_AUDIO) OF_AUDIO.currentTime = OF_HD.offset + k.v0 + .02; ofVeAll() }
-    dauA.appendChild(a)
+    fragA.appendChild(a)
     if (tt - t1 > 0.05) {
       const im = document.createElement('div')
       im.className = 'of-im'
@@ -1307,7 +1314,7 @@ function ofVeTL() {
       im.style.width = ((tt - t1) * OF_PXS) + 'px'
       im.innerHTML = `<span class="n">${(tt - t1) * OF_PXS > 26 ? (tt - t1).toFixed(1) + 's im' : ''}</span>`
       im.onclick = () => { OF_CHON = i; ofVeAll() }
-      dauA.appendChild(im)
+      fragA.appendChild(im)
     }
   })
   // ── dải HÌNH (cắt tự do) ──
@@ -1333,8 +1340,10 @@ function ofVeTL() {
     const mep = document.createElement('span'); mep.className = 'mep'
     mep.onmousedown = e => ofKeoMep(e, j, mep, d)
     d.appendChild(mep)
-    dai.appendChild(d)
+    fragH.appendChild(d)
   })
+  dauA.appendChild(fragA)
+  dai.appendChild(fragH)
   const tong = ofTong()
   const th = document.getElementById('of-thuoc'); th.innerHTML = ''
   const buoc = OF_PXS < 10 ? 15 : (OF_PXS < 25 ? 5 : 2)
@@ -1501,12 +1510,16 @@ function ofVeKhay() {
       const d = document.createElement('div')
       d.className = 'of-uv' + (OF_TIM_KQ === null && j === k.chon ? ' dang' : '')
       d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
-        <video muted loop playsinline preload="none" src="${esc(ofVid(u))}"></video>
+        <video muted loop playsinline preload="none"></video>
         ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}</div>
         <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
       const v = d.querySelector('video')
-      d.onmouseenter = () => v && v.play().catch(() => {})
-      d.onmouseleave = () => v && v.pause()
+      const vsrc = ofVid(u)
+      // gắn src KHI HOVER: trăm thẻ cùng có src là trăm kết nối CDN -> đơ
+      d.onmouseenter = () => { if (!v) return
+        if (!v.src && vsrc) v.src = vsrc
+        v.play().catch(() => {}) }
+      d.onmouseleave = () => { if (v) v.pause() }
       d.onclick = () => {
         ofChup()
         if (OF_TIM_KQ !== null) {              // kết quả Library -> THÊM vào uv miếng
@@ -1601,6 +1614,9 @@ function ofVeXem() {
   const k = ofHinh()[OF_HCHON] || {}, u = ofUv(k)
   const co = OF_PHA === 2 && u
   const anh = document.getElementById('of-anh'), vid = document.getElementById('of-video')
+  const mkey = (u && u.id) || ''
+  if (mkey && mkey === ofVeXem._key && !vid.hidden) return   // cùng clip -> khỏi nạp lại
+  ofVeXem._key = mkey
   anh.hidden = true; vid.hidden = true; vid.pause()
   document.getElementById('of-rong').style.display = co ? 'none' : 'grid'
   document.getElementById('of-nhan').hidden = !co
@@ -1625,7 +1641,14 @@ function ofVeStat() {
     ? 'PHA 1 — nghe voice kiểm ranh; khối trắng = hình thở. Phím: 1/2 zoom · q/w thở ±1s · Ctrl+Z hoàn tác · ⌨ xem tất cả.'
     : 'PHA 2 — khối đã khóa ranh. Click khối → 4 khu ứng viên; double-click = hình kế; search nối Library.'
 }
-function ofVeAll() { ofVeTL(); ofVeLoi(); ofVeKhay(); ofVeStat(); ofVeXem() }
+let OF_KHAY_KEY = ''
+function ofVeAll(nhe) {
+  ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem()
+  // KHAY chỉ vẽ lại khi ĐỔI MIẾNG hoặc đổi kết quả tìm — trước đây vẽ lại
+  // hàng trăm thẻ <video> sau MỖI thao tác -> app đơ (user báo 08/09)
+  const key = OF_HCHON + '|' + (OF_TIM_KQ ? 'tim:' + OF_TIM_Q : '') + '|' + OF_PHA
+  if (nhe !== true && key !== OF_KHAY_KEY) { OF_KHAY_KEY = key; ofVeKhay() }
+}
 function ofPlay() {
   if (!OF_AUDIO) return
   if (OF_AUDIO.paused) {
@@ -1636,8 +1659,17 @@ function ofPlay() {
       document.getElementById('of-tc').textContent = ofFmt(t)
       let i = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
       document.getElementById('of-ph').style.left = ((t + ofDoiTruoc(i)) * OF_PXS) + 'px'
-      if (i !== OF_CHON) { OF_CHON = i; ofVeLoi(); ofVeKhay(); ofVeXem()
-        document.querySelectorAll('.of-khoi').forEach((el, j) => el.classList.toggle('chon', j === i)) }
+      // đang phát: KHÔNG vẽ lại khay (hàng trăm thẻ video) — chỉ đổi lời +
+      // preview + highlight. Khay cập nhật khi user CLICK miếng (08/09 fix đơ)
+      if (i !== OF_CHON) {
+        OF_CHON = i
+        const hs = ofHinh()
+        const hj = hs.findIndex(h => h.t0 <= t + 0.01 && t < h.t0 + h.dur)
+        if (hj >= 0 && hj !== OF_HCHON) OF_HCHON = hj
+        ofVeLoi(); ofVeXem()
+        document.querySelectorAll('.of-mieng').forEach((el, j) => el.classList.toggle('chon', j === OF_HCHON))
+        document.querySelectorAll('.of-au').forEach((el, j) => el.classList.toggle('chon', j === i))
+      }
       requestAnimationFrame(vong)
     })()
   } else { OF_AUDIO.pause(); document.getElementById('of-play').textContent = '▶ Phát' }
@@ -1698,7 +1730,7 @@ async function stVe(them) {
     div.innerHTML = `
       <div style="position:relative;aspect-ratio:16/9;background:#000">
         <img src="${esc(stAnh(c))}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt="">
-        ${vsrc ? `<video muted loop playsinline preload="none" src="${esc(vsrc)}"
+        ${vsrc ? `<video muted loop playsinline preload="none" data-src="${esc(vsrc)}"
            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0"></video>` : ''}
         <span style="position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:${ST_MAU[c.nguon] || '#888'};color:#111">${c.nguon === 'ref' ? 'REF' : c.nguon.toUpperCase()}</span>
         ${c.geo ? '<span style="position:absolute;top:6px;right:6px;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(92,185,138,.92);color:#04220f">⚑</span>' : ''}
@@ -1709,7 +1741,9 @@ async function stVe(them) {
     const vid = div.querySelector('video')
     if (vid) {          // hover = PHÁT PREVIEW thật (đúng trải nghiệm stock site)
       vid.onerror = () => vid.remove()               // video chết -> còn ảnh, hết thẻ đen
-      div.onmouseenter = () => { if (vid.isConnected) { vid.style.opacity = 1; vid.play().catch(() => vid.remove()) } }
+      div.onmouseenter = () => { if (!vid.isConnected) return
+        if (!vid.src && vid.dataset.src) vid.src = vid.dataset.src   // gắn src khi hover
+        vid.style.opacity = 1; vid.play().catch(() => vid.remove()) }
       div.onmouseleave = () => { if (vid.isConnected) { vid.style.opacity = 0; vid.pause() } }
     }
     const anh0 = div.querySelector('img')
