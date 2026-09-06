@@ -52,22 +52,110 @@ def dam_bao(hd: dict) -> list[dict]:
     return hd["hinh"]
 
 
-def dong_bo_sau_tho(hd: dict, hinh_cu_moc: list[tuple[float, float, float]]) -> None:
-    """+1s/−1s làm mốc voice dịch -> dời các miếng hình theo ĐÚNG khối gốc của
-    chúng, giữ nguyên tỉ lệ trong ô (không để hình trôi khỏi lời)."""
-    moi = moc_timeline(hd.get("khoi") or [])
-    for h in hd.get("hinh") or []:
+def chua_lech(hd: dict) -> bool:
+    """Hợp đồng cũ có khoi_goc lệch (di chứng thao tác trước bản 08/09) -> gán
+    lại theo vị trí. Trả True nếu đã phải chữa."""
+    moc = moc_timeline(hd.get("khoi") or [])
+    hinh = dam_bao(hd)
+    lech = False
+    for h in hinh:
         i = h.get("khoi_goc")
-        if i is None or not (0 <= i < len(moi)) or i >= len(hinh_cu_moc):
+        if i is None or not (0 <= i < len(moc)):
+            lech = True
+            break
+        n0, _n1, n2 = moc[i]
+        giua = h["t0"] + h["dur"] / 2
+        if not (n0 - 0.05 <= giua < n2 + 0.05):
+            lech = True
+            break
+    if lech:
+        gan_lai_khoi_goc(hd)
+    # KHỐI TRỐNG (không miếng nào phủ) -> cấp miếng riêng: mỗi ô voice luôn có
+    # ít nhất 1 miếng, nếu không +/-1s sẽ dồn nhầm sang ô khác (LI100 08/09:
+    # 15 miếng cho 17 khối, 2 khối trống).
+    co = {h.get("khoi_goc") for h in hinh}
+    thieu = [i for i in range(len(moc)) if i not in co]
+    if thieu:
+        for i in thieu:
+            n0, _n1, n2 = moc[i]
+            hinh.append({"t0": n0, "dur": round(max(TOI_THIEU_S, n2 - n0), 3),
+                         "khoi_goc": i, "uv": [], "chon": -1, "nguoi_sua": False})
+        hinh.sort(key=lambda h: h["t0"])
+        # ô bị miếng CŨ lấn -> cắt lại theo đúng ranh ô của khối gốc
+        for i, (n0, _n1, n2) in enumerate(moc):
+            ds = [h for h in hinh if h.get("khoi_goc") == i]
+            if not ds:
+                continue
+            t = n0
+            for h in ds:
+                h["t0"] = round(t, 3)
+                h["dur"] = round(max(TOI_THIEU_S, min(h["dur"], n2 - t)), 3)
+                t = round(t + h["dur"], 3)
+            if abs(n2 - t) > 0.001:
+                ds[-1]["dur"] = round(max(TOI_THIEU_S, ds[-1]["dur"] + (n2 - t)), 3)
+        khit_mep(hd)
+        lech = True
+    return lech
+
+
+def dong_bo_sau_tho(hd: dict, hinh_cu_moc: list[tuple[float, float, float]]) -> None:
+    """+1s/−1s: cộng/trừ thời gian VÀO MIẾNG HÌNH NẰM TRONG KHOẢNG THỞ, không
+    đụng miếng của khối khác (user chốt 08/09 — "thêm bớt thời gian vào HÌNH
+    chứ không phải vào voice; ranh giữa 2 mốc voice không được tràn sang nhau").
+
+    Cách làm: mỗi khối có ô [t0_nói .. t1_thở]. Δ của khối i chỉ được tiêu thụ
+    bởi các miếng nằm TRONG vùng thở của khối i (t1_nói..t1_thở); thiếu chỗ thì
+    miếng cuối cùng phủ vùng nói cũng nhận phần dư — nhưng KHÔNG BAO GIỜ lấn
+    sang ô của khối kế. Các miếng thuộc khối sau chỉ TỊNH TIẾN nguyên khối.
+    """
+    moi = moc_timeline(hd.get("khoi") or [])
+    hinh = dam_bao(hd)
+    if not moi or not hinh or len(hinh_cu_moc) < len(moi):
+        khit_mep(hd)
+        return
+
+    # gom miếng theo khối gốc, giữ nguyên thứ tự
+    theo_khoi: dict[int, list[dict]] = {}
+    for h in hinh:
+        theo_khoi.setdefault(h.get("khoi_goc", 0), []).append(h)
+
+    con_tro = moi[0][0]
+    for i, (n0, n1, n2) in enumerate(moi):
+        ds = theo_khoi.get(i) or []
+        o_moi = round(n2 - n0, 3)                     # ô khối i SAU khi đổi thở
+        if not ds:
+            con_tro = n2
             continue
-        c0, _, c2 = hinh_cu_moc[i]
-        n0, _, n2 = moi[i]
-        cu_dai = max(0.001, c2 - c0)
-        ty = (h["t0"] - c0) / cu_dai
-        ty_dai = h["dur"] / cu_dai
-        moi_dai = max(0.001, n2 - n0)
-        h["t0"] = round(n0 + ty * moi_dai, 3)
-        h["dur"] = round(max(TOI_THIEU_S, ty_dai * moi_dai), 3)
+        c0, _c1, c2 = hinh_cu_moc[i]
+        o_cu = max(0.001, c2 - c0)
+        delta = round(o_moi - o_cu, 3)                # + nới / − thu, CHỈ ô này
+
+        # ô nới/thu: dồn hết delta vào MIẾNG CUỐI của ô (miếng nằm trong vùng thở)
+        if abs(delta) > 0.001:
+            cuoi = ds[-1]
+            cuoi["dur"] = round(cuoi["dur"] + delta, 3)
+            if cuoi["dur"] < TOI_THIEU_S:             # miếng thở cạn -> lấy tiếp
+                thieu = TOI_THIEU_S - cuoi["dur"]
+                cuoi["dur"] = TOI_THIEU_S
+                for h in reversed(ds[:-1]):
+                    lay = min(thieu, max(0.0, h["dur"] - TOI_THIEU_S))
+                    h["dur"] = round(h["dur"] - lay, 3)
+                    thieu = round(thieu - lay, 3)
+                    if thieu <= 0.001:
+                        break
+                if thieu > 0.001 and len(ds) == 1:    # ô chỉ 1 miếng: ép bằng ô
+                    cuoi["dur"] = max(TOI_THIEU_S, o_moi)
+
+        # đặt lại mốc trong ô — miếng thuộc khối SAU chỉ tịnh tiến (không co)
+        t = n0
+        for h in ds:
+            h["t0"] = round(t, 3)
+            t = round(t + h["dur"], 3)
+        # sai số cộng dồn: ép miếng cuối khớp đúng mép ô (ranh voice bất khả xâm phạm)
+        lech = round(n2 - t, 3)
+        if abs(lech) > 0.001 and ds:
+            ds[-1]["dur"] = round(max(TOI_THIEU_S, ds[-1]["dur"] + lech), 3)
+        con_tro = n2
     khit_mep(hd)
 
 
@@ -87,6 +175,7 @@ def them_mieng(hd: dict, tai_giay: float) -> int:
             h["nguoi_sua"] = True
             hinh.insert(j + 1, moi)
             khit_mep(hd)
+            gan_lai_khoi_goc(hd)
             return j + 1
     return -1
 
@@ -105,6 +194,7 @@ def bo_mieng(hd: dict, idx: int) -> bool:
         ke["dur"] = round(ke["dur"] + h["dur"], 3)
     ke["nguoi_sua"] = True
     khit_mep(hd)
+    gan_lai_khoi_goc(hd)
     return True
 
 
@@ -122,7 +212,29 @@ def keo_mep(hd: dict, idx: int, dur_moi: float) -> bool:
     b["dur"] = round(tong - d, 3)
     a["nguoi_sua"] = b["nguoi_sua"] = True
     khit_mep(hd)
+    gan_lai_khoi_goc(hd)
     return True
+
+
+def gan_lai_khoi_goc(hd: dict) -> None:
+    """Suy khoi_goc theo VỊ TRÍ THẬT (miếng thuộc ô nào thì mang khối đó).
+
+    Bắt buộc sau mọi thao tác chẻ/bỏ/kéo mép: nếu khoi_goc lệch, +/-1s thở sẽ
+    co nhầm miếng của khối khác (bắt thật trên LI100 08/09 — miếng 10 mang
+    khoi_goc=11 trong khi nằm ở ô khối 9)."""
+    moc = moc_timeline(hd.get("khoi") or [])
+    if not moc:
+        return
+    for h in dam_bao(hd):
+        giua = h["t0"] + h["dur"] / 2
+        i = 0
+        for j, (n0, _n1, n2) in enumerate(moc):
+            if n0 - 0.01 <= giua < n2 + 0.01:
+                i = j
+                break
+            if giua >= n2:
+                i = j
+        h["khoi_goc"] = i
 
 
 def khit_mep(hd: dict) -> None:

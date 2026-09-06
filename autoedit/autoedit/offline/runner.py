@@ -141,6 +141,7 @@ def doc(project_dir: Path) -> dict | None:
     from autoedit.offline import hinh as mhinh
 
     mhinh.dam_bao(hd)          # hợp đồng cũ (chỉ có khoi[]) -> sinh hinh[] 1-1
+    mhinh.chua_lech(hd)        # khoi_goc lệch (di chứng bản trước) -> gán lại
     return hd
 
 

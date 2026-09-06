@@ -408,6 +408,35 @@ def test_dong_bo_sau_khi_doi_tho():
     assert mh.kiem(hd) == []
 
 
+def test_doi_tho_chi_dung_toi_mieng_TRONG_khoang_tho():
+    """User chốt 08/09: '+/-1s phải thêm bớt vào HÌNH, không phải vào voice;
+    ranh giữa 2 mốc voice không được tràn sang nhau'. Miếng của khối KHÁC giữ
+    NGUYÊN độ dài — chỉ tịnh tiến."""
+    from autoedit.offline import hinh as mh
+
+    hd = {"khoi": [{"v0": 0.0, "v1": 2.4, "tho": 1.2, "tho_them": 0.0},
+                   {"v0": 3.6, "v1": 5.6, "tho": 1.7, "tho_them": 0.0},
+                   {"v0": 7.3, "v1": 12.2, "tho": 1.4, "tho_them": 0.0}]}
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 2.8)              # chẻ 1 miếng trong vùng thở khối 1
+    for delta in (-1.0, 2.0, -0.5):
+        truoc = [(h["dur"], h["khoi_goc"]) for h in hd["hinh"]]
+        moc_cu = mh.moc_timeline(hd["khoi"])
+        hd["khoi"][0]["tho_them"] = round(hd["khoi"][0]["tho_them"] + delta, 2)
+        mh.dong_bo_sau_tho(hd, moc_cu)
+        sau = [(h["dur"], h["khoi_goc"]) for h in hd["hinh"]]
+        for (d0, k0), (d1, k1) in zip(truoc, sau):
+            if k0 != 0:                  # miếng KHÔNG thuộc khối đổi thở
+                assert d1 == pytest.approx(d0, abs=0.001), (
+                    f"miếng khối {k0 + 1} bị co từ {d0} -> {d1} — tràn sang ô khác")
+        # mọi miếng nằm gọn trong ô của khối gốc (không tràn ranh voice)
+        moc = mh.moc_timeline(hd["khoi"])
+        for h in hd["hinh"]:
+            n0, _n1, n2 = moc[h["khoi_goc"]]
+            assert h["t0"] >= n0 - 0.01 and h["t0"] + h["dur"] <= n2 + 0.01
+        assert mh.kiem(hd) == []
+
+
 def test_api_thao_tac_dai_hinh(du_an, tmp_path, monkeypatch):
     from autoedit.sotra import db as sdb
 
