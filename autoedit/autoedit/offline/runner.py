@@ -83,6 +83,11 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         chu_the = []
         lop_ds = [lop4.LopKhoi(khoi=i, truu_tuong=True) for i in range(len(ds_khoi))]
 
+    # DỊCH tiếng Việt cho panel duyệt (user 08/09) — fail-open
+    from autoedit.offline import dich as mdich
+
+    ban_dich = mdich.dich_khoi([k.loi for k in ds_khoi], llm=llm, log=log)
+
     # đồng kiểm theo AVD: chương thuộc đồng kiểm nếu BẮT ĐẦU trước mốc AVD
     dong_kiem = (avd_s <= 0) or (mo_dau_tap_s < avd_s)
 
@@ -117,6 +122,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             "L1": lop_ds[i].truc_chi, "L2": lop_ds[i].ngu_canh,
             "L3": lop_ds[i].khong_khi, "neo": lop_ds[i].neo,
             "mood": lop_ds[i].mood, "truu_tuong": lop_ds[i].truu_tuong,
+            "dich": ban_dich.get(i, ""),
             "uv": ung_vien[i], "chon": chon[i],
             "khoa": False, "nguoi_sua": False,
         } for i, k in enumerate(ds_khoi)],

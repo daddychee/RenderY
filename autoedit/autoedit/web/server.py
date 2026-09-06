@@ -782,6 +782,28 @@ def api_offline_thay_mau(project_id: str, request: Request):
     return {"ok": True, "ghi_chu": "đang thay máu nền — draft CapCut sẽ hiện khi xong"}
 
 
+@app.post("/api/offline/{project_id}/dich")
+def api_offline_dich(project_id: str, request: Request):
+    """Dịch tiếng Việt cho hợp đồng CŨ (phân tích trước 08/09 chưa có bản dịch)."""
+    _require_auth(request)
+    from autoedit.offline import dich as mdich
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    ban = mdich.dich_khoi([k.get("loi", "") for k in hd["khoi"]],
+                          log=lambda m: print("[offline]", m, flush=True))
+    if not ban:
+        raise HTTPException(502, "Không dịch được (thiếu khoá GLM?)")
+    for i, k in enumerate(hd["khoi"]):
+        if i in ban:
+            k["dich"] = ban[i]
+    orun.luu(d, hd)
+    return {"ok": True, "so_dong": len(ban)}
+
+
 @app.get("/api/offline/{project_id}/voice")
 def api_offline_voice(project_id: str, request: Request):
     """Voice master WAV cho màn Offline — PCM seek chính xác mẫu (bài học 06/09:

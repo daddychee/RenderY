@@ -508,3 +508,42 @@ def test_luu_nguyen_tu_file_ngan_hon_khong_dinh_duoi(du_an, tmp_path, monkeypatc
     hd2 = runner.doc(du_an)                                  # tự chữa
     assert hd2 is not None and len(hd2["khoi"]) == 1
     assert json.loads(f.read_text(encoding="utf-8"))         # đã ghi lại sạch
+
+
+# ---------------------------------------------- dịch tiếng Việt (user 08/09)
+class _LLMDich:
+    def complete(self, system, user, model):
+        from autoedit.offline.dich import CauDich
+        n = len([l for l in user.splitlines() if l.strip()])
+        return model(cau=[CauDich(i=i, vi=f"dòng {i} tiếng Việt") for i in range(n)]), None
+
+
+def test_dich_khoi_bo_qua_dong_rong():
+    from autoedit.offline.dich import dich_khoi
+
+    ra = dich_khoi(["hello world", "", "  ", "second line"], llm=_LLMDich())
+    assert set(ra) == {0, 3}                     # chỉ dòng có chữ
+    assert ra[0].startswith("dòng")
+
+
+def test_dich_fail_open():
+    from autoedit.offline.dich import dich_khoi
+
+    class _Chet:
+        def complete(self, *a, **k):
+            raise RuntimeError("GLM chết")
+
+    assert dich_khoi(["a", "b"], llm=_Chet()) == {}   # không ném lỗi
+
+
+def test_phan_tich_gan_ban_dich(du_an, tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import dich as mdich
+    from autoedit.offline import runner
+
+    monkeypatch.setattr(mdich, "dich_khoi", lambda loi, llm=None, log=None:
+                        {i: f"dịch {i}" for i, t in enumerate(loi) if t})
+    hd = runner.phan_tich(du_an, llm=_LLM())
+    assert hd["khoi"][0]["dich"] == "dịch 0"

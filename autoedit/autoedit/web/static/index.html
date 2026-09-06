@@ -1440,20 +1440,35 @@ function ofKiemLap() {
 /* ---------- panel trái + khay ---------- */
 function ofVeLoi() {
   const k = ofK()[OF_CHON] || {}
-  document.getElementById('of-cau').innerHTML = `${esc(k.loi || '—')}
-    <span style="float:right;display:flex;gap:6px;align-items:center;font-size:12px;color:#69aee0">
-      ◦ thở ${(k.tho || 0).toFixed(1)}s${k.tho_them ? ` <b style="color:var(--warn)">${k.tho_them > 0 ? '+' : ''}${k.tho_them}s</b>` : ''}
-      ${OF_PHA === 2 ? '<button class="btn ghost small" onclick="ofGen()" title="Seedream sinh 2 ảnh theo 4 lớp khối — ảnh vào Library nguồn AI">⚡ Gen AI</button>' : ''}
-      <button class="btn ghost small" onclick="ofTho(1)" title="chèn 1s im lặng thật">+1s</button>
-      ${((k.tho || 0) + (k.tho_them || 0)) > 0.2 ? '<button class="btn ghost small" onclick="ofTho(-1)" title="thu 1s im lặng (sàn 0.2s)">−1s</button>' : ''}
-    </span>`
-  document.getElementById('of-lop').innerHTML =
-    (k.truu_tuong ? '<span class="of-chip l3">câu trừu tượng</span>' : '')
-    + (k.L1 || []).map(x => `<span class="of-chip l1">◆ ${esc(x)}</span>`).join('')
-    + (k.L2 || []).map(x => `<span class="of-chip">${esc(x)}</span>`).join('')
-    + (k.L3 || []).map(x => `<span class="of-chip l3">${esc(x)}</span>`).join('')
-    + (k.neo ? '' : '<span class="of-chip l3">nơi khác — miễn neo</span>')
-    + (k.mood ? `<span class="of-chip l3">mood ${esc(k.mood)}</span>` : '')
+  // LỜI GỐC + BẢN DỊCH tiếng Việt (user 08/09) — bỏ chip từ khóa 4 lớp:
+  // đó là dữ liệu máy tra Library, người duyệt cần biết đoạn này NÓI GÌ
+  document.getElementById('of-cau').innerHTML = `
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14.5px;line-height:1.5">${esc(k.loi || '—')}</div>
+        ${k.dich ? `<div style="font-size:13px;line-height:1.5;color:var(--muted);margin-top:5px;
+             padding-left:9px;border-left:2px solid var(--line)">${esc(k.dich)}</div>` : ''}
+      </div>
+      <div style="flex:0 0 auto;display:flex;gap:5px;align-items:center;white-space:nowrap">
+        ${OF_PHA === 2 ? '<button class="btn ghost small" onclick="ofGen()" title="Seedream sinh 2 ảnh theo khối này">⚡ Gen AI</button>' : ''}
+        <button class="btn ghost small" onclick="ofTho(1)" title="hình thở +1s (q)">+1s</button>
+        <button class="btn ghost small" onclick="ofTho(-1)" title="hình thở −1s (w)">−1s</button>
+      </div>
+    </div>`
+  const lop = document.getElementById('of-lop')
+  lop.innerHTML = k.dich ? '' :
+    (OF_HD && OF_HD.khoi && OF_HD.khoi.some(x => x.dich) ? ''
+     : '<a onclick="ofDich()" style="font-size:12px">＋ dịch tiếng Việt cho chương này</a>')
+}
+async function ofDich() {
+  toastOf('đang dịch chương...')
+  try {
+    const r = await api('/api/offline/' + OF_PID + '/dich', {method: 'POST', body: '{}'})
+    const d = await api('/api/offline/' + OF_PID)
+    if (d.hop_dong) OF_HD = d.hop_dong
+    toastOf(`✔ đã dịch ${r.so_dong} khối`)
+    ofVeAll()
+  } catch (e) { toastOf('Lỗi dịch: ' + e.message) }
 }
 async function ofTho(delta) {
   // BUG 08/09: bản cũ sửa tho_them rồi vẽ NGAY bằng dải hình CŨ (server mới là
