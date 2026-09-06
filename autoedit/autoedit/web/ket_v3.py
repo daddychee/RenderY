@@ -36,7 +36,15 @@ def doc_ket(force: bool = False) -> dict:
     try:
         import requests
 
-        r = requests.get(f"{GATEWAY}/api/cau-hinh/api-khoa/{SLUG}", timeout=_TIMEOUT)
+        # TOKEN NỘI BỘ (CRM 05/09, nen/common/token_noi_bo.py): route phát khoá
+        # đòi header X-Noi-Bo khớp OUTLIERY_TOKEN_NOI_BO — start-all đặt ở tiến
+        # trình cha, cả cụm kế thừa CÙNG một giá trị (nên phải restart cả cụm,
+        # không restart lẻ). Máy dev không có biến -> không gửi, gateway không
+        # siết thì vẫn qua (đúng khuôn token_noi_bo.header()).
+        tnb = os.getenv("OUTLIERY_TOKEN_NOI_BO", "").strip()
+        r = requests.get(f"{GATEWAY}/api/cau-hinh/api-khoa/{SLUG}",
+                         headers={"X-Noi-Bo": tnb} if tnb else {},
+                         timeout=_TIMEOUT)
         # Gọi .json() ĐÚNG MỘT LẦN — gọi hai lần là hai lượt parse (và với response
         # giả trong test là hai lượt gọi mạng).
         data = r.json() if r.ok else {}
@@ -133,6 +141,15 @@ def nap_env() -> list[str]:
         os.environ[bien] = f"{cu},{key}" if cu and bien in dat else key
         if bien not in dat:
             dat.append(bien)
+
+    # tim_tu_lieu: tư liệu thật cho beat entity — sourcer/entity.py đọc
+    # SERPER_API_KEY (Serper.dev, Google Images). Nhà khác (serpapi/searchapi)
+    # chưa có client trong pipeline nên bỏ qua, không nhét nhầm biến.
+    for k in ((ket.get("tim_tu_lieu") or {}).get("khoa") or []):
+        if k.get("key") and (k.get("nha") or "").lower() == "serper":
+            os.environ["SERPER_API_KEY"] = k["key"]
+            dat.append("SERPER_API_KEY")
+            break
     return dat
 
 

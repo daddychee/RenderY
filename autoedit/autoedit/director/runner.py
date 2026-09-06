@@ -378,9 +378,9 @@ def beat_errors(drafts: list[BeatDraft], lo: int, hi: int, words, is_hook: bool 
     errors.extend(validator.check_v2_rules(drafts))
     errors.extend(validator.check_chapter_breathing(drafts, is_hook))
     errors.extend(validator.check_overlays(drafts))
-    errors.extend(validator.check_graphic_specs(drafts))
+    # check_graphic_specs/check_info_cards đã bỏ khỏi vòng retry: spec/card bị gạt
+    # ở _resolve_* (graphic tắt 05/09) — retry vì lỗi của thứ sắp vứt là đốt tiền LLM.
     errors.extend(validator.check_text_sequences(drafts))
-    errors.extend(validator.check_info_cards(drafts))
     return errors
 
 
@@ -393,30 +393,19 @@ def _text_of(words, lo: int, hi: int) -> str:
 
 
 def _resolve_graphic_spec(draft):
-    """GraphicSpecDraft -> GraphicSpec (giữ layout LLM chọn: full/half)."""
-    if draft is None:
-        return None
-    from autoedit.project import ChartDatum, GraphicSpec
+    """LUÔN None — user bỏ graphic tự render (05/09: chart mp4 không đẹp, không work).
 
-    return GraphicSpec(
-        chart_type=draft.chart_type, title=draft.title, unit=draft.unit, layout=draft.layout,
-        data=[ChartDatum(label=d.label, value=d.value) for d in draft.data],
-        source_note=draft.source_note,
-        x_label=draft.x_label, y_label=draft.y_label,
-    )
+    Đây là CHỐT CHẶN, không chỉ là prompt: prompt đã thôi dạy chart nhưng LLM vẫn có
+    thể nhả spec (schema còn field) — gạt tại đây thì mọi đường direct đều sạch.
+    Beat route=graphic thành placeholder + nền lót (đường có sẵn trong sourcer),
+    editor tự làm graphic đẹp. Muốn bật lại: xem git history hàm này.
+    """
+    return None
 
 
 def _resolve_info_card(draft):
-    """DirectInfoCardDraft -> InfoCard (approved=True vì từ director, không phải enrich)."""
-    if draft is None:
-        return None
-    from autoedit.project import InfoCard
-    return InfoCard(
-        title=draft.title,
-        bullets=draft.bullets,
-        source_note=draft.source_note,
-        approved=True,
-    )
+    """LUÔN None — cùng quyết định bỏ graphic 05/09 (xem _resolve_graphic_spec)."""
+    return None
 
 
 def _resolve_text_sequence(draft):

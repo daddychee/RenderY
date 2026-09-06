@@ -16,8 +16,8 @@ from autoedit.web import ket_v3
 def _sach(monkeypatch):
     """Xoá cache + biến môi trường giữa các test."""
     ket_v3._cache.update(luc=0.0, data={})
-    for b in ("ANTHROPIC_API_KEY", "LLM_API_KEY", "LLM_PROVIDER",
-              "L3_MODEL", "RANK_MODEL", "PEXELS_API_KEY", "PIXABAY_API_KEY"):
+    for b in ("ANTHROPIC_API_KEY", "LLM_API_KEY", "LLM_PROVIDER", "L3_MODEL",
+              "RANK_MODEL", "PEXELS_API_KEY", "PIXABAY_API_KEY", "SERPER_API_KEY"):
         monkeypatch.delenv(b, raising=False)
 
 
@@ -70,6 +70,32 @@ def test_cache_khong_goi_lai_trong_TTL(monkeypatch):
     ket_v3.doc_ket()
     ket_v3.doc_ket()
     assert len(goi) == 1
+
+
+def test_gui_token_noi_bo_khi_co_bien(monkeypatch):
+    """CRM 05/09: route phát khoá đòi X-Noi-Bo = OUTLIERY_TOKEN_NOI_BO (cả cụm
+    chung một giá trị từ start-all). Không có biến (máy dev) -> không gửi header."""
+    bat = {}
+
+    class _R:
+        ok = True
+
+        @staticmethod
+        def json():
+            return {"chia_beat": _muc()}
+
+    def _get(url, headers=None, timeout=None):
+        bat["headers"] = headers or {}
+        return _R()
+
+    monkeypatch.setattr("requests.get", _get)
+    monkeypatch.setenv("OUTLIERY_TOKEN_NOI_BO", "bi-mat-cum")
+    ket_v3.doc_ket(force=True)
+    assert bat["headers"] == {"X-Noi-Bo": "bi-mat-cum"}
+
+    monkeypatch.delenv("OUTLIERY_TOKEN_NOI_BO")
+    ket_v3.doc_ket(force=True)
+    assert bat["headers"] == {}
 
 
 # ------------------------------ nap_env -------------------------------------
@@ -251,6 +277,28 @@ def test_chua_cap_khoa_stock_thi_giu_env(monkeypatch):
     _gia_ket(monkeypatch, {"tim_footage": {"khoa": []}})
     assert ket_v3.nap_env() == []
     assert os.environ["PEXELS_API_KEY"] == "tu-env"
+
+
+# ------------------------------ khoá serp (entity) --------------------------
+def test_serper_dat_dung_bien(monkeypatch):
+    """tim_tu_lieu (Serper.dev) -> SERPER_API_KEY — route entity hết needs_human."""
+    import os
+
+    _gia_ket(monkeypatch, {"tim_tu_lieu": {"khoa": [
+        {"id": "k1", "key": "srp-1", "loai": "serp", "nha": "serper"}]}})
+    dat = ket_v3.nap_env()
+    assert os.environ["SERPER_API_KEY"] == "srp-1"
+    assert dat == ["SERPER_API_KEY"]
+
+
+def test_nha_serp_khac_thi_bo_qua(monkeypatch):
+    """serpapi/searchapi chưa có client trong pipeline — không nhét nhầm biến."""
+    import os
+
+    _gia_ket(monkeypatch, {"tim_tu_lieu": {"khoa": [
+        {"id": "k1", "key": "sa-1", "loai": "serp", "nha": "serpapi"}]}})
+    assert ket_v3.nap_env() == []
+    assert "SERPER_API_KEY" not in os.environ
 
 
 # ------------------------------ khoa_cua_viec -------------------------------

@@ -86,6 +86,33 @@ def test_giu_canh_bao_cua_stage(tmp_path):
     assert any("Timestamp" in c for c in info["canh_bao"])
 
 
+def test_draft_hop_le_giao_kem_ban_premiere_va_resolve(tmp_path):
+    """Nhân sự dựng Premiere cần file .xml (FCP7 XML) — Premiere KHÔNG đọc .fcpxml.
+    Draft hợp lệ thì thư mục giao phải có CẢ HAI bản nằm cạnh draft CapCut."""
+    p = _project(tmp_path, "ch01-x")
+    draft_dir = tmp_path / "drafts" / "CH01-X"
+    (draft_dir / "draft_content.json").write_text(json.dumps({
+        "fps": 30, "duration": 2_000_000,
+        "canvas_config": {"width": 1920, "height": 1080, "ratio": "original"},
+        "materials": {"videos": [{
+            "id": "m0", "type": "video", "duration": 5_000_000,
+            "width": 1920, "height": 1080,
+            "path": "##_draftpath_placeholder_X_##/materials/a.mp4"}],
+            "audios": [], "texts": [], "speeds": []},
+        "tracks": [{"type": "video", "attribute": 0, "flag": 0, "segments": [{
+            "material_id": "m0", "extra_material_refs": [], "volume": 1.0,
+            "target_timerange": {"start": 0, "duration": 2_000_000},
+            "source_timerange": {"start": 0, "duration": 2_000_000}}]}],
+    }), encoding="utf-8")
+
+    dest = tmp_path / "out" / "ch01"
+    info = compose_chapter(p, dest)
+    assert (dest / "ch01.xml").is_file()        # Premiere
+    assert (dest / "ch01.fcpxml").is_file()     # Resolve / FCP
+    assert info.get("xmeml") == 1 and info.get("fcpxml") == 1
+    assert not any("chưa xuất được" in c for c in info["canh_bao"])
+
+
 def test_project_hong_bao_loi_ro(tmp_path):
     (tmp_path / "trong").mkdir()
     with pytest.raises(ComposeError, match="project.json"):

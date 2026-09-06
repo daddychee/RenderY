@@ -191,6 +191,25 @@ def test_graphic_spec_validator():
     assert any("route=" in e for e in validator.check_graphic_specs([draft_with(good, route="stock")]))
 
 
+def test_graphic_va_card_bi_gat_khi_llm_van_nha():
+    """Graphic tắt 05/09: prompt đã thôi dạy nhưng LLM vẫn có thể nhả spec/card
+    (schema còn field) — chốt chặn _resolve_* phải gạt, beat ra sạch graphic."""
+    from autoedit.director.runner import _resolve_graphic_spec, _resolve_info_card
+    from autoedit.director.schema import (
+        ChartDatumDraft,
+        DirectInfoCardDraft,
+        GraphicSpecDraft,
+    )
+
+    gs = GraphicSpecDraft(chart_type="bar", title="x", data=[
+        ChartDatumDraft(label="VN", value=400), ChartDatumDraft(label="Mỹ", value=2500)])
+    card = DirectInfoCardDraft(title="Lợi ích", bullets=["a", "b", "c"])
+    assert _resolve_graphic_spec(gs) is None
+    assert _resolve_info_card(card) is None
+    assert _resolve_graphic_spec(None) is None
+    assert _resolve_info_card(None) is None
+
+
 def test_enforce_breathing_pauses_drops_mid_phrase():
     """Bug 13/06: hình thở chỗ nói liền mạch (gap~0) phải bị bỏ."""
     words = [

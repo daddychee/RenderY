@@ -52,6 +52,9 @@ class HoSoKenh:
     # đồ thị nhịp theo thời gian (user 05/09 "cần đồ thị nhịp tăng giảm"):
     # 24 bucket vị trí 0..1 của video, giá trị = cắt/phút (median qua video hội tụ)
     nhip_curve: list[float] = field(default_factory=list)
+    # độ dài trung vị video hội tụ (giây) — UI đổi 24 bucket vị trí thành MỐC
+    # THỜI GIAN thật (user 05/09: "khoảng tăng giảm trong các mốc thời gian")
+    dai_trung_vi_s: float = 0.0
 
     # ---- tầng 2: NHẠC (ffmpeg thuần) ----
     nhac_energy_curve: list[float] = field(default_factory=list)  # 12 bucket 0..1

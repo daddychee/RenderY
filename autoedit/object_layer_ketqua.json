@@ -1,0 +1,171 @@
+{
+ "dung": 8,
+ "sai": 2,
+ "bo": 6,
+ "objects": {
+  "0": {
+   "beat_id": 0,
+   "objects": [
+    "US dollar bills"
+   ],
+   "truu_tuong": false
+  },
+  "1": {
+   "beat_id": 1,
+   "objects": [
+    "US dollar bills"
+   ],
+   "truu_tuong": false
+  },
+  "2": {
+   "beat_id": 2,
+   "objects": [
+    "cash in hand"
+   ],
+   "truu_tuong": false
+  },
+  "3": {
+   "beat_id": 3,
+   "objects": [],
+   "truu_tuong": true
+  },
+  "4": {
+   "beat_id": 4,
+   "objects": [
+    "refrigerator",
+    "grocery bags"
+   ],
+   "truu_tuong": false
+  },
+  "5": {
+   "beat_id": 5,
+   "objects": [],
+   "truu_tuong": true
+  },
+  "6": {
+   "beat_id": 6,
+   "objects": [],
+   "truu_tuong": true
+  },
+  "7": {
+   "beat_id": 7,
+   "objects": [
+    "snow-capped mountain"
+   ],
+   "truu_tuong": false
+  },
+  "8": {
+   "beat_id": 8,
+   "objects": [
+    "devil-masked dancers"
+   ],
+   "truu_tuong": false
+  },
+  "9": {
+   "beat_id": 9,
+   "objects": [
+    "jungle tribe villagers"
+   ],
+   "truu_tuong": false
+  },
+  "10": {
+   "beat_id": 10,
+   "objects": [
+    "Quito street scene"
+   ],
+   "truu_tuong": false
+  },
+  "11": {
+   "beat_id": 11,
+   "objects": [],
+   "truu_tuong": true
+  },
+  "12": {
+   "beat_id": 12,
+   "objects": [
+    "cash in hand"
+   ],
+   "truu_tuong": false
+  },
+  "13": {
+   "beat_id": 13,
+   "objects": [
+    "grocery basket",
+    "receipt"
+   ],
+   "truu_tuong": false
+  },
+  "14": {
+   "beat_id": 14,
+   "objects": [],
+   "truu_tuong": true
+  },
+  "15": {
+   "beat_id": 15,
+   "objects": [],
+   "truu_tuong": true
+  }
+ },
+ "chi_tiet": [
+  [
+   0,
+   true,
+   "US dollar bills",
+   "Một người đang cầm và đếm các tờ tiền US dollar bills trong "
+  ],
+  [
+   1,
+   true,
+   "US dollar bills",
+   "Khung hình hiển thị nhiều đồng xu và một tờ 100 đô la Mỹ, cù"
+  ],
+  [
+   2,
+   true,
+   "cash in hand",
+   "Một bàn tay đeo nhẫn cầm một chiếc ví nâu mở ra, bên trong c"
+  ],
+  [
+   4,
+   true,
+   "refrigerator, grocery bags",
+   "Một giỏ hàng chứa các túi mua sắm (grocery bags) ở quầy than"
+  ],
+  [
+   7,
+   true,
+   "snow-capped mountain",
+   "Một nhóm người đứng trên đỉnh núi phủ tuyết, với mây và địa "
+  ],
+  [
+   8,
+   true,
+   "devil-masked dancers",
+   "Khung hình cho thấy một con đường với nhiều người, trong đó "
+  ],
+  [
+   9,
+   false,
+   "jungle tribe villagers",
+   "Khung hình cho thấy một khu rừng rậm rạp với một dòng sông h"
+  ],
+  [
+   10,
+   true,
+   "Quito street scene",
+   "Khung hình cho thấy một khu chợ trong nhà với các quầy hàng "
+  ],
+  [
+   12,
+   false,
+   "cash in hand",
+   "Khung hình cho thấy một người đang ngồi, tay của họ được nhì"
+  ],
+  [
+   13,
+   true,
+   "grocery basket, receipt",
+   "Hai người phụ nữ đang mua rau ở chợ, một người cầm giỏ đan c"
+  ]
+ ]
+}

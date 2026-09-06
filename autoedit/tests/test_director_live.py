@@ -66,14 +66,14 @@ def test_direct_context_numbered_words_and_constraint_table(project):
 
 
 def test_direct_context_cong_cu_hinh_block(project):
-    """Bug 3 bài đường sâu 0 info_card (DS5-083/DS3-084/SP1-017): direct_context chỉ in
-    TRẦN card mà không dạy khi-nào-dùng → block CÔNG CỤ HÌNH phải có mặt MỌI video sâu
-    (không phụ thuộc niche/kho — khác vocab/dna fail-open)."""
+    """Block CÔNG CỤ HÌNH phải có mặt MỌI video sâu (không phụ thuộc niche/kho).
+    Từ 05/09 (user bỏ graphic tự render): block chỉ dạy kinetic text, và phải NÓI RÕ
+    card/chart đã tắt — dạy mập mờ là LLM đường sâu lại nhả info_card/graphic_spec."""
     ctx = live.build_direct_context(project)
     assert "CÔNG CỤ HÌNH" in ctx
-    for token in ("info_card", "graphic_spec", "text_sequence",
-                  "NÊN có ≥1 `info_card` HOẶC `graphic_spec`"):
-        assert token in ctx, f"block công cụ hình thiếu: {token}"
+    assert "text_sequence" in ctx
+    assert "ĐÃ TẮT" in ctx and "info_card" in ctx and "graphic_spec" in ctx
+    assert "NÊN có ≥1" not in ctx  # luật ép mỗi chương 1 card/chart đã bỏ
     # block đứng TRƯỚC transcript (agent đọc luật trước khi gặp 27KB chữ)
     assert ctx.index("CÔNG CỤ HÌNH") < ctx.index("## TRANSCRIPT")
 

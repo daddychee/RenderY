@@ -37,26 +37,16 @@ DRAFT_FILE = "director_draft.json"
 
 
 # --------------------------- Mảnh 1: direct-context ---------------------------
-# CÔNG CỤ HÌNH (2026-07-14): đường sâu không ăn prompts.py nên đạo diễn phiên sống
-# CHƯA TỪNG được dạy về card/kinetic — 3 bài fan-out (DS5-083/DS3-084/SP1-017) ra
-# 0 info_card trong khi mọi bài đường direct cũ đều có. Bảng ràng buộc chỉ in TRẦN
-# (≤2/chương) chứ không dạy khi-nào-dùng. Block này = bản RÚT GỌN _INFO_CARD_RULES/
-# _TEXT_SEQUENCE_RULES của prompts.py — cố ý ngắn (user 2026-07-14: nhồi lệnh là
-# LLM rơi lệnh), phần format chi tiết đã có sẵn trong description của schema.py.
+# CÔNG CỤ HÌNH (2026-07-14): đường sâu không ăn prompts.py nên phải dạy tại đây.
+# 05/09: user bỏ graphic tự render (card/chart xấu, không work) — block rút còn
+# kinetic text; có nhả info_card/graphic_spec thì _resolve_* của runner gạt.
 _CONG_CU_HINH_BLOCK = """\
-## CÔNG CỤ HÌNH NGOÀI FOOTAGE — card / chart / kinetic (đừng bỏ quên)
+## CÔNG CỤ HÌNH NGOÀI FOOTAGE — kinetic text (đừng bỏ quên)
 
-Mỗi beat chọn TỐI ĐA 1 trong 3 công cụ (mutual exclusion — máy gác):
-- `info_card` — beat có 2-5 Ý ĐỊNH TÍNH đáng liệt kê (lợi ích / bước / điều cần biết /
-  "ba lý do"): footage chạy nửa TRÁI, thẻ bullet nửa PHẢI. `title` 2-4 từ +
-  `bullets` 3-5 cái ≤40 ký tự, ngôn ngữ script, chỉ CỦNG CỐ điều đang nói (không thêm
-  dữ kiện mới). KHÔNG dùng cho 1 con số lẻ (overlay lo) hay so sánh số (graphic_spec lo).
-- `graphic_spec` — CHỈ khi so sánh ≥2 con số hoặc xu hướng theo thời gian; khi đó
-  BẮT BUỘC `sourcing_route: graphic`.
 - `text_sequence` (kinetic) — HIẾM, 1-2 lần/video ở câu chốt đắt nhất: chẻ chữ ĐANG NÓI
   thành 2-4 cụm verbatim liền mạch.
-**Mỗi chương NÊN có ≥1 `info_card` HOẶC `graphic_spec`** — neo thị giác cho ý phức tạp
-(chương <30s miễn). Trần mỗi chương theo bảng ràng buộc. Beat chuyển tiếp/setup: không gì cả."""
+- `info_card`/`graphic_spec`: ĐÃ TẮT — luôn để null. Con số đáng nhấn dùng overlay.
+Beat chuyển tiếp/setup: không gì cả."""
 
 
 # Luật "bán thuốc" (user chốt 2026-07-13, DS5-083 b014 Jenga): đường sâu KHÔNG ăn

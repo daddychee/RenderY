@@ -218,25 +218,24 @@ class BeatDraft(BaseModel):
         description="0-1 overlay chữ/số cho beat (hiếm khi 2). TIẾT CHẾ: chỉ thêm khi "
         "beat có con số/giá đáng nhấn, từ khóa đắt, hoặc mục danh sách. Đa số beat = [].",
     )
+    # graphic_spec/info_card: field GIỮ để parse không gãy khi LLM lỡ nhả (giá trị bị
+    # _resolve_* của runner gạt), nhưng description dạy "luôn null" — graphic tắt 05/09.
     graphic_spec: Optional[GraphicSpecDraft] = Field(
         default=None,
-        description="CHỈ khi beat SO SÁNH ≥2 số hoặc XU HƯỚNG theo thời gian (vd thuê nhà "
-        "$400 VN vs $2500 Mỹ; chi phí tăng % qua các năm). Khi đó BẮT BUỘC "
-        "sourcing_route=graphic. Một con số lẻ thì dùng overlay, KHÔNG graphic_spec.",
+        description="ALWAYS null — chart tự render đã TẮT. Con số đáng nhấn thì dùng "
+        "overlay (stat/price); số là ngôi sao của beat thì route=graphic (placeholder "
+        "cho editor tự làm).",
     )
     text_sequence: Optional[TextSequenceDraft] = Field(
         default=None,
         description="HIẾM — chỉ khi câu CHỐT mạnh đáng cho chữ chạy theo voice từng cụm "
-        "(kinetic). Chẻ chữ ĐANG NÓI của beat thành 2-4 cụm verbatim liền mạch. KHÔNG đi "
-        "cùng graphic_spec. Đa số beat = null.",
+        "(kinetic). Chẻ chữ ĐANG NÓI của beat thành 2-4 cụm verbatim liền mạch. "
+        "Đa số beat = null.",
     )
     info_card: Optional[DirectInfoCardDraft] = Field(
         default=None,
-        description="Thẻ bullet split-screen: footage chạy nửa TRÁI, thẻ chữ nửa PHẢI. "
-        "Dùng khi beat có 2-5 điểm định tính đáng liệt kê (ưu điểm, điều cần biết, bước). "
-        "KHÔNG dùng cho beat có 1 con số (dùng overlay) hay so sánh số (dùng graphic_spec). "
-        "MUTUAL EXCLUSION: không đi cùng graphic_spec hoặc text_sequence — chọn 1. "
-        "GIỚI HẠN per chương: tối đa 2 card (code tự bỏ bớt nếu vượt). Đa số beat = null.",
+        description="ALWAYS null — thẻ bullet tự render đã TẮT. Ý dạng danh sách thì "
+        "dùng overlay list_item cho mục đắt nhất.",
     )
 
 

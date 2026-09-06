@@ -1,0 +1,384 @@
+<title>RenderY Processing</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Space+Grotesk:wght@600&display=swap">
+<style>
+/* ═══ token RADARY — khớp index.html RenderY, mockup trang Processing v2 (chia khối) ═══ */
+:root{
+  color-scheme:light;
+  --bg:#f5f5f5; --panel:#fff; --line:#e6e6e6; --text:#16181c; --muted:#6c6c72;
+  --accent:#2c6fc4; --accent-soft:#e8f0fb;
+  --good:#16a34a; --good-soft:rgba(22,163,74,.10);
+  --warn:#d97706; --warn-soft:rgba(217,119,6,.10);
+  --bad:#dc2626; --bad-soft:rgba(220,38,38,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#090c12; --panel:#121826; --line:#243149; --text:#e8edf4; --muted:#8b96a8;
+    --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
+    --good:#3fae63; --good-soft:rgba(63,174,99,.14);
+    --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
+    --bad:#ef4444; --bad-soft:rgba(239,68,68,.12);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#090c12; --panel:#121826; --line:#243149; --text:#e8edf4; --muted:#8b96a8;
+  --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
+  --good:#3fae63; --good-soft:rgba(63,174,99,.14);
+  --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
+  --bad:#ef4444; --bad-soft:rgba(239,68,68,.12);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);
+  font:14px/1.5 'Inter',-apple-system,'Segoe UI',Roboto,sans-serif}
+#app{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0 14px}
+header.top h1{font-size:20px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.035em}
+header.top h1 span{color:var(--accent)}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs span{color:var(--muted);padding:7px 13px;border-radius:8px;font-weight:600;font-size:14px}
+nav.tabs span.on{background:var(--accent-soft);color:var(--accent)}
+.ai{margin-left:auto;color:var(--muted);font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;margin-bottom:14px}
+.panel h2{font-size:15px;margin-bottom:10px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+a{color:var(--accent);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+.note{color:var(--muted);font-size:12.5px}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;
+  font-weight:600;cursor:pointer;font-size:13.5px;font-family:inherit}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.btn.ghost{background:none;color:var(--accent);border:1px solid var(--accent)}
+.btn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ── tiêu đề khối: kẻ ngang + nhãn hoa ── */
+h2.khoi{display:flex;align-items:center;gap:10px;font-size:12px;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:700}
+h2.khoi::after{content:"";flex:1;height:1px;background:var(--line)}
+h2.khoi .dem{color:var(--text);background:var(--accent-soft);color:var(--accent);
+  border-radius:99px;padding:0 8px;font-size:11px}
+
+/* ── LƯỚI 2 CỘT: trái = đang chạy, phải = chờ tay + hàng chờ ── */
+.luoi{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:0 16px;align-items:start}
+.luoi>.trai,.luoi>.phai{min-width:0}
+@media (max-width:920px){.luoi{grid-template-columns:1fr}}
+
+/* chips tổng quan */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 14px}
+.chip b{display:block;font-size:16px;font-variant-numeric:tabular-nums}
+.chip b.w{color:var(--warn)}
+.chip span{color:var(--muted);font-size:11.5px}
+
+/* tag + đèn */
+.hb{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.hb.ok{background:var(--good)}.hb.run{background:var(--accent)}
+.hb.cho{background:var(--warn)}.hb.im{background:var(--line)}.hb.loi{background:var(--bad)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px}
+.tag.cho{background:var(--warn-soft);color:var(--warn)}
+.tag.ok{background:var(--good-soft);color:var(--good)}
+.tag.loi{background:var(--bad-soft);color:var(--bad)}
+.tien{color:var(--warn);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* việc chờ tay (cột phải — dạng danh sách dọc) */
+.viec{display:block;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.viec:last-child{border-bottom:0;padding-bottom:2px}
+.viec:hover b{color:var(--accent)}
+.viec .d1{display:flex;gap:8px;align-items:center;margin-bottom:3px}
+.viec .d1 .tien{margin-left:auto;font-size:12.5px}
+.viec p{color:var(--muted);font-size:12.5px;line-height:1.45}
+
+/* hàng chờ (cột phải — danh sách) */
+.hc{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line)}
+.hc:last-child{border-bottom:0;padding-bottom:2px}
+.hc .stt{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;width:14px}
+.hc .ten b{font-size:13.5px}
+.hc .ten span{display:block;color:var(--muted);font-size:11.5px}
+.hc .sau{margin-left:auto;text-align:right;font-size:12.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.hc .sau a{display:block;font-size:11.5px;color:var(--muted)}
+
+/* thẻ ĐANG CHẠY */
+.dc-dau{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.dc-dau h3{font-size:15px}
+.dc-dau .who{color:var(--muted);font-size:12.5px}
+.dc-dau .eta{margin-left:auto;font-size:13px;color:var(--accent);font-weight:600;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.pbar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:10px}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:5px 10px;
+  border-bottom:1px solid var(--line);white-space:nowrap;font-size:12px}
+td{padding:5px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child>td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.td6{display:inline-flex;gap:3px;vertical-align:middle}
+.td6 i{width:13px;height:5px;border-radius:3px;background:var(--line)}
+.td6 i.ok{background:var(--good)}
+.td6 i.run{background:var(--accent);animation:tho 1.3s ease-in-out infinite}
+.td6 i.cho{background:var(--warn)}
+.td6 i.loi{background:var(--bad)}
+@keyframes tho{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.td6 i.run{animation:none}}
+.dc-chan{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px}
+
+/* LỊCH SỬ theo ngày */
+details.ngay{border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  margin-bottom:10px;overflow:hidden}
+details.ngay>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;
+  gap:10px;padding:10px 16px;font-weight:600;font-size:14px}
+details.ngay>summary::-webkit-details-marker{display:none}
+details.ngay>summary .mui{color:var(--muted);font-weight:400;font-size:12.5px}
+details.ngay>summary .tong{margin-left:auto;color:var(--muted);font-weight:400;
+  font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+details.ngay>summary::before{content:"▸";color:var(--muted);font-size:12px;
+  transition:transform .15s}
+details.ngay[open]>summary::before{transform:rotate(90deg)}
+details.ngay[open]>summary{border-bottom:1px solid var(--line)}
+.ls-body{padding:2px 16px 10px}
+tr.ls:hover td{background:var(--accent-soft);cursor:pointer}
+tr.ls td:first-child{font-weight:600}
+tr.ls-mo>td{background:var(--bg);padding:12px 14px}
+.ls-chitiet{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13px}
+.ls-chitiet>span:nth-child(odd){color:var(--muted)}
+.ls-chitiet .baocao{display:flex;gap:6px;flex-wrap:wrap}
+.ls-chitiet .baocao a{border:1px solid var(--line);border-radius:6px;padding:2px 9px;
+  font-size:12.5px;background:var(--panel)}
+.ls-chitiet .baocao a:hover{border-color:var(--accent);text-decoration:none}
+.nas{display:flex;gap:8px}
+.nas input{flex:1;min-width:0;background:var(--panel);color:var(--text);
+  border:1px solid var(--line);border-radius:8px;padding:5px 9px;
+  font:12px ui-monospace,Consolas,monospace}
+.mocknote{border-left:3px solid var(--warn);background:var(--warn-soft);
+  border-radius:0 7px 7px 0;padding:8px 11px;margin-bottom:14px;font-size:12.5px;color:var(--muted)}
+.mocknote b{color:var(--text)}
+</style>
+
+<div id="app">
+<header class="top">
+  <h1>RENDER<span>Y</span></h1>
+  <nav class="tabs"><span class="on">Sequences</span><span>Generation</span><span>Framing Insight</span></nav>
+  <span class="ai">padoma</span>
+</header>
+<nav class="tabs" style="margin-bottom:12px">
+  <span class="on">Processing</span><span>+ New Sequence</span>
+</nav>
+
+<div class="mocknote"><b>Mockup v2 — chia khối 2 cột.</b> Dữ liệu giả, nút bấm không chạy thật.
+  Trái: máy đang làm gì. Phải: mọi thứ đang chờ. Dưới: lịch sử gộp theo ngày.</div>
+
+<!-- ══ TỔNG QUAN ══ -->
+<div class="chips">
+  <div class="chip"><b>2/2</b><span>máy đang dựng</span></div>
+  <div class="chip"><b>3</b><span>tập xếp hàng</span></div>
+  <div class="chip"><b class="w">1</b><span>việc chờ bạn xử lý</span></div>
+  <div class="chip"><b class="mono">$2.10</b><span>AI đã tiêu hôm nay</span></div>
+</div>
+
+<div class="luoi">
+<!-- ═══ CỘT TRÁI: ĐANG CHẠY ═══ -->
+<div class="trai">
+  <h2 class="khoi">Đang chạy <span class="dem">2 tập</span></h2>
+
+  <div class="panel">
+    <div class="dc-dau">
+      <h3><span class="hb run"></span>IN012</h3>
+      <span class="who">padoma · bắt đầu 10:05</span>
+      <span class="eta">46% · còn ~34 phút</span>
+    </div>
+    <div class="pbar"><i style="width:46%"></i></div>
+    <div class="tablewrap"><table>
+      <tr><th>Chương</th><th>Tiến độ</th><th>Trạng thái</th></tr>
+      <tr><td class="mono">c1</td>
+        <td><span class="td6"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i></span></td>
+        <td><span class="hb ok"></span>Draft xong</td></tr>
+      <tr><td class="mono">c2</td>
+        <td><span class="td6"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="run"></i><i></i><i></i></span></td>
+        <td><span class="hb run"></span>[source] tải envato 14/31 — whistleblower docs night</td></tr>
+      <tr><td class="mono">c3</td>
+        <td><span class="td6"><i class="ok"></i><i></i><i></i><i></i><i></i><i></i></span></td>
+        <td><span style="color:var(--muted)"><span class="hb im"></span>chờ tới lượt</span></td></tr>
+    </table></div>
+    <div class="dc-chan">
+      <span class="note">AI đã tiêu <span class="mono">$0.36</span></span>
+      <span class="note">voice → beat → cắt → nguồn → AI → ráp</span>
+      <span class="note" style="margin-left:auto"><a>log</a> · <a style="color:var(--muted)">huỷ</a></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="dc-dau">
+      <h3><span class="hb run"></span>LI105</h3>
+      <span class="who">editor-thu · bắt đầu 10:41</span>
+      <span class="eta">8% · còn ~1 giờ 20</span>
+    </div>
+    <div class="pbar"><i style="width:8%"></i></div>
+    <div class="tablewrap"><table>
+      <tr><th>Chương</th><th>Tiến độ</th><th>Trạng thái</th></tr>
+      <tr><td class="mono">c1</td>
+        <td><span class="td6"><i class="run"></i><i></i><i></i><i></i><i></i><i></i></span></td>
+        <td><span class="hb run"></span>[align] khớp voice với script…</td></tr>
+      <tr><td class="mono">c2</td>
+        <td><span class="td6"><i></i><i></i><i></i><i></i><i></i><i></i></span></td>
+        <td><span style="color:var(--muted)"><span class="hb im"></span>chờ tới lượt</span></td></tr>
+    </table></div>
+    <div class="dc-chan">
+      <span class="note">AI đã tiêu <span class="mono">$0.00</span> — toàn footage thật</span>
+      <span class="note" style="margin-left:auto"><a>log</a> · <a style="color:var(--muted)">huỷ</a></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CỘT PHẢI: CHỜ TAY NGƯỜI + HÀNG CHỜ ═══ -->
+<div class="phai">
+  <h2 class="khoi">Cần bạn xử lý <span class="dem">1</span></h2>
+  <div class="panel">
+    <div class="viec">
+      <div class="d1"><span class="tag cho">duyệt ảnh</span><b>IN011 · c3</b>
+        <span class="tien mono">$0.60 →</span></div>
+      <p>Ảnh phương án đã về — chọn 1 ảnh/cảnh rồi chốt để gen video.</p>
+    </div>
+  </div>
+
+  <h2 class="khoi">Hàng chờ <span class="dem">3 tập</span></h2>
+  <div class="panel">
+    <div class="hc"><span class="stt">1</span>
+      <span class="ten"><b>IN013</b><span>padoma · nộp 10:52</span></span>
+      <span class="sau">~34 phút<a>huỷ</a></span></div>
+    <div class="hc"><span class="stt">2</span>
+      <span class="ten"><b>DS004</b><span>editor-thu · nộp 11:07</span></span>
+      <span class="sau">~1 giờ 20<a>huỷ</a></span></div>
+    <div class="hc"><span class="stt">3</span>
+      <span class="ten"><b>LI106</b><span>editor-thu · nộp 11:15</span></span>
+      <span class="sau">~1 giờ 55<a>huỷ</a></span></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ LỊCH SỬ — full width dưới cùng ═══ -->
+<h2 class="khoi">Lịch sử</h2>
+
+<details class="ngay" open>
+  <summary>Hôm nay <span class="mui">thứ Bảy 05/09</span>
+    <span class="tong">2 tập · $0.96 AI</span></summary>
+  <div class="ls-body"><div class="tablewrap"><table>
+    <tr><th class="num">Xong lúc</th><th>Sequence</th><th>Người</th><th class="num">Chương</th>
+      <th class="num">Dựng mất</th><th class="num">Chi phí AI</th><th></th></tr>
+
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">09:47</td><td>IN010</td>
+      <td>padoma</td><td class="num">3</td><td class="num mono">1g35</td>
+      <td class="num mono">$0.96</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 08:12 → xong 09:47 (dựng 1g35)</span>
+      <span>Chi phí AI</span><span class="mono">$0.96 — 12 ảnh phương án + 4 cảnh video</span>
+      <span>Báo cáo chương</span><span class="baocao">
+        <a>c1 — report</a><a>c2 — report</a><a>c3 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\Investigate\IN010\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">07:58</td><td>LI104</td>
+      <td>editor-thu</td><td class="num">2</td><td class="num mono">42 phút</td>
+      <td class="num mono">$0.00</td><td><span class="tag loi">failed</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 07:16 → dừng 07:58</span>
+      <span>Lỗi</span><span style="color:var(--bad)">stage source: Envato hết quota ngày — chạy lại sau 0h hoặc nộp «chỉ nguồn miễn phí»</span>
+      <span>Khác</span><span><a>log đầy đủ</a> · <a>nộp lại</a></span>
+    </div></td></tr>
+  </table></div></div>
+</details>
+
+<details class="ngay">
+  <summary>Hôm qua <span class="mui">thứ Sáu 04/09</span>
+    <span class="tong">3 tập · $1.14 AI</span></summary>
+  <div class="ls-body"><div class="tablewrap"><table>
+    <tr><th class="num">Xong lúc</th><th>Sequence</th><th>Người</th><th class="num">Chương</th>
+      <th class="num">Dựng mất</th><th class="num">Chi phí AI</th><th></th></tr>
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">21:14</td><td>IN009</td>
+      <td>padoma</td><td class="num">4</td><td class="num mono">2g05</td>
+      <td class="num mono">$1.14</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 19:02 → xong 21:14 (dựng 2g05)</span>
+      <span>Chi phí AI</span><span class="mono">$1.14 — 18 ảnh phương án + 3 cảnh video</span>
+      <span>Báo cáo chương</span><span class="baocao">
+        <a>c1 — report</a><a>c2 — report</a><a>c3 — report</a><a>c4 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\Investigate\IN009\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">16:40</td><td>DS003</td>
+      <td>editor-thu</td><td class="num">3</td><td class="num mono">1g18</td>
+      <td class="num mono">$0.00</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 15:20 → xong 16:40 (dựng 1g18)</span>
+      <span>Chi phí AI</span><span class="mono">$0.00 — toàn footage thật</span>
+      <span>Báo cáo chương</span><span class="baocao">
+        <a>c1 — report</a><a>c2 — report</a><a>c3 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\DeepSea\DS003\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">11:03</td><td>LI103</td>
+      <td>editor-thu</td><td class="num">2</td><td class="num mono">55 phút</td>
+      <td class="num mono">$0.00</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 10:05 → xong 11:03 (dựng 55 phút)</span>
+      <span>Chi phí AI</span><span class="mono">$0.00</span>
+      <span>Báo cáo chương</span><span class="baocao"><a>c1 — report</a><a>c2 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\Life In\LI103\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+  </table></div></div>
+</details>
+
+<details class="ngay">
+  <summary>Thứ Năm 03/09 <span class="tong">2 tập · $0.66 AI</span></summary>
+  <div class="ls-body"><div class="tablewrap"><table>
+    <tr><th class="num">Xong lúc</th><th>Sequence</th><th>Người</th><th class="num">Chương</th>
+      <th class="num">Dựng mất</th><th class="num">Chi phí AI</th><th></th></tr>
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">18:22</td><td>IN008</td>
+      <td>padoma</td><td class="num">3</td><td class="num mono">1g47</td>
+      <td class="num mono">$0.66</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 16:30 → xong 18:22 (dựng 1g47)</span>
+      <span>Chi phí AI</span><span class="mono">$0.66 — 12 ảnh phương án + 2 cảnh video</span>
+      <span>Báo cáo chương</span><span class="baocao">
+        <a>c1 — report</a><a>c2 — report</a><a>c3 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\Investigate\IN008\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+    <tr class="ls" onclick="moDong(this)"><td class="num mono">09:11</td><td>LI102</td>
+      <td>editor-thu</td><td class="num">2</td><td class="num mono">51 phút</td>
+      <td class="num mono">$0.00</td><td><span class="tag ok">done</span></td></tr>
+    <tr class="ls-mo" hidden><td colspan="7"><div class="ls-chitiet">
+      <span>Thời gian</span><span>nộp 08:18 → xong 09:11 (dựng 51 phút)</span>
+      <span>Chi phí AI</span><span class="mono">$0.00</span>
+      <span>Báo cáo chương</span><span class="baocao"><a>c1 — report</a><a>c2 — report</a></span>
+      <span>Kết quả NAS</span><span class="nas">
+        <input class="mono" readonly value="F:\OutlierY Nas 2\Life In\LI102\RenderY_GIAO" onclick="this.select()">
+        <button class="btn small ghost">Copy</button></span>
+      <span>Khác</span><span><a>log đầy đủ</a></span>
+    </div></td></tr>
+  </table></div></div>
+</details>
+
+<div class="note" style="margin-top:4px">Giữ 50 lần dựng gần nhất — ngày cũ hơn tự gọn lại,
+  cần xem thêm bấm <a>tải thêm</a>.</div>
+</div>
+
+<script>
+function moDong(tr){
+  const mo = tr.nextElementSibling
+  if (!mo || !mo.classList.contains('ls-mo')) return
+  mo.hidden = !mo.hidden
+}
+</script>

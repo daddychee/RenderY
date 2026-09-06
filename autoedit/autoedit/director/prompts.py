@@ -126,31 +126,11 @@ viewer, or merely be generic?" Generic-but-true video is ALWAYS acceptable
   choose stock.
 - "local_library": the beat clearly matches the channel's own curated footage
   (signature niche shots). Use when the niche profile is provided.
-- "graphic": numbers/statistics/comparisons. TWO sub-cases:
-  * COMPARISON of 2+ numbers, or a TREND over time -> emit a graphic_spec (an
-    animated chart). Pull the REAL numbers from the script into data. Examples:
-    "rent is $400 in Vietnam vs $2500 in the US" -> bar chart {Việt Nam:400, Mỹ:2500};
-    "costs rose 18%, 32%, 45% over the years" -> line chart.
-    Pick chart_type:
-      - bar = compare separate items side by side (most comparisons).
-      - line = a progression/accumulation over an ORDERED axis (years, months, weeks,
-        steps, depth, distance). When a line has a meaningful axis, fill x_label and
-        y_label (script's language, e.g. x="Tuần", y="Độ sâu (ft)").
-      - pie = SHARE/PROPORTION of parts within ONE whole, where the parts ADD UP to a
-        total (a budget split, "rent eats 50% of the pension, 50% left"). Do NOT use pie
-        for comparing two unrelated amounts (that is bar). Pie needs the parts to sum to
-        a meaningful whole (≈100% or one total budget).
-    Pick graphic_spec.layout:
-      - layout=full -> chart fills the whole frame, no footage. Set sourcing_route=graphic.
-        Use when the numbers ARE the whole point and no scene needs to play.
-      - layout=half -> chart sits on the RIGHT half as a PiP while real footage plays
-        on the left. Set sourcing_route=stock/entity/local (NOT graphic) and fill
-        visual_concept + search/entity queries with a concrete scene tied to the data
-        (e.g. a Vietnamese street market while comparing rent). Prefer half when the
-        topic has a vivid place/scene worth keeping on screen alongside the numbers.
-  * A SINGLE number/figure with no comparison -> do NOT make a chart; use an
-    overlay (kind=stat/price) over normal footage instead. graphic_spec needs ≥2 points.
-  Below applies to the placeholder (non-chart) graphic case:
+- "graphic": numbers/statistics/comparisons that the EDITOR will visualize by
+  hand. Auto-rendered charts are DISABLED — NEVER emit graphic_spec; the beat is a
+  labeled placeholder over a background, and a human designs the actual graphic.
+  * A SINGLE number/figure -> do NOT route graphic; use an overlay
+    (kind=stat/price) over normal footage instead.
   * Use graphic ONLY when the number/statistic IS the star of the beat AND no
     real-world object or scene can carry it (pure percentages, counted maps).
   * A number merely mentioned in passing -> route stock: the real-world scene
@@ -208,25 +188,8 @@ RULES:
 - Do NOT add overlays just because a number exists; only when it's a fact worth
   freezing on screen. Transition/setup beats get none."""
 
-_INFO_CARD_RULES = """\
-INFO CARD (info_card — split-screen bullet list):
-Footage plays on the LEFT half; a portrait card with bullets appears on the RIGHT.
-Use when a beat contains 2-5 QUALITATIVE key points worth listing visually
-(benefits, requirements, steps, "what you get", "things to know").
-- When to use: the spoken idea naturally has a list structure ("three reasons why",
-  "what's included", benefits/risks/steps). The bullets REINFORCE what is being said —
-  they do not add new facts not in the script.
-- When NOT to use: a single statistic (use overlay instead); a comparison of 2+ numbers
-  (use graphic_spec instead); a pure transition/setup beat.
-- MUTUAL EXCLUSION: info_card CANNOT coexist with graphic_spec or text_sequence on the
-  same beat. Pick the ONE strongest visual format for each beat.
-- Format: title = 2-4 words (script's language); bullets = 3-5 items, each ≤40
-  characters, punchy and self-contained. No bullet should start with "•" or "-".
-- PER-CHAPTER BUDGET: at most 2 info_cards AND at most 2 graphic_specs per chapter
-  (code enforces this ceiling; excess will be silently dropped). Spread them across the
-  chapter — not two cards in a row.
-- PER-CHAPTER MINIMUM: each chapter SHOULD have at least 1 info_card OR 1 graphic_spec
-  to give viewers a visual anchor for complex ideas. Very short chapters (<30s) are exempt."""
+# _INFO_CARD_RULES đã xoá (user bỏ graphic 05/09): thẻ chữ tự render xấu — không dạy
+# LLM sinh nữa; có nhả info_card thì _resolve_info_card (runner) gạt. Xem git history.
 
 _TEXT_SEQUENCE_RULES = """\
 KINETIC TEXT (text_sequence — phrases appear on screen IN SYNC with the voice):
@@ -237,7 +200,7 @@ KINETIC TEXT (text_sequence — phrases appear on screen IN SYNC with the voice)
   Each phrase's anchor_word = the word index where that phrase STARTS being said. The
   first phrase's anchor must be the beat's first word.
 - Keep the script's language. Do NOT paraphrase — phrases are the actual spoken words.
-- A beat with a text_sequence must NOT also carry a graphic_spec. Most beats have none."""
+- Most beats have none."""
 
 _QUERY_RULES = """\
 Search query rules — stock sites are KEYWORD matchers, not semantic search:
@@ -366,7 +329,6 @@ For each beat your decision ORDER is: 1) sourcing_route, 2) visual_anchor,
 - shot_count: 1 normally; 2-3 when a long beat genuinely needs cutting — but a
   single strong image holding a 5-6s beat is normal, never split on duration alone.""",
                 _OVERLAY_RULES,
-                _INFO_CARD_RULES,
                 _TEXT_SEQUENCE_RULES,
                 _CONTEXT_COHERENCE,
                 _SOURCING_RULES,

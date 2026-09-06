@@ -92,17 +92,30 @@ def compose_chapter(project_dir: Path, dest: Path) -> dict:
     # 3) Bản Premiere/Resolve — dịch từ CHÍNH draft vừa copy ở trên, nên đường dẫn
     # media trỏ vào `draft/materials/` NGAY TRONG thư mục giao. Dịch từ draft gốc
     # trên ổ local thì nhân sự mang thư mục về máy là mất sạch media.
+    # Hai định dạng vì hai app đọc hai kiểu: Premiere chỉ import FCP7 XML (.xml),
+    # Resolve/FCP đọc .fcpxml. Hỏng bản nào KHÔNG huỷ bản CapCut — chỉ báo.
     if out["draft"]:
+        try:
+            from autoedit.packager.xmeml import xuat_xmeml
+
+            cb = xuat_xmeml(dest / "draft", dest / f"{dest.name}.xml",
+                            ten_seq=dest.name)
+            out["xmeml"] = 1
+            out["canh_bao"].extend(cb)
+        except Exception as exc:
+            out["canh_bao"].append(f"chưa xuất được bản Premiere (.xml): {exc}")
         try:
             from autoedit.packager.fcpxml import xuat_fcpxml
 
             cb = xuat_fcpxml(dest / "draft", dest / f"{dest.name}.fcpxml",
                              ten_seq=dest.name)
             out["fcpxml"] = 1
-            out["canh_bao"].extend(cb)
+            # Cảnh báo 2 bản trùng nội dung (thiếu media, chữ->marker) — lấy 1 lần ở
+            # bản .xml phía trên là đủ, khỏi lặp đôi trong DOC_TRUOC.
+            if not out.get("xmeml"):
+                out["canh_bao"].extend(cb)
         except Exception as exc:
-            # Không xuất được bản Premiere KHÔNG huỷ bản CapCut — chỉ báo.
-            out["canh_bao"].append(f"chưa xuất được bản Premiere (.fcpxml): {exc}")
+            out["canh_bao"].append(f"chưa xuất được bản Resolve (.fcpxml): {exc}")
 
     # 3) Report cho editor duyệt
     report = proj.get("report_path") or ""
@@ -139,17 +152,20 @@ def write_readme(dest: Path, job_folder: str, chapters: list[dict],
         "",
         "CÁCH DÙNG",
         "  1. Copy CẢ THƯ MỤC này về máy cá nhân.",
-        "  2. Mỗi chương có thư mục riêng. Chọn MỘT trong hai cách mở:",
+        "  2. Mỗi chương có thư mục riêng. Chọn MỘT trong các cách mở:",
         "       • CapCut   -> copy thư mục draft/ vào thư mục draft của CapCut rồi mở",
-        "       • Premiere -> mở file .fcpxml (File > Import). DaVinci Resolve cũng mở được.",
-        "     Hai bản CÙNG một timeline, dùng bản nào cũng được.",
+        "       • Premiere -> File > Import file .xml (KHÔNG phải .fcpxml — Premiere",
+        "         không đọc đuôi đó)",
+        "       • DaVinci Resolve / Final Cut -> mở file .fcpxml (Resolve mở được cả .xml)",
+        "     Các bản CÙNG một timeline, dùng bản nào cũng được.",
         "  3. Còn lại trong thư mục chương:",
         "       footage/   -> clip đã tải sẵn cho chương này",
         "       report.html-> bảng duyệt: xem nhanh chương này dùng clip gì",
         "       nguon_footage.txt -> nguồn gốc từng clip (dùng khi cần đối chiếu bản quyền)",
         "",
-        "  LƯU Ý bản Premiere: chữ trên màn hình thành MARKER (không phải title có",
-        "  kiểu dáng) và hiệu ứng Ken Burns không mang sang — bản CapCut mới đủ.",
+        "  LƯU Ý bản Premiere/Resolve: chữ trên màn hình thành MARKER (không phải",
+        "  title có kiểu dáng) — xem marker để biết đặt chữ ở đâu. Bản .xml giữ",
+        "  Ken Burns + vị trí PiP; bản .fcpxml không giữ — đối chiếu bản CapCut.",
         "",
         "TỪNG CHƯƠNG",
     ]

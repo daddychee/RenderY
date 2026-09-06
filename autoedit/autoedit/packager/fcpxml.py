@@ -1,4 +1,7 @@
-r"""Xuất timeline sang FCPXML — mở được bằng Premiere Pro và DaVinci Resolve.
+r"""Xuất timeline sang FCPXML — mở được bằng DaVinci Resolve và Final Cut Pro.
+
+LƯU Ý: Premiere KHÔNG đọc .fcpxml (định dạng FCPX). Bản cho Premiere là FCP7 XML
+(.xml) do xmeml.py xuất — hai file đi cạnh nhau trong thư mục giao.
 
 Vì sao dịch TỪ DRAFT CAPCUT chứ không dựng lại từ project.json: draft là kết quả
 CUỐI, đã qua mọi xử lý (kéo ô thở, đổi tốc độ, chèn thẻ thông tin, đặt SFX, khớp
@@ -13,7 +16,7 @@ Giới hạn ĐÃ BIẾT, ghi ra đây để không ai tưởng bản Premiere l
     khác đường cong Premiere nên chuyển động sẽ khác — clip giữ nguyên khung tĩnh.
   - Hiệu ứng chuyển cảnh, chỉnh màu: không dùng trong draft nên không dịch.
 
-FCPXML 1.8 (không phải 1.9+) vì đây là bản Premiere đọc ổn định nhất tính tới 2026.
+FCPXML 1.8 (không phải 1.9+) vì đây là bản Resolve/FCP đọc ổn định nhất tính tới 2026.
 """
 
 from __future__ import annotations
