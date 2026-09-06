@@ -2477,7 +2477,10 @@ function stNguon(nut) {
   nut.classList.add('on')
   ST_NGUON = nut.dataset.n
   if (ST_NGUON !== 'nhac') {
-    document.getElementById('st-luoi').style.gridTemplateColumns = ''
+    // BUG 06/09 (user: "hình to tràn màn hình"): gán '' XÓA luôn định nghĩa cột
+    // inline gốc của lưới -> grid 1 cột, card to bằng cả màn. Phải trả ĐÚNG giá trị.
+    document.getElementById('st-luoi').style.gridTemplateColumns =
+      'repeat(auto-fill,minmax(clamp(240px,15vw,320px),1fr))'
     const au = document.getElementById('of-nhac-audio'); if (au) au.pause()
   }
   stVe()
