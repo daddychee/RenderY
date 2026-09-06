@@ -137,7 +137,13 @@ def doc(project_dir: Path) -> dict | None:
     f = Path(project_dir) / TEN_HOP_DONG
     if not f.is_file():
         return None
-    hd = json.loads(f.read_text(encoding="utf-8"))
+    raw = f.read_text(encoding="utf-8")
+    try:
+        hd = json.loads(raw)
+    except json.JSONDecodeError:
+        # file dính đuôi rác (bug ghi đè trước 08/09) -> vớt JSON đầu, ghi lại sạch
+        hd, _het = json.JSONDecoder().raw_decode(raw.lstrip())
+        f.write_text(json.dumps(hd, ensure_ascii=False, indent=1), encoding="utf-8")
     from autoedit.offline import hinh as mhinh
 
     mhinh.dam_bao(hd)          # hợp đồng cũ (chỉ có khoi[]) -> sinh hinh[] 1-1
@@ -146,9 +152,27 @@ def doc(project_dir: Path) -> dict | None:
 
 
 def luu(project_dir: Path, hd: dict) -> None:
-    """Màn Offline PUT bản người chỉnh — ghi đè nguyên hợp đồng (server validate)."""
-    (Path(project_dir) / TEN_HOP_DONG).write_text(
-        json.dumps(hd, ensure_ascii=False, indent=1), encoding="utf-8")
+    """Ghi hợp đồng NGUYÊN TỬ: file tạm rồi os.replace.
+
+    Bug 08/09: ghi đè trực tiếp, bản mới NGẮN hơn bản cũ mà không cắt đuôi ->
+    file còn ký tự thừa cuối ('}' lẻ) -> json.loads "Extra data" -> API 500 ->
+    màn Offline trắng timeline. Ghi nguyên tử cũng an toàn khi 2 request PUT
+    gần nhau (debounce + hotkey) hoặc app tắt giữa chừng.
+    """
+    import os
+    import tempfile
+
+    d = Path(project_dir)
+    fd, tam = tempfile.mkstemp(dir=str(d), prefix=".offline_", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(hd, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tam, d / TEN_HOP_DONG)
+    except Exception:
+        Path(tam).unlink(missing_ok=True)
+        raise
 
 
 def xuat_kiem_mp4(project_dir: Path, dich: Path, dai_s: float = 15.0) -> Path:

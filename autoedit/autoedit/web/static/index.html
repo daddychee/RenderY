@@ -74,7 +74,7 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
           border:1px solid var(--line); border-radius:10px; overflow:hidden}
 #of-khung img,#of-khung video{width:100%; height:100%; object-fit:contain}
 #of-khung .rong{position:absolute; inset:0; display:grid; place-items:center;
-                color:#5a6470; font-size:13px; text-align:center; line-height:1.6}
+                color:var(--muted); font-size:13px; text-align:center; line-height:1.6}
 #of-nhan{position:absolute; left:8px; top:8px; background:rgba(0,0,0,.7);
          padding:3px 10px; border-radius:7px; font-size:11.5px; z-index:2}
 #of-loi-p{flex:1; overflow:auto; background:var(--panel); border:1px solid var(--line);
@@ -115,24 +115,24 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-dai{position:relative; height:74px}                 /* dải HÌNH */
 #of-dai-au{position:relative; height:40px; margin-top:4px}   /* dải AUDIO */
 .of-au{position:absolute; top:0; height:100%; border-radius:6px; box-sizing:border-box;
-       background:#243447; border:1px solid #31465e; overflow:hidden}
-.of-au .t{position:absolute; left:4px; right:3px; top:3px; font-size:9.5px; color:#9fb3c8;
+       background:var(--panel); border:1px solid var(--line); overflow:hidden}
+.of-au .t{position:absolute; left:4px; right:3px; top:3px; font-size:9.5px; color:var(--muted);
           white-space:nowrap; overflow:hidden; max-width:92%}
 .of-au.chon{outline:2px solid var(--warn); outline-offset:-2px}
 .of-im{position:absolute; top:0; height:100%; border-radius:6px;
-       background:repeating-linear-gradient(135deg,#1b2029 0 6px,#161a21 6px 12px);
-       border:1px dashed #2f3742}
+       background:repeating-linear-gradient(135deg,var(--bg) 0 6px,var(--panel) 6px 12px);
+       border:1px dashed var(--line)}
 .of-im .n{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-          font-size:9px; color:#6b7684; white-space:nowrap}
+          font-size:9px; color:var(--muted); white-space:nowrap}
 .of-mieng{position:absolute; top:0; height:100%; border:1px solid var(--line);
-          border-radius:7px; overflow:hidden; background:#22303f; cursor:pointer}
+          border-radius:7px; overflow:hidden; background:var(--panel); cursor:pointer}
 .of-mieng img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.9}
 .of-mieng .i{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--muted);
              background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
 .of-mieng .d{position:absolute; left:3px; bottom:3px; font-size:9.5px;
              background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
 .of-mieng.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:4}
-.of-mieng.tho{background:#2b3a2f; border-color:#3d5544}      /* miếng nằm trong khoảng thở */
+.of-mieng.tho{background:color-mix(in srgb, var(--ok, #5cb98a) 14%, var(--panel)); border-color:var(--ok, #5cb98a)}      /* miếng nằm trong khoảng thở */
 .of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
                cursor:ew-resize; z-index:5}
 .of-mieng .mep:hover,.of-mieng .mep.dang{background:rgba(232,163,61,.45)}
@@ -150,14 +150,14 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
             border-radius:5px; padding:1px 7px; font:12px Consolas,monospace;
             color:var(--text); margin-left:3px}
 .of-khoi{position:absolute; top:0; height:100%; border:1px solid var(--line); border-radius:7px;
-         background:#22303f; cursor:pointer; overflow:hidden}
+         background:var(--panel); cursor:pointer; overflow:hidden}
 .of-khoi img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.88}
 .of-khoi .i{position:absolute; left:3px; top:3px; font-size:9.5px; color:var(--muted);
             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
 .of-khoi .d{position:absolute; left:3px; bottom:3px; font-size:9.5px;
             background:rgba(0,0,0,.66); padding:1px 5px; border-radius:4px; z-index:2}
 .of-khoi.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:3}
-.of-khoi.tongB{background:#3a2f45; border-color:#54446b}
+.of-khoi.tongB{background:var(--accent-soft); border-color:var(--accent)}
 .of-khoi.lap{border-color:var(--bad)}
 .of-tho{position:absolute; top:0; height:100%; border-radius:7px; z-index:1;
         background:#e9ecef; border:1px solid #b9c2cc; cursor:pointer}

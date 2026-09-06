@@ -480,3 +480,31 @@ def test_giam_tho_khong_de_khoi_ke():
                 assert moc[i + 1][0] >= tt - 0.001, (
                     f"khối {i + 2} bắt đầu {moc[i + 1][0]} TRƯỚC khi khối {i + 1} "
                     f"kết thúc im lặng {tt} — đè lên nhau")
+
+
+def test_luu_nguyen_tu_file_ngan_hon_khong_dinh_duoi(du_an, tmp_path, monkeypatch):
+    """Bug 08/09 (user: 'timeline khong do ra', API 500): ghi de truc tiep, ban
+    moi NGAN hon ban cu -> file con duoi rac -> json Extra data. Ghi nguyen tu
+    phai sach; va doc() phai TU CHUA file cu da hong."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import runner
+
+    runner.phan_tich(du_an, llm=_LLM())
+    f = du_an / "offline.json"
+    dai_goc = f.stat().st_size
+    hd = runner.doc(du_an)
+    hd["khoi"] = hd["khoi"][:1]          # bản MỚI ngắn hơn hẳn
+    hd["hinh"] = hd["hinh"][:1]
+    runner.luu(du_an, hd)
+    assert f.stat().st_size < dai_goc
+    assert json.loads(f.read_text(encoding="utf-8"))        # không đuôi rác
+
+    # file HỎNG kiểu cũ -> doc() vớt được + ghi lại sạch
+    f.write_text(f.read_text(encoding="utf-8") + "}", encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(f.read_text(encoding="utf-8"))
+    hd2 = runner.doc(du_an)                                  # tự chữa
+    assert hd2 is not None and len(hd2["khoi"]) == 1
+    assert json.loads(f.read_text(encoding="utf-8"))         # đã ghi lại sạch
