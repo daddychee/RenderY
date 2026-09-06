@@ -711,6 +711,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         <div class="dau">PREVIEW <span class="ten" id="of-nhan"></span></div>
         <div class="of-khung-v" id="of-khung">
           <video id="of-video" muted loop playsinline hidden></video>
+          <video id="of-video2" muted loop playsinline hidden></video>
           <img id="of-anh" alt="" hidden>
           <div class="rong" id="of-rong">PHA 1 — duyệt cấu trúc khối<br>chưa đổ hình</div>
         </div>
@@ -1572,7 +1573,7 @@ function ofVeTL() {
     a.style.left = (t0 * OF_PXS) + 'px'
     // ĐÚNG tỷ lệ, không min-width: ép rộng tối thiểu làm khối nong ra ĐÈ khối
     // kế khi zoom nhỏ / thở bị thu (user bắt 08/09). Hẹp quá thì zoom lên xem.
-    a.style.width = Math.max((t1 - t0) * OF_PXS - 2, 1) + 'px'
+    a.style.width = Math.max((t1 - t0) * OF_PXS, 1) + 'px'
     a.title = `${esc((k.loi || '').slice(0, 90))} — ${(t1 - t0).toFixed(2)}s`
     const rongA = (t1 - t0) * OF_PXS
     a.innerHTML = rongA > 34
@@ -1597,7 +1598,7 @@ function ofVeTL() {
     d.className = 'of-mieng' + (trong_tho ? ' tho' : '') + (j === OF_HCHON ? ' chon' : '')
                   + (lap.has(h.khoi_goc) ? ' lap' : '')
     d.style.left = (h.t0 * OF_PXS) + 'px'
-    d.style.width = Math.max(h.dur * OF_PXS - 2, 1) + 'px'   // không min-width (08/09)
+    d.style.width = Math.max(h.dur * OF_PXS, 1) + 'px'   // không min-width (08/09); không -2px khe (06/09)
     d.innerHTML = `${OF_PHA === 2 && u ? `<img src="${esc(ofAnh(u))}" loading="lazy">` : ''}
       ${h.dur * OF_PXS > 30 ? `<span class="i">${String(j + 1).padStart(2, '0')}${h.nguoi_sua ? ' ✎' : ''}</span>` : ''}
       ${h.dur * OF_PXS > 52 ? `<span class="d mono">${h.dur.toFixed(1)}s</span>` : ''}
@@ -1671,10 +1672,10 @@ function ofKeoMep(e, j, mep, el) {
   const keo = ev => {
     const dx = (ev.clientX - x0) / OF_PXS
     dur = Math.max(0.4, Math.min(d0 + dx, d0 + s0 - 0.4))
-    el.style.width = Math.max(dur * OF_PXS - 2, 1) + 'px'
+    el.style.width = Math.max(dur * OF_PXS, 1) + 'px'
     if (elB && elB.classList.contains('of-mieng')) {
       elB.style.left = ((hs[j].t0 + dur) * OF_PXS) + 'px'
-      elB.style.width = Math.max((d0 + s0 - dur) * OF_PXS - 2, 1) + 'px'
+      elB.style.width = Math.max((d0 + s0 - dur) * OF_PXS, 1) + 'px'
     }
     toastOf(`miếng ${j + 1}: ${dur.toFixed(1)}s → miếng ${j + 2}: ${(d0 + s0 - dur).toFixed(1)}s`)
   }
@@ -2085,25 +2086,59 @@ async function ofTrimDung() {
 }
 
 function ofVeXem() {
+  /* ĐỆM KÉP (user 06/09: "chớp đen cực nhanh rồi mới sang footage mới"):
+     bản cũ ẩn video rồi gán src mới -> màn đen suốt lúc video nạp. Nay 2 thẻ
+     video thay phiên: shot kế được NẠP NGẦM sẵn, tới nơi chỉ hoán đổi hidden
+     (tức thì); chưa sẵn thì GIỮ HÌNH CŨ tới khi video mới có data. */
   const k = ofHinh()[OF_HCHON] || {}, u = ofUv(k)
   const co = OF_PHA === 2 && u
-  const anh = document.getElementById('of-anh'), vid = document.getElementById('of-video')
-  const mkey = (u && u.id) || ''
-  if (mkey && mkey === ofVeXem._key && !vid.hidden) return   // cùng clip -> khỏi nạp lại
-  ofVeXem._key = mkey
-  anh.hidden = true; vid.hidden = true; vid.pause()
+  const anh = document.getElementById('of-anh')
+  const v1 = document.getElementById('of-video'), v2 = document.getElementById('of-video2')
   document.getElementById('of-rong').style.display = co ? 'none' : 'grid'
   document.getElementById('of-nhan').hidden = !co
-  if (co) {
-    const vs = ofVid(u)
-    if (vs) { vid.src = vs; vid.hidden = false; vid.play().catch(() => {}) }
-    else { anh.src = ofAnh(u); anh.hidden = false }
-    document.getElementById('of-nhan').innerHTML =
-      `<b>Miếng ${String(OF_HCHON + 1).padStart(2, '0')}</b> · ${esc((u.tieu_de || '').slice(0, 40))}`
-  } else if (OF_PHA === 2) {
-    document.getElementById('of-rong').innerHTML = 'Miếng ' + (OF_HCHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
+  if (!co) {
+    anh.hidden = v1.hidden = v2.hidden = true; v1.pause(); v2.pause()
+    if (OF_PHA === 2)
+      document.getElementById('of-rong').innerHTML = 'Miếng ' + (OF_HCHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
+    ofVeXem._key = ''
+    return
   }
+  document.getElementById('of-nhan').innerHTML =
+    `<b>Miếng ${String(OF_HCHON + 1).padStart(2, '0')}</b> · ${esc((u.tieu_de || '').slice(0, 40))}`
+  const vs = ofVid(u)
+  if (!vs) {                                     // ảnh (aigen) — không có video
+    v1.hidden = v2.hidden = true; v1.pause(); v2.pause()
+    anh.src = ofAnh(u); anh.hidden = false; ofVeXem._key = vs
+    return
+  }
+  if (vs === ofVeXem._key) { ofNapKe(); return } // đang hiện đúng clip rồi
+  ofVeXem._key = vs
+  anh.hidden = true
+  const cur = !v1.hidden ? v1 : (!v2.hidden ? v2 : null)
+  const kia = cur === v1 ? v2 : v1
+  const len_song = el => {
+    el.hidden = false
+    const khac = el === v1 ? v2 : v1
+    khac.hidden = true; khac.pause()
+    el.play().catch(() => { })
+    ofNapKe()
+  }
+  if (kia._src === vs) { len_song(kia); return } // đã nạp ngầm sẵn -> tức thì
+  if (cur && cur._src === vs) { len_song(cur); return }
+  kia._src = vs; kia.src = vs
+  kia.onloadeddata = () => { if (ofVeXem._key === vs) len_song(kia) }
+  // trong lúc chờ: cur (hình cũ) vẫn hiện — KHÔNG màn đen
 }
+function ofNapKe() {                             // nạp ngầm shot KẾ vào thẻ đang ẩn
+  const kNext = ofHinh()[OF_HCHON + 1], u = kNext && ofUv(kNext)
+  if (!u) return
+  const vs = ofVid(u)
+  if (!vs || vs === ofVeXem._key) return
+  const v1 = document.getElementById('of-video'), v2 = document.getElementById('of-video2')
+  const an = v1.hidden ? v1 : v2
+  if (an._src !== vs) { an._src = vs; an.preload = 'auto'; an.src = vs; an.onloadeddata = null }
+}
+
 function ofVeStat() {
   // thanh cong cu gon (06/09): bo of-stat + of-cc — so lieu xem o tooltip/khay
 }
