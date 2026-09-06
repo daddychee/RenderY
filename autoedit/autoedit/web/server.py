@@ -752,12 +752,14 @@ def api_offline_hinh(project_id: str, req: OfflineHinhRequest, request: Request)
     hd = orun.doc(d)
     if hd is None:
         raise HTTPException(409, "Chưa phân tích")
+    tho_co = 0.0
     if req.thao_tac == "them":
         j = mhinh.them_mieng(hd, req.tai_giay)
         if j < 0:
             raise HTTPException(422, "Không có miếng nào phủ mốc này")
     elif req.thao_tac == "bo":
-        if not mhinh.bo_mieng(hd, req.idx):
+        ok, tho_co = mhinh.bo_mieng(hd, req.idx)
+        if not ok:
             raise HTTPException(422, "Không bỏ được (miếng cuối cùng?)")
     elif req.thao_tac == "keo_mep":
         if not mhinh.keo_mep(hd, req.idx, req.dur):
@@ -766,7 +768,10 @@ def api_offline_hinh(project_id: str, req: OfflineHinhRequest, request: Request)
         raise HTTPException(422, "thao_tac lạ")
     loi = mhinh.kiem(hd)
     orun.luu(d, hd)
-    return {"ok": True, "hinh": hd["hinh"], "loi": loi}
+    # trả CẢ hợp đồng: thao tác 'bo' có thể đã co khoảng lặng -> voice đổi theo,
+    # UI chỉ cập nhật hinh[] là vẽ dải voice CŨ — đúng kiểu bug "UI đánh lừa"
+    return {"ok": True, "hop_dong": hd, "hinh": hd["hinh"], "loi": loi,
+            "tho_co": tho_co}
 
 
 @app.post("/api/offline/{project_id}/thay-mau")

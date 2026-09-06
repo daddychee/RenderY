@@ -390,7 +390,7 @@ def test_bo_mieng_khong_ho():
     mh.dam_bao(hd)
     mh.them_mieng(hd, 6.0)
     n = len(hd["hinh"])
-    assert mh.bo_mieng(hd, 1)
+    assert mh.bo_mieng(hd, 1)[0]
     assert len(hd["hinh"]) == n - 1 and mh.kiem(hd) == []
 
 
@@ -718,3 +718,70 @@ def test_khong_co_mp4_thi_bo_qua(tmp_path, monkeypatch):
                         lambda *a, **k: goi.append(1) or 0)
     assert orun.nap_ref_cua_tap(None, d) == 0
     assert not goi, "không có .mp4 thì đừng gọi nạp"
+
+
+# ---------------- GÓI B (user 06/09): xóa miếng THỞ phải co khoảng lặng thật
+def test_bo_mieng_tho_co_im_lang_va_voice_truot():
+    """Bug user bắt: 2 voice cách 1.5s thở, xóa ô thở mà voice không sát lại —
+    UI vẽ hết thở nhưng audio vẫn im 1.5s. Nay xóa miếng thở = co khoảng lặng
+    đúng bấy nhiêu, cả cụm sau trượt lên."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()                     # khối 1: nói 0-4, thở 8s; khối 2: 12-16
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 6.0)             # chẻ tại giây 6 -> miếng [6..12] TRONG thở
+    ok, tho_co = mh.bo_mieng(hd, 1)    # xóa miếng thở 6s
+    assert ok and tho_co == 6.0
+    assert hd["khoi"][0]["tho_them"] == -6.0
+    # voice khối 2 trên TIMELINE dịch lên đúng 6s (12 -> 6)
+    moc = mh.moc_timeline(hd["khoi"])
+    assert moc[1][0] == 6.0
+    # dải hình co theo, phủ khít trục mới, không hở
+    assert mh.tong_dai(hd["khoi"]) == 10.0
+    assert mh.kiem(hd) == []
+
+
+def test_bo_mieng_tho_cham_san_im_lang():
+    """Xóa CẢ vùng thở thì im lặng chỉ co tới sàn 0.2s — không dính 2 câu."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 4.0)             # miếng [4..12] = trọn vùng thở 8s
+    ok, tho_co = mh.bo_mieng(hd, 1)
+    assert ok and tho_co == 7.8                       # 8.0 - sàn 0.2
+    k = hd["khoi"][0]
+    assert round(k["tho"] + k["tho_them"], 3) == 0.2          # im lặng hiệu dụng = sàn
+    assert mh.kiem(hd) == []
+
+
+def test_bo_mieng_vung_noi_khong_dung_voice():
+    """Miếng trong vùng NÓI: xóa thì miếng cạnh nở phủ, voice bất biến như cũ."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 2.0)             # chẻ trong vùng nói (0-4)
+    ok, tho_co = mh.bo_mieng(hd, 1)    # miếng [2..12] đè thở -> có co
+    # miếng [0..2] thuần nói:
+    hd2 = _hd_gia()
+    mh.dam_bao(hd2)
+    mh.them_mieng(hd2, 2.0)
+    ok2, co2 = mh.bo_mieng(hd2, 0)     # xóa miếng [0..2] TRONG vùng nói
+    assert ok2 and co2 == 0.0
+    assert hd2["khoi"][0]["tho_them"] == 0.0          # voice không đổi
+    assert mh.tong_dai(hd2["khoi"]) == 16.0
+    assert mh.kiem(hd2) == []
+
+
+def test_bo_mieng_vat_nua_noi_nua_tho():
+    """Miếng vắt nửa nói nửa thở: chỉ phần ĐÈ THỞ được co."""
+    from autoedit.offline import hinh as mh
+
+    hd = _hd_gia()
+    mh.dam_bao(hd)
+    mh.them_mieng(hd, 2.0)             # [0..2][2..12]
+    ok, tho_co = mh.bo_mieng(hd, 1)    # [2..12]: 2s nói + 8s thở
+    assert ok and tho_co == 7.8                       # co phần thở (sàn 0.2)
+    assert mh.tong_dai(hd["khoi"]) == round(16.0 - 7.8, 2)
+    assert mh.kiem(hd) == []

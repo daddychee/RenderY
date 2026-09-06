@@ -1555,7 +1555,7 @@ function ofKeoMep(e, j, mep, el) {
       try {
         const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
           body: JSON.stringify({thao_tac: 'keo_mep', idx: j, dur: dur})})
-        OF_HD.hinh = r.hinh
+        if (r.hop_dong) OF_HD = r.hop_dong; else OF_HD.hinh = r.hinh
         toastOf(`Miếng ${j + 1} = ${dur.toFixed(1)}s`)
       } catch (er) { toastOf('Lỗi: ' + er.message) }
     }
@@ -1564,15 +1564,16 @@ function ofKeoMep(e, j, mep, el) {
   document.addEventListener('mousemove', keo); document.addEventListener('mouseup', xong)
 }
 async function ofThemMieng() {
-  const t = OF_AUDIO
-  ofChup() ? Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0)) : 0
-  const moc = ofMoc()
+  // dòng cũ bị vá hỏng (const t = OF_AUDIO; ofChup() ? ... : 0) -> t là ELEMENT
+  // audio chứ không phải giây, tai_giay thành NaN, server 422
+  const t = OF_AUDIO ? Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0)) : 0
+  ofChup()
   let i = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (i < 0) i = 0
   const tl = t + ofDoiTruoc(i)                     // giây trên trục TIMELINE
   try {
     const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
       body: JSON.stringify({thao_tac: 'them', tai_giay: tl})})
-    OF_HD.hinh = r.hinh
+    if (r.hop_dong) OF_HD = r.hop_dong; else OF_HD.hinh = r.hinh
     toastOf('⊞ Thêm miếng hình tại ' + ofFmt(tl) + ' — chọn hình từ khay')
     ofVeAll()
   } catch (e) { toastOf('Lỗi: ' + e.message) }
@@ -1583,9 +1584,13 @@ async function ofBoMieng() {
   try {
     const r = await api('/api/offline/' + OF_PID + '/hinh', {method: 'POST',
       body: JSON.stringify({thao_tac: 'bo', idx: OF_HCHON})})
-    OF_HD.hinh = r.hinh
+    // nhận CẢ hợp đồng: bỏ miếng thở làm voice trượt theo — chỉ lấy hinh[] là
+    // vẽ voice cũ, đúng bug "UI đánh lừa" user bắt 06/09
+    if (r.hop_dong) OF_HD = r.hop_dong; else OF_HD.hinh = r.hinh
     OF_HCHON = Math.max(0, OF_HCHON - 1)
-    toastOf('⊟ Đã bỏ miếng — miếng cạnh nở ra phủ chỗ')
+    toastOf(r.tho_co > 0
+      ? `⊟ Bỏ miếng thở — im lặng co ${r.tho_co.toFixed(1)}s, voice+hình sau trượt lên`
+      : '⊟ Đã bỏ miếng — miếng cạnh nở ra phủ chỗ')
     ofVeAll()
   } catch (e) { toastOf('Lỗi: ' + e.message) }
 }

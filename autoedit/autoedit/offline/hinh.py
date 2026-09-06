@@ -15,6 +15,7 @@ nhất tính: `moc_timeline`).
 from __future__ import annotations
 
 TOI_THIEU_S = 0.4          # miếng hình ngắn hơn -> vô nghĩa khi dựng
+SAN_LANG_S = 0.2           # im lặng hiệu dụng tối thiểu giữa 2 câu (cùng sàn với UI)
 
 
 def moc_timeline(khoi: list[dict]) -> list[tuple[float, float, float]]:
@@ -180,12 +181,40 @@ def them_mieng(hd: dict, tai_giay: float) -> int:
     return -1
 
 
-def bo_mieng(hd: dict, idx: int) -> bool:
-    """Bỏ miếng: miếng trước nở ra phủ chỗ trống (không để timeline hở)."""
+def bo_mieng(hd: dict, idx: int) -> tuple[bool, float]:
+    """Bỏ miếng. Trả (ok, số giây im lặng đã co).
+
+    Hai luật theo VỊ TRÍ miếng (bug user bắt 06/09):
+      - phần miếng trong vùng NÓI: miếng cạnh nở ra phủ — voice bất biến.
+      - phần miếng đè KHOẢNG THỞ: khoảng lặng CO LẠI đúng bấy nhiêu (sàn
+        SAN_LANG_S), cả cụm voice+hình phía sau trượt lên — dùng lại đúng cơ
+        chế ±thở đã nghiệm thu 08/09. Bản cũ chỉ có luật một: xóa ô thở 1.5s
+        thì hình phủ kín nhưng tai vẫn nghe 1.5s im lặng — UI đánh lừa.
+    """
     hinh = dam_bao(hd)
     if not (0 <= idx < len(hinh)) or len(hinh) <= 1:
-        return False
-    h = hinh.pop(idx)
+        return False, 0.0
+    khoi = hd.get("khoi") or []
+    moc_cu = moc_timeline(khoi)
+    h = hinh[idx]
+    a, b = h["t0"], h["t0"] + h["dur"]
+    # phần đè lên khoảng thở của khối nào -> co khoảng lặng khối ấy
+    tho_co = 0.0
+    for i, (_n0, n1, n2) in enumerate(moc_cu):
+        chong = round(min(b, n2) - max(a, n1), 3)
+        if chong <= 0.001 or n2 - n1 <= 0.001:
+            continue
+        k = khoi[i]
+        tho = float(k.get("tho") or 0.0)
+        them = float(k.get("tho_them") or 0.0)
+        san = -max(tho - SAN_LANG_S, 0.0)          # im lặng hiệu dụng >= sàn
+        moi = max(san, round(them - chong, 3))
+        if abs(moi - them) > 0.001:
+            k["tho_them"] = moi
+            k["nguoi_sua"] = True
+            tho_co = round(tho_co + (them - moi), 3)
+    # bỏ miếng, miếng cạnh nở phủ TRỌN chỗ trống (vẫn trên trục CŨ)
+    hinh.pop(idx)
     ke = hinh[idx - 1] if idx > 0 else hinh[0]
     if idx > 0:
         ke["dur"] = round(ke["dur"] + h["dur"], 3)
@@ -193,9 +222,13 @@ def bo_mieng(hd: dict, idx: int) -> bool:
         ke["t0"] = h["t0"]
         ke["dur"] = round(ke["dur"] + h["dur"], 3)
     ke["nguoi_sua"] = True
+    if tho_co > 0:
+        # trục voice vừa ngắn lại -> hình co theo + cụm sau trượt (một chỗ duy
+        # nhất làm việc này: dong_bo_sau_tho, đã nghiệm thu vòng ±thở 08/09)
+        dong_bo_sau_tho(hd, moc_cu)
     khit_mep(hd)
     gan_lai_khoi_goc(hd)
-    return True
+    return True, tho_co
 
 
 def keo_mep(hd: dict, idx: int, dur_moi: float) -> bool:
