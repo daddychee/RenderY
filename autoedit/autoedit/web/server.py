@@ -1254,6 +1254,34 @@ def api_offline_nhac(project_id: str, request: Request):
             "dang_chon": hd.get("nhac") or None}
 
 
+@app.get("/api/sotra/nhac/nghe")
+def api_nhac_nghe(request: Request, id: str):
+    """Phát preview nhạc QUA SERVER — 06/09 user không nghe thấy gì mà console
+    sạch: CDN Epidemic có thể chặn theo Referer/CSP của CRM mà không để vết.
+    Proxy nội bộ loại hẳn biến số ngoài + cache luôn (3MB/track).
+    """
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        r = conn.execute("SELECT url_nghe FROM nhac WHERE id=?", (id,)).fetchone()
+    finally:
+        conn.close()
+    if r is None or not r[0]:
+        raise HTTPException(404, "Track không có preview")
+    import re as _re2
+    import urllib.request as _ur
+
+    cache = _sdb.goc_so_tra() / "nhac_cache"
+    cache.mkdir(exist_ok=True)
+    f = cache / (_re2.sub(r"[^\w-]", "_", id) + ".mp3")
+    if not f.is_file() or f.stat().st_size == 0:
+        req2 = _ur.Request(r[0], headers={"User-Agent": "Mozilla/5.0"})
+        f.write_bytes(_ur.urlopen(req2, timeout=120).read())
+    return FileResponse(f, media_type="audio/mpeg")
+
+
 class NhacChonRequest(BaseModel):
     id: str = ""                      # "" = bỏ nhạc
 

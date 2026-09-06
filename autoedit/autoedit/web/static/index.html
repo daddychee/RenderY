@@ -1800,7 +1800,9 @@ function ofNhacNghe(t, nut) {
     return
   }
   document.querySelectorAll('#of-nhac-ds .nghe').forEach(b => b.textContent = '▶ Nghe')
-  au.src = t.url_nghe; au.play().catch(() => { })
+  au.src = nhacUrl(t)
+  au.onerror = () => toastOf('♪ không phát được — báo lỗi này lại nhé')
+  au.play().catch(e => toastOf('♪ lỗi phát: ' + e.message))
   nut.textContent = '❚❚ Dừng'; OF_NHAC_PHAT = t.id
 }
 async function ofNhacChon(id) {
@@ -2287,18 +2289,22 @@ let OF_LANG = null                    // {den, tl1, tiep} — đang đứng im v
 /* nhạc nền PHÁT THẬT trong preview (user 06/09: chọn nhạc phải nghe thấy) —
    ducking sống: 0.25 khi voice đang nói, 0.9 khi thở/đầu-cuối chương */
 function ofNhacTl() { return document.getElementById('of-nhac-tl') }
+function nhacUrl(t) {                        // phát QUA server — CDN chặn Referer thì chịu chết
+  return '/api/sotra/nhac/nghe?id=' + encodeURIComponent(t.id)
+}
 function ofNhacBat(tl) {
   const n = OF_HD && OF_HD.nhac
   const au = ofNhacTl()
   if (!n || !n.url_nghe || !(n.dai_s > 0)) { au.pause(); return }
   const dich = tl % n.dai_s
-  if (au._src !== n.url_nghe) {
-    au._src = n.url_nghe; au.src = n.url_nghe; au.loop = true
-    // đặt currentTime trước khi metadata nạp có thể bị nuốt -> seek lại khi sẵn
+  const src = nhacUrl(n)
+  if (au._src !== src) {
+    au._src = src; au.src = src; au.loop = true
     au.onloadedmetadata = () => { try { au.currentTime = dich } catch (e) { } }
+    au.onerror = () => toastOf('♪ không phát được nhạc — báo lỗi này lại nhé')
   }
   try { au.currentTime = dich } catch (e) { }
-  au.play().catch(() => { })
+  au.play().catch(e => toastOf('♪ lỗi phát nhạc: ' + e.message))
 }
 function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang phát
   const au = ofNhacTl()
@@ -2569,7 +2575,7 @@ async function stVeNhac() {
       const au = document.getElementById('of-nhac-audio')
       if (ST_NHAC_PHAT === t.id && !au.paused) { au.pause(); nut.textContent = '▶'; ST_NHAC_PHAT = ''; return }
       document.querySelectorAll('#st-luoi .nghe').forEach(b => b.textContent = '▶')
-      au.src = t.url_nghe; au.play().catch(() => { })
+      au.src = nhacUrl(t); au.play().catch(() => { })
       nut.textContent = '❚❚'; ST_NHAC_PHAT = t.id
     }
     luoi.appendChild(o)
