@@ -2046,4 +2046,11 @@ def index():
     p = Path(__file__).parent / "static" / "index.html"
     if not p.is_file():
         return HTMLResponse("<h1>RenderY</h1><p>Thiếu static/index.html</p>", status_code=500)
-    return FileResponse(p)
+    # NO-CACHE (06/09): app chạy trong IFRAME của CRM — Ctrl+F5 trang ngoài
+    # KHÔNG hard-reload iframe, trình duyệt heuristic-cache index.html -> user
+    # chạy JS cũ hàng giờ sau khi đã sửa. Cấm cache + đóng dấu build.
+    import hashlib
+    chu = p.read_text(encoding="utf-8")
+    dau = hashlib.md5(chu.encode()).hexdigest()[:8]
+    chu = chu.replace("__BUILD__", dau, 1)
+    return HTMLResponse(chu, headers={"Cache-Control": "no-cache, must-revalidate"})
