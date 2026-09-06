@@ -2333,6 +2333,15 @@ function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang ph�
 }
 function ofNhacNgung() { ofNhacTl().pause() }
 function ofDangPhat() { return (OF_AUDIO && !OF_AUDIO.paused) || !!OF_LANG }
+function ofTheoShot(tl) {                    // playhead vào shot nào -> preview shot đó
+  const hs = ofHinh()
+  const hj = hs.findIndex(h => h.t0 <= tl + 0.01 && tl < h.t0 + h.dur)
+  if (hj >= 0 && hj !== OF_HCHON) {
+    OF_HCHON = hj
+    ofVeXem()
+    document.querySelectorAll('.of-mieng').forEach((el, j) => el.classList.toggle('chon', j === OF_HCHON))
+  }
+}
 function ofXemChay(bat) {                     // preview video theo trạng thái phát
   for (const id of ['of-video', 'of-video2']) {
     const v = document.getElementById(id)
@@ -2358,6 +2367,7 @@ function ofPlay() {
           document.getElementById('of-tc').textContent = ofFmt(tl)
           document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
           ofNhacTheo(tl)                       // vùng thở: nhạc vẫn chạy, volume cao
+          ofTheoShot(tl)                       // vùng thở có thể chứa NHIỀU shot
           requestAnimationFrame(vong); return
         }
         OF_AUDIO.currentTime = (OF_HD.offset || 0) + OF_LANG.tiep + 0.01
@@ -2386,16 +2396,14 @@ function ofPlay() {
       ofNhacTheo(tl)
       document.getElementById('of-tc').textContent = ofFmt(tl)
       document.getElementById('of-ph').style.left = (tl * OF_PXS) + 'px'
-      // đang phát: KHÔNG vẽ lại khay (hàng trăm thẻ video) — chỉ đổi lời +
-      // preview + highlight. Khay cập nhật khi user CLICK miếng (08/09 fix đơ)
+      // SHOT dò MỖI FRAME, tách khỏi khối voice — bug user báo từ đầu 06/09:
+      // bản cũ chỉ kiểm preview khi ĐỔI KHỐI VOICE, nên 2 shot trong cùng một
+      // khối (hoặc ranh shot lệch ranh voice) thì playhead sang shot mới mà
+      // preview vẫn đứng ở shot cũ. Đang phát vẫn KHÔNG vẽ lại khay (08/09).
+      ofTheoShot(tl)
       if (i !== OF_CHON) {
         OF_CHON = i
-        const hs = ofHinh()
-        // miếng hình tra theo trục TIMELINE (bản cũ dùng t audio -> lệch khi có tho_them)
-        const hj = hs.findIndex(h => h.t0 <= tl + 0.01 && tl < h.t0 + h.dur)
-        if (hj >= 0 && hj !== OF_HCHON) OF_HCHON = hj
-        ofVeLoi(); ofVeXem()
-        document.querySelectorAll('.of-mieng').forEach((el, j) => el.classList.toggle('chon', j === OF_HCHON))
+        ofVeLoi()
         document.querySelectorAll('.of-au').forEach((el, j) => el.classList.toggle('chon', j === i))
       }
       requestAnimationFrame(vong)
