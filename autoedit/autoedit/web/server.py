@@ -631,6 +631,23 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     _require_auth(request)
     d = _pdir_offline(project_id)
     nguoi_tao = current_user(request)
+    # Thông số dựng lấy từ JOB lúc nộp tập (user 06/09) — request rỗng là mặc định
+    if not req.avd_s and not req.kenh_ref:
+        try:
+            from autoedit.web import queue as _q
+
+            conn_j = _q.connect()
+            r_j = conn_j.execute(
+                "SELECT opts FROM jobs WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                (project_id,)).fetchone()
+            conn_j.close()
+            if r_j:
+                o = json.loads(r_j["opts"] or "{}")
+                req.avd_s = float(o.get("avd_phut") or 6) * 60
+                req.kenh_ref = o.get("kenh_ref") or ""
+                req.uu_tien_nguon = req.uu_tien_nguon or o.get("uu_tien_nguon") or "ref"
+        except Exception:  # noqa: BLE001 — không tra được job thì mặc định
+            req.avd_s = req.avd_s or 360.0
     with _offline_lock:
         if _offline_dang.get(project_id, {}).get("tt") == "dang":
             raise HTTPException(409, "Đang phân tích dở")
@@ -663,6 +680,21 @@ def api_offline_doc(project_id: str, request: Request):
 
     d = _pdir_offline(project_id)
     hd = orun.doc(d)
+    # ỨNG VIÊN REF ĐỜI CŨ tự làm tươi khi đọc (user 06/09: khay ref phát cả
+    # file 52' vì hợp đồng phân tích trước đợt cắt-theo-cảnh) — fail-open
+    if hd is not None:
+        try:
+            from autoedit.offline import dung as _dung
+            from autoedit.sotra import db as _sdb
+
+            _c = _sdb.mo()
+            try:
+                if _dung.lam_tuoi_ref(hd, _c):
+                    orun.luu(d, hd)
+            finally:
+                _c.close()
+        except Exception:  # noqa: BLE001 — làm tươi hỏng không chặn đọc
+            pass
     with _offline_lock:
         tt = dict(_offline_dang.get(project_id, {}))
     if hd is None and not tt:
@@ -1887,6 +1919,10 @@ class JobRequest(BaseModel):
     # nhau, học từ kênh ref thay luật cứng. PA "ai" tự kéo aigen bật ở make.
     phuong_an: str = "stock"
     kenh_ref: str = ""         # link kênh YouTube ref (đo trong worker, cache theo kênh)
+    # THÔNG SỐ OFFLINE khai lúc NỘP TẬP (user 06/09: Offline chỉ chọn + xem,
+    # không nhập thông số) — phan-tich đọc lại từ opts của job.
+    avd_phut: float = 6.0
+    uu_tien_nguon: str = "ref"
     # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
     retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
     retention_dai: str = ""        # "28:25" hoặc "1:02:15"
@@ -1943,7 +1979,9 @@ def api_add_job(req: JobRequest, request: Request):
                         nguoi=current_user(request) or req.nguoi.strip()[:40],
                         opts={"niche": req.niche, "align_backend": req.align_backend,
                               "no_sub": req.no_sub, "aigen": req.aigen,
-                              "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref})
+                              "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref,
+                              "avd_phut": req.avd_phut,
+                              "uu_tien_nguon": req.uu_tien_nguon})
         job = q.get_job(conn, jid)
         return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid),
                 "retention": bao_cao_ret}

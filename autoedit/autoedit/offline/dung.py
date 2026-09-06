@@ -87,3 +87,79 @@ def kiem_lap(khoi: list, ung_vien: list[list[dict]], chon: list[int]) -> list[in
                     and abs(k.v0 - khoi[j].v0) < CUA_SO_LAP_S):
                 xau.update((i, j))
     return sorted(xau)
+
+
+def lam_tuoi_ref(hd: dict, conn) -> bool:
+    """Thay ứng viên REF ĐỜI CŨ trong hợp đồng bằng bản cắt-theo-cảnh mới.
+
+    Bug user bắt 06/09: sequence phân tích TRƯỚC đợt cắt-theo-cảnh nên uv còn
+    mang khúc ref cũ — thiếu t0/t1 (UI phát cả file 52 phút) và clip đã bị
+    loai_tru. Chạy lúc ĐỌC hợp đồng (fail-open), trả True nếu có đổi.
+
+    Luật: chỉ đụng mục nguon='ref' hỏng (thiếu t1 hoặc clip không còn sống);
+    mục đang ĐƯỢC CHỌN thì giữ chỗ nhưng vá lại t0/t1 từ DB nếu tra được.
+    """
+    from autoedit.sotra.tra import tra
+
+    doi = False
+    tuoi_theo_khoi: dict[int, list[dict]] = {}
+
+    def _tuoi(i: int) -> list[dict]:
+        if i not in tuoi_theo_khoi:
+            k = (hd.get("khoi") or [{}])[i] if i < len(hd.get("khoi") or []) else {}
+            uv = tra(conn, {"L0": hd.get("chu_the_tap") or [],
+                            "L1": k.get("L1") or [], "L2": k.get("L2") or [],
+                            "L3": k.get("L3") or []},
+                     so=12, uu_tien_nguon="ref", can_neo=bool(k.get("neo")))
+            tuoi_theo_khoi[i] = [
+                {"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
+                 "lop": c["lop"], "diem": c["diem"],
+                 "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
+                 "geo": c.get("geo", ""), "dai_s": c.get("dai_s", 0),
+                 "t0": c.get("t0", 0), "t1": c.get("t1", 0)}
+                for c in uv if c["nguon"] == "ref"]
+        return tuoi_theo_khoi[i]
+
+    def _hong(u: dict) -> bool:
+        if u.get("nguon") != "ref" or u.get("giu_cu"):
+            return False               # giu_cu: đời cũ đang được chọn, đã vá — yên
+        if not (float(u.get("t1") or 0) > 0):
+            return True
+        r = conn.execute("SELECT trang_thai FROM clip WHERE id=?",
+                         (u.get("id"),)).fetchone()
+        return r is None or r[0] != "song"
+
+    def _thay(ds: list[dict], i_khoi: int, chon: int) -> tuple[list[dict], bool]:
+        if not any(_hong(u) for u in ds):
+            return ds, False
+        moi, giu_chon = [], ds[chon] if 0 <= chon < len(ds) else None
+        for j, u in enumerate(ds):
+            if not _hong(u):
+                moi.append(u)
+            elif j == chon and giu_chon is not None:
+                # mục đang chọn: giữ chỗ, VÁ t0/t1 từ DB (clip loai_tru vẫn còn
+                # dòng) + cờ giu_cu — thiếu cờ thì lần đọc nào cũng "hỏng" lại,
+                # hợp đồng bị ghi lại vô hạn (test bắt được 06/09)
+                r = conn.execute("SELECT t0, t1 FROM clip WHERE id=?",
+                                 (u.get("id"),)).fetchone()
+                if r is not None:
+                    u["t0"], u["t1"] = r[0], r[1]
+                u["giu_cu"] = 1
+                moi.append(u)
+        co = {u["id"] for u in moi}
+        moi.extend(u for u in _tuoi(i_khoi) if u["id"] not in co)
+        return moi, True
+
+    for i, k in enumerate(hd.get("khoi") or []):
+        ds, d1 = _thay(k.get("uv") or [], i, int(k.get("chon", -1)))
+        if d1:
+            k["uv"] = ds
+            doi = True
+    for h in hd.get("hinh") or []:
+        i = int(h.get("khoi_goc") or 0)
+        ds, d1 = _thay(h.get("uv") or [], min(i, max(0, len(hd.get("khoi") or []) - 1)),
+                       int(h.get("chon", -1)))
+        if d1:
+            h["uv"] = ds
+            doi = True
+    return doi

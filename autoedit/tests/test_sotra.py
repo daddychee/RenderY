@@ -349,3 +349,36 @@ def test_ten_frame_moi_khuc_mot_file():
     assert a.endswith(".dau.jpg") and "8-67" in b
     # clip không có khúc (nguồn web) vẫn phải sinh tên hợp lệ
     assert sdb.ten_frame("pexels:12345", "x", "dau").endswith(".dau.jpg")
+
+
+def test_lam_tuoi_ref_uv_doi_cu(conn, tmp_path):
+    """Hợp đồng phân tích TRƯỚC đợt cắt-theo-cảnh mang ref cũ (thiếu t0/t1,
+    clip loai_tru) -> UI phát cả file 52 phút. Đọc hợp đồng phải tự làm tươi."""
+    from autoedit.offline.dung import lam_tuoi_ref
+    from autoedit.sotra.db import them_clip
+
+    them_clip(conn, {"id": "ref:LI100-r:2-6", "nguon": "ref", "tieu_de": "old cut",
+                     "path_local": "/x.mp4", "t0": 2, "t1": 6, "dai_s": 4,
+                     "trang_thai": "loai_tru"})
+    them_clip(conn, {"id": "ref:LI100-r:10.00-14.00", "nguon": "ref",
+                     "tieu_de": "police patrol street", "path_local": "/x.mp4",
+                     "t0": 10.0, "t1": 14.0, "dai_s": 4.0,
+                     "subject": "police patrol", "setting": "street"})
+    conn.commit()
+    cu = {"id": "ref:LI100-r:2-6", "nguon": "ref", "tieu_de": "old cut", "lop": "L1",
+          "diem": 5}                                     # đời cũ: KHÔNG có t0/t1
+    hd = {"chu_the_tap": ["police"],
+          "khoi": [{"loi": "x", "L1": ["police patrol"], "L2": ["street"], "L3": [],
+                    "uv": [cu, {"id": "envato:1", "nguon": "envato", "tieu_de": "e",
+                                "lop": "L2", "diem": 3}], "chon": 1}],
+          "hinh": [{"t0": 0, "dur": 4, "khoi_goc": 0, "uv": [dict(cu)], "chon": 0}]}
+    assert lam_tuoi_ref(hd, conn) is True
+    ids_khoi = [u["id"] for u in hd["khoi"][0]["uv"]]
+    assert "ref:LI100-r:2-6" not in ids_khoi, "ref cũ không được chọn phải bay"
+    assert "ref:LI100-r:10.00-14.00" in ids_khoi, "ref cắt-theo-cảnh phải vào"
+    assert "envato:1" in ids_khoi, "nguồn khác giữ nguyên"
+    # miếng hình: mục ĐANG CHỌN là ref cũ -> giữ chỗ, nhưng có thêm bản mới
+    ids_hinh = [u["id"] for u in hd["hinh"][0]["uv"]]
+    assert ids_hinh[0] == "ref:LI100-r:2-6" and "ref:LI100-r:10.00-14.00" in ids_hinh
+    # chạy lại lần 2: không còn gì để đổi
+    assert lam_tuoi_ref(hd, conn) is False

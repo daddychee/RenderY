@@ -548,6 +548,18 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
               tool cắt video ref thành từng CẢNH QUAY, đọc nội dung mỗi cảnh rồi đưa
               vào Library, ưu tiên trước stock. Mất ~20 phút cho mỗi giờ ref, chạy nền.</span></span></label>
         </div></div>
+      <div class="formrow"><label>AVD của tập</label>
+        <div>
+          <input type="number" id="ns-avd" value="6" min="0" step="0.5" style="max-width:110px"> phút
+          <div class="note">Mốc giữ chân: chương BẮT ĐẦU trước mốc này thuộc diện đồng kiểm
+            (duyệt khối tay), sau mốc thì máy tự dựng.</div>
+        </div></div>
+      <div class="formrow"><label>Ưu tiên nguồn footage</label>
+        <select id="ns-uutien" style="max-width:200px">
+          <option value="ref">Ưu tiên Ref</option>
+          <option value="envato">Ưu tiên Envato</option>
+          <option value="">Không ưu tiên</option>
+        </select></div>
       <div class="formrow"><label>Phong cách tham chiếu</label>
         <div>
           <select id="ns-kenh-ref" style="max-width:280px">
@@ -720,17 +732,12 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 
   <div class="panel" id="of-chua-co" >
-    <div class="note" style="margin:0">Chọn project rồi bấm Phân tích — cắt khối theo hơi thở
-      người đọc + gán 4 lớp + đổ ứng viên từ Library.</div>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <input type="number" id="of-avd" placeholder="AVD (phút)" style="max-width:110px" value="6">
-      <select id="of-framing" style="max-width:220px"></select>
-      <select id="of-uutien" style="max-width:150px">
-        <option value="ref">Ưu tiên Ref</option>
-        <option value="envato">Ưu tiên Envato</option>
-        <option value="">Không ưu tiên</option>
-      </select>
-      <button class="btn" onclick="ofPhanTich()">Phân tích</button>
+    <!-- THÔNG SỐ (AVD/Framing/Ưu tiên) nằm ở NEW SEQUENCE — user 06/09: "phần
+         này chỉ tồn tại trong tab new sequence". Offline chỉ chọn + xem. -->
+    <div class="note" style="margin:0">Chương chưa phân tích. Thông số (AVD · Framing ·
+      Ưu tiên nguồn) lấy từ lúc nộp tập ở <b>+ New Sequence</b>.</div>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn" onclick="ofPhanTich()">Phân tích chương này</button>
       <span class="note" id="of-pt-tt" style="margin:0"></span>
     </div>
   </div>
@@ -1258,6 +1265,8 @@ async function nopTap() {
       no_sub: document.getElementById('ns-sub').value === '1',
       phuong_an: document.querySelector('input[name="ns-pa"]:checked').value,
       kenh_ref: document.getElementById('ns-kenh-ref').value.trim(),
+      avd_phut: parseFloat(document.getElementById('ns-avd').value || '6'),
+      uu_tien_nguon: document.getElementById('ns-uutien').value,
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
       retention_tooltip: document.getElementById('ns-ret-tooltip').value
@@ -1450,12 +1459,7 @@ async function ofKhoiDong() {
         `<option value="${esc(p.project_id)}">${esc(p.project_id)} · ${esc((p.title || '').slice(0, 30))}</option>`).join('')
     if (cu) sel.value = cu
   } catch (e) { /* projects lỗi thì vẫn vào được bằng tay */ }
-  try {
-    const d = await api('/api/kenh')
-    document.getElementById('of-framing').innerHTML =
-      '<option value="">— Framing: mặc định —</option>' +
-      (d.kenh || []).map(k => `<option value="${esc(k.ten)}">${esc(k.ten_phong_cach || k.ten)}</option>`).join('')
-  } catch (e) { }
+  // dropdown Framing đã dời về New Sequence (user 06/09)
   if (OF_PID) ofNap()
 }
 
@@ -1504,11 +1508,9 @@ function ofInfo() {
 
 async function ofPhanTich() {
   if (!OF_PID) { alert('Chọn project trước'); return }
-  const avd = parseFloat(document.getElementById('of-avd').value || '0') * 60
   try {
-    await api('/api/offline/' + OF_PID + '/phan-tich', {method: 'POST', body: JSON.stringify({
-      avd_s: avd || 0, kenh_ref: document.getElementById('of-framing').value,
-      uu_tien_nguon: document.getElementById('of-uutien').value})})
+    // thông số KHÔNG nhập ở đây (user 06/09) — server đọc từ job lúc nộp tập
+    await api('/api/offline/' + OF_PID + '/phan-tich', {method: 'POST', body: JSON.stringify({})})
     document.getElementById('of-pt-tt').textContent = 'đang phân tích nền...'
     setTimeout(ofNap, 4000)
   } catch (e) { alert('Lỗi: ' + e.message) }
@@ -1841,9 +1843,11 @@ async function ofAddShot() {
   const giu = hs.filter(x => !(x.t0 >= vung.t0 - 0.01 && x.t0 + x.dur <= vung.t0 + vung.dur + 0.01))
   const buoc = vung.dur / n
   for (let j = 0; j < n; j++) {
+    // FIX user 06/09: miếng mới chon=-1 -> preview "chưa có hình". Chia shot =
+    // CÙNG một clip (như NLE), user đổi từng miếng sau bằng khay/Phương án.
     giu.push({t0: +(vung.t0 + j * buoc).toFixed(3), dur: +buoc.toFixed(3),
               khoi_goc: vung.khoi_goc, nguoi_sua: true,
-              uv: vung.uv, chon: j === 0 ? vung.chon : -1})
+              uv: vung.uv, chon: vung.chon})
   }
   giu.sort((a, b) => a.t0 - b.t0)
   OF_HD.hinh = giu
@@ -2246,7 +2250,8 @@ function ofVeXem() {
     el.hidden = false
     const khac = el === v1 ? v2 : v1
     khac.hidden = true; khac.pause()
-    el.play().catch(() => { })
+    // FIX user 06/09: pause timeline mà preview vẫn loop — chỉ chạy khi ĐANG PHÁT
+    if (ofDangPhat()) el.play().catch(() => { }); else el.pause()
     ofNapKe()
   }
   if (kia._src === vs) { len_song(kia); return } // đã nạp ngầm sẵn -> tức thì
@@ -2321,10 +2326,19 @@ function ofNhacTheo(tl) {                     // gọi mỗi frame khi đang ph�
   au.volume = v
 }
 function ofNhacNgung() { ofNhacTl().pause() }
+function ofDangPhat() { return (OF_AUDIO && !OF_AUDIO.paused) || !!OF_LANG }
+function ofXemChay(bat) {                     // preview video theo trạng thái phát
+  for (const id of ['of-video', 'of-video2']) {
+    const v = document.getElementById(id)
+    if (!v || v.hidden) continue
+    if (bat) v.play().catch(() => { }); else v.pause()
+  }
+}
 function ofPlay() {
   if (!OF_AUDIO) return
   if (OF_AUDIO.paused && !OF_LANG) {
     OF_AUDIO.play(); document.getElementById('of-play').textContent = '❚❚ Dừng'
+    ofXemChay(true)
     {                                          // nhạc nền vào cùng lúc với voice
       const t0 = Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0))
       let i0 = ofK().findLastIndex(k => k.v0 <= t0 + 0.01); if (i0 < 0) i0 = 0
@@ -2381,7 +2395,7 @@ function ofPlay() {
       requestAnimationFrame(vong)
     })()
   } else {
-    OF_AUDIO.pause(); OF_LANG = null; ofNhacNgung()
+    OF_AUDIO.pause(); OF_LANG = null; ofNhacNgung(); ofXemChay(false)
     document.getElementById('of-play').textContent = '▶ Phát'
   }
 }
