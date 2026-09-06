@@ -96,6 +96,20 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-trim-cs .hop{width:min(1200px, 92vw); height:min(86vh, 780px); display:flex;
                  flex-direction:column; background:var(--panel);
                  border:1px solid var(--line); border-radius:14px; overflow:hidden}
+/* cột GỢI Ý clip tương tự (user 08/09) */
+#of-rv-goiy{flex:0 0 208px; border-left:1px solid var(--line); display:flex;
+            flex-direction:column; min-height:0; background:var(--panel2, var(--bg))}
+#of-rv-goiy h4{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
+               color:var(--muted); margin:0; padding:9px 11px 7px}
+#of-goiy-ds{flex:1 1 0; overflow-y:auto; padding:0 9px 10px; display:flex;
+            flex-direction:column; gap:7px}
+.of-goiy{border:1px solid var(--line); border-radius:8px; overflow:hidden;
+         cursor:pointer; background:#000; flex:0 0 auto}
+.of-goiy img{width:100%; height:74px; object-fit:cover; display:block; opacity:.92}
+.of-goiy .n{font-size:10px; padding:3px 7px; color:var(--muted); line-height:1.3;
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+            overflow:hidden}
+.of-goiy:hover{border-color:var(--accent)}
 #of-trim-cs .dau{display:flex; align-items:center; gap:10px; padding:10px 14px;
                  border-bottom:1px solid var(--line); font-size:13.5px}
 /* thanh trim */
@@ -735,9 +749,15 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span class="note mono" id="of-trim-so" style="margin:0">0.0 – 0.0s</span>
       <button class="btn ghost small" onclick="ofDongTrim()">Đóng (Esc)</button>
     </div>
-    <div class="of-khung-v" id="of-rv-khung" style="flex:1 1 0">
-      <video id="of-rv-video" muted loop playsinline controls></video>
-      <img id="of-rv-anh" alt="" hidden>
+    <div style="flex:1 1 0; display:flex; min-height:0">
+      <div class="of-khung-v" id="of-rv-khung" style="flex:1 1 0">
+        <video id="of-rv-video" muted loop playsinline controls></video>
+        <img id="of-rv-anh" alt="" hidden>
+      </div>
+      <div id="of-rv-goiy">
+        <h4>Tương tự <span id="of-goiy-dem"></span></h4>
+        <div id="of-goiy-ds"></div>
+      </div>
     </div>
     <div id="of-trim">
       <div id="of-trim-thanh">
@@ -1709,6 +1729,30 @@ async function ofDoiPha() {
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
+async function ofGoiY(u) {
+  // gợi ý clip TƯƠNG TỰ: tra Library bằng từ khóa rút từ tiêu đề clip đang xem
+  const ds = document.getElementById('of-goiy-ds')
+  ds.innerHTML = '<span class="note" style="margin:0">đang tìm…</span>'
+  const tu = (u.tieu_de || '').toLowerCase().match(/[a-z]{4,}/g) || []
+  const q = tu.filter(w => !['with','from','shot','video','close','stock'].includes(w)).slice(0, 3).join(' ')
+  if (!q) { ds.innerHTML = '<span class="note" style="margin:0">—</span>'; return }
+  try {
+    const d = await api('/api/sotra?q=' + encodeURIComponent(q) + '&limit=24')
+    const kq = (d.clips || []).filter(c => c.id !== u.id).slice(0, 20)
+    document.getElementById('of-goiy-dem').textContent = kq.length || ''
+    ds.innerHTML = ''
+    if (!kq.length) { ds.innerHTML = '<span class="note" style="margin:0">không có clip tương tự</span>'; return }
+    for (const c of kq) {
+      const el = document.createElement('div')
+      el.className = 'of-goiy'
+      el.innerHTML = `<img src="${esc(c.url_anh || ('/api/sotra/frame?id=' + encodeURIComponent(c.id) + '&vai=dau'))}" loading="lazy">
+        <div class="n">${esc(c.tieu_de)}</div>`
+      el.onclick = () => ofReview({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
+        lop: 'L2', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo})
+      ds.appendChild(el)
+    }
+  } catch (e) { ds.innerHTML = '<span class="note" style="margin:0">lỗi tra</span>' }
+}
 function ofDongTrim() {
   document.getElementById('of-trim-cs').classList.remove('mo')
   const v = document.getElementById('of-rv-video')
@@ -1721,7 +1765,6 @@ function ofReview(u) {
   OF_RV = u
   const v = document.getElementById('of-rv-video'), a = document.getElementById('of-rv-anh')
   document.getElementById('of-rv-ten').textContent = u.tieu_de || u.nhan || ''
-  document.getElementById('of-rv-rong').style.display = 'none'
   const vsrc = ofVid(u)
   if (vsrc) {
     a.hidden = true; v.hidden = false; v.src = vsrc
@@ -1741,6 +1784,7 @@ function ofReview(u) {
     v.hidden = true; a.hidden = false; a.src = ofAnh(u)
     document.getElementById('of-trim').hidden = true
   }
+  ofGoiY(u)
 }
 function ofVeTrim() {
   if (!(OF_RV_DAI > 0)) return
