@@ -651,13 +651,11 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <section class="man" id="man-offline">
   <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <span style="text-transform:uppercase;letter-spacing:.07em;font-size:11.5px;color:var(--muted);font-weight:700">Offline</span>
-    <select id="of-project" style="min-width:250px" onchange="ofNap()"></select>
+    <select id="of-project" style="min-width:230px" onchange="ofNap()"></select>
+    <span class="note" id="of-info" style="margin:0"></span>
     <span class="note" id="of-pha-nhan" style="margin:0"></span>
-    <button class="btn ghost small" id="of-play" onclick="ofPlay()">▶ Phát</button>
-    <span class="note mono" id="of-tc" style="margin:0;min-width:80px">00:00.0</span>
-    <span class="note" id="of-stat" style="margin:0"></span>
+    <span class="note" id="of-luu-tt" style="margin:0;color:#5cb98a"></span>
     <span style="flex:1"></span>
-    <button class="btn ghost small" onclick="ofPhuongAn()" title="ranh mềm + rút thăm — khối ✎ giữ nguyên">⟳ Phương án</button>
 
     <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
   </div>
@@ -713,12 +711,17 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
       <span class="note" style="margin:0"><b style="color:#69aee0">HÌNH</b> cắt tự do ·
         <b style="color:#9fb3c8">AUDIO</b> bất biến</span>
+      <button class="btn ghost small" id="of-play" onclick="ofPlay()">▶ Phát</button>
+      <span class="note mono" id="of-tc" style="margin:0;min-width:74px">00:00.0</span>
+      <span class="note" id="of-stat" style="margin:0"></span>
+      <span style="width:1px;height:20px;background:var(--line)"></span>
       <button class="btn ghost small" onclick="ofThemMieng()" title="chẻ miếng hình tại playhead">⊞ Thêm hình</button>
       <button class="btn ghost small" onclick="ofBoMieng()" title="bỏ miếng đang chọn">⊟ Bỏ miếng</button>
       <button class="btn ghost small" onclick="ofUndo()" title="Ctrl+Z">↶</button>
       <button class="btn ghost small" onclick="ofRedo()" title="Ctrl+Shift+Z">↷</button>
       <button class="btn ghost small" onclick="ofHotKey()" title="bảng phím tắt">⌨</button>
-        <input type="text" id="of-tim" placeholder="tìm trong Library..." style="flex:1;max-width:320px;margin-left:12px" oninput="ofTimDebounce()">
+        <button class="btn ghost small" onclick="ofPhuongAn()" title="rút thăm lại hình cho miếng chưa chỉnh tay">⟳ Phương án</button>
+      <input type="text" id="of-tim" placeholder="tìm trong Library..." style="flex:1;max-width:300px;margin-left:10px" oninput="ofTimDebounce()">
       <span class="note" id="of-tim-nhan" style="margin:0"></span>
       <span style="flex:1"></span>
       <span id="of-zoom" class="note" style="margin:0">zoom
@@ -1206,6 +1209,7 @@ function canhBaoNiche() {
 
 /* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
 let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_HCHON = 0, OF_PXS = 14
+let OF_KHOA_SUA = false          // sequence của người khác -> chỉ xem (403 từ server)
 let OF_AUDIO = null, OF_LUU_T = 0
 const ofK = () => (OF_HD ? OF_HD.khoi : [])
 const ofUv = k => (k && k.uv && k.chon >= 0 && k.uv[k.chon]) ? k.uv[k.chon] : null
@@ -1345,8 +1349,18 @@ async function ofNap() {
   if (OF_AUDIO) { OF_AUDIO.pause(); OF_AUDIO = null }
   OF_AUDIO = new Audio('/api/offline/' + OF_PID + '/voice')
   OF_AUDIO.onended = () => document.getElementById('of-play').textContent = '▶ Phát'
+  ofInfo()
   ofCapPha()
   ofVeAll()
+}
+function ofInfo() {
+  if (!OF_HD) { document.getElementById('of-info').textContent = ''; return }
+  const ngay = (OF_HD.ngay_tao || OF_HD.ngay || '').slice(0, 10)
+  const ai = OF_HD.nguoi_tao || ''
+  document.getElementById('of-info').innerHTML =
+    `<b style="color:var(--text)">${esc(OF_HD.ma_tap || OF_PID)}</b>`
+    + (ai ? ` · ✍ ${esc(ai)}` : '') + (ngay ? ` · ${esc(ngay)}` : '')
+    + (OF_KHOA_SUA ? ' · <span style="color:var(--bad)">chỉ xem</span>' : '')
 }
 
 async function ofPhanTich() {
@@ -1368,16 +1382,45 @@ function ofCapPha() {
   document.getElementById('of-khay').classList.toggle('on', OF_PHA === 2)
   document.getElementById('of-nut-pha').textContent =
     OF_PHA === 1 ? 'Duyệt khối → Đổ video'
-    : (OF_HD && OF_HD.trang_thai === 'khoa' ? '⬇ Tải footage → CapCut' : '✔ Khóa sổ chương')
+    : (OF_HD && OF_HD.trang_thai === 'khoa' ? '⬇ Export timeline' : '✔ Khóa sổ chương')
 }
 
-function ofLuu() {                       // debounce PUT — voice bất biến server gác
+function ofLuu() {                       // AUTOSAVE: debounce PUT sau mỗi thay đổi
   clearTimeout(OF_LUU_T)
+  ofTtLuu('… đang lưu')
   OF_LUU_T = setTimeout(async () => {
-    try { await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)}) }
-    catch (e) { toastOf('Lưu lỗi: ' + e.message) }
+    try {
+      await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)})
+      ofTtLuu('✓ đã lưu ' + new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'}))
+    } catch (e) {
+      if (String(e.message).includes('403')) { OF_KHOA_SUA = true; ofInfo(); ofTtLuu('') }
+      toastOf('Lưu lỗi: ' + e.message)
+    }
   }, 700)
 }
+function ofTtLuu(m) {
+  const el = document.getElementById('of-luu-tt')
+  if (el) el.textContent = m
+}
+// AUTOSAVE khi rời tab / đóng CRM: gửi ngay bản cuối (user 08/09)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && OF_HD && OF_PID && !OF_KHOA_SUA) {
+    clearTimeout(OF_LUU_T)
+    try {
+      navigator.sendBeacon('/api/offline/' + OF_PID + '/luu-nhanh',
+        new Blob([JSON.stringify(OF_HD)], {type: 'application/json'}))
+      ofTtLuu('✓ đã lưu')
+    } catch (e) { }
+  }
+})
+addEventListener('beforeunload', () => {
+  if (OF_HD && OF_PID && !OF_KHOA_SUA) {
+    try {
+      navigator.sendBeacon('/api/offline/' + OF_PID + '/luu-nhanh',
+        new Blob([JSON.stringify(OF_HD)], {type: 'application/json'}))
+    } catch (e) { }
+  }
+})
 function toastOf(m) {
   const t = document.getElementById('of-stat')
   t.textContent = m
@@ -1718,7 +1761,7 @@ async function ofDoiPha() {
     try {
       const r = await api('/api/offline/' + OF_PID + '/khoa-so', {method: 'POST', body: '{}'})
       OF_HD.trang_thai = 'khoa'; ofCapPha()
-      document.getElementById('of-nut-pha').textContent = '⬇ Tải footage → CapCut'
+      document.getElementById('of-nut-pha').textContent = '⬇ Export timeline'
       toastOf('✔ ' + r.ghi_chu)
     } catch (e) { alert('Lỗi: ' + e.message) }
   } else {

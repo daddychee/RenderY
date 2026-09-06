@@ -45,9 +45,22 @@ def _framing(kenh_ref: str) -> dict:
         return {}
 
 
+def _ma_tap(project_dir: Path) -> str:
+    """Mã tập (LI100...) suy từ đường dẫn kịch bản gốc trên NAS."""
+    import re
+
+    try:
+        p = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))
+        goc = (p.get("inputs") or {}).get("original_script_path") or ""
+    except Exception:  # noqa: BLE001
+        goc = ""
+    m = re.search(r"[\\/]([A-Z]{2,4}\d{2,4})(?:_[\w-]+)?[\\/]", goc)
+    return m.group(1) if m else project_dir.name
+
+
 def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
               kenh_ref: str = "", uu_tien_nguon: str = "", dia_danh: str = "",
-              llm=None, conn=None, log=None) -> dict:
+              nguoi_tao: str = "", llm=None, conn=None, log=None) -> dict:
     """Sinh offline.json. `avd_s`: mốc AVD của TẬP; `mo_dau_tap_s`: chương này
     bắt đầu ở giây bao nhiêu của tập (đồng kiểm nếu chương CHẠM mốc AVD).
     `llm`/`conn` tiêm được để test không mạng."""
@@ -112,6 +125,9 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     hd = {
         "phien_ban": 1,
         "ngay": datetime.now(timezone.utc).isoformat(),
+        "ma_tap": _ma_tap(project_dir),
+        "nguoi_tao": nguoi_tao,          # AI TẠO sequence -> người đó mới được sửa
+        "ngay_tao": datetime.now(timezone.utc).isoformat(),
         "offset": offset, "tong_voice": round(het - offset, 2),
         "avd_s": avd_s, "dong_kiem": dong_kiem,
         "framing": fr, "uu_tien_nguon": uu_tien_nguon,

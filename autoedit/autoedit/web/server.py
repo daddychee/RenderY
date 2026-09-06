@@ -600,6 +600,20 @@ class OfflineRequest(BaseModel):
     dia_danh: str = ""
 
 
+def _gac_quyen_sua(request: Request, hd: dict) -> None:
+    """AI TẠO sequence thì người đó mới được sửa (user chốt 08/09).
+
+    Ngoài CRM (không có SSO) hoặc hợp đồng cũ chưa ghi người tạo -> mở, y khuôn
+    is_admin: 'owner giữ cho lúc chạy trực tiếp không qua cổng'."""
+    chu = (hd or {}).get("nguoi_tao") or ""
+    if not chu or not behind_crm(request):
+        return
+    ai = current_user(request)
+    if ai and ai != chu and not is_admin(request):
+        raise HTTPException(403, f"Sequence này do «{chu}» tạo — chỉ người tạo "
+                                 "(hoặc admin) được sửa")
+
+
 def _pdir_offline(project_id: str) -> Path:
     import re as _re
 
@@ -616,6 +630,7 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     """Chạy phân tích Offline nền (cắt khối + 4 lớp + ứng viên Library)."""
     _require_auth(request)
     d = _pdir_offline(project_id)
+    nguoi_tao = current_user(request)
     with _offline_lock:
         if _offline_dang.get(project_id, {}).get("tt") == "dang":
             raise HTTPException(409, "Đang phân tích dở")
@@ -626,7 +641,7 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         try:
             hd = orun.phan_tich(d, avd_s=req.avd_s, mo_dau_tap_s=req.mo_dau_tap_s,
                                 kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
-                                dia_danh=req.dia_danh,
+                                dia_danh=req.dia_danh, nguoi_tao=nguoi_tao,
                                 log=lambda m: print("[offline]", m, flush=True))
             with _offline_lock:
                 _offline_dang[project_id] = {
@@ -665,6 +680,7 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     cu = orun.doc(d)
     if cu is None:
         raise HTTPException(409, "Chưa có hợp đồng gốc")
+    _gac_quyen_sua(request, cu)
     if len(hd.get("khoi") or []) == 0:
         raise HTTPException(422, "Hợp đồng rỗng")
     # voice bất biến: tổng thời lượng NÓI không được đổi so bản gốc
@@ -790,6 +806,38 @@ class TrimRequest(BaseModel):
     luu_kho: bool = True    # ghi khúc vào Library (chỉ SỔ, không cắt file)
 
 
+@app.post("/api/offline/{project_id}/luu-nhanh")
+async def api_offline_luu_nhanh(project_id: str, request: Request):
+    """AUTOSAVE lúc rời tab/đóng CRM — sendBeacon gửi body thô, không chờ kết quả.
+    Cùng luật voice bất biến + gác quyền như PUT thường (user chốt 08/09)."""
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+
+    d = _pdir_offline(project_id)
+    cu_hd = orun.doc(d)
+    if cu_hd is None:
+        raise HTTPException(409, "Chưa có hợp đồng")
+    _gac_quyen_sua(request, cu_hd)
+    try:
+        hd = json.loads(await request.body())
+    except Exception:  # noqa: BLE001
+        raise HTTPException(422, "Body không hợp lệ")
+    if not (hd.get("khoi") or []):
+        raise HTTPException(422, "Hợp đồng rỗng")
+
+    def _noi(x):
+        return round(sum(k["v1"] - k["v0"] for k in x["khoi"]), 1)
+
+    if abs(_noi(hd) - _noi(cu_hd)) > 0.5:
+        raise HTTPException(422, "Voice bất biến")
+    from autoedit.offline import hinh as mhinh
+
+    mhinh.dam_bao(hd)
+    mhinh.khit_mep(hd)
+    orun.luu(d, hd)
+    return {"ok": True}
+
+
 @app.post("/api/offline/{project_id}/trim")
 def api_offline_trim(project_id: str, req: TrimRequest, request: Request):
     """Trim ứng viên ở màn review -> ghi khúc vào Library (mốc in/out, KHÔNG
@@ -893,6 +941,7 @@ def api_offline_khoa(project_id: str, request: Request):
     hd = orun.doc(d)
     if hd is None:
         raise HTTPException(409, "Chưa phân tích")
+    _gac_quyen_sua(request, hd)
     hd["trang_thai"] = "khoa"
     orun.luu(d, hd)
     return {"ok": True, "ghi_chu": f"đã khóa sổ {len(hd['khoi'])} khối — chờ thay máu (đợt 5)"}

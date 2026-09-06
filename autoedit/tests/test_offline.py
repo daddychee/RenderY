@@ -587,3 +587,54 @@ def test_api_trim_ghi_so_va_nap_vao_mieng(du_an, tmp_path, monkeypatch):
     # khúc quá ngắn bị chặn
     assert tc.post(f"/api/offline/{du_an.name}/trim",
                    json={"clip_id": "envato:abc", "t0": 1.0, "t1": 1.2}).status_code == 422
+
+
+def test_gac_quyen_chi_nguoi_tao_duoc_sua(du_an, tmp_path, monkeypatch):
+    """User chốt 08/09: 'ai tạo Sequence thì mới được sửa tập đấy'."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline import runner
+    from autoedit.web import server
+
+    runner.phan_tich(du_an, nguoi_tao="hai", llm=_LLM())
+    hd = runner.doc(du_an)
+    assert hd["nguoi_tao"] == "hai" and hd["ma_tap"]
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+
+    class _Req:
+        def __init__(self, ai, vai="viewer"):
+            self.headers = {"x-forwarded-host": "crm.local", "x-remote-user": ai,
+                            "x-remote-role": vai}
+            self.query_params = {}
+            self.client = type("C", (), {"host": "127.0.0.1"})()
+
+    server._gac_quyen_sua(_Req("hai"), hd)                    # chủ: qua
+    server._gac_quyen_sua(_Req("ai_do", "admin"), hd)         # admin: qua
+    with pytest.raises(Exception) as e:
+        server._gac_quyen_sua(_Req("nguoi_khac"), hd)         # người khác: chặn
+    assert "chỉ người tạo" in str(e.value.detail)
+    # hợp đồng cũ chưa ghi người tạo -> mở (tương thích ngược)
+    server._gac_quyen_sua(_Req("bat_ky"), {"nguoi_tao": ""})
+
+
+def test_autosave_luu_nhanh(du_an, tmp_path, monkeypatch):
+    """sendBeacon lúc rời tab -> POST /luu-nhanh, vẫn gác voice bất biến."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from fastapi.testclient import TestClient
+
+    from autoedit.offline import runner
+    from autoedit.web import server
+
+    runner.phan_tich(du_an, llm=_LLM())
+    monkeypatch.setattr(server, "PROJECTS_DIR", du_an.parent)
+    tc = TestClient(server.app)
+    hd = runner.doc(du_an)
+    hd["khoi"][0]["tho_them"] = 1.5
+    r = tc.post(f"/api/offline/{du_an.name}/luu-nhanh", json=hd)
+    assert r.status_code == 200
+    assert runner.doc(du_an)["khoi"][0]["tho_them"] == 1.5
+    hd["khoi"][0]["v1"] += 5                                   # đổi phần NÓI -> chặn
+    assert tc.post(f"/api/offline/{du_an.name}/luu-nhanh", json=hd).status_code == 422
