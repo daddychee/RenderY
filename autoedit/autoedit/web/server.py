@@ -1118,8 +1118,36 @@ def api_sotra_khuc(request: Request, id: str):
     finally:
         conn.close()
     if f is None:
-        raise HTTPException(404, "Không cắt được khúc (clip thiếu file/tọa độ)")
+        # không có tọa độ (clip cả-file) -> stream file gốc như /video
+        conn = _sdb.mo()
+        try:
+            r = conn.execute("SELECT path_local FROM clip WHERE id=?", (id,)).fetchone()
+        finally:
+            conn.close()
+        if r is None or not r[0] or not Path(r[0]).is_file():
+            raise HTTPException(404, "Không có file local")
+        return FileResponse(Path(r[0]), media_type="video/mp4")
     return FileResponse(f, media_type="video/mp4")
+
+
+@app.get("/api/sotra/clip")
+def api_sotra_clip(request: Request, id: str):
+    """Thông tin 1 clip theo id — cửa sổ review cần TỌA ĐỘ THẬT từ DB (ứng
+    viên trong hợp đồng có thể là bản cũ thiếu t0/t1 — bug 06/09: trim mở
+    nhầm cả file nguồn 23 phút)."""
+    _require_auth(request)
+    from autoedit.sotra import db as _sdb
+
+    conn = _sdb.mo()
+    try:
+        r = conn.execute("SELECT * FROM clip WHERE id=?", (id,)).fetchone()
+    finally:
+        conn.close()
+    if r is None:
+        raise HTTPException(404, "Không thấy clip")
+    d = dict(r)
+    return {k: d.get(k) for k in ("id", "nguon", "tieu_de", "t0", "t1", "dai_s",
+                                  "path_local", "url_video", "url_anh")}
 
 
 @app.post("/api/sotra/clip/loi")

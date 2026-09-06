@@ -781,7 +781,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <button class="btn ghost small" onclick="ofAddShot()"
               title="chia đều shot đang chọn — bấm lần nữa chia nhỏ thêm (phím e)">⊞ Add Shot</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
-              title="đổi footage của shot đang chọn sang phương án kế (phím d)">⟳ Phương án</button>
+              title="pull: kéo phương án footage kế cho shot đang chọn (phím d)">⟳ Pull</button>
       <span style="flex:1"></span>
       <span id="of-zoom" class="note" style="margin:0">zoom
         <input type="range" min="6" max="90" value="14" oninput="ofZoom(this.value)">
@@ -1297,11 +1297,9 @@ function ofAnh(u) {
 }
 function ofVid(u) {
   if (u.url_video) return u.url_video
-  // Clip local có tọa độ -> KHÚC cắt sẵn 960px (~1MB, cache server). Đo 06/09:
-  // mở file gốc 1GB qua 2 tầng proxy + decode 1080p từ keyframe xa = preview đơ.
-  const a = +u.t0 || 0, b = +u.t1 || 0
-  if (b > a) return `/api/sotra/khuc?id=${encodeURIComponent(u.id)}`
-  return `/api/sotra/video?id=${encodeURIComponent(u.id)}`
+  // Clip LOCAL: luôn qua /khuc — tọa độ server tự tra DB. Bug 06/09: ứng viên
+  // đời cũ trong hợp đồng thiếu t0/t1 -> rơi về file nguồn 23 phút.
+  return `/api/sotra/khuc?id=${encodeURIComponent(u.id)}`
 }
 
 /* ---- UNDO / REDO: chụp ảnh hợp đồng trước mỗi thao tác đổi ---- */
@@ -1333,7 +1331,7 @@ const OF_PHIM_MD = {play: ' ', zin: '1', zout: '2', thoP: 'q', thoM: 'w',
 const OF_PHIM_TEN = {play: 'Phát / Dừng', zin: 'Zoom in', zout: 'Zoom out',
                      thoP: 'Hình thở +1s', thoM: 'Hình thở −1s',
                      add: 'Add Shot (chia đều shot chọn)', xoa: 'Xóa shot đang chọn',
-                     doi: 'Đổi hình shot đang chọn'}
+                     doi: 'Pull — đổi footage shot đang chọn'}
 const OF_PHIM_HAM = {play: () => ofPlay(), zin: () => ofZoomBuoc(1),
                      zout: () => ofZoomBuoc(-1), thoP: () => ofTho(1),
                      thoM: () => ofTho(-1), add: () => ofAddShot(),
@@ -2113,7 +2111,7 @@ async function ofDoiPha() {
 }
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
-let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
+let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0, OF_RV_GOC = 0
 async function ofGoiY(u) {
   // gợi ý clip TƯƠNG TỰ: tra Library bằng từ khóa rút từ tiêu đề clip đang xem
   const ds = document.getElementById('of-goiy-ds')
@@ -2143,10 +2141,19 @@ function ofDongTrim() {
   const v = document.getElementById('of-rv-video')
   v.pause(); v.removeAttribute('src'); v.load()
 }
-function ofReview(u) {
+async function ofReview(u) {
   document.getElementById('of-trim-cs').classList.add('mo')
   ofNoiTrim()
   OF_RV = u
+  // video đang xem là KHÚC (thời gian tương đối) — trim phải cộng offset gốc
+  // của khúc lấy từ DB, không thì ghi tọa độ sai vào Library
+  OF_RV_GOC = 0
+  if (!u.url_video && u.id) {
+    try {
+      const info = await api('/api/sotra/clip?id=' + encodeURIComponent(u.id))
+      if (info.t1 > info.t0) OF_RV_GOC = +info.t0 || 0
+    } catch (e) { }
+  }
   const v = document.getElementById('of-rv-video'), a = document.getElementById('of-rv-anh')
   document.getElementById('of-rv-ten').textContent = u.tieu_de || u.nhan || ''
   const vsrc = ofVid(u)
@@ -2203,8 +2210,8 @@ async function ofTrimDung() {
   ofChup()
   try {
     const r = await api('/api/offline/' + OF_PID + '/trim', {method: 'POST',
-      body: JSON.stringify({clip_id: OF_RV.id, t0: +OF_RV_T0.toFixed(2),
-                            t1: +OF_RV_T1.toFixed(2), khoi: OF_HCHON, luu_kho: true})})
+      body: JSON.stringify({clip_id: OF_RV.id, t0: +(OF_RV_GOC + OF_RV_T0).toFixed(2),
+                            t1: +(OF_RV_GOC + OF_RV_T1).toFixed(2), khoi: OF_HCHON, luu_kho: true})})
     const d = await api('/api/offline/' + OF_PID)
     if (d.hop_dong) OF_HD = d.hop_dong
     OF_KHAY_KEY = ''
@@ -2409,9 +2416,7 @@ function stAnh(c) {                 // thumbnail: web hotlink, local qua endpoin
 function stVideo(c) {
   if (c.url_video) return c.url_video
   if (!c.path_local) return ''
-  // clip local có tọa độ -> khúc cắt sẵn (nhẹ); cả file -> stream trực tiếp
-  if (c.t1 > c.t0) return `/api/sotra/khuc?id=${encodeURIComponent(c.id)}`
-  return `/api/sotra/video?id=${encodeURIComponent(c.id)}`
+  return `/api/sotra/khuc?id=${encodeURIComponent(c.id)}`   // server tự lo tọa độ/fallback
 }
 const ST_MAU = {envato: '#e08c5a', pexels: '#7bc96f', pixabay: '#5b9bd5',
                 ref: '#a98ee0', kho: '#8a93a0', aigen: '#d9a441'}
