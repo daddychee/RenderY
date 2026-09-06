@@ -15,6 +15,12 @@ from autoedit.sotra import db as sdb
 DIEM = {"L1": 10.0, "L2": 6.0, "L3": 3.0}
 DIEM_NEO = 2.0
 DIEM_UU_TIEN_NGUON = 2.5
+# LỚP NGHĨA (đợt 3, 06/09) — topic của beat khớp lớp L1/L2 của khối voice.
+# Nặng hơn lớp Hình vì đây mới là "video này NÓI VỀ gì", còn pixel chỉ tả vật.
+DIEM_NGHIA_L1 = 12.0
+DIEM_NGHIA_L2 = 7.0
+PHAT_AN_DU = 5.0        # beat ẩn dụ: máy KHÔNG tự chọn, editor tra tay vẫn thấy
+DUNG_LOP_NGHIA = True   # CÔNG TẮC: False = quay về cách cũ tức thì
 
 
 def _tokens(cum) -> set:
@@ -46,6 +52,15 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     rows = list(rows) + [r for r in conn.execute(
         "SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' LIMIT 600")
         if r["id"] not in da_co]
+    # LỚP NGHĨA: topic + cờ ẩn dụ của beat, tra một lượt cho cả mẻ (rẻ)
+    nghia: dict[str, tuple] = {}
+    if DUNG_LOP_NGHIA:
+        bids = {r["beat_id"] for r in rows if (r["beat_id"] or "")}
+        if bids:
+            dau = ",".join("?" * len(bids))
+            nghia = {b: (t, m) for b, t, m in conn.execute(
+                f"SELECT id, topic, metaphor FROM beat WHERE id IN ({dau})",
+                list(bids))}
 
     cham, refs = [], []
     for r in rows:
@@ -74,10 +89,23 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         if can_neo and not (co_neo or la_ref or (tt & l0)):
             continue
         s1, s2, s3 = len(tt & l1), len(tt & l2), len(tt & l3)
-        if not (s1 or s2 or s3) and not la_ref:
+        # LỚP NGHĨA — tính RIÊNG, không trộn vào chuỗi chữ của lớp Hình
+        n1 = n2 = 0
+        an_du = 0
+        tp, an_du = nghia.get(c.get("beat_id") or "", ("", 0))
+        if tp:
+            tn = _tokens([tp])
+            n1, n2 = len(tn & l1), len(tn & l2)
+        if not (s1 or s2 or s3 or n1 or n2) and not la_ref:
             continue
-        tang = "L1" if s1 else ("L2" if s2 else "L3")
+        tang = ("L1" if (s1 or n1) else ("L2" if (s2 or n2) else "L3"))
         d = s1 * DIEM["L1"] + s2 * DIEM["L2"] + s3 * DIEM["L3"]
+        d += n1 * DIEM_NGHIA_L1 + n2 * DIEM_NGHIA_L2
+        if an_du:
+            d -= PHAT_AN_DU          # ẩn dụ: đè xuống, không loại
+        if tp:
+            c["topic_beat"] = tp
+            c["an_du"] = int(an_du)
         d += DIEM_NEO if co_neo else 0
         if uu_tien_nguon and c["nguon"] == uu_tien_nguon:
             d += DIEM_UU_TIEN_NGUON
