@@ -752,6 +752,7 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     mhinh.dong_bo_sau_tho(hd, moc_cu)
     loi_hinh = mhinh.kiem(hd)
     orun.luu(d, hd)
+    _xep_tai_ban_sach(hd)          # tải nền clip envato vừa được chọn
     if loi_hinh:
         return {"ok": True, "canh_bao_hinh": loi_hinh}
     return {"ok": True}
@@ -895,6 +896,7 @@ async def api_offline_luu_nhanh(project_id: str, request: Request):
     mhinh.dam_bao(hd)
     mhinh.khit_mep(hd)
     orun.luu(d, hd)
+    _xep_tai_ban_sach(hd)
     return {"ok": True}
 
 
@@ -1428,6 +1430,64 @@ def api_offline_nhac_chon(project_id: str, req: NhacChonRequest, request: Reques
                                     "energy", "dai_s", "url_nghe")}
     orun.luu(d, hd)
     return {"ok": True, "nhac": hd["nhac"]}
+
+
+# ---- TẢI NỀN BẢN SẠCH (user 06/09: "chờ Export mới tải thì hàng giờ") ----
+# Editor CHỌN clip envato là xếp hàng tải ngay — máy tải trong lúc người còn
+# đang dựng, tới lúc Export mọi thứ đã có sẵn (cách xưởng phim gom media
+# song song với offline edit). 1 worker, 1 luồng, giãn 2-5s như luật.
+_tai_nen_hang: set = set()
+_tai_nen_lock = threading.Lock()
+_tai_nen_worker = {"chay": False}
+
+
+def _xep_tai_ban_sach(hd: dict) -> None:
+    try:
+        from autoedit.sourcer import tai_sach
+
+        can = []
+        for h in hd.get("hinh") or []:
+            uv, ch = h.get("uv") or [], int(h.get("chon", -1))
+            if 0 <= ch < len(uv) and uv[ch].get("nguon") == "envato":
+                u = tai_sach._uuid_goc(uv[ch]["id"])
+                if not (tai_sach.thu_muc_sach() / f"{u}.mp4").is_file():
+                    can.append(uv[ch]["id"])
+        if not can:
+            return
+        with _tai_nen_lock:
+            moi = [x for x in can if x not in _tai_nen_hang]
+            _tai_nen_hang.update(moi)
+            bat = moi and not _tai_nen_worker["chay"]
+            if bat:
+                _tai_nen_worker["chay"] = True
+        if not bat:
+            return
+
+        def _chay():
+            from autoedit.sotra import db as _sdb
+            try:
+                while True:
+                    with _tai_nen_lock:
+                        lo = list(_tai_nen_hang)[:20]
+                        if not lo:
+                            _tai_nen_worker["chay"] = False
+                            return
+                    conn = _sdb.mo()
+                    try:
+                        tai_sach.tai_nhieu(conn, lo,
+                                           log=lambda m: print("[tai-nen]", m, flush=True))
+                    finally:
+                        conn.close()
+                    with _tai_nen_lock:
+                        _tai_nen_hang.difference_update(lo)
+            except Exception as exc:  # noqa: BLE001
+                print("[tai-nen] worker chết:", str(exc)[:150], flush=True)
+                with _tai_nen_lock:
+                    _tai_nen_worker["chay"] = False
+
+        threading.Thread(target=_chay, daemon=True, name="tai-nen").start()
+    except Exception:  # noqa: BLE001 — xếp hàng hỏng không được chặn lưu
+        pass
 
 
 @app.get("/api/phien")

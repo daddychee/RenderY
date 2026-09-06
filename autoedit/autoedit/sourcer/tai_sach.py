@@ -27,6 +27,11 @@ from pathlib import Path
 from autoedit.sotra import db as sdb
 
 GIAN_S = (2.0, 5.0)
+# MỘT trình duyệt tại một thời điểm: worker tải-nền và lượt Online cùng mở
+# profile là Chromium khoá lẫn nhau (ProcessSingleton) — lock cho cả hai đường.
+import threading as _th
+
+KHOA_TAI = _th.Lock()
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 _MAU_ITEM = re.compile(r'href="(/[a-z0-9][a-z0-9-]{10,}-[A-Z0-9]{7,8})"')
 
@@ -42,10 +47,18 @@ def thu_muc_sach() -> Path:
     return d
 
 
-def tim_url_item(conn, uuid: str, tu_khoa: str, log=None) -> str:
-    """URL item THẬT từ trang search (thuật toán img -> href-sau, có verify)."""
-    for trang in (1, 2):
-        q = urllib.parse.quote_plus(tu_khoa)
+def tim_url_item(conn, uuid: str, tu_khoa: str, tieu_de: str = "",
+                 log=None) -> str:
+    """URL item THẬT từ trang search (img -> href-sau, có verify).
+
+    Thử theo TIÊU ĐỀ trước (tên chính xác của item — trồi lên đầu kết quả),
+    rồi mới tới từ khóa hút. Đo 06/09: chỉ dùng từ khóa hút trượt 5/11 clip
+    (item trôi khỏi trang 1-2 sau vài ngày xếp hạng đổi).
+    """
+    cach = [t for t in (tieu_de.strip(), tu_khoa.strip()) if t]
+    for truy in cach:
+      for trang in (1, 2):
+        q = urllib.parse.quote_plus(truy)
         url = (f"https://elements.envato.com/stock-video/{q}"
                + (f"?page={trang}" if trang > 1 else ""))
         try:
@@ -107,7 +120,7 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
 
     from playwright.sync_api import sync_playwright
 
-    with sync_playwright() as p:
+    with KHOA_TAI, sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
             str(thu_muc_phien("envato") / "profile"), headless=True,
             accept_downloads=True)
@@ -115,16 +128,18 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
             pg = ctx.pages[0] if ctx.pages else ctx.new_page()
             for so, (u, cid) in enumerate(can.items(), 1):
                 try:
-                    c = conn.execute("SELECT url_trang, tu_khoa_hut FROM clip "
-                                     "WHERE id LIKE ? LIMIT 1",
+                    c = conn.execute("SELECT url_trang, tu_khoa_hut, tieu_de "
+                                     "FROM clip WHERE id LIKE ? LIMIT 1",
                                      (f"envato:{u}%",)).fetchone()
                     url = (c["url_trang"] or "") if c else ""
                     duong = url.replace("https://elements.envato.com", "")
                     if not _MAU_ITEM.search(f'href="{duong}"'):
                         url = ""                      # url tự chế đời cũ -> tìm lại
                     if not url:
-                        url = tim_url_item(conn, u, (c["tu_khoa_hut"] or "") if c else "",
-                                           log=log)
+                        url = tim_url_item(
+                            conn, u, (c["tu_khoa_hut"] or "") if c else "",
+                            tieu_de=(c["tieu_de"] or "").split("[")[0] if c else "",
+                            log=log)
                     if not url:
                         ghi(f"online: {u[:8]} KHÔNG tìm được trang item — giữ preview")
                         continue
