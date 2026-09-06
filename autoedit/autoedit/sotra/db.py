@@ -140,10 +140,16 @@ def slug(chu: str, dai: int = 30) -> str:
 
 
 def ten_frame(clip_id: str, tieu_de: str, vai: str) -> str:
-    """`{nguon}_{ma8}_{slug}.dau|cuoi.jpg` — nằm trong so_tra/frames/."""
+    """`{nguon}_{ma8}[_{khuc}]_{slug}.dau|cuoi.jpg` — nằm trong so_tra/frames/.
+
+    KHÚC bắt buộc có trong tên: ref cắt theo cảnh thì mọi cảnh cùng một video
+    chung `phan[1]`. Bỏ khúc đi thì 228 cảnh ghi đè nhau còn MỘT file — gặp thật
+    06/09: GLM đọc 228 lần cùng một tấm hình, cả kho ra 4 subject giống nhau.
+    """
     phan = clip_id.split(":")
     ma8 = re.sub(r"[^a-z0-9]", "", phan[1].lower())[:8] or "x"
-    return f"{phan[0]}_{ma8}_{slug(tieu_de)}.{vai}.jpg"
+    khuc = re.sub(r"[^a-z0-9]", "-", phan[2].lower())[:16] if len(phan) > 2 else ""
+    return f"{phan[0]}_{ma8}{'_' + khuc if khuc else ''}_{slug(tieu_de)}.{vai}.jpg"
 
 
 # ------------------------------------------------------------ ghi

@@ -39,6 +39,13 @@ CHO_LO_S = 1.0          # nghỉ giữa 2 lô, tránh dồn API
 _SYS = """Bạn xem các KHUNG HÌNH trích từ phim tài liệu. Với MỖI ảnh, ghi ĐÚNG
 những gì NHÌN THẤY — không suy diễn từ lời thoại.
 
+BẮT BUỘC: mọi giá trị viết bằng TIẾNG ANH. Kho tra cứu chỉ có từ khóa tiếng
+Anh — trả "các người" thay vì "group of people" là cảnh đó chết trong kho,
+không ai tra ra. Không dùng tiếng Việt trong bất kỳ trường nào.
+
+Mỗi ảnh là một cảnh KHÁC NHAU: mô tả riêng từng ảnh, tuyệt đối không chép lại
+mô tả của ảnh trước.
+
 QUAN TRỌNG — hãy kể ĐỦ VẬT THỂ trong hình, kể cả thứ ở hậu cảnh hoặc cầm trên
 tay. Editor tra kho bằng chính những vật đó (ví dụ thấy thùng hàng có chuối thì
 phải ghi cả "bananas", không chỉ ghi "box").

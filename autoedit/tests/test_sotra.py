@@ -336,3 +336,16 @@ def test_api_nap_ref_chay_nen_va_bao_tien_do(tmp_path, monkeypatch):
     assert "+5 cảnh" in server._sotra_nap_ref["ghi_chu"]
     assert goi == {"quoc_gia": "ecuador", "doc_hinh": True}
     assert tc.get("/api/sotra/nap-ref").json()["tt"] == "xong"
+
+
+def test_ten_frame_moi_khuc_mot_file():
+    """Ref cắt theo cảnh: mọi cảnh cùng video chung phần `ma`. Nếu tên frame bỏ
+    KHÚC thì 228 cảnh ghi đè nhau còn MỘT file — gặp thật 06/09: GLM đọc 228
+    lần cùng một tấm hình, cả kho ra đúng 4 subject giống nhau, tra gì cũng
+    không ra. Đây là lỗi câm: không exception, không log, chỉ kho rác."""
+    a = sdb.ten_frame("ref:LI100-ref 2:0.00-8.67", "ref 2", "dau")
+    b = sdb.ten_frame("ref:LI100-ref 2:8.67-13.00", "ref 2", "dau")
+    assert a != b, "hai cảnh khác nhau phải ra hai file ảnh khác nhau"
+    assert a.endswith(".dau.jpg") and "8-67" in b
+    # clip không có khúc (nguồn web) vẫn phải sinh tên hợp lệ
+    assert sdb.ten_frame("pexels:12345", "x", "dau").endswith(".dau.jpg")
