@@ -94,10 +94,10 @@ def test_RenderY_trong(tmp_path):
 
 
 def test_ten_sai_bi_bao_ro_ten_nao(tmp_path):
-    tap = _tap(tmp_path, chuong=("H", "C1"))
+    tap = _tap(tmp_path, chuong=("H", "C1", "E"))
     (tap / THU_MUC_CON / "clue 1").mkdir()
     chuong, loi = doc_chuong(tap)
-    assert [c.ma for c in chuong] == ["H", "C1"]        # chương đúng vẫn nhận
+    assert [c.ma for c in chuong] == ["H", "C1", "E"]   # chương đúng vẫn nhận
     assert any("clue 1" in x and "sai quy ước" in x for x in loi)
 
 
@@ -114,7 +114,7 @@ def test_bat_trung_ma_chuong(tmp_path):
     (Trên Windows 'c1' và 'C1' là CÙNG một thư mục nên không tạo được để test;
     'C01' là ca trùng thật sự có thể xảy ra.)
     """
-    tap = _tap(tmp_path, chuong=("H", "C1"))
+    tap = _tap(tmp_path, chuong=("H", "C1", "E"))
     d = tap / THU_MUC_CON / "C01"
     d.mkdir()
     (d / "script.txt").write_text("x", encoding="utf-8")
@@ -124,11 +124,11 @@ def test_bat_trung_ma_chuong(tmp_path):
 
 
 def test_bo_qua_thu_muc_an_va_file_le(tmp_path):
-    tap = _tap(tmp_path, chuong=("H", "C1"))
+    tap = _tap(tmp_path, chuong=("H", "C1", "E"))
     (tap / THU_MUC_CON / ".tam").mkdir()
     (tap / THU_MUC_CON / "ghi-chu.txt").write_text("x", encoding="utf-8")
     chuong, loi = doc_chuong(tap)
-    assert [c.ma for c in chuong] == ["H", "C1"] and loi == []
+    assert [c.ma for c in chuong] == ["H", "C1", "E"] and loi == []
 
 
 # ------------------------------ đường dẫn -----------------------------------
@@ -158,7 +158,7 @@ def test_tom_tat_bao_chua_san_sang_khi_thieu(tmp_path):
 
 def test_tom_tat_khong_co_srt_van_san_sang(tmp_path):
     """.srt là tuỳ chọn — thiếu thì align dùng whisper."""
-    d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=False))
+    d = tom_tat(_tap(tmp_path, chuong=("H", "C1", "E"), srt=False))
     assert d["san_sang"] is True
     assert all(c["srt"] is False for c in d["chuong"])
 
@@ -166,14 +166,14 @@ def test_tom_tat_khong_co_srt_van_san_sang(tmp_path):
 def test_tom_tat_nhac_khi_thieu_srt(tmp_path):
     """Thiếu .srt KHÔNG chặn nhưng phải báo TRƯỚC khi nộp: whisper chậm hơn và
     khớp chữ kém hơn. Job từng chết 24 phút sau vì lỗi này không hiện sớm."""
-    d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=False))
+    d = tom_tat(_tap(tmp_path, chuong=("H", "C1", "E"), srt=False))
     assert d["san_sang"] is True
     assert len(d["nhac"]) == 1
     assert "Hook" in d["nhac"][0] and "Chương 1" in d["nhac"][0]
 
 
 def test_tom_tat_khong_nhac_khi_du_srt(tmp_path):
-    d = tom_tat(_tap(tmp_path, chuong=("H", "C1"), srt=True))
+    d = tom_tat(_tap(tmp_path, chuong=("H", "C1", "E"), srt=True))
     assert d["nhac"] == []
 
 
@@ -183,11 +183,11 @@ def test_bo_qua_thu_muc_ket_qua_cua_chinh_tool(tmp_path):
     "'Compose Timeline' sai quy ước" (31/08, job LI093 lần 2)."""
     from autoedit.web.chapters import THU_MUC_GIAO
 
-    tap = _tap(tmp_path, chuong=("H", "C1"))
+    tap = _tap(tmp_path, chuong=("H", "C1", "E"))
     (tap / "RenderY" / THU_MUC_GIAO / "H" / "draft").mkdir(parents=True)
     d = tom_tat(tap)
     assert d["san_sang"] is True, d["loi"]
-    assert d["so_chuong"] == 2
+    assert d["so_chuong"] == 3
     assert [c["ma"] for c in d["chuong"]] == ["H", "C1"]
 
 
@@ -200,3 +200,24 @@ def test_ten_thu_muc_giao_khop_giua_hai_module():
     from autoedit.web.compose import thu_muc_giao
 
     assert thu_muc_giao(Path("X:/tap")).name == THU_MUC_GIAO
+
+
+def test_dinh_dang_bat_buoc_hook_chapter_end(tmp_path):
+    """User chốt 06/09: bắt buộc H + >=1 C + E; gộp cả tập 1 voice/script = chặn."""
+    d = tom_tat(_tap(tmp_path, chuong=("C1",)))
+    assert d["san_sang"] is False
+    assert any("H (Hook)" in x for x in d["loi"]) and any("E (End)" in x for x in d["loi"])
+
+    d = tom_tat(_tap(tmp_path, ten="IN003", chuong=("H", "E")))
+    assert d["san_sang"] is False and any("C1" in x for x in d["loi"])
+
+
+def test_gop_1_file_voice_bi_chan(tmp_path):
+    from autoedit.web.chapters import THU_MUC_CON
+
+    tap = _tap(tmp_path, chuong=("H", "C1", "E"))
+    (tap / THU_MUC_CON / "voice.mp3").write_bytes(b"v")     # voice GỘP ở gốc
+    (tap / THU_MUC_CON / "script.txt").write_text("x", encoding="utf-8")
+    d = tom_tat(tap)
+    assert d["san_sang"] is False
+    assert any("không được gộp" in x for x in d["loi"])

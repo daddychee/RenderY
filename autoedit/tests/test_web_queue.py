@@ -26,7 +26,7 @@ def nas(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _job_folder(nas_root: Path, ten: str, chuong=("H", "C1"), du=True) -> Path:
+def _job_folder(nas_root: Path, ten: str, chuong=("H", "C1", "E"), du=True) -> Path:
     """Thư mục tập đúng quy ước: <tập>/RenderY/{H,C1,...}."""
     from autoedit.web.chapters import THU_MUC_CON
 

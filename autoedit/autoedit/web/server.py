@@ -1995,7 +1995,8 @@ class JobRequest(BaseModel):
     aigen: bool = False        # user 04/09: cổng tắt/bật AI gen khi nộp job
     # 3 PHƯƠNG ÁN DỰNG (user 05/09): stock | ai | tu_quay — logic/phong cách khác
     # nhau, học từ kênh ref thay luật cứng. PA "ai" tự kéo aigen bật ở make.
-    phuong_an: str = "stock"
+    phuong_an: str = "doi_thu"    # 06/09 còn 2 PA: doi_thu | tu_quay (pipeline
+                                  # hiểu stock/tu_quay -> doi_thu chuẩn hóa ở add_job)
     kenh_ref: str = ""         # link kênh YouTube ref (đo trong worker, cache theo kênh)
     # THÔNG SỐ OFFLINE khai lúc NỘP TẬP (user 06/09: Offline chỉ chọn + xem,
     # không nhập thông số) — phan-tich đọc lại từ opts của job.
@@ -2057,7 +2058,8 @@ def api_add_job(req: JobRequest, request: Request):
                         nguoi=current_user(request) or req.nguoi.strip()[:40],
                         opts={"niche": req.niche, "align_backend": req.align_backend,
                               "no_sub": req.no_sub, "aigen": req.aigen,
-                              "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref,
+                              "phuong_an": ("stock" if req.phuong_an == "doi_thu"
+                                            else req.phuong_an), "kenh_ref": req.kenh_ref,
                               "avd_phut": req.avd_phut,
                               "uu_tien_nguon": req.uu_tien_nguon})
         job = q.get_job(conn, jid)

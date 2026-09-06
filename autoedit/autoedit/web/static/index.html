@@ -526,48 +526,23 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
             lỗi này, 0 tiếng động nào vào draft.</div>
         </div></div>
-      <div class="formrow"><label>Nguồn footage</label>
-        <select id="ns-sub" style="max-width:280px">
-          <option value="0">Đầy đủ (có Envato/Vecteezy)</option>
-          <option value="1">Chỉ nguồn miễn phí (nhanh hơn)</option>
-        </select></div>
       <div class="formrow"><label>Phương án dựng</label>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="optbox"><input type="radio" name="ns-pa" value="stock" checked>
-            <span><b>1 · Toàn footage thật</b>
-              <span class="note" style="display:block">Stock + kho có sẵn — không AI,
-              không cần video tự quay. Nhanh và rẻ nhất.</span></span></label>
-          <label class="optbox"><input type="radio" name="ns-pa" value="ai">
-            <span><b>2 · AI bù chỗ thiếu</b>
-              <span class="note" style="display:block">Beat không tìm được footage sẽ có
-              đề xuất cảnh AI (bạn duyệt mới tốn tiền: ảnh $0.06/cảnh, video ~$0.05/cảnh).</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-pa" value="doi_thu" checked>
+            <span><b>1 · Dựng với video đối thủ</b>
+              <span class="note" style="display:block">Đặt video đối thủ làm <b>Ref 1.mp4 + Ref 1.srt</b>
+              vào folder chương (hoặc RenderY/ cho cả tập) — tool cắt thành từng CẢNH QUAY, đọc nội dung
+              đưa vào Library, ưu tiên trước stock. ~20 phút mỗi giờ ref, chạy nền.</span></span></label>
           <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay">
-            <span><b>3 · Footage tôi tự quay</b>
-              <span class="note" style="display:block">Đặt sẵn <b>Ref 1.mp4 + Ref 1.srt</b>
-              vào folder chương (hoặc RenderY/ để cả tập dùng chung) TRƯỚC khi nộp —
-              tool cắt video ref thành từng CẢNH QUAY, đọc nội dung mỗi cảnh rồi đưa
-              vào Library, ưu tiên trước stock. Mất ~20 phút cho mỗi giờ ref, chạy nền.</span></span></label>
+            <span><b>2 · Dựng với video quay thật</b>
+              <span class="note" style="display:block">Footage team tự quay — đặt cùng định dạng
+              Ref *.mp4 (+ .srt nếu có lời) vào folder chương, tool cắt cảnh và nhận diện như trên.</span></span></label>
         </div></div>
       <div class="formrow"><label>AVD của tập</label>
         <div>
           <input type="number" id="ns-avd" value="6" min="0" step="0.5" style="max-width:110px"> phút
           <div class="note">Mốc giữ chân: chương BẮT ĐẦU trước mốc này thuộc diện đồng kiểm
             (duyệt khối tay), sau mốc thì máy tự dựng.</div>
-        </div></div>
-      <div class="formrow"><label>Ưu tiên nguồn footage</label>
-        <select id="ns-uutien" style="max-width:200px">
-          <option value="ref">Ưu tiên Ref</option>
-          <option value="envato">Ưu tiên Envato</option>
-          <option value="">Không ưu tiên</option>
-        </select></div>
-      <div class="formrow"><label>Phong cách tham chiếu</label>
-        <div>
-          <select id="ns-kenh-ref" style="max-width:280px">
-            <option value="">— mặc định (nhịp trung tính) —</option>
-          </select>
-          <div class="note">Chọn kênh mẫu ĐÃ nghiên cứu cho video này — mỗi video một
-            lựa chọn, không có mặc định. Kênh chưa có?
-            <a onclick="doiTrang('kenh')">Sang tab Framing Insight</a> (manager trích xuất).</div>
         </div></div>
       <div class="formrow"><label>Retention tập trước</label>
         <div>
@@ -579,6 +554,15 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             tool đo ngay lúc nộp và chỉnh nhịp tập này.
             <a onclick="document.getElementById('ns-ret-tooltip-box').hidden=false;this.hidden=true">
               Ảnh không có nhãn %/trục?</a></div>
+      <div class="formrow"><label>Framing Insight</label>
+        <div>
+          <select id="ns-kenh-ref" style="max-width:280px">
+            <option value="">— mặc định (nhịp trung tính) —</option>
+          </select>
+          <div class="note">BẮT BUỘC — nhịp CHIA KHỐI của tập lấy từ hồ sơ kênh này
+            (thân trung vị, hook, tỷ lệ hold). Kênh chưa có?
+            <a onclick="doiTrang('kenh')">Sang tab Framing Insight</a> (manager trích xuất).</div>
+        </div></div>
           <div id="ns-ret-tooltip-box" hidden style="margin-top:8px">
             <textarea id="ns-ret-tooltip" rows="2" style="width:100%;background:var(--bg);
               color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
@@ -1255,18 +1239,23 @@ async function nopTap() {
       r.readAsDataURL(f)
     })
   }
+  // Framing Insight BẮT BUỘC (user 06/09): nhịp chia khối lấy từ đây
+  if (!document.getElementById('ns-kenh-ref').value.trim()) {
+    msg.innerHTML = '<span class="err">Chọn Framing Insight — nhịp chia khối lấy từ hồ sơ kênh này.</span>'
+    return
+  }
   nut.disabled = true
-  msg.textContent = 'đang xếp hàng…'
+  msg.textContent = 'đang xếp hàng…' 
   try {
     const r = await api('/api/jobs', {method: 'POST', body: JSON.stringify({
       folder: TAP_OK,
       nguoi: NGUOI_LOCAL,            // vào thẳng không có SSO — tự khai; CRM thắng
       niche: document.getElementById('ns-niche').value.trim(),
-      no_sub: document.getElementById('ns-sub').value === '1',
+
       phuong_an: document.querySelector('input[name="ns-pa"]:checked').value,
       kenh_ref: document.getElementById('ns-kenh-ref').value.trim(),
       avd_phut: parseFloat(document.getElementById('ns-avd').value || '6'),
-      uu_tien_nguon: document.getElementById('ns-uutien').value,
+
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
       retention_tooltip: document.getElementById('ns-ret-tooltip').value

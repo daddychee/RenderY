@@ -135,6 +135,26 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
         if not c.co_voice:
             loi.append(f"{c.nhan} ({c.path.name}): thiếu voice (.mp3/.wav)")
 
+    # ĐỊNH DẠNG BẮT BUỘC (user chốt 06/09): Hook + ít nhất 1 Chapter + End.
+    # CẤM gộp cả tập vào 1 voice/1 script — nhịp chia khối và đồng kiểm/auto
+    # đều tính theo CHƯƠNG, gộp là toàn bộ logic phía sau sai lặng lẽ.
+    # voice ở gốc = gộp chắc chắn; .txt lẻ (ghi chú) vô hại — chỉ tính khi có voice
+    giong = [f.name for f in goc.iterdir()
+             if f.is_file() and f.suffix.lower() in (".mp3", ".wav")]
+    gop = giong + ([f.name for f in goc.iterdir()
+                    if f.is_file() and f.suffix.lower() == ".txt"] if giong else [])
+    if gop:
+        loi.append("Voice/script đang nằm THẲNG trong RenderY/ (" + ", ".join(gop[:3])
+                   + ") — không được gộp cả tập; chia vào thư mục H / C1 / C2... / E.")
+    if chuong:
+        ma_co = {c.ma for c in chuong}
+        if "H" not in ma_co:
+            loi.append("Thiếu thư mục H (Hook) — định dạng bắt buộc: H / C1..Cn / E.")
+        if not any(m.startswith("C") for m in ma_co):
+            loi.append("Chưa có chương C nào (C1, C2...) — định dạng bắt buộc: H / C1..Cn / E.")
+        if "E" not in ma_co:
+            loi.append("Thiếu thư mục E (End) — định dạng bắt buộc: H / C1..Cn / E.")
+
     chuong.sort(key=lambda c: c.thu_tu)
     return chuong, loi
 
