@@ -169,7 +169,8 @@ def _rtf_to_txt(rtf: Path) -> Path:
     return out
 
 
-def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
+def _project_cu_dung_duoc(folder: Path, out_dir: Path,
+                          chi_align: bool = False) -> "object | None":
     """Project đã dựng XONG cho đúng thư mục chương này (nếu có).
 
     31/08: job LI093 chết ở chương cuối vì Pexels trả 504. H/C7/c8 đã có draft nhưng
@@ -200,9 +201,17 @@ def _project_cu_dung_duoc(folder: Path, out_dir: Path) -> "object | None":
             continue
         if sc.parent.resolve() != Path(folder).resolve():
             continue
-        draft = d.get("draft_path")
-        if not draft or not Path(draft).is_dir():
-            continue
+        if chi_align:
+            # Chế độ CHUẨN BỊ (07/09): không bao giờ có draft, nên điều kiện tái
+            # dùng là ALIGN xong. Thiếu nhánh này thì mỗi lần nộp lại đẻ project
+            # MỚI cho mọi chương -> chip chương nhân đôi (user bắt ngay 07/09).
+            if not ((f.parent / "transcript.json").is_file()
+                    and (f.parent / "media" / "voice_master.wav").is_file()):
+                continue
+        else:
+            draft = d.get("draft_path")
+            if not draft or not Path(draft).is_dir():
+                continue
         # Nguồn đổi SAU khi project được tạo (writer sửa kịch bản, gen lại voice)
         # -> KHÔNG tái dùng. So mtime file nguồn với thời điểm tạo project: dữ liệu
         # đã có sẵn, khỏi thêm trường mới vào schema.
@@ -357,12 +366,16 @@ def make(
 
     srt_src = _pick_input(folder, (".srt",), voice.stem)[0]
 
-    cu = None if lam_lai else _project_cu_dung_duoc(folder, Path("projects"))
+    cu = None if lam_lai else _project_cu_dung_duoc(
+        folder, Path("projects"), chi_align=(chi_chuan_bi is True))
     if cu is not None:
         # Chương này đã dựng XONG (có draft, nguồn không đổi) -> giao lại bản cũ.
         typer.echo(f"  ✓ Tạo project: {cu.project_id}")
-        typer.secho(f"✓ '{folder.name}' đã dựng xong trước đó — dùng lại draft cũ "
-                    f"(thêm --lam-lai để dựng mới).", fg=typer.colors.GREEN)
+        typer.secho(
+            f"✓ '{folder.name}' " + ("đã chuẩn bị trước đó — dùng lại, không tạo bản mới"
+                                     if chi_chuan_bi is True else
+                                     "đã dựng xong trước đó — dùng lại draft cũ")
+            + " (thêm --lam-lai để làm mới).", fg=typer.colors.GREEN)
         return
 
     try:

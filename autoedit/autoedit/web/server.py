@@ -329,7 +329,9 @@ def api_offline_tap_list(request: Request):
         draft = Path(r"F:/OutlierY Nas 2/Tool Edit/Capcut Draft/CapCut Drafts")             / f"OFF_{d.name}"
         tap.setdefault(ma, []).append({
             "project_id": d.name, "nhan": nhan, "trang_thai": tt, "he": he,
-            "co_draft": draft.is_dir()})
+            "co_draft": draft.is_dir(),
+            "_uu_tien": (2 if hd is not None else 0) + (1 if draft.is_dir() else 0),
+            "_moi": d.stat().st_mtime})
         if len(tap) > 12:
             break
     # chương trong tập sắp theo thứ tự H -> C1.. -> E
@@ -341,8 +343,21 @@ def api_offline_tap_list(request: Request):
             return 999
         m2 = _re.fullmatch(r"C(\d+)", n)
         return int(m2.group(1)) if m2 else 500
+    # MỖI CHƯƠNG MỘT CHIP (user bắt 07/09: "tại sao chương bị double"). Mỗi lần
+    # chạy `make` đẻ project mới, nên một chương có thể có 2-4 bản. Chọn bản
+    # ĐÁNG GIÁ NHẤT: đã phân tích Offline > có draft > mới nhất. Bản kia vẫn nằm
+    # trên đĩa (tra được), chỉ không hiện chip.
     for ma in tap:
-        tap[ma].sort(key=lambda c: _tt(c["nhan"]))
+        tot: dict = {}
+        for c in tap[ma]:
+            cu_c = tot.get(c["nhan"].upper())
+            if cu_c is None or (c["_uu_tien"], c["_moi"]) > (cu_c["_uu_tien"], cu_c["_moi"]):
+                tot[c["nhan"].upper()] = c
+        ds = sorted(tot.values(), key=lambda c: _tt(c["nhan"]))
+        for c in ds:
+            c.pop("_uu_tien", None)
+            c.pop("_moi", None)
+        tap[ma] = ds
     return {"tap": [{"ma": ma, "chuong": cs} for ma, cs in tap.items()]}
 
 
