@@ -135,11 +135,32 @@ def _canh_bao_phien(dong_kiem: bool) -> list[str]:
     return []
 
 
+KIEU_CHAY_HOP_LE = ("manual", "avd", "auto")
+
+
+def tinh_dong_kiem(kieu_chay: str, avd_s: float, mo_dau_tap_s: float) -> bool:
+    """Chương này có phải người duyệt không — MỘT chỗ quyết duy nhất.
+
+    `kieu_chay` (user chốt 07/09): manual = mọi chương người duyệt · auto = tự
+    chạy hết · avd = chương bắt đầu TRƯỚC mốc thì duyệt, sau mốc tự chạy.
+
+    Rỗng = chưa khai -> giữ nguyên công thức cũ (tương thích ngược). Công thức
+    cũ KHÔNG diễn đạt được Auto: `avd_s=0` lẫn `∞` đều ra manual (SEQUENCE PH4).
+    """
+    if kieu_chay == "manual":
+        return True
+    if kieu_chay == "auto":
+        return False
+    return (avd_s <= 0) or (mo_dau_tap_s < avd_s)
+
+
 def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
               kenh_ref: str = "", uu_tien_nguon: str = "", dia_danh: str = "",
-              nguoi_tao: str = "", llm=None, conn=None, log=None) -> dict:
+              nguoi_tao: str = "", kieu_chay: str = "",
+              llm=None, conn=None, log=None) -> dict:
     """Sinh offline.json. `avd_s`: mốc AVD của TẬP; `mo_dau_tap_s`: chương này
     bắt đầu ở giây bao nhiêu của tập (đồng kiểm nếu chương CHẠM mốc AVD).
+    `kieu_chay`: manual | avd | auto (rỗng = suy từ avd_s như bản cũ).
     `llm`/`conn` tiêm được để test không mạng."""
     def ghi(m):
         if log:
@@ -169,7 +190,10 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     elif not fr:
         _thieu.append(f"Hồ sơ kênh «{kenh_ref}» chưa đo được — vào tab Framing "
                       "Insight bấm Đo lại, rồi Phân tích lại chương này.")
-    if avd_s <= 0:
+    if kieu_chay and kieu_chay not in KIEU_CHAY_HOP_LE:
+        raise RuntimeError(f"kieu_chay lạ «{kieu_chay}» — chỉ nhận "
+                           f"{'/'.join(KIEU_CHAY_HOP_LE)}")
+    if kieu_chay in ("", "avd") and avd_s <= 0:
         _thieu.append("Mốc AVD chưa khai — MỌI chương vào diện đồng kiểm (không "
                       "chương nào tự chạy).")
     silences = sil.detect_silences(master)
@@ -197,7 +221,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     ban_dich = mdich.dich_khoi([k.loi for k in ds_khoi], llm=llm, log=log)
 
     # đồng kiểm theo AVD: chương thuộc đồng kiểm nếu BẮT ĐẦU trước mốc AVD
-    dong_kiem = (avd_s <= 0) or (mo_dau_tap_s < avd_s)
+    dong_kiem = tinh_dong_kiem(kieu_chay, avd_s, mo_dau_tap_s)
 
     # ứng viên Library — fail-open
     ung_vien: list[list[dict]] = [[] for _ in ds_khoi]
@@ -233,7 +257,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         "nguoi_tao": nguoi_tao,          # AI TẠO sequence -> người đó mới được sửa
         "ngay_tao": datetime.now(timezone.utc).isoformat(),
         "offset": offset, "tong_voice": round(het - offset, 2),
-        "avd_s": avd_s, "dong_kiem": dong_kiem,
+        "avd_s": avd_s, "dong_kiem": dong_kiem, "kieu_chay": kieu_chay,
         "framing": fr, "uu_tien_nguon": uu_tien_nguon,
         "chu_the_tap": chu_the,
         "trang_thai": "pha1",

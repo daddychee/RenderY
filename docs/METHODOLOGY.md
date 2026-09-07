@@ -13,6 +13,7 @@
 | Ngày | Chốt gì | Ai quyết |
 |---|---|---|
 | 07/09/2026 | Lập file. 6 bài học rút từ 164 commit + đo thật trên LI103/LI104 | user yêu cầu, Claude rà |
+| 07/09 tối | Thêm BH7 (test gọi mạng) — lộ ra khi chạy bộ test của bậc 1 | đo thật |
 
 ---
 
@@ -84,6 +85,19 @@ chưa bao giờ được gửi đi.
 
 **LUẬT:** cắt phiên theo ngày. Mỗi việc xong thì commit + ghi tài liệu **ngay**
 — để phiên bị cắt ngang lúc nào cũng không mất gì.
+
+### BH7. Test đi ra mạng thì không phải test
+
+`do_kenh` có sẵn chỗ tiêm cho test (docstring ghi thẳng *"goi_vision tiêm được
+cho test"*), nhưng **7/8 chỗ gọi trong `test_kenh.py` không dùng**. Hệ quả: mỗi
+lượt chạy bộ test là một lượt gọi GLM vision THẬT — tốn tiền, và 07/09 một lượt
+treo cứng ở `create_connection` (tìm ra bằng `py-spy dump` tiến trình đứng im).
+
+Nguy hơn tiền: hai lượt "xanh" trước đó xanh vì **may mắn gọi được mạng**, không
+phải vì bộ test độc lập.
+
+**LUẬT:** test không được chạm mạng. Có sẵn chỗ tiêm mà không dùng thì coi như
+chưa có. Bộ test chạy được khi rút dây mạng mới là bộ test thật.
 
 ---
 

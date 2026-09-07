@@ -125,6 +125,12 @@ class Inputs(BaseModel):
     avd_phut: Optional[float] = None      # None = chưa khai (KHÔNG mặc định 6)
     dia_danh: str = ""                    # rào geo khay ứng viên
     uu_tien_nguon: str = ""                # "" | ref | envato
+    # KIỂU CHẠY (user chốt 07/09, SEQUENCE QĐ1): manual = mọi chương người
+    # duyệt · avd = trước mốc AVD thì duyệt, sau mốc tự chạy · auto = tự chạy
+    # hết. Trước đây phải suy từ con số avd_s, mà 0 vừa nghĩa "chưa khai" vừa
+    # định nghĩa là "Auto" -> Auto KHÔNG khai báo được (SEQUENCE PH4).
+    # "" = chưa khai, suy từ avd_phut như bản cũ (tương thích ngược).
+    kieu_chay: str = ""
 
 
 # --------------------------------------------------------------------------- #

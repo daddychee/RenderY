@@ -176,6 +176,8 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         extra += ["--dia-danh", str(opts["dia_danh"])]
     if opts.get("uu_tien_nguon"):
         extra += ["--uu-tien-nguon", str(opts["uu_tien_nguon"])]
+    if opts.get("kieu_chay"):
+        extra += ["--kieu-chay", str(opts["kieu_chay"])]
     # CHUẨN BỊ CHO OFFLINE (user chốt 07/09): chỉ ALIGN rồi dừng — Offline làm
     # lại toàn bộ phần sau, chạy pipeline cũ là đốt LLM + vài giờ + draft rác
     if opts.get("chi_chuan_bi"):

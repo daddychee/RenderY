@@ -663,6 +663,7 @@ class OfflineRequest(BaseModel):
     kenh_ref: str = ""
     uu_tien_nguon: str = ""        # "" | ref | envato
     dia_danh: str = ""
+    kieu_chay: str = ""            # "" | manual | avd | auto (SEQUENCE QĐ1)
 
 
 def _gac_quyen_sua(request: Request, hd: dict) -> None:
@@ -704,7 +705,8 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
     Thiếu thì trả 0/rỗng — KHÔNG bịa số mặc định (METHODOLOGY BH5); `phan_tich`
     sẽ ghi cảnh báo đỏ vào hợp đồng thay vì chạy im (BH1).
     """
-    ra = {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": ""}
+    ra = {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": "",
+          "kieu_chay": ""}
     try:
         inp = (json.loads((Path(pdir) / "project.json").read_text(encoding="utf-8"))
                .get("inputs") or {})
@@ -712,9 +714,9 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
         inp = {}
     if inp.get("avd_phut") is not None:
         ra["avd_s"] = float(inp["avd_phut"]) * 60
-    for k in ("kenh_ref", "uu_tien_nguon", "dia_danh"):
+    for k in ("kenh_ref", "uu_tien_nguon", "dia_danh", "kieu_chay"):
         ra[k] = inp.get(k) or ""
-    if ra["avd_s"] or ra["kenh_ref"]:
+    if ra["avd_s"] or ra["kenh_ref"] or ra["kieu_chay"]:
         return ra
     try:                                  # lưới đỡ: project cũ, tham số ở jobs
         from autoedit.web import queue as _q
@@ -728,7 +730,7 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
             o = json.loads(r_j["opts"] or "{}")
             if o.get("avd_phut") is not None:
                 ra["avd_s"] = float(o["avd_phut"]) * 60
-            for k in ("kenh_ref", "uu_tien_nguon", "dia_danh"):
+            for k in ("kenh_ref", "uu_tien_nguon", "dia_danh", "kieu_chay"):
                 ra[k] = ra[k] or (o.get(k) or "")
     except Exception:  # noqa: BLE001
         pass
@@ -794,9 +796,12 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         req.kenh_ref = req.kenh_ref or t["kenh_ref"]
         req.uu_tien_nguon = req.uu_tien_nguon or t["uu_tien_nguon"]
         req.dia_danh = req.dia_danh or t["dia_danh"]
+        req.kieu_chay = req.kieu_chay or t["kieu_chay"]
     # mốc bắt đầu chương tính MỌI TRƯỜNG HỢP (kể cả avd_s gửi tường minh) —
     # nằm trong if trên là gửi avd_s tay thì mốc lại về 0, mọi chương đồng kiểm
-    if not req.mo_dau_tap_s:
+    # Mốc bắt đầu chương CHỈ có nghĩa với kiểu avd — manual/auto không dùng tới,
+    # mà tính nó phải ffprobe voice của mọi chương trước đó trên NAS.
+    if not req.mo_dau_tap_s and req.kieu_chay not in ("manual", "auto"):
         try:
             req.mo_dau_tap_s = _mo_dau_tap_s()
         except Exception:  # noqa: BLE001
@@ -820,6 +825,7 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
             hd = orun.phan_tich(d, avd_s=req.avd_s, mo_dau_tap_s=req.mo_dau_tap_s,
                                 kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
                                 dia_danh=req.dia_danh, nguoi_tao=nguoi_tao,
+                                kieu_chay=req.kieu_chay,
                                 log=lambda m: print("[offline]", m, flush=True))
             # CHƯƠNG AUTO (sau mốc AVD — user chốt: "chia 2 hệ đồng kiểm và
             # auto", đóng nốt 06/09 trước go-live): máy tự dùng lựa chọn mặc

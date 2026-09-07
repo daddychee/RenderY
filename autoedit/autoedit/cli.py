@@ -169,6 +169,23 @@ def _rtf_to_txt(rtf: Path) -> Path:
     return out
 
 
+def _gan_tham_so_dung(project, kenh_ref: str, avd_phut: float, dia_danh: str,
+                      uu_tien_nguon: str, kieu_chay: str) -> None:
+    """Ghi tham số dựng của TẬP vào hồ sơ CHƯƠNG — một chỗ duy nhất (BH4).
+
+    Gọi ở CẢ HAI nhánh của `make`: project mới VÀ project dùng lại. Bỏ nhánh
+    dùng lại thì nộp lại tập sau khi sửa form không có tác dụng gì — chương cũ
+    giữ nguyên tham số cũ, im lặng (đúng họ nhà lỗi SEQUENCE PH1).
+    """
+    project.inputs.kenh_ref = (kenh_ref or "").strip()
+    if isinstance(avd_phut, (int, float)) and avd_phut >= 0:
+        project.inputs.avd_phut = float(avd_phut)
+    project.inputs.dia_danh = (dia_danh or "").strip()
+    project.inputs.uu_tien_nguon = (uu_tien_nguon or "").strip()
+    project.inputs.kieu_chay = (kieu_chay or "").strip().lower()
+    project.save()
+
+
 def _project_cu_dung_duoc(folder: Path, out_dir: Path,
                           chi_align: bool = False) -> "object | None":
     """Project đã dựng XONG cho đúng thư mục chương này (nếu có).
@@ -340,6 +357,10 @@ def make(
                                  help="Địa danh của tập — rào geo khay ứng viên Offline."),
     uu_tien_nguon: str = typer.Option("", "--uu-tien-nguon",
                                       help="Nguồn được cộng điểm trong khay: ref | envato."),
+    kieu_chay: str = typer.Option(
+        "", "--kieu-chay",
+        help="manual (mọi chương người duyệt) | avd (trước mốc AVD thì duyệt, "
+             "sau mốc tự chạy) | auto (tự chạy hết). Bỏ trống = suy từ --avd-phut."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
@@ -348,6 +369,7 @@ def make(
     """
     import subprocess
 
+    from autoedit.offline.runner import KIEU_CHAY_HOP_LE
     from autoedit.project import Project, Stage, create_project
 
     folder = folder.expanduser()
@@ -374,10 +396,19 @@ def make(
 
     srt_src = _pick_input(folder, (".srt",), voice.stem)[0]
 
+    kieu_chay = (kieu_chay or "").strip().lower()
+    if kieu_chay and kieu_chay not in KIEU_CHAY_HOP_LE:   # sai thì DỪNG (BH5)
+        typer.secho(f"✗ --kieu-chay «{kieu_chay}» không hợp lệ — chỉ nhận "
+                    f"{' | '.join(KIEU_CHAY_HOP_LE)}", fg=typer.colors.RED)
+        raise typer.Exit(2)
+
     cu = None if lam_lai else _project_cu_dung_duoc(
         folder, Path("projects"), chi_align=(chi_chuan_bi is True))
     if cu is not None:
         # Chương này đã dựng XONG (có draft, nguồn không đổi) -> giao lại bản cũ.
+        # NHƯNG tham số dựng thì lấy lần khai MỚI NHẤT: user sửa Framing/AVD rồi
+        # nộp lại mà chương giữ số cũ là sai thầm lặng.
+        _gan_tham_so_dung(cu, kenh_ref, avd_phut, dia_danh, uu_tien_nguon, kieu_chay)
         typer.echo(f"  ✓ Tạo project: {cu.project_id}")
         typer.secho(
             f"✓ '{folder.name}' " + ("đã chuẩn bị trước đó — dùng lại, không tạo bản mới"
@@ -405,14 +436,10 @@ def make(
                     "tra theo niche), nhịp dùng hồ sơ mặc định — LI103 04/09 dính lỗi này.",
                     fg=typer.colors.YELLOW)
     project.inputs.phuong_an = phuong_an
-    project.inputs.kenh_ref = kenh_ref.strip()
     # Tham số dựng của TẬP dính vào hồ sơ CHƯƠNG (07/09) — Offline đọc thẳng ở
-    # đây, không tra bảng jobs nữa (job nộp cả tập tra không khớp, xem SEQUENCE
-    # PH1). avd_phut < 0 = chưa khai; KHÔNG bịa số mặc định (METHODOLOGY BH5).
-    if isinstance(avd_phut, (int, float)) and avd_phut >= 0:
-        project.inputs.avd_phut = float(avd_phut)
-    project.inputs.dia_danh = (dia_danh or "").strip()
-    project.inputs.uu_tien_nguon = (uu_tien_nguon or "").strip()
+    # đây, không tra bảng jobs nữa (job nộp cả tập tra không khớp, SEQUENCE PH1).
+    _gan_tham_so_dung(project, kenh_ref, avd_phut, dia_danh, uu_tien_nguon,
+                      kieu_chay)
     # PA2 (ai) kéo aigen bật; cờ --aigen cũ vẫn tôn trọng (đường gọi tay/script cũ)
     if aigen or phuong_an == "ai":
         project.inputs.aigen = True

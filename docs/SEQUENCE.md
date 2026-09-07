@@ -11,6 +11,7 @@
 | 06/09 | AVD chia hai hệ: chương đồng kiểm / chương auto · Auto không đốt Envato | user |
 | 07/09 sáng | Cấu trúc phẳng + `Rec/` · 3 kiểu chạy · bỏ ép nhịp Padoma · form 6 ô | user |
 | 07/09 chiều | Rà lại bằng số → **chèn bậc 0 "nối ống"**, hoãn đổi tên package, chia hình bắt đầu bằng 2 con số | user duyệt sau phản biện |
+| 07/09 tối | Bậc 0 XONG (`3c5af46`) · bậc 1 XONG · gom hết ở cổng dev rồi mới đẩy production một lượt | user chốt |
 
 ---
 
@@ -128,12 +129,24 @@ Envato định tránh.
 
 | Bậc | Làm gì | Cổng nghiệm thu |
 |---|---|---|
-| **0. Nối ống + cây thước** (½ ngày) | job ghi 1 hàng/chương (bỏ `project_id` nối chuỗi) · thiếu `kenh_ref` → cảnh báo đỏ trong hợp đồng, không chạy im · lệnh `kiem-hop-dong` in bảng đo | Phân tích lại 1 chương LI103 → hợp đồng có `framing.ten='godoc-travel-doc'`, `avd_s=420`, địa danh đúng |
-| **1. Ô Kiểu chạy** | enum `manual/avd/auto`; `dong_kiem` suy từ enum · `_mo_dau_tap_s` lấy thời lượng đã đo lúc align, hết phụ thuộc hình dạng thư mục | 3 kiểu × chương giữa tập → `dong_kiem` đúng cả 3; chạy được trên cả thư mục lẫn phẳng |
+| ✅ **0. Nối ống + cây thước** | tham số về **hồ sơ chương** (`project.json`), bảng `jobs` chỉ còn lưới đỡ — không đụng schema `jobs` nên pipeline cũ ở cổng riêng không hề hấn · thiếu `kenh_ref` → cảnh báo đỏ trong hợp đồng, không chạy im · lệnh `kiem-hop-dong` in bảng đo | Phân tích lại 1 chương LI103 → hợp đồng có `framing.ten='godoc-travel-doc'`, `avd_s=420`, địa danh đúng |
+| ✅ **1. Ô Kiểu chạy** | enum `manual/avd/auto` trong hồ sơ chương; `dong_kiem` suy từ enum ở **một hàm duy nhất** `tinh_dong_kiem()`; giá trị lạ thì DỪNG | 3 kiểu × chương giữa tập (mở ở phút 10, mốc 7 phút) → `dong_kiem` đúng cả 3 · `manual` và `auto` cùng `avd_s=0` vẫn ra hai kết quả khác nhau (chỗ bản cũ bó tay) |
 | **2. Đo Auto** (phép đo, không phải việc) | chạy `kiem-hop-dong` với `bo_nguon=('envato',)` trên 3 chương LI103 | biết % khối có ứng viên; dưới 50% thì bàn lại QĐ5 trước khi cho chạy đêm |
 | **3. Dải hình theo Framing** | hàm thuần `chia_hinh(khoi, hoso) -> hinh[]`: khối > 1,6×`than` chẻ thành `ceil(dur/than)` miếng, ưu tiên **ranh mềm có sẵn**, chừa tỉ lệ `hold`, sàn 0,7s. KHÔNG đụng dải voice | median miếng hình ≈ `than` ±20% · không còn miếng > 12s · người vẫn chẻ/gộp tay được |
 | **4. Cấu trúc phẳng + `Rec/`** | **6 chỗ** (5 chỗ kế hoạch cũ + `_mo_dau_tap_s`) | LI103 phẳng → 17 chương đúng thứ tự · LI104 thư mục → y hệt hôm nay · gộp 1 file cả tập → vẫn bị chặn |
 | **5. Form 6 ô** | bỏ "Phương án dựng", ô Kiểu chạy, đổi nhãn Niche | ảnh chụp 2 trạng thái + `test_smoke_ui` xanh |
+
+### Điều chỉnh phạm vi bậc 1 (07/09 tối)
+
+Việc *"tính mốc bắt đầu chương không phụ thuộc hình dạng thư mục"* chuyển sang
+**bậc 4**: nó dính chặt với cấu trúc phẳng, làm sớm là sửa mù rồi sửa lại. Bậc 1
+chỉ giữ phần khai báo kiểu chạy — và thêm một chỗ **chạy thật mới lộ ra**:
+
+> `make` có nhánh "chương này chuẩn bị rồi — dùng lại" và nhánh đó `return` sớm,
+> nên tham số mới KHÔNG tới đâu. Nộp lại tập sau khi sửa Framing/AVD thì chương
+> cũ giữ nguyên số cũ, im lặng — đúng họ nhà lỗi PH1. Nay cả hai nhánh gọi chung
+> `_gan_tham_so_dung()` (BH4: một khái niệm, một hàm). Cũng vì `return` sớm mà
+> giá trị `--kieu-chay` sai lọt qua khâu kiểm; nay kiểm TRƯỚC nhánh dùng lại.
 
 **Chưa làm:** đổi tên package (QĐ4) · xoá `nhip/ep.py` (QĐ2) · overlay/SFX ·
 kế hoạch "nạp tiếp" 5 đợt (`KE_HOACH_NAP_TIEP_TAP.md` — dự phòng đường dài).

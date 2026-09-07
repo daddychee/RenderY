@@ -121,7 +121,8 @@ def test_do_kenh_do_that_va_cache(cache_rieng, tmp_path):
             ra.append(d)
         return ra
 
-    hs = do_kenh("https://www.youtube.com/@test-kenh", tai=tai_gia)
+    hs = do_kenh("https://www.youtube.com/@test-kenh", tai=tai_gia,
+                 goi_vision=_VISION_GIA, llm_mo_ta=_LLMGia())
     assert hs.ten == "test-kenh"
     assert hs.so_video_hoi_tu == 1
     # video cắt cứng 3s/shot -> trung vị thân phải quanh 3s (thước là cận dưới)
@@ -129,13 +130,15 @@ def test_do_kenh_do_that_va_cache(cache_rieng, tmp_path):
     assert HoSoKenh.doc("test-kenh") is not None    # đã cache
 
     # lần 2: CACHE HIT — không được gọi tải nữa (luật né chặn IP)
-    hs2 = do_kenh("https://www.youtube.com/@test-kenh", tai=tai_gia)
+    hs2 = do_kenh("https://www.youtube.com/@test-kenh", tai=tai_gia,
+                  goi_vision=_VISION_GIA, llm_mo_ta=_LLMGia())
     assert len(goi_tai) == 1, "cache hit vẫn tải lại = vi phạm luật né chặn IP"
     assert hs2.than_trung_vi == hs.than_trung_vi
 
     # --do-lai (user 05/09): PHÂN TÍCH LẠI từ kho video bền <kenh>/videos/ —
     # không gọi YouTube nữa (né chặn IP, đo lại tức thì, thêm thước mới là có số)
-    hs3 = do_kenh("https://www.youtube.com/@test-kenh", do_lai=True, tai=tai_gia)
+    hs3 = do_kenh("https://www.youtube.com/@test-kenh", do_lai=True, tai=tai_gia,
+                  goi_vision=_VISION_GIA, llm_mo_ta=_LLMGia())
     assert len(goi_tai) == 1, "đo lại vẫn tải lại = trái yêu cầu user 05/09"
     assert hs3.than_trung_vi == hs.than_trung_vi
 
@@ -147,7 +150,8 @@ def test_do_kenh_khong_video_nao_hoi_tu_bao_ro(cache_rieng, tmp_path):
         return [f]
 
     with pytest.raises(DoKenhError, match="hội tụ"):
-        do_kenh("https://www.youtube.com/@kenh-hong", tai=tai_rong)
+        do_kenh("https://www.youtube.com/@kenh-hong", tai=tai_rong,
+                goi_vision=_VISION_GIA, llm_mo_ta=_LLMGia())
 
 
 # ------------------------------------------------------------ áp vào HoSoNhip
@@ -170,6 +174,17 @@ def test_ap_vao_nhip_chi_de_truong_co_so():
 def _tra_glm(phan_loai):
     return {"choices": [{"message": {"content":
         __import__("json").dumps({"phan_loai": phan_loai})}}]}
+
+
+# do_kenh có HAI đường ra mạng: `goi_vision` (tầng loại cảnh) và `llm_mo_ta`
+# (sinh mô tả) — và `llm_mo_ta=None` nghĩa là "dùng client THẬT", không phải
+# "tắt". Cả hai phải tiêm trong test.
+# Tầng 3 (loại cảnh) gọi GLM vision THẬT nếu không tiêm. Docstring của do_kenh
+# ghi sẵn "goi_vision tiêm được cho test" nhưng 7/8 chỗ gọi chưa dùng — bộ test
+# vì thế âm thầm bắn HTTP ra GLM mỗi lượt chạy, và 07/09 một lượt treo cứng ở
+# `create_connection` (py-spy chỉ ra). Test không được phụ thuộc mạng.
+def _VISION_GIA(body):
+    return _tra_glm(["b_roll", "tu_quay"])
 
 
 def test_cham_loai_canh_ra_ty_trong():
@@ -211,7 +226,8 @@ def test_do_kenh_kem_loai_canh(cache_rieng, tmp_path):
         return ra
 
     goi = lambda body: _tra_glm(["do_hoa"] * 6 + ["b_roll"] * 2)
-    hs = do_kenh("https://www.youtube.com/@kenh-vision", tai=tai_gia, goi_vision=goi)
+    hs = do_kenh("https://www.youtube.com/@kenh-vision", tai=tai_gia, goi_vision=goi,
+                 llm_mo_ta=_LLMGia())
     assert hs.loai_canh["do_hoa"] == 0.75
     assert hs.loai_canh["b_roll"] == 0.25
     doc_lai = HoSoKenh.doc("kenh-vision")
@@ -269,7 +285,7 @@ def test_do_kenh_kem_mo_ta(cache_rieng, tmp_path):
         return ra
 
     hs = do_kenh("https://www.youtube.com/@kenh-mota", tai=tai_gia,
-                 llm_mo_ta=_LLMGia())
+                 llm_mo_ta=_LLMGia(), goi_vision=_VISION_GIA)
     assert hs.mo_ta["nhip_do"] == "chậm đều"
     assert HoSoKenh.doc("kenh-mota").mo_ta == hs.mo_ta
 
@@ -290,7 +306,7 @@ def test_do_kenh_mo_ta_loi_fail_open(cache_rieng, tmp_path):
         return ra
 
     hs = do_kenh("https://www.youtube.com/@kenh-mota-loi", tai=tai_gia,
-                 llm_mo_ta=_LLMGia(no=True))
+                 llm_mo_ta=_LLMGia(no=True), goi_vision=_VISION_GIA)
     assert hs.mo_ta == {}
     assert hs.than_trung_vi > 0
     assert HoSoKenh.doc("kenh-mota-loi") is not None
@@ -327,7 +343,7 @@ def test_do_kenh_luu_frames_va_nhip_curve(cache_rieng, tmp_path):
         return ra
 
     hs = do_kenh("https://www.youtube.com/@kenh-frame", tai=tai_gia,
-                 llm_mo_ta=_LLMGia())
+                 llm_mo_ta=_LLMGia(), goi_vision=_VISION_GIA)
     frames = sorted((thu_muc_kenh("kenh-frame") / "frames").glob("f*.jpg"))
     assert len(frames) == 2                      # 1 video × 2 frame
     assert frames[0].stat().st_size > 100  # JPEG thật (màu phẳng nén rất nhỏ)
@@ -362,7 +378,8 @@ def test_do_kenh_bo_outlier_nhieu_link(cache_rieng, tmp_path):
     links = ["https://youtu.be/aaa111aaa", "https://youtu.be/chet404xx",
              "https://youtu.be/bbb222bbb"]
     hs = do_kenh(links, ten="bo-thu", ten_phong_cach="Bộ outlier thử",
-                 tai=tai_gia, llm_mo_ta=None, so_video=6)
+                 tai=tai_gia, llm_mo_ta=_LLMGia(), so_video=6,
+                 goi_vision=_VISION_GIA)
     assert len(goi) == 3                              # gọi đủ 3 link
     assert all(sv == 2 for _, sv in goi)              # 6 quota / 3 link
     assert hs.so_video_hoi_tu == 2                    # link chết bị bỏ, bộ vẫn sống

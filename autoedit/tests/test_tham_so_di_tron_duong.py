@@ -98,7 +98,8 @@ def test_khong_khai_gi_thi_KHONG_bia_so_mac_dinh(tmp_path, monkeypatch):
     d = _du_an(tmp_path)
     monkeypatch.setattr(q, "db_path", lambda root=None: tmp_path / "jobs.db")
     t = tham_so_dung(d, d.name)
-    assert t == {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": ""}
+    assert t == {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": "",
+                 "kieu_chay": ""}
 
 
 # ------------------------------------------------- thiếu thì hợp đồng phải KÊU
@@ -191,3 +192,120 @@ def test_thuoc_keu_khi_khay_phu_duoi_mot_nua():
 
 # ---- đồ nghề dùng chung với test_offline.py (giữ nguyên khuôn có sẵn) -------
 from tests.test_offline import _LLM, du_an  # noqa: E402,F401
+
+
+# ============================ BẬC 1 — ba kiểu chạy tường minh ================
+# SEQUENCE QĐ1: `avd_s=0` đang mang hai nghĩa chồng nhau ("chưa khai" và "Auto")
+# nên Auto KHÔNG khai báo được bằng số (PH4). Nay khai thẳng bằng `kieu_chay`.
+
+def test_ba_kieu_chay_tren_chuong_GIUA_tap():
+    """Chương bắt đầu ở phút 10 của tập, mốc AVD 7 phút — cổng của bậc 1."""
+    from autoedit.offline.runner import tinh_dong_kiem
+
+    avd, moc = 420.0, 600.0                       # 7 phút · chương mở ở phút 10
+    assert tinh_dong_kiem("manual", avd, moc) is True    # người duyệt hết
+    assert tinh_dong_kiem("auto", avd, moc) is False     # tự chạy hết
+    assert tinh_dong_kiem("avd", avd, moc) is False      # sau mốc -> tự chạy
+    assert tinh_dong_kiem("avd", avd, 60.0) is True      # trước mốc -> duyệt
+
+
+def test_manual_va_auto_KHONG_phu_thuoc_con_so_avd():
+    """Đúng chỗ bản cũ bó tay: cùng avd_s=0 mà phải ra hai kết quả khác nhau."""
+    from autoedit.offline.runner import tinh_dong_kiem
+
+    assert tinh_dong_kiem("manual", 0.0, 0.0) is True
+    assert tinh_dong_kiem("auto", 0.0, 0.0) is False     # bản cũ luôn ra True
+    assert tinh_dong_kiem("auto", 999999.0, 0.0) is False
+
+
+def test_khong_khai_kieu_chay_thi_giu_nguyen_hanh_vi_cu():
+    from autoedit.offline.runner import tinh_dong_kiem
+
+    for avd, moc in ((0.0, 0.0), (360.0, 0.0), (360.0, 400.0), (0.0, 999.0)):
+        assert tinh_dong_kiem("", avd, moc) == ((avd <= 0) or (moc < avd))
+
+
+def test_kieu_chay_la_thi_DUNG_chu_khong_doan(du_an, tmp_path, monkeypatch):
+    from autoedit.offline import runner
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    with pytest.raises(RuntimeError, match="kieu_chay lạ"):
+        runner.phan_tich(du_an, kieu_chay="tu_dong", llm=_LLM())
+
+
+def test_manual_khong_bi_canh_bao_thieu_AVD(du_an, tmp_path, monkeypatch):
+    """Manual cố ý không có mốc AVD — cảnh báo ở đây là báo oan."""
+    from autoedit.offline import runner
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    hd = runner.phan_tich(du_an, avd_s=0, kieu_chay="manual", llm=_LLM())
+    assert hd["dong_kiem"] is True and hd["kieu_chay"] == "manual"
+    assert not [c for c in hd["canh_bao"] if "AVD" in c]
+
+    hd2 = runner.phan_tich(du_an, avd_s=0, kieu_chay="avd", llm=_LLM())
+    assert [c for c in hd2["canh_bao"] if "AVD" in c]     # avd mà thiếu mốc -> kêu
+
+
+def test_auto_ghi_vao_hop_dong_va_cay_thuoc_hien(du_an, tmp_path, monkeypatch):
+    from autoedit.offline import runner, thuoc
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    hd = runner.phan_tich(du_an, avd_s=0, kieu_chay="auto", llm=_LLM())
+    assert hd["dong_kiem"] is False and hd["kieu_chay"] == "auto"
+    assert "Kiểu chạy : auto" in " ".join(thuoc.dong_bao_cao(thuoc.do(hd)))
+
+
+def test_kieu_chay_di_het_duong_tu_ho_so_chuong(tmp_path):
+    from autoedit.web.server import tham_so_dung
+
+    d = _du_an(tmp_path, kieu_chay="auto", kenh_ref="godoc-travel-doc")
+    assert tham_so_dung(d, d.name)["kieu_chay"] == "auto"
+
+
+def test_nop_lai_tap_thi_tham_so_DUOC_CAP_NHAT():
+    """Chạy thật 07/09 lộ ra: nhánh "dùng lại project cũ" return sớm nên tham
+    số mới không tới đâu — user sửa Framing/AVD rồi nộp lại mà chương giữ số cũ.
+    """
+    from autoedit.cli import _gan_tham_so_dung
+    from autoedit.project import Inputs
+
+    class _Prj:
+        def __init__(self):
+            self.inputs = Inputs(script_path="", voice_path="",
+                                 original_script_path="", original_voice_path="",
+                                 script_text="", kenh_ref="fern", avd_phut=6.0,
+                                 kieu_chay="manual")
+            self.da_luu = False
+
+        def save(self):
+            self.da_luu = True
+
+    p = _Prj()
+    _gan_tham_so_dung(p, "godoc-travel-doc", 9.0, " Afghanistan ", "ref", "AUTO")
+    assert p.inputs.kenh_ref == "godoc-travel-doc"
+    assert p.inputs.avd_phut == 9.0
+    assert p.inputs.dia_danh == "Afghanistan"        # đã cắt khoảng trắng
+    assert p.inputs.kieu_chay == "auto"              # đã hạ về chữ thường
+    assert p.da_luu is True                          # phải GHI xuống đĩa
+
+
+def test_avd_phut_am_la_CHUA_KHAI_khong_de_len_so_cu():
+    """`--avd-phut` mặc định -1 = chưa khai; không được xoá số đã có."""
+    from autoedit.cli import _gan_tham_so_dung
+    from autoedit.project import Inputs
+
+    class _Prj:
+        def __init__(self):
+            self.inputs = Inputs(script_path="", voice_path="",
+                                 original_script_path="", original_voice_path="",
+                                 script_text="", avd_phut=7.0)
+
+        def save(self):
+            pass
+
+    p = _Prj()
+    _gan_tham_so_dung(p, "", -1.0, "", "", "")
+    assert p.inputs.avd_phut == 7.0

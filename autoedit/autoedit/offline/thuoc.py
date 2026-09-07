@@ -45,6 +45,7 @@ def do(hd: dict) -> dict:
         "ma_tap": hd.get("ma_tap") or "",
         "trang_thai": hd.get("trang_thai") or "",
         "dong_kiem": bool(hd.get("dong_kiem")),
+        "kieu_chay": hd.get("kieu_chay") or "",
         "avd_s": float(hd.get("avd_s") or 0),
         "dia_danh": hd.get("dia_danh") or "",
         "uu_tien_nguon": hd.get("uu_tien_nguon") or "",
@@ -75,6 +76,7 @@ def dong_bao_cao(s: dict, ten: str = "") -> list[str]:
     fr = (f"{s['framing_ten']} · thân {s['framing_than']:.2f}s"
           if s["framing_ten"] else "✗ KHÔNG CÓ")
     avd = f"{s['avd_s'] / 60:.1f} phút" if s["avd_s"] > 0 else "✗ chưa khai"
+    kc = s.get("kieu_chay") or "(suy từ AVD)"
     lech = ""
     if s["framing_than"] > 0 and s["hinh_median"] > 0:
         d = s["hinh_median"] / s["framing_than"] - 1
@@ -83,6 +85,7 @@ def dong_bao_cao(s: dict, ten: str = "") -> list[str]:
         f"{ten or s['ma_tap'] or '?'} · {s['trang_thai']} · "
         f"{'ĐỒNG KIỂM' if s['dong_kiem'] else 'AUTO'}",
         f"  Framing   : {fr}",
+        f"  Kiểu chạy : {kc}",
         f"  AVD       : {avd}   địa danh: {s['dia_danh'] or '✗ trống'}   "
         f"ưu tiên: {s['uu_tien_nguon'] or '✗ trống'}",
         f"  Khối      : {s['so_khoi']} · median {s['khoi_median']}s · "
