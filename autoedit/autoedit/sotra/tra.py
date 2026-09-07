@@ -90,11 +90,22 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         # 1. ref của tập KHÁC không bao giờ sang tập này
         if la_ref and tap and (c.get("tap") or "") != tap:
             continue
-        # 2. clip mang geo LỆCH với địa danh tập -> loại hẳn (geo trống thì qua
-        #    cửa như stock trung tính — không được cộng điểm neo)
+        # 2. HÌNH PHẢI KHỚP NGỮ NGHĨA (user chốt 07/09): tập khai địa danh thì
+        #    clip KHÔNG KHỚP bị loại — cả geo lệch LẪN geo trống. Trước đây geo
+        #    trống đi qua như "trung tính", mà 72% kho envato không có geo nên
+        #    rào gần như vô hiệu: núi Bolivia và ruộng bậc thang Inca chảy vào
+        #    tập Afghanistan. User: "nếu không có ref và stock cũng không có
+        #    đúng thì video final không thể tồn tại" — khối trống là THÔNG TIN
+        #    thật cho editor, không phải chỗ để lấp bừa.
+        #    Tiêu đề có nhắc địa danh mà cột geo rỗng (clip nạp trước khi từ
+        #    điển được mở rộng) thì đọc lại từ tiêu đề, khỏi phải nạp lại kho.
         gt = _tokens([geo_tap]) if geo_tap else set()
         gc = _tokens([(c.get("geo") or "").replace(">", " ")])
-        if gt and gc and not (gt & gc):
+        if gt and not gc:
+            from autoedit.sotra.tag7 import tag_tu_tieu_de
+            gc = _tokens([(tag_tu_tieu_de(c.get("tieu_de") or "").get("geo") or "")
+                          .replace(">", " ")])
+        if gt and not (gt & gc):
             continue
         co_neo = bool(c.get("geo")) or c["nguon"] in ("ref", "kho")
         # CỬA L0: thuộc thế giới video (neo địa lý HOẶC trúng chủ thể tập)
@@ -142,4 +153,17 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         ra.append(c)
         if len(ra) >= so:
             break
-    return ra + refs[:suat_ref]
+    # `suat_ref` là SÀN chứ không phải TRẦN (user chốt 07/09: "cái gì nhiều hơn
+    # thì ưu tiên đổ vào"). Trước đây `refs[:2]` chốt cứng: mỗi khối có tới 618
+    # cảnh ref đủ điều kiện mà khay chỉ nhận 2 — đúng câu hỏi của user "5 video
+    # ref thời lượng lớn mà không đủ hình để ghép".
+    # Ref xếp CÙNG BÀN với stock theo điểm; sàn chỉ để cứu khi điểm chữ của
+    # Envato đè chết ref (bài học V5).
+    gio_ref = 0
+    for c in refs:
+        if len(ra) >= so and gio_ref >= suat_ref:
+            break
+        ra.append(c)
+        gio_ref += 1
+    ra.sort(key=lambda c: -c["diem"])
+    return ra

@@ -1145,3 +1145,95 @@ def test_ten_nguon_nhan_ca_refvid_lan_refvideo():
     p = {"rank_log": [{"ranked": [{"asset_key": k}]}]}
     h = hashlib.sha1(k.encode()).hexdigest()[:6]
     assert _nguon_that(f"b000_cho_{h}.mp4", _ban_do_nguon(p), {}) == "ref"
+
+
+# ===== HÌNH PHẢI KHỚP NGỮ NGHĨA — cái gì nhiều hơn thì đổ vào nhiều hơn ======
+# User chốt 07/09 khuya, sau khi đo: "nếu không có ref và stock cũng không có
+# đúng thì video final không thể tồn tại. Nguyên tắc duy nhất là hình phải khớp
+# ngữ nghĩa. Cái gì nhiều hơn thì ưu tiên đổ vào."
+#
+# Ba chỗ hỏng đo được trên LI103 (tập Afghanistan, kho ref 2.379 cảnh/180 phút):
+#  1. `suat_ref=2` bị dùng như TRẦN: mỗi khối có 618 cảnh ref đủ điều kiện mà
+#     khay chỉ nhận 2 -> "5 video ref mà không đủ hình".
+#  2. Từ điển địa danh chỉ 19 mục toàn Ecuador — không nhận ra cả chữ
+#     "Afghanistan", nên geo của clip stock luôn rỗng.
+#  3. Rào geo cho clip KHÔNG geo đi qua như trung tính -> chợ châu Âu, núi
+#     Bolivia, ruộng bậc thang Inca chảy vào tập Afghanistan.
+# Đo sau khi mở suất ref + loại hẳn: 36/36 khối vẫn đủ 12 ứng viên, 100% là ref.
+
+def test_tu_dien_dia_danh_doc_duoc_the_gioi():
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    assert tag_tu_tieu_de("Kabul street market Afghanistan")["geo"].startswith("afghanistan")
+    assert tag_tu_tieu_de("Bolivia mountain slopes gather fog")["geo"].startswith("bolivia")
+    assert tag_tu_tieu_de("Aerial view of Tokyo at night")["geo"].startswith("japan")
+    # không có địa danh trong tiêu đề -> vẫn rỗng, KHÔNG bịa
+    assert tag_tu_tieu_de("Produce Vendors at Outdoor Farmers Market")["geo"] == ""
+
+
+def _kho_thu(tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    for i in range(40):                       # ref của tập: NHIỀU
+        ten = f"kabul market crowd {i}"
+        sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                             "tieu_de": ten, "path_local": "ref 1.mp4",
+                             "t0": 0, "t1": 8, "dai_s": 8, **tag_tu_tieu_de(ten)})
+    for i in range(20):                       # stock KHÔNG có địa danh
+        ten = f"produce vendors at outdoor farmers market {i}"
+        sdb.them_clip(conn, {"id": f"envato:vo-danh-{i}", "nguon": "envato",
+                             "tieu_de": ten, **tag_tu_tieu_de(ten)})
+    for i in range(10):                       # stock địa danh LỆCH
+        ten = f"bolivia mountain market {i}"
+        sdb.them_clip(conn, {"id": f"envato:lech-{i}", "nguon": "envato",
+                             "tieu_de": ten, **tag_tu_tieu_de(ten)})
+    conn.commit()
+    return conn
+
+
+def test_nguon_NHIEU_HON_thi_do_vao_NHIEU_HON(tmp_path, monkeypatch):
+    """`suat_ref` là SÀN chứ không phải TRẦN: ref nhiều thì ref chiếm khay."""
+    from autoedit.sotra.tra import tra
+
+    conn = _kho_thu(tmp_path, monkeypatch)
+    try:
+        uv = tra(conn, {"L0": [], "L1": ["market"], "L2": [], "L3": []},
+                 so=12, uu_tien_nguon="ref", can_neo=False,
+                 geo_tap="Afghanistan", tap="LI103")
+        ref = [c for c in uv if c["nguon"] == "ref"]
+        assert len(ref) > 2, f"suất ref vẫn bị chốt: chỉ {len(ref)} cảnh vào khay"
+        assert len(ref) >= len(uv) * 0.8, "ref nhiều hơn hẳn mà không chiếm được khay"
+    finally:
+        conn.close()
+
+
+def test_loai_HAN_clip_khong_khop_dia_danh(tmp_path, monkeypatch):
+    """Địa danh lệch VÀ không có địa danh đều bị loại — hình phải khớp ngữ nghĩa."""
+    from autoedit.sotra.tra import tra
+
+    conn = _kho_thu(tmp_path, monkeypatch)
+    try:
+        uv = tra(conn, {"L0": [], "L1": ["market"], "L2": [], "L3": []},
+                 so=12, uu_tien_nguon="ref", can_neo=False,
+                 geo_tap="Afghanistan", tap="LI103")
+        assert not [c for c in uv if c["id"].startswith("envato:lech")], "geo lệch lọt vào"
+        assert not [c for c in uv if c["id"].startswith("envato:vo-danh")], \
+            "clip không có địa danh vẫn lọt — trung tính không còn là lý do được qua"
+    finally:
+        conn.close()
+
+
+def test_tap_KHONG_khai_dia_danh_thi_khong_rao(tmp_path, monkeypatch):
+    """Không khai địa danh = không có gì để khớp -> giữ nguyên như cũ."""
+    from autoedit.sotra.tra import tra
+
+    conn = _kho_thu(tmp_path, monkeypatch)
+    try:
+        uv = tra(conn, {"L0": [], "L1": ["market"], "L2": [], "L3": []},
+                 so=12, uu_tien_nguon="ref", can_neo=False, geo_tap="", tap="LI103")
+        assert [c for c in uv if c["nguon"] == "envato"], "không khai geo mà vẫn rào"
+    finally:
+        conn.close()

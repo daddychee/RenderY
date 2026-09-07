@@ -25,6 +25,42 @@ _GEO = {
     "peru": ("peru", "", ""), "colombia": ("colombia", "", ""),
     "usa": ("usa", "", ""), "america": ("usa", "", ""), "american": ("usa", "", ""),
 }
+# THẾ GIỚI (07/09): từ điển cũ chỉ 19 mục toàn Ecuador — di sản ngách đầu tiên.
+# Hệ quả đo được: tiêu đề ghi thẳng "Kabul street market Afghanistan" vẫn ra geo
+# RỖNG, mà luật rào cho geo rỗng đi qua như trung tính -> núi Bolivia và ruộng
+# bậc thang Inca chảy vào tập Afghanistan. Thêm nước + thành phố lớn để tiêu đề
+# nào có nhắc địa danh thì đọc ra được; không nhắc thì vẫn rỗng, KHÔNG bịa.
+for _n in ("afghanistan pakistan india nepal bhutan bangladesh srilanka china japan korea "
+           "vietnam thailand laos cambodia myanmar burma indonesia malaysia singapore "
+           "philippines mongolia kazakhstan uzbekistan iran iraq syria turkey lebanon "
+           "jordan israel palestine yemen oman qatar kuwait bahrain egypt libya tunisia "
+           "algeria morocco sudan ethiopia kenya tanzania uganda rwanda nigeria ghana "
+           "senegal somalia congo angola zambia zimbabwe botswana namibia mozambique "
+           "madagascar russia ukraine poland germany france spain portugal italy greece "
+           "albania serbia croatia romania bulgaria hungary austria switzerland belgium "
+           "netherlands denmark sweden norway finland iceland ireland scotland wales "
+           "england britain canada guatemala honduras nicaragua panama venezuela bolivia "
+           "chile argentina uruguay paraguay brazil cuba jamaica haiti australia fiji "
+           "tibet").split():
+    _GEO.setdefault(_n, (_n, "", ""))
+for _tp, _nuoc in {"kabul": "afghanistan", "kandahar": "afghanistan",
+                   "herat": "afghanistan", "delhi": "india", "mumbai": "india",
+                   "bombay": "india", "karachi": "pakistan", "lahore": "pakistan",
+                   "beijing": "china", "shanghai": "china", "tokyo": "japan",
+                   "kyoto": "japan", "seoul": "korea", "bangkok": "thailand",
+                   "hanoi": "vietnam", "jakarta": "indonesia", "manila": "philippines",
+                   "istanbul": "turkey", "tehran": "iran", "baghdad": "iraq",
+                   "dubai": "emirates", "cairo": "egypt", "nairobi": "kenya",
+                   "lagos": "nigeria", "moscow": "russia", "paris": "france",
+                   "london": "england", "berlin": "germany", "rome": "italy",
+                   "madrid": "spain", "lisbon": "portugal", "athens": "greece",
+                   "vienna": "austria", "prague": "czech", "warsaw": "poland",
+                   "toronto": "canada", "sydney": "australia",
+                   "melbourne": "australia"}.items():
+    _GEO.setdefault(_tp, (_nuoc, "", _tp))
+for _v, _nuoc in {"himalaya": "nepal", "himalayas": "nepal", "hindu kush": "afghanistan",
+                  "sahara": "africa", "alps": "switzerland"}.items():
+    _GEO.setdefault(_v, (_nuoc, _v, ""))
 _SETTING = ("market", "street", "kitchen", "home", "house", "village", "plaza",
             "square", "jungle", "rainforest", "mountain", "volcano", "beach",
             "coast", "city", "town", "road", "supermarket", "store", "shop",
