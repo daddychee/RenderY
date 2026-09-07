@@ -695,7 +695,31 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     """Chạy phân tích Offline nền (cắt khối + 4 lớp + ứng viên Library)."""
     _require_auth(request)
     d = _pdir_offline(project_id)
-    nguoi_tao = current_user(request)
+    # CHỦ SEQUENCE = NGƯỜI NỘP TẬP, không phải người bấm Phân tích (user chốt
+    # 07/09: "ai nộp tập thì mới được làm"). Trước đây lấy người bấm nút -> owner
+    # bấm giúp một cái là thành chủ, editor thật mất quyền sửa.
+    nguoi_tao = ""
+    try:
+        from autoedit.web import queue as _q
+
+        _cj = _q.connect()
+        _r = _cj.execute(
+            "SELECT nguoi FROM jobs WHERE project_id=? AND nguoi!='' "
+            "ORDER BY id DESC LIMIT 1", (project_id,)).fetchone()
+        if _r is None:                       # job ghi theo TẬP, project_id có thể rỗng
+            from autoedit.offline.runner import _thu_muc_nas
+            _nas = _thu_muc_nas(d)
+            if _nas is not None:
+                _r = _cj.execute(
+                    "SELECT nguoi FROM jobs WHERE job_folder LIKE ? AND nguoi!='' "
+                    "ORDER BY id DESC LIMIT 1",
+                    (f"%{_nas.parent.parent.name}%",)).fetchone()
+        _cj.close()
+        if _r:
+            nguoi_tao = _r["nguoi"]
+    except Exception:  # noqa: BLE001 — tra job hỏng thì về người bấm như cũ
+        pass
+    nguoi_tao = nguoi_tao or current_user(request)
     # Thông số dựng lấy từ JOB lúc nộp tập (user 06/09) — request rỗng là mặc định
     def _mo_dau_tap_s() -> float:
         """Chương này bắt đầu ở giây bao nhiêu của TẬP = tổng voice các chương
