@@ -169,18 +169,18 @@ def test_nap_ref_cat_theo_canh_khong_theo_cau(conn, tmp_path, monkeypatch):
                                  vat_the="bananas, box, pallet", shot="medium",
                                  mood="tense", khop=2),
                            DocRa(i=2, subject="street at night", vat_the="cars, lights")])
-    (tmp_path / "r.srt").write_text(
+    (tmp_path / "ref 1.srt").write_text(
         "1\n00:00:01,000 --> 00:00:03,000\nnarco cocaine shipment\n\n", encoding="utf-8")
-    (tmp_path / "r.mp4").write_bytes(b"v")
+    (tmp_path / "ref 1.mp4").write_bytes(b"v")
 
     assert h.nap_ref_tap(conn, tmp_path, tap="LI100", quoc_gia="ecuador") == 2
     c = {r["id"]: r for r in conn.execute("SELECT * FROM clip")}
-    a = c["ref:LI100-r:0.00-5.00"]
+    a = c["ref:LI100-ref 1:0.00-5.00"]
     assert a["subject"] == "worker lifting box" and a["tag_nguon"] == "vision"
     assert a["loi_quanh"] == "narco cocaine shipment"   # phụ đề = ngữ cảnh
     assert a["geo"] == "ecuador"                         # gắn cứng cấp tập
     assert a["frame_dau"], "mỗi cảnh phải có ảnh đại diện"
-    b = c["ref:LI100-r:5.00-9.00"]
+    b = c["ref:LI100-ref 1:5.00-9.00"]
     assert b["loi_quanh"] == "", "cảnh không có câu chồng vẫn phải vào kho"
     assert b["may_dong"] == 1
 
@@ -193,7 +193,7 @@ def test_tra_duoc_bang_vat_the(conn, tmp_path, monkeypatch):
     h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)],
                      docs=[DocRa(i=1, subject="hand holding box",
                                  vat_the="hand, burberry box, bananas, plastic wrap")])
-    (tmp_path / "r.mp4").write_bytes(b"v")
+    (tmp_path / "ref 1.mp4").write_bytes(b"v")
     h.nap_ref_tap(conn, tmp_path, tap="LI100", quoc_gia="ecuador")
     assert sdb.tim(conn, q="bananas"), "tra vật thể trong hình phải ra cảnh"
 
@@ -202,9 +202,9 @@ def test_bo_phu_de_cua_phim_khac(conn, tmp_path, monkeypatch):
     """Gặp thật 06/09: `ref 2.srt` trùng MD5 với `ref 1.srt` nhưng video 23'
     vs 52' — dùng bừa thì 228 cảnh bị gán lời phim khác."""
     h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)])
-    (tmp_path / "r.srt").write_text(
+    (tmp_path / "ref 1.srt").write_text(
         "1\n00:50:00,000 --> 00:50:05,000\nloi phim khac\n\n", encoding="utf-8")
-    (tmp_path / "r.mp4").write_bytes(b"v")
+    (tmp_path / "ref 1.mp4").write_bytes(b"v")
     log = []
     h.nap_ref_tap(conn, tmp_path, tap="LI100", log=log.append)
     r = conn.execute("SELECT loi_quanh FROM clip").fetchone()
@@ -215,9 +215,9 @@ def test_bo_phu_de_cua_phim_khac(conn, tmp_path, monkeypatch):
 def test_doc_hinh_hong_van_nap_duoc(conn, tmp_path, monkeypatch):
     """GLM chết thì kho vẫn phải có cảnh (tạm lấy từ khóa từ lời)."""
     h = _gia_lap_ref(monkeypatch, [(0.0, 4.0, False)])
-    (tmp_path / "r.srt").write_text(
+    (tmp_path / "ref 1.srt").write_text(
         "1\n00:00:01,000 --> 00:00:03,000\npolice patrol street\n\n", encoding="utf-8")
-    (tmp_path / "r.mp4").write_bytes(b"v")
+    (tmp_path / "ref 1.mp4").write_bytes(b"v")
     assert h.nap_ref_tap(conn, tmp_path, tap="LI100") == 1
     assert conn.execute("SELECT tag_nguon FROM clip").fetchone()[0] == "tieu_de"
 
@@ -300,7 +300,7 @@ def test_api_nap_ref_chi_manager(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "_duoc_nghien_cuu_kenh", lambda r: False)
     d = tmp_path / "tap"
     d.mkdir()
-    (d / "r.mp4").write_bytes(b"v")
+    (d / "ref 1.mp4").write_bytes(b"v")
     r = TestClient(server.app).post("/api/sotra/nap-ref", json={"thu_muc": str(d)})
     assert r.status_code == 403
 
@@ -324,7 +324,7 @@ def test_api_nap_ref_chay_nen_va_bao_tien_do(tmp_path, monkeypatch):
     monkeypatch.setattr("autoedit.sotra.hut.nap_ref_tap", _gia)
     d = tmp_path / "tap"
     d.mkdir()
-    (d / "r.mp4").write_bytes(b"v")
+    (d / "ref 1.mp4").write_bytes(b"v")
     tc = TestClient(server.app)
     assert tc.post("/api/sotra/nap-ref",
                    json={"thu_muc": str(d), "quoc_gia": "ecuador"}).status_code == 200
@@ -357,15 +357,15 @@ def test_lam_tuoi_ref_uv_doi_cu(conn, tmp_path):
     from autoedit.offline.dung import lam_tuoi_ref
     from autoedit.sotra.db import them_clip
 
-    them_clip(conn, {"id": "ref:LI100-r:2-6", "nguon": "ref", "tieu_de": "old cut",
+    them_clip(conn, {"id": "ref:LI100-ref-1:2-6", "nguon": "ref", "tieu_de": "old cut",
                      "path_local": "/x.mp4", "t0": 2, "t1": 6, "dai_s": 4,
                      "trang_thai": "loai_tru"})
-    them_clip(conn, {"id": "ref:LI100-r:10.00-14.00", "nguon": "ref",
+    them_clip(conn, {"id": "ref:LI100-ref-1:10.00-14.00", "nguon": "ref",
                      "tieu_de": "police patrol street", "path_local": "/x.mp4",
                      "t0": 10.0, "t1": 14.0, "dai_s": 4.0,
                      "subject": "police patrol", "setting": "street"})
     conn.commit()
-    cu = {"id": "ref:LI100-r:2-6", "nguon": "ref", "tieu_de": "old cut", "lop": "L1",
+    cu = {"id": "ref:LI100-ref-1:2-6", "nguon": "ref", "tieu_de": "old cut", "lop": "L1",
           "diem": 5}                                     # đời cũ: KHÔNG có t0/t1
     hd = {"chu_the_tap": ["police"],
           "khoi": [{"loi": "x", "L1": ["police patrol"], "L2": ["street"], "L3": [],
@@ -374,11 +374,11 @@ def test_lam_tuoi_ref_uv_doi_cu(conn, tmp_path):
           "hinh": [{"t0": 0, "dur": 4, "khoi_goc": 0, "uv": [dict(cu)], "chon": 0}]}
     assert lam_tuoi_ref(hd, conn) is True
     ids_khoi = [u["id"] for u in hd["khoi"][0]["uv"]]
-    assert "ref:LI100-r:2-6" not in ids_khoi, "ref cũ không được chọn phải bay"
-    assert "ref:LI100-r:10.00-14.00" in ids_khoi, "ref cắt-theo-cảnh phải vào"
+    assert "ref:LI100-ref-1:2-6" not in ids_khoi, "ref cũ không được chọn phải bay"
+    assert "ref:LI100-ref-1:10.00-14.00" in ids_khoi, "ref cắt-theo-cảnh phải vào"
     assert "envato:1" in ids_khoi, "nguồn khác giữ nguyên"
     # miếng hình: mục ĐANG CHỌN là ref cũ -> giữ chỗ, nhưng có thêm bản mới
     ids_hinh = [u["id"] for u in hd["hinh"][0]["uv"]]
-    assert ids_hinh[0] == "ref:LI100-r:2-6" and "ref:LI100-r:10.00-14.00" in ids_hinh
+    assert ids_hinh[0] == "ref:LI100-ref-1:2-6" and "ref:LI100-ref-1:10.00-14.00" in ids_hinh
     # chạy lại lần 2: không còn gì để đổi
     assert lam_tuoi_ref(hd, conn) is False

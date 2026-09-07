@@ -2893,11 +2893,73 @@ def merge_drafts_cmd(
     typer.echo("  Mở CapCut → draft tổng phải có đủ các chương nối tiếp đúng thứ tự.")
 
 
+@app.command(name="don-ref-nham")
+def don_ref_nham_cmd(
+    xoa: bool = typer.Option(False, "--xoa",
+                             help="Xoá thật. Mặc định CHỈ LIỆT KÊ, không đụng gì."),
+) -> None:
+    """Dọn cảnh bị ghi nhầm nhãn `ref` — footage tool ĐÃ TẢI VỀ, không phải phim mẫu.
+
+    Trước 07/09 `nap_ref_tap` quét MỌI file .mp4 nằm sâu bất kỳ trong thư mục
+    tập, nên nuốt luôn `Compose Timeline/.../materials/` (footage đã giao cho
+    editor) và ghi vào Library dưới nhãn nguon='ref'. Sổ nguồn gốc vì thế ghi
+    sai: clip mua từ Envato thành "phim mẫu của tập".
+
+    Luật nhận diện dùng CHUNG với `sotra.hut.loc_file_ref` — một nguồn sự thật.
+    File video KHÔNG bị xoá; chỉ gỡ dòng trong Library + ảnh frame Library sinh.
+    """
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.hut import THU_MUC_KHONG_PHAI_REF
+
+    conn = sdb.mo()
+    try:
+        sai = []
+        for r in conn.execute("SELECT id, tap, path_local, tieu_de FROM clip "
+                              "WHERE nguon='ref'"):
+            duong = Path((r["path_local"] or "").replace("\\", "/"))
+            trong_ket_qua = any(x.lower() in THU_MUC_KHONG_PHAI_REF
+                                for x in duong.parts[:-1])
+            if not duong.stem.lower().startswith("ref") or trong_ket_qua:
+                sai.append(dict(r))
+        if not sai:
+            typer.secho("✓ Không có cảnh nào bị ghi nhầm nhãn ref.",
+                        fg=typer.colors.GREEN)
+            return
+
+        theo_file: dict[str, int] = {}
+        for r in sai:
+            theo_file[Path(r["path_local"]).name] = theo_file.get(
+                Path(r["path_local"]).name, 0) + 1
+        typer.secho(f"{len(sai)} cảnh ghi nhầm nhãn ref, từ {len(theo_file)} file:",
+                    fg=typer.colors.YELLOW, bold=True)
+        for ten, so in sorted(theo_file.items(), key=lambda x: -x[1])[:15]:
+            typer.echo(f"  {so:3d} cảnh · {ten[:70]}")
+        if len(theo_file) > 15:
+            typer.echo(f"  … và {len(theo_file) - 15} file nữa")
+
+        if not xoa:
+            typer.echo("")
+            typer.secho("Chỉ liệt kê. Thêm --xoa để gỡ khỏi Library "
+                        "(file video KHÔNG bị xoá).", fg=typer.colors.CYAN)
+            return
+        for r in sai:
+            sdb.xoa_clip(conn, r["id"])
+        conn.commit()
+        typer.secho(f"✓ Đã gỡ {len(sai)} cảnh khỏi Library. File video còn nguyên.",
+                    fg=typer.colors.GREEN, bold=True)
+    finally:
+        conn.close()
+
+
 @app.command(name="kiem-hop-dong")
 def kiem_hop_dong_cmd(
     duong_dan: Path = typer.Argument(
         ..., help="Thư mục 1 project (có offline.json) HOẶC thư mục projects/."),
     tap: str = typer.Option("", "--tap", help="Chỉ đo chương của mã tập này (vd LI103)."),
+    nhu_auto: bool = typer.Option(
+        False, "--nhu-auto",
+        help="Đo thêm: nếu chương này chạy AUTO (bỏ Envato) thì khay còn phủ "
+             "bao nhiêu khối. Tra lại Library, KHÔNG gọi LLM."),
 ) -> None:
     """ĐO hợp đồng Offline ra số — chạy sau khi dựng, thay cho việc soi bằng mắt.
 
@@ -2929,6 +2991,27 @@ def kiem_hop_dong_cmd(
         gop.append(s)
         for dong in thuoc.dong_bao_cao(s, ten=d.name):
             typer.echo(dong)
+        if nhu_auto:
+            try:
+                from autoedit.sotra import db as _sdb
+
+                c = _sdb.mo()
+                try:
+                    a = thuoc.do_nhu_auto(c, hd)
+                finally:
+                    c.close()
+                s["auto"] = a
+                typer.secho(
+                    f"  NẾU AUTO  : phủ {a['co_uv']}/{a['so_khoi']} "
+                    f"({a['ty_le_co_uv']:.0%})"
+                    + (f" · mất {a['mat']} khối so với đồng kiểm" if a["mat"] else "")
+                    + ("   ⚠ dưới 50% — Auto sẽ KHÔNG giao gì"
+                       if a["ty_le_co_uv"] < 0.5 else ""),
+                    fg=(typer.colors.RED if a["ty_le_co_uv"] < 0.5
+                        else typer.colors.GREEN))
+            except Exception as exc:  # noqa: BLE001 — đo hỏng không giết cả lượt
+                typer.secho(f"  NẾU AUTO  : đo lỗi ({str(exc)[:80]})",
+                            fg=typer.colors.YELLOW)
         typer.echo("")
 
     if len(gop) > 1:
@@ -2937,6 +3020,13 @@ def kiem_hop_dong_cmd(
         typer.echo(f"  có Framing : {sum(1 for s in gop if s['framing_ten'])}/{n}")
         typer.echo(f"  chương AUTO: {sum(1 for s in gop if not s['dong_kiem'])}/{n}")
         typer.echo(f"  khay phủ <50%: {sum(1 for s in gop if s['ty_le_co_uv'] < 0.5)}/{n}")
+        if nhu_auto:
+            co_a = [s["auto"] for s in gop if s.get("auto")]
+            if co_a:
+                tb = sum(a["ty_le_co_uv"] for a in co_a) / len(co_a)
+                typer.echo(f"  NẾU AUTO — phủ trung bình {tb:.0%} · "
+                           f"{sum(1 for a in co_a if a['ty_le_co_uv'] < 0.5)}/{len(co_a)}"
+                           f" chương dưới ngưỡng 50%")
     if not gop:
         raise typer.Exit(1)
 

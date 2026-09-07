@@ -309,3 +309,104 @@ def test_avd_phut_am_la_CHUA_KHAI_khong_de_len_so_cu():
     p = _Prj()
     _gan_tham_so_dung(p, "", -1.0, "", "", "")
     assert p.inputs.avd_phut == 7.0
+
+
+# ===================== BẬC 2 — đo "nếu chạy AUTO thì còn phủ bao nhiêu" =====
+# QĐ5: Auto không dùng Envato. Máy chỉ tự khoá sổ khi khay phủ >= 50% khối, nên
+# nếu tỉ trọng thật thấp thì ca đêm chạy xong KHÔNG giao gì — phải đo trước.
+
+def test_do_nhu_auto_bo_envato_thi_phu_giam(tmp_path, monkeypatch):
+    from autoedit.offline import thuoc
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        for i, (nguon, ten) in enumerate([
+                ("envato", "Woman Buying Vegetables at Quito Market"),
+                ("pexels", "Snow Capped Volcano in the Andes"),
+        ]):
+            sdb.them_clip(conn, {"id": sdb.lam_id(nguon, str(i)), "nguon": nguon,
+                                 "tieu_de": ten, **tag_tu_tieu_de(ten)})
+        hd = {"ma_tap": "LI999", "dia_danh": "", "chu_the_tap": [],
+              "khoi": [
+                  {"v0": 0, "v1": 2, "L1": ["market"], "L2": [], "L3": [],
+                   "neo": False, "uv": [{"nguon": "envato"}]},
+                  {"v0": 2, "v1": 4, "L1": ["volcano"], "L2": [], "L3": [],
+                   "neo": False, "uv": [{"nguon": "pexels"}]},
+              ]}
+        # còn Envato: cả 2 khối có hình
+        day_du = thuoc.do_nhu_auto(conn, hd, bo_nguon=())
+        assert day_du["co_uv"] == 2 and day_du["mat"] == 0
+        # bỏ Envato: khối "market" trống -> đúng chỗ Auto hụt so với đồng kiểm
+        auto = thuoc.do_nhu_auto(conn, hd)
+        assert auto["co_uv"] == 1 and auto["ty_le_co_uv"] == 0.5
+        assert auto["mat"] == 1
+    finally:
+        conn.close()
+
+
+def test_lop_dung_lai_tu_hop_dong_khong_goi_LLM():
+    from autoedit.offline import thuoc
+
+    lop = thuoc.lop_tu_hop_dong({"khoi": [
+        {"L1": ["a"], "L2": ["b"], "L3": ["c"], "neo": False, "mood": "warm"},
+        {"L1": [], "L2": [], "L3": [], "truu_tuong": True},
+    ]})
+    assert lop[0].truc_chi == ["a"] and lop[0].neo is False
+    assert lop[0].mood == "warm" and lop[1].truu_tuong is True
+    assert lop[1].neo is True                      # thiếu khoá -> mặc định cũ
+
+
+# ============ Footage ĐÃ GIAO không được ghi thành "ref" (07/09 tối) ========
+# Trước bản vá, `nap_ref_tap` rglob("*.mp4") nuốt cả `Compose Timeline/.../
+# materials/` — footage tool đã tải và giao cho editor — rồi ghi vào Library
+# dưới nhãn nguon='ref'. Sổ nguồn gốc ghi sai: clip mua Envato thành "phim mẫu".
+
+def test_chi_nhan_file_ten_ref_o_thu_muc_tap(tmp_path):
+    from autoedit.sotra.hut import loc_file_ref
+
+    tap = tmp_path / "RenderY"
+    (tap / "Compose Timeline" / "C1" / "draft" / "materials").mkdir(parents=True)
+    (tap / "C1").mkdir()
+    for p in ["ref 1.mp4", "ref 2.mp4", "LI103 1080 0sub.mp4"]:
+        (tap / p).write_bytes(b"x")
+    (tap / "C1" / "Ref tu quay.mp4").write_bytes(b"x")          # ref riêng chương
+    (tap / "Compose Timeline/C1/draft/materials/b000_aerial.mp4").write_bytes(b"x")
+    (tap / "Compose Timeline/C1/draft/materials/ref_nham.mp4").write_bytes(b"x")
+
+    ds, loai = loc_file_ref(tap)
+    ten = sorted(p.name for p in ds)
+    assert ten == ["Ref tu quay.mp4", "ref 1.mp4", "ref 2.mp4"]
+    assert loai == 3          # bản final + b000 + ref_nham nằm trong materials
+
+
+def test_don_ref_nham_go_dung_dong_va_giu_file(tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        anh = tmp_path / "frame.jpg"
+        anh.write_bytes(b"jpg")
+        goc = tmp_path / "vid.mp4"
+        goc.write_bytes(b"mp4")
+        sdb.them_clip(conn, {"id": "ref:x:0-1", "nguon": "ref", "tieu_de": "that",
+                             "path_local": str(tmp_path / "ref 1.mp4")})
+        sdb.them_clip(conn, {"id": "ref:y:0-1", "nguon": "ref", "tieu_de": "nham",
+                             "path_local": str(goc), "frame_dau": str(anh)})
+        sdb.ghi_su_kien(conn, "ref:y:0-1", "them")
+        sdb.xoa_clip(conn, "ref:y:0-1")
+        conn.commit()
+
+        con = [r[0] for r in conn.execute("SELECT id FROM clip")]
+        assert con == ["ref:x:0-1"]                   # chỉ gỡ dòng sai
+        assert conn.execute("SELECT COUNT(*) FROM clip_fts WHERE id=?",
+                            ("ref:y:0-1",)).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM su_kien WHERE clip_id=?",
+                            ("ref:y:0-1",)).fetchone()[0] == 0
+        assert not anh.exists()                       # ảnh frame Library sinh: xoá
+        assert goc.exists()                           # FILE VIDEO: không đụng
+    finally:
+        conn.close()

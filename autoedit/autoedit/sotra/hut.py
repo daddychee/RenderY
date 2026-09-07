@@ -201,6 +201,25 @@ def _da_nap(conn, vid: Path, du_s: float = 20.0) -> bool:
     return bool(dai) and float(r[1] or 0.0) >= dai - du_s
 
 
+# Thư mục KẾT QUẢ do chính tool sinh ra — video trong đó là footage đã tải/đã
+# giao, không bao giờ là phim mẫu. Tên khớp compose.thu_muc_giao() + draft CapCut.
+THU_MUC_KHONG_PHAI_REF = {"compose timeline", "materials", "draft", "feedback"}
+
+
+def loc_file_ref(thu_muc_tap: Path) -> tuple[list[Path], int]:
+    """(*.mp4 là REF, số file .mp4 bị loại). Quy ước: tên bắt đầu bằng «ref»."""
+    ds, loai = [], 0
+    for vid in sorted(Path(thu_muc_tap).rglob("*.mp4")):
+        trong_thu_muc_ket_qua = any(
+            phan.lower() in THU_MUC_KHONG_PHAI_REF
+            for phan in vid.relative_to(thu_muc_tap).parts[:-1])
+        if vid.stem.lower().startswith("ref") and not trong_thu_muc_ket_qua:
+            ds.append(vid)
+        else:
+            loai += 1
+    return ds, loai
+
+
 def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
                 doc_hinh: bool = True, log=None) -> int:
     """Quét *.mp4 trong thư mục tập -> mỗi CẢNH QUAY là một khúc ref.
@@ -215,6 +234,14 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
     (giới hạn thật, nhắc trong prompt không sửa được), mà cả file ref quay ở một
     nước nên gắn cứng vừa rẻ vừa chắc đúng.
 
+    CHỈ NHẬN FILE TÊN `ref*` (user chốt 07/09 sáng: *"`ref *.mp4` ở gốc = phim
+    mẫu của tập"*). Trước đó hàm này `rglob("*.mp4")` nên nuốt luôn footage tool
+    ĐÃ TẢI VỀ VÀ GIAO cho editor: LI103 có 78 clip trong `Compose Timeline/.../
+    materials/`, LI104 có 224 — chúng bị cắt cảnh, đọc hình bằng GLM rồi ghi vào
+    Library dưới nhãn `nguon='ref'`. Hai cái sai: tốn GLM đọc lại hình của clip
+    vốn đã nằm trong kho, và SỔ NGUỒN GỐC ghi sai — clip mua từ Envato thành
+    "phim mẫu của tập" (đo 07/09: kho thật đang có 42 cảnh như vậy).
+
     File KHÔNG copy — chỉ ghi path_local + t0/t1 (luật cứng của Library).
     """
     from autoedit.sotra.canh import cat_canh
@@ -224,7 +251,11 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
     tap = tap or thu_muc_tap.name
     moi = 0
     bo_qua = 0
-    for vid in sorted(thu_muc_tap.rglob("*.mp4")):
+    ds_vid, khong_hop_le = loc_file_ref(thu_muc_tap)
+    if khong_hop_le and log:
+        log(f"sotra: bỏ qua {khong_hop_le} file .mp4 không phải ref "
+            f"(tên không bắt đầu bằng «ref», hoặc nằm trong thư mục kết quả)")
+    for vid in ds_vid:
         if _da_nap(conn, vid):
             bo_qua += 1
             continue

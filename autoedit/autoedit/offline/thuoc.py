@@ -102,3 +102,40 @@ def dong_bao_cao(s: dict, ten: str = "") -> list[str]:
     ]
     ra += [f"  ⚠ {c}" for c in s["canh_bao"]]
     return ra
+
+
+# ---------------------------------------------------------------- ĐO "NẾU AUTO"
+# QĐ5 (SEQUENCE): chương Auto không dùng Envato. Máy đã có chốt an toàn — khay
+# phủ < 50% khối thì Auto KHÔNG tự khoá sổ. Nghĩa là nếu tỉ trọng thật thấp,
+# ca đêm chạy xong sẽ KHÔNG giao gì, vẫn mất buổi sáng. Phải đo trước khi hứa.
+#
+# Đo lại bằng chính lớp nghĩa ĐÃ LƯU trong hợp đồng nên KHÔNG gọi LLM lần nữa.
+
+def lop_tu_hop_dong(hd: dict) -> list:
+    """Dựng lại lớp nghĩa từ hợp đồng (khỏi chạy lại GLM)."""
+    from autoedit.offline.lop4 import LopKhoi
+
+    return [LopKhoi(khoi=i, truc_chi=k.get("L1") or [], ngu_canh=k.get("L2") or [],
+                    khong_khi=k.get("L3") or [], neo=bool(k.get("neo", True)),
+                    mood=k.get("mood") or "", truu_tuong=bool(k.get("truu_tuong")))
+            for i, k in enumerate(hd.get("khoi") or [])]
+
+
+def do_nhu_auto(conn, hd: dict, bo_nguon: tuple = ("envato",)) -> dict:
+    """Chương này nếu chạy AUTO thì khay còn phủ bao nhiêu khối?
+
+    Trả {so_khoi, co_uv, ty_le_co_uv, mat} — `mat` là số khối CÓ ứng viên khi
+    còn Envato nhưng TRỐNG khi bỏ Envato (chỗ Auto sẽ hụt so với đồng kiểm).
+    """
+    from autoedit.offline.dung import do_ung_vien
+
+    khoi = hd.get("khoi") or []
+    uv = do_ung_vien(conn, khoi, lop_tu_hop_dong(hd), hd.get("chu_the_tap") or [],
+                     uu_tien_nguon=hd.get("uu_tien_nguon") or "",
+                     bo_nguon=bo_nguon, geo_tap=hd.get("dia_danh") or "",
+                     tap=hd.get("ma_tap") or "")
+    co = sum(1 for d in uv if d)
+    n = len(khoi) or 1
+    return {"so_khoi": len(khoi), "co_uv": co, "ty_le_co_uv": round(co / n, 3),
+            "mat": sum(1 for i, d in enumerate(uv)
+                       if not d and (khoi[i].get("uv") or []))}

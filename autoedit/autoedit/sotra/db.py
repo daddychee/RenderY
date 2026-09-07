@@ -335,6 +335,26 @@ def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
     return ra
 
 
+def xoa_clip(conn, clip_id: str, xoa_frame: bool = True) -> None:
+    """Xoá 1 clip khỏi Library: bảng clip + FTS + sự kiện, kèm ảnh frame.
+
+    File VIDEO không đụng tới — Library chỉ trỏ đường dẫn, không sở hữu file
+    (luật cứng của Library). Chỉ ảnh frame là do Library sinh ra.
+    """
+    if xoa_frame:
+        for cot in ("frame_dau", "frame_cuoi"):
+            r = conn.execute(f"SELECT {cot} FROM clip WHERE id=?", (clip_id,)).fetchone()
+            duong = (r[0] if r else "") or ""
+            if duong:
+                try:
+                    Path(duong).unlink(missing_ok=True)
+                except OSError:            # ảnh khoá/mất quyền: không giết việc dọn
+                    pass
+    conn.execute("DELETE FROM clip_fts WHERE id=?", (clip_id,))
+    conn.execute("DELETE FROM su_kien WHERE clip_id=?", (clip_id,))
+    conn.execute("DELETE FROM clip WHERE id=?", (clip_id,))
+
+
 def dem_theo_nguon(conn) -> dict:
     return {r[0]: r[1] for r in conn.execute(
         "SELECT nguon, COUNT(*) FROM clip WHERE trang_thai != 'loai_tru' GROUP BY nguon")}
