@@ -120,6 +120,39 @@ def sinh_tu_khoi(khoi: list[dict], than: float = 0.0,
     return ra
 
 
+def che_tai(hd: dict, t: float) -> bool:
+    """Cắt miếng hình ĐANG NẰM DƯỚI VẠCH tại đúng giây `t`. True nếu có cắt.
+
+    User chốt 07/09 khuya: "add shot bây giờ không chia đôi khối mà vạch
+    timeline chạy đến đâu, ấn add shot thì sẽ cắt khối tại đó."
+
+    Hai mảnh dùng CHUNG clip và mảnh sau nối tiếp (`noi_tiep`) — cắt một shot
+    làm đôi vẫn phải là một hình chạy liên tục, không nhảy về đầu clip.
+
+    Từ chối (trả False, KHÔNG đụng gì) nếu để lại mảnh dưới sàn `TOI_THIEU_S`
+    — rào `kiem()` sẽ chặn ở lượt lưu, thà nói ngay còn hơn lưu rồi báo lỗi.
+
+    Nằm ở máy chủ chứ không ở JS: máy này không có Node.js nên logic để trong
+    JS là không test được (METHODOLOGY BH3).
+    """
+    hinh = dam_bao(hd)
+    for i, h in enumerate(hinh):
+        if not (h["t0"] - 1e-6 <= t < h["t0"] + h["dur"] - 1e-6):
+            continue
+        trai = round(t - h["t0"], 3)
+        phai = round(h["dur"] - trai, 3)
+        if trai < TOI_THIEU_S or phai < TOI_THIEU_S:
+            return False
+        sau = dict(h)
+        sau.update({"t0": round(t, 3), "dur": phai, "noi_tiep": True,
+                    "nguoi_sua": True})
+        h["dur"] = trai
+        h["nguoi_sua"] = True
+        hinh.insert(i + 1, sau)
+        return True
+    return False
+
+
 def dam_bao(hd: dict) -> list[dict]:
     """Trả hinh[] của hợp đồng, sinh mới nếu chưa có (migration mềm)."""
     if not hd.get("hinh"):

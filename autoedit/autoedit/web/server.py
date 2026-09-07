@@ -1219,6 +1219,57 @@ def api_offline_voice(project_id: str, request: Request):
     return FileResponse(f, media_type="audio/wav")
 
 
+@app.post("/api/offline/{project_id}/che-tai")
+def api_offline_che_tai(project_id: str, req: dict, request: Request):
+    """Add Shot: cắt miếng hình ĐANG DƯỚI VẠCH tại đúng giây đó (user 07/09).
+
+    Ở máy chủ chứ không ở JS: máy không có Node.js nên logic trong JS là không
+    test được, mà đây là thao tác đụng thẳng vào hợp đồng.
+    """
+    _require_auth(request)
+    from autoedit.offline import hinh as mhinh, runner as orun
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    _gac_quyen_sua(request, hd)
+    try:
+        t = float(req.get("tai") if isinstance(req, dict) else 0)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Mốc cắt không hợp lệ")
+    if not mhinh.che_tai(hd, t):
+        raise HTTPException(422, f"Không cắt được tại {t:.2f}s — mảnh sẽ ngắn "
+                                 f"hơn {mhinh.TOI_THIEU_S}s hoặc vạch ngoài dải hình")
+    orun.luu(d, hd)
+    return {"ok": True, "hop_dong": hd}
+
+
+@app.post("/api/offline/{project_id}/do-lai-khay")
+def api_offline_do_lai_khay(project_id: str, request: Request):
+    """Tra lại Library, bổ sung khay — GIỮ NGUYÊN lựa chọn của người.
+
+    Dùng khi hợp đồng sinh TRƯỚC một bản vá nguồn (vd suất giữ chỗ ref) nên
+    khay thiếu hẳn một nguồn. KHÔNG gọi LLM: dùng lớp nghĩa đã lưu.
+    """
+    _require_auth(request)
+    from autoedit.offline import dung as _dung, runner as orun
+    from autoedit.sotra import db as _sdb
+
+    d = _pdir_offline(project_id)
+    hd = orun.doc(d)
+    if hd is None:
+        raise HTTPException(409, "Chưa phân tích")
+    _gac_quyen_sua(request, hd)
+    conn = _sdb.mo()
+    try:
+        n = _dung.do_lai_khay(hd, conn)
+    finally:
+        conn.close()
+    orun.luu(d, hd)
+    return {"ok": True, "so_khoi": n, "hop_dong": hd}
+
+
 @app.post("/api/offline/{project_id}/khoa-so")
 def api_offline_khoa(project_id: str, request: Request):
     """KHÓA SỔ chương (pha 2 duyệt xong) — thay máu (đợt 5) chỉ chạy chương khóa."""

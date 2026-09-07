@@ -801,3 +801,231 @@ def test_suat_giu_cho_ref_lay_dung_TAP_DANG_DUNG(tmp_path, monkeypatch):
         assert all(c["id"].startswith("ref:LI103") for c in ref)
     finally:
         conn.close()
+
+
+# ====== ĐỔ LẠI KHAY: bổ sung ứng viên mà KHÔNG phá việc người đã làm ========
+# 07/09 khuya: hợp đồng chương H sinh TRƯỚC bản vá ref nên khay rỗng, mà nút
+# "Phân tích" chỉ hiện khi chương CHƯA có hợp đồng — không có đường quay lại.
+# Phân tích lại thì mất sạch phần đã chỉnh ở pha 2. Cần đường thứ ba: tra lại
+# Library bằng LỚP NGHĨA ĐÃ LƯU (không gọi LLM), bổ sung vào khay, GIỮ NGUYÊN
+# lựa chọn của người.
+
+def test_do_lai_khay_giu_lua_chon_cua_nguoi(tmp_path, monkeypatch):
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        for i in range(3):
+            ten = f"kabul market crowd {i}"
+            sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                                 "tieu_de": ten, "path_local": "ref 1.mp4",
+                                 **tag_tu_tieu_de(ten)})
+        conn.commit()
+        cu = {"id": "envato:cu", "nguon": "envato", "tieu_de": "clip nguoi da chon",
+              "lop": "L1", "diem": 9.0}
+        hd = {"ma_tap": "LI103", "dia_danh": "", "chu_the_tap": [],
+              "khoi": [{"v0": 0, "v1": 3, "L1": ["market"], "L2": [], "L3": [],
+                        "uv": [cu], "chon": 0, "nguoi_sua": True},
+                       {"v0": 3, "v1": 6, "L1": ["market"], "L2": [], "L3": [],
+                        "uv": [], "chon": -1}]}
+        n = dung.do_lai_khay(hd, conn)
+
+        assert n == 2                                   # cả 2 khối được bổ sung
+        k0, k1 = hd["khoi"]
+        assert any(u["nguon"] == "ref" for u in k0["uv"]), "khay chưa có ref mới"
+        # lựa chọn của NGƯỜI phải còn nguyên, và `chon` vẫn trỏ đúng clip đó
+        assert k0["uv"][k0["chon"]]["id"] == "envato:cu"
+        assert k0["nguoi_sua"] is True
+        # khối chưa ai chọn: có ứng viên rồi nhưng KHÔNG tự chọn hộ
+        assert k1["uv"] and k1["chon"] == -1
+    finally:
+        conn.close()
+
+
+def test_do_lai_khay_khong_goi_LLM(tmp_path, monkeypatch):
+    """Dùng lớp nghĩa ĐÃ LƯU trong hợp đồng — chạm LLM là tốn tiền vô ích."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+
+    def _no(*a, **k):
+        raise AssertionError("KHÔNG được gọi LLM khi đổ lại khay")
+
+    monkeypatch.setattr("autoedit.offline.lop4.gan_lop", _no)
+    conn = sdb.mo()
+    try:
+        hd = {"ma_tap": "LI103", "khoi": [{"v0": 0, "v1": 3, "L1": ["market"],
+                                           "uv": [], "chon": -1}]}
+        dung.do_lai_khay(hd, conn)
+    finally:
+        conn.close()
+
+
+def test_do_lai_khay_PHAI_do_ca_DAI_HINH(tmp_path, monkeypatch):
+    """Pha 2 và bước ráp draft đọc khay của MIẾNG HÌNH, không phải của khối —
+    chỉ đổ khối thì người vẫn không thấy gì."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        for i in range(3):
+            ten = f"kabul market crowd {i}"
+            sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                                 "tieu_de": ten, "path_local": "ref 1.mp4",
+                                 **tag_tu_tieu_de(ten)})
+        conn.commit()
+        cu = {"id": "envato:cu", "nguon": "envato", "tieu_de": "nguoi da chon",
+              "lop": "L1", "diem": 9.0}
+        hd = {"ma_tap": "LI103", "chu_the_tap": [],
+              "khoi": [{"v0": 0, "v1": 3, "L1": ["market"], "uv": [cu], "chon": 0}],
+              "hinh": [{"t0": 0, "dur": 2, "khoi_goc": 0, "uv": [cu], "chon": 0,
+                        "nguoi_sua": True},
+                       {"t0": 2, "dur": 1, "khoi_goc": 0, "uv": [cu], "chon": -1,
+                        "noi_tiep": True}]}
+        dung.do_lai_khay(hd, conn)
+
+        h0, h1 = hd["hinh"]
+        assert any(u["nguon"] == "ref" for u in h0["uv"]), "miếng hình chưa có ref"
+        assert h0["uv"][h0["chon"]]["id"] == "envato:cu"   # giữ đúng clip đã chọn
+        assert h1["chon"] == -1 and h1["noi_tiep"] is True  # miếng chảy tiếp: nguyên
+    finally:
+        conn.close()
+
+
+def test_suat_ref_KHONG_bi_cat_mat_khi_gon_khay(tmp_path, monkeypatch):
+    """`tra()` trả suất ref Ở CUỐI danh sách, `do_ung_vien` cắt còn 12 -> chặt
+    đúng phần đuôi. Đo thật trên C1 (07/09): 72 cảnh ref được cấp, **59 mất vì
+    cắt**, 9 mất vì luật clip ngắn, chỉ 4 vào khay."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+    from autoedit.offline.lop4 import LopKhoi
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        # khay chỉ chạm trần 12 khi có ĐỦ 3 TẦNG (mỗi tầng trần 6) — kho giả
+        # một tầng thì khay mới 6 chỗ, chưa cắt gì, test XANH GIẢ
+        for tang, tu in (("L1", "market"), ("L2", "street"), ("L3", "sunset")):
+            for i in range(8):
+                ten = f"{tu} crowd stall {tang}{i}"
+                sdb.them_clip(conn, {"id": f"envato:{tang}{i}", "nguon": "envato",
+                                     "tieu_de": ten, **tag_tu_tieu_de(ten)})
+        for i in range(5):                        # ref của tập, ĐỦ DÀI
+            ten = f"kabul market crowd {i}"
+            sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                                 "tieu_de": ten, "path_local": "ref 1.mp4",
+                                 "t0": 0, "t1": 8, "dai_s": 8, **tag_tu_tieu_de(ten)})
+        conn.commit()
+
+        khoi = [{"v0": 0.0, "v1": 3.0}]
+        lop = [LopKhoi(khoi=0, truc_chi=["market"], ngu_canh=["street"],
+                       khong_khi=["sunset"])]
+        uv = dung.do_ung_vien(conn, khoi, lop, [], uu_tien_nguon="ref", tap="LI103")[0]
+        assert any(c["nguon"] == "ref" for c in uv), \
+            "suất giữ chỗ ref bị cắt mất khi gọn khay"
+        assert len(uv) <= 14                      # khay không phình vô hạn
+    finally:
+        conn.close()
+
+
+# ============ USER CHỐT 07/09 KHUYA: bỏ luật "clip ngắn hơn khối thì loại" ===
+# Luật cũ (06/09) loại clip có dai_s < phần nói của khối. User đập bỏ: "vô tình
+# làm lãng phí rất nhiều source. Tôi vẫn chấp nhận cho source đó vào. Tôi sẽ
+# tùy chỉnh bằng cách tạo một khối nhỏ trong khối lớn vừa với source."
+
+def test_clip_NGAN_van_duoc_vao_khay(tmp_path, monkeypatch):
+    from autoedit.offline import dung
+    from autoedit.offline.lop4 import LopKhoi
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        ten = "market crowd stall short"
+        sdb.them_clip(conn, {"id": "envato:ngan", "nguon": "envato", "tieu_de": ten,
+                             "dai_s": 1.2, **tag_tu_tieu_de(ten)})   # 1,2s
+        conn.commit()
+        khoi = [{"v0": 0.0, "v1": 5.0}]                              # khối 5s
+        # neo=False: bai nay do LUAT DO DAI, khong phai cua L0 — co neo mac
+        # dinh True se chan clip khong co geo (lan dau toi de mac dinh -> do nham)
+        lop = [LopKhoi(khoi=0, truc_chi=["market"], ngu_canh=[], khong_khi=[],
+                       neo=False)]
+        uv = dung.do_ung_vien(conn, khoi, lop, [])[0]
+        assert any(c["id"] == "envato:ngan" for c in uv), \
+            "clip 1,2s bị loại khỏi khối 5s — luật đã đập bỏ 07/09"
+    finally:
+        conn.close()
+
+
+# ================= ADD SHOT: cắt TẠI VẠCH, không chia đôi ===================
+# User chốt 07/09 khuya. Đưa về máy chủ vì máy này KHÔNG có Node.js — để trong
+# JS thì không có cách nào test được (METHODOLOGY BH3: phải đo được).
+
+def _hd_hinh():
+    return {"khoi": [{"v0": 0, "v1": 10, "tho": 0.0, "tho_them": 0.0}],
+            "hinh": [{"t0": 0.0, "dur": 10.0, "khoi_goc": 0,
+                      "uv": [{"id": "envato:a", "nguon": "envato", "tieu_de": "a",
+                              "lop": "L1", "diem": 9}], "chon": 0,
+                      "nguoi_sua": False}]}
+
+
+def test_add_shot_cat_DUNG_TAI_VACH():
+    from autoedit.offline import hinh
+
+    hd = _hd_hinh()
+    assert hinh.che_tai(hd, 3.5) is True
+    h = hd["hinh"]
+    assert len(h) == 2
+    assert h[0]["t0"] == 0.0 and h[0]["dur"] == 3.5          # cắt ĐÚNG chỗ vạch
+    assert h[1]["t0"] == 3.5 and h[1]["dur"] == 6.5          # không chia đôi
+    assert all(x["khoi_goc"] == 0 for x in h)
+
+
+def test_add_shot_hai_mieng_CUNG_CLIP_va_mieng_sau_CHAY_TIEP():
+    """Cắt một shot làm đôi = vẫn một hình chạy liên tục, không nhảy về đầu."""
+    from autoedit.offline import hinh
+
+    hd = _hd_hinh()
+    hinh.che_tai(hd, 4.0)
+    a, b = hd["hinh"]
+    assert b["uv"] == a["uv"] and b["chon"] == a["chon"]
+    assert b.get("noi_tiep") is True
+    assert a["nguoi_sua"] is True and b["nguoi_sua"] is True
+
+
+def test_add_shot_TU_CHOI_khi_de_ra_mieng_qua_vun():
+    from autoedit.offline import hinh
+
+    hd = _hd_hinh()
+    assert hinh.che_tai(hd, 0.2) is False       # mảnh trái 0,2s < sàn 0,4s
+    assert len(hd["hinh"]) == 1                 # không đụng gì
+    assert hinh.che_tai(hd, 9.9) is False       # mảnh phải quá vụn
+    assert len(hd["hinh"]) == 1
+
+
+def test_add_shot_giu_dung_bat_bien_cua_dai_hinh():
+    """Sau khi cắt, dải hình vẫn liền mạch + phủ kín (luật `hinh.kiem`)."""
+    from autoedit.offline import hinh
+
+    hd = _hd_hinh()
+    hinh.che_tai(hd, 2.5)
+    hinh.che_tai(hd, 7.0)
+    assert len(hd["hinh"]) == 3
+    assert hinh.kiem(hd) == []
+
+
+def test_giao_dien_Add_Shot_goi_may_chu_va_co_nut_do_lai_khay():
+    h = _html()
+    assert "/che-tai" in h and "OF_AUDIO.currentTime" in h   # cắt tại VẠCH
+    assert "chia đều shot đang chọn" not in h                # nhãn cũ đã bỏ
+    assert "ofDoLaiKhay()" in h and "/do-lai-khay" in h
+    assert "OF_ADD" not in h                                 # state của kiểu cũ đã dọn

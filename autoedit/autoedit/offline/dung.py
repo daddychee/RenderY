@@ -35,13 +35,18 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                  geo_tap=geo_tap, tap=tap)
         if bo_nguon:
             uv = [c for c in uv if c["nguon"] not in bo_nguon]
-        # user chốt 06/09: clip NGẮN hơn phần nói của khối không được chảy vào
-        # khối đó. Chỉ áp khi dai_s là SỐ THẬT (>0) — envato scraping chưa có
-        # duration ('' — bẫy SQLite: ''>0 là TRUE, phải ép float phía Python),
-        # tải bản sạch xong ffprobe sẽ tự học dần.
-        can = float(k.v1 - k.v0) if hasattr(k, "v1") else             float((k.get("v1") or 0) - (k.get("v0") or 0))
-        uv = [c for c in uv
-              if not (0 < float(c.get("dai_s") or 0) < can)][:so_moi_khoi]
+        # LUẬT "clip ngắn hơn phần nói thì loại" (06/09) — USER ĐẬP BỎ 07/09:
+        # "vô tình làm lãng phí rất nhiều source. Tôi vẫn chấp nhận cho source
+        # đó vào. Tôi sẽ tùy chỉnh bằng cách tạo một khối nhỏ trong khối lớn
+        # vừa với source bằng cách add shot." Clip ngắn không gây hỏng draft:
+        # thay_mau đã có sẵn đường xuống cấp (chậm tới 0.8x rồi freeze đuôi).
+        #
+        # SUẤT GIỮ CHỖ REF phải sống sót khâu gọn khay: `tra()` trả ref Ở CUỐI
+        # danh sách nên `[:so_moi_khoi]` chặt đúng phần đuôi. Đo trên C1 07/09:
+        # 72 cảnh ref được cấp cho 36 khối, 59 MẤT VÌ CẮT, chỉ 4 cảnh vào khay.
+        ref_uv = [c for c in uv if c["nguon"] == "ref"]
+        khac = [c for c in uv if c["nguon"] != "ref"]
+        uv = khac[:max(0, so_moi_khoi - len(ref_uv))] + ref_uv
         ra.append([{"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
                     "lop": c["lop"], "diem": c["diem"],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
@@ -151,6 +156,76 @@ def kiem_lap(khoi: list, ung_vien: list[list[dict]], chon: list[int]) -> list[in
                     and abs(k.v0 - khoi[j].v0) < CUA_SO_LAP_S):
                 xau.update((i, j))
     return sorted(xau)
+
+
+def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12) -> int:
+    """Tra lại Library cho MỌI khối, bổ sung khay — GIỮ NGUYÊN lựa chọn của người.
+
+    Vì sao cần (07/09 khuya): hợp đồng sinh TRƯỚC một bản vá nguồn (vd bản vá
+    suất giữ chỗ ref) thì khay của nó thiếu hẳn một nguồn, mà nút "Phân tích"
+    chỉ hiện khi chương CHƯA có hợp đồng. Phân tích lại thì mất sạch phần đã
+    chỉnh ở pha 2 — đúng thứ không được phép làm với công của người.
+
+    Dùng LỚP NGHĨA ĐÃ LƯU trong hợp đồng nên KHÔNG gọi LLM.
+
+    Luật: clip đang được chọn luôn còn trong khay và `chon` trỏ đúng nó; khối
+    chưa ai chọn thì có ứng viên nhưng KHÔNG tự chọn hộ (người vẫn quyết).
+    Trả số khối được bổ sung.
+    """
+    from autoedit.sotra.tra import tra
+
+    doi = 0
+    for i, k in enumerate(hd.get("khoi") or []):
+        cu = list(k.get("uv") or [])
+        c = k.get("chon", -1)
+        dang_chon = cu[c] if 0 <= c < len(cu) else None
+        try:
+            moi = tra(conn, {"L0": hd.get("chu_the_tap") or [],
+                             "L1": k.get("L1") or [], "L2": k.get("L2") or [],
+                             "L3": k.get("L3") or []},
+                      so=so_moi_khoi, uu_tien_nguon=hd.get("uu_tien_nguon") or "",
+                      can_neo=bool(k.get("neo")), seed=i,
+                      geo_tap=hd.get("dia_danh") or "", tap=hd.get("ma_tap") or "")
+        except Exception:  # noqa: BLE001 — một khối hỏng không giết cả chương
+            continue
+        if not moi:
+            continue
+        gon = [{"id": c2["id"], "nguon": c2["nguon"], "tieu_de": c2["tieu_de"],
+                "lop": c2["lop"], "diem": c2["diem"],
+                "url_anh": c2.get("url_anh", ""), "url_video": c2.get("url_video", ""),
+                "geo": c2.get("geo", ""), "dai_s": c2.get("dai_s", 0),
+                "t0": c2.get("t0", 0), "t1": c2.get("t1", 0)} for c2 in moi]
+        if dang_chon is not None:
+            vi = next((j for j, u in enumerate(gon)
+                       if u["id"] == dang_chon["id"]), None)
+            if vi is None:                    # clip người chọn không còn trong
+                gon.insert(0, dang_chon)      # kết quả tra -> giữ chỗ đầu khay
+                vi = 0
+            k["chon"] = vi
+        else:
+            k["chon"] = -1                    # chưa ai chọn: KHÔNG chọn hộ
+        k["uv"] = gon
+        doi += 1
+        # DẢI HÌNH cũng phải đổ (pha 2 và bước ráp draft đọc khay của MIẾNG,
+        # không phải của khối) — chỉ đổ khối thì người vẫn không thấy gì.
+        for h in hd.get("hinh") or []:
+            if h.get("khoi_goc") != i:
+                continue
+            c_h = h.get("chon", -1)
+            uv_h = h.get("uv") or []
+            chon_h = uv_h[c_h] if 0 <= c_h < len(uv_h) else None
+            moi_h = list(gon)
+            if chon_h is not None:
+                vi = next((j for j, u in enumerate(moi_h)
+                           if u["id"] == chon_h["id"]), None)
+                if vi is None:
+                    moi_h.insert(0, chon_h)
+                    vi = 0
+                h["chon"] = vi
+            else:
+                h["chon"] = -1
+            h["uv"] = moi_h
+    return doi
 
 
 def lam_tuoi_ref(hd: dict, conn) -> bool:

@@ -799,7 +799,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span class="mono" id="of-tc"
             style="font-size:21px;font-weight:700;letter-spacing:.04em;min-width:104px">00:00.0</span>
       <button class="btn ghost small" onclick="ofAddShot()"
-              title="chia đều shot đang chọn — bấm lần nữa chia nhỏ thêm (phím e)">⊞ Add Shot</button>
+              title="cắt shot TẠI VẠCH đang đứng — hai mảnh dùng chung clip, chạy liên tục (phím e)">✂ Add Shot</button>
+      <button class="btn ghost small" onclick="ofDoLaiKhay()"
+              title="tra lại Library, bổ sung ứng viên cho mọi khối — giữ nguyên lựa chọn của bạn">⟳ Đổ lại khay</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
               title="pull: kéo phương án footage kế cho shot đang chọn (phím d)">⟳ Pull</button>
       <span style="flex:1"></span>
@@ -1952,42 +1954,33 @@ function ofNhacDong() {
 /* ADD SHOT (user 06/09): bấm 1 = chia đôi shot đang chọn, bấm tiếp = chia 3,
    chia 4... — luôn chia ĐỀU LẠI TỪ SHOT GỐC, user tự kéo mép sau. Không đụng
    ranh voice: chỉ dựng lại các miếng trong đúng vùng của shot gốc. */
-let OF_ADD = null                 // {t0, dur, n} — vùng shot gốc đang chia
 async function ofAddShot() {
-  const hs = ofHinh(), h = hs[OF_HCHON]
-  if (!h) { toastOf('Click chọn một shot trước'); return }
-  // cùng vùng gốc (shot đang chọn nằm trong vùng lần chia trước) -> n+1
-  const trong_vung = OF_ADD && h.t0 >= OF_ADD.t0 - 0.01
-                   && h.t0 + h.dur <= OF_ADD.t0 + OF_ADD.dur + 0.01
-  const vung = trong_vung ? OF_ADD : {t0: h.t0, dur: h.dur, n: 1,
-                                      uv: h.uv || [], chon: h.chon,
-                                      khoi_goc: h.khoi_goc, goc: {...h}}
-  const n = vung.n + 1
-  if (vung.dur / n < 0.4) { toastOf(`Shot ${vung.dur.toFixed(1)}s chia ${n} là quá vụn (<0.4s/miếng)`); return }
+  // CẮT TẠI VẠCH (user chốt 07/09): trước đây chia khối thành n phần ĐỀU nhau —
+  // nay vạch chạy đến đâu thì cắt đúng chỗ đó. Việc cắt nằm ở MÁY CHỦ (máy
+  // không có Node.js nên logic trong JS không test được).
+  const t = OF_AUDIO ? Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0)) : 0
   ofChup()
-  // dựng lại: bỏ mọi miếng trong vùng, thay bằng n miếng đều nhau
-  const giu = hs.filter(x => !(x.t0 >= vung.t0 - 0.01 && x.t0 + x.dur <= vung.t0 + vung.dur + 0.01))
-  const buoc = vung.dur / n
-  for (let j = 0; j < n; j++) {
-    // FIX user 06/09: miếng mới chon=-1 -> preview "chưa có hình". Chia shot =
-    // CÙNG một clip (như NLE), user đổi từng miếng sau bằng khay/Phương án.
-    giu.push({t0: +(vung.t0 + j * buoc).toFixed(3), dur: +buoc.toFixed(3),
-              khoi_goc: vung.khoi_goc, nguoi_sua: true,
-              uv: vung.uv, chon: vung.chon})
-  }
-  giu.sort((a, b) => a.t0 - b.t0)
-  OF_HD.hinh = giu
-  vung.n = n; OF_ADD = vung
-  clearTimeout(OF_LUU_T)
   try {
-    await api('/api/offline/' + OF_PID, {method: 'PUT', body: JSON.stringify(OF_HD)})
-    const d = await api('/api/offline/' + OF_PID)
-    if (d.hop_dong) OF_HD = d.hop_dong
-    OF_HCHON = OF_HD.hinh.findIndex(x => Math.abs(x.t0 - vung.t0) < 0.02)
-    toastOf(`⊞ Shot chia ${n} phần đều — kéo mép để chỉnh`)
+    const r = await api('/api/offline/' + OF_PID + '/che-tai',
+                        {method: 'POST', body: JSON.stringify({tai: t})})
+    if (r.hop_dong) OF_HD = r.hop_dong
+    OF_HCHON = OF_HD.hinh.findIndex(x => Math.abs(x.t0 - t) < 0.02)
+    toastOf(`✂ Cắt tại ${t.toFixed(2)}s — hai mảnh dùng chung clip, chạy liên tục`)
   } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
   ofVeAll()
 }
+
+async function ofDoLaiKhay() {
+  ofChup()
+  try {
+    const r = await api('/api/offline/' + OF_PID + '/do-lai-khay',
+                        {method: 'POST', body: '{}'})
+    if (r.hop_dong) OF_HD = r.hop_dong
+    toastOf(`⟳ Đã đổ lại khay ${r.so_khoi} khối — lựa chọn của bạn giữ nguyên`)
+  } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
+  ofVeAll()
+}
+
 async function ofThemMieng() {
   // dòng cũ bị vá hỏng (const t = OF_AUDIO; ofChup() ? ... : 0) -> t là ELEMENT
   // audio chứ không phải giây, tai_giay thành NaN, server 422
