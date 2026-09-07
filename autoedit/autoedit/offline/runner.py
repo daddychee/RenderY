@@ -158,6 +158,20 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
 
     het = ffprobe_duration(master) or max(w.get("end", 0) for w in words)
     fr = _framing(kenh_ref)
+    # KHÔNG chạy im khi tham số không tới nơi (METHODOLOGY BH1+BH2). 07/09 cả 17
+    # chương LI103 dựng với framing rỗng + AVD vô hiệu mà không ai biết, vì hỏng
+    # nằm ở khớp nối chứ không ở chỗ nào ném lỗi.
+    _thieu: list[str] = []
+    if not kenh_ref:
+        _thieu.append("Framing Insight KHÔNG tới nơi — nhịp chia khối đang dùng "
+                      "hơi thở người đọc, không theo kênh ref. Kiểm ô Framing "
+                      "lúc nộp tập rồi Phân tích lại.")
+    elif not fr:
+        _thieu.append(f"Hồ sơ kênh «{kenh_ref}» chưa đo được — vào tab Framing "
+                      "Insight bấm Đo lại, rồi Phân tích lại chương này.")
+    if avd_s <= 0:
+        _thieu.append("Mốc AVD chưa khai — MỌI chương vào diện đồng kiểm (không "
+                      "chương nào tự chạy).")
     silences = sil.detect_silences(master)
     ds_khoi, offset = mkhoi.cat_khoi(silences, words, het,
                                      than_framing=float(fr.get("than") or 0))
@@ -232,7 +246,8 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             "uv": ung_vien[i], "chon": chon[i],
             "khoa": False, "nguoi_sua": False,
         } for i, k in enumerate(ds_khoi)],
-        "canh_bao": ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
+        "canh_bao": _thieu
+                    + ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
                     + ([f"GÁN NGHĨA HỎNG ({_loi_4lop}) — khay sẽ rỗng. Kiểm khoá "
                         "GLM ở General › API Keys rồi Phân tích lại."]
                        if _loi_4lop else [])

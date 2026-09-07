@@ -167,6 +167,15 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         extra += ["--phuong-an", str(opts["phuong_an"])]
     if opts.get("kenh_ref"):
         extra += ["--kenh-ref", str(opts["kenh_ref"])]
+    # Tham số dựng đi THEO CHƯƠNG vào project.json (07/09). Trước đây chúng chỉ
+    # nằm ở hàng jobs, mà job nộp cả tập ghi project_id là chuỗi nối nhiều mã
+    # nên lúc Phân tích tra không khớp -> rớt sạch, im lặng (SEQUENCE PH1).
+    if opts.get("avd_phut") is not None:
+        extra += ["--avd-phut", str(opts["avd_phut"])]
+    if opts.get("dia_danh"):
+        extra += ["--dia-danh", str(opts["dia_danh"])]
+    if opts.get("uu_tien_nguon"):
+        extra += ["--uu-tien-nguon", str(opts["uu_tien_nguon"])]
     # CHUẨN BỊ CHO OFFLINE (user chốt 07/09): chỉ ALIGN rồi dừng — Offline làm
     # lại toàn bộ phần sau, chạy pipeline cũ là đốt LLM + vài giờ + draft rác
     if opts.get("chi_chuan_bi"):

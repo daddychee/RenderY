@@ -118,6 +118,13 @@ class Inputs(BaseModel):
     # Kênh YouTube ref của phương án — hồ sơ kênh (nhịp/nhạc/loại cảnh) đo từ đây
     # thay luật cứng. Rỗng = dùng hồ sơ niche như cũ.
     kenh_ref: str = ""
+    # THAM SỐ DỰNG CỦA TẬP (07/09) — trước đây chỉ nằm ở hàng `jobs`, mà job nộp
+    # cả tập ghi `project_id` là chuỗi nối 17 mã chương nên lúc Phân tích tra
+    # `WHERE project_id=?` KHÔNG khớp -> mất sạch, im lặng. Nay theo BH4 của
+    # METHODOLOGY: tham số thuộc về CHƯƠNG, ở đúng một chỗ là hồ sơ chương này.
+    avd_phut: Optional[float] = None      # None = chưa khai (KHÔNG mặc định 6)
+    dia_danh: str = ""                    # rào geo khay ứng viên
+    uu_tien_nguon: str = ""                # "" | ref | envato
 
 
 # --------------------------------------------------------------------------- #

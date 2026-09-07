@@ -1,5 +1,14 @@
 # RenderY V2 — thoát khỏi nền Padoma
 
+> **Cập nhật 07/09 chiều (user duyệt sau phản biện):** thứ tự ĐẢO — làm việc
+> **C** (thay lõi) TRƯỚC, hoãn **A** (đổi tên package). Lý do: đổi tên không
+> tạo giá trị vận hành nào hôm nay, trong khi rủi ro gãy production là thật
+> (3 chỗ gọi `"-m", "autoedit.cli"` bằng CHUỖI + data root + hơn 20 file .md);
+> team đang chờ dùng. Rủi ro pháp lý nằm ở phần người ngoài nhìn thấy (nhãn
+> hiển thị + tài liệu + chuỗi "PADOMA") — phần đó rẻ, làm khi rảnh.
+> Mục "bỏ `nhip/ep.py`" ở Đợt 4: **KHÔNG làm** — xem QĐ2 trong `SEQUENCE.md`.
+> Thứ tự việc hiện hành nằm ở `SEQUENCE.md`, không phải file này.
+
 > **Trạng thái: LỘ TRÌNH, CHỜ DUYỆT.** Lập 07/09/2026 theo yêu cầu user:
 > tách RenderY thành tool độc lập, không còn tên gọi liên quan Padoma (tránh
 > vấn đề pháp lý), giữ lại phần chất xám còn hữu dụng.

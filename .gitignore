@@ -28,3 +28,6 @@ BAN_GIAO/memory_goc/
 # worktree dev + file tam .env — khong bao gio vao repo
 autoedit-v2/
 .env.tmp
+
+# Log chay ban DEV (cong 9120) — sinh moi lan khoi dong
+dev.log

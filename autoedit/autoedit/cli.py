@@ -332,6 +332,14 @@ def make(
                                   help="Phương án dựng: stock | ai | tu_quay (user 05/09)."),
     kenh_ref: str = typer.Option("", "--kenh-ref",
                                  help="Link kênh YouTube ref — học nhịp/phong cách thay luật cứng."),
+    avd_phut: float = typer.Option(
+        -1.0, "--avd-phut",
+        help="Mốc AVD của TẬP (phút). Chương bắt đầu TRƯỚC mốc thì đồng kiểm, "
+             "sau mốc thì auto. Bỏ trống = chưa khai, mọi chương đồng kiểm."),
+    dia_danh: str = typer.Option("", "--dia-danh",
+                                 help="Địa danh của tập — rào geo khay ứng viên Offline."),
+    uu_tien_nguon: str = typer.Option("", "--uu-tien-nguon",
+                                      help="Nguồn được cộng điểm trong khay: ref | envato."),
 ) -> None:
     """1 LỆNH dựng FULL 1 video/chương: tạo project + chạy hết pipeline + mở report.html.
 
@@ -398,6 +406,13 @@ def make(
                     fg=typer.colors.YELLOW)
     project.inputs.phuong_an = phuong_an
     project.inputs.kenh_ref = kenh_ref.strip()
+    # Tham số dựng của TẬP dính vào hồ sơ CHƯƠNG (07/09) — Offline đọc thẳng ở
+    # đây, không tra bảng jobs nữa (job nộp cả tập tra không khớp, xem SEQUENCE
+    # PH1). avd_phut < 0 = chưa khai; KHÔNG bịa số mặc định (METHODOLOGY BH5).
+    if isinstance(avd_phut, (int, float)) and avd_phut >= 0:
+        project.inputs.avd_phut = float(avd_phut)
+    project.inputs.dia_danh = (dia_danh or "").strip()
+    project.inputs.uu_tien_nguon = (uu_tien_nguon or "").strip()
     # PA2 (ai) kéo aigen bật; cờ --aigen cũ vẫn tôn trọng (đường gọi tay/script cũ)
     if aigen or phuong_an == "ai":
         project.inputs.aigen = True
@@ -2849,6 +2864,54 @@ def merge_drafts_cmd(
     if book is not None:
         typer.echo(f"  sổ nguồn  : {book.name}")
     typer.echo("  Mở CapCut → draft tổng phải có đủ các chương nối tiếp đúng thứ tự.")
+
+
+@app.command(name="kiem-hop-dong")
+def kiem_hop_dong_cmd(
+    duong_dan: Path = typer.Argument(
+        ..., help="Thư mục 1 project (có offline.json) HOẶC thư mục projects/."),
+    tap: str = typer.Option("", "--tap", help="Chỉ đo chương của mã tập này (vd LI103)."),
+) -> None:
+    """ĐO hợp đồng Offline ra số — chạy sau khi dựng, thay cho việc soi bằng mắt.
+
+    Ba thứ hỏng cả ngày 07/09 (Framing không tới nơi · AVD vô hiệu · nhịp chạy
+    theo hơi thở người đọc) đều lộ ngay ở bảng này (METHODOLOGY BH3).
+    """
+    import json as _json
+
+    from autoedit.offline import thuoc
+
+    duong_dan = duong_dan.expanduser()
+    ds = ([duong_dan] if (duong_dan / "offline.json").is_file()
+          else sorted(p for p in duong_dan.glob("*/offline.json")))
+    ds = [p if p.is_dir() else p.parent for p in ds]
+    if not ds:
+        typer.secho(f"Không thấy offline.json nào trong {duong_dan}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    gop: list[dict] = []
+    for d in ds:
+        try:
+            hd = _json.loads((d / "offline.json").read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 — 1 hợp đồng hỏng không chặn cả tập
+            typer.secho(f"{d.name}: đọc lỗi ({str(exc)[:80]})", fg=typer.colors.RED)
+            continue
+        s = thuoc.do(hd)
+        if tap and s["ma_tap"].upper() != tap.upper():
+            continue
+        gop.append(s)
+        for dong in thuoc.dong_bao_cao(s, ten=d.name):
+            typer.echo(dong)
+        typer.echo("")
+
+    if len(gop) > 1:
+        n = len(gop)
+        typer.secho(f"── {n} chương ──", bold=True)
+        typer.echo(f"  có Framing : {sum(1 for s in gop if s['framing_ten'])}/{n}")
+        typer.echo(f"  chương AUTO: {sum(1 for s in gop if not s['dong_kiem'])}/{n}")
+        typer.echo(f"  khay phủ <50%: {sum(1 for s in gop if s['ty_le_co_uv'] < 0.5)}/{n}")
+    if not gop:
+        raise typer.Exit(1)
 
 
 @app.command(name="sub-status")

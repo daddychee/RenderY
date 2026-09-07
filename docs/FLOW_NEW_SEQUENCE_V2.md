@@ -1,7 +1,10 @@
 # New Sequence V2 — flow đã chốt 07/09/2026
 
-> **Trạng thái: CHỐT THIẾT KẾ, CHƯA CODE.** User duyệt từng điểm trong phiên
-> 07/09. Ghi lại để không phải bàn lại.
+> **Trạng thái: BẢN CHỐT SÁNG 07/09 — ĐÃ ĐƯỢC `SEQUENCE.md` THAY THẾ.**
+> Giữ lại để truy vết. Hai chỗ trong file này SAI, đã sửa ở `SEQUENCE.md`:
+> bảng "Manual ∞ / Auto 0" (mã đọc `avd_s=0` là Manual — Auto không biểu đạt
+> được bằng số, xem PH4) và mục "bỏ `nhip/ep.py`" (đường Offline không dùng
+> file đó, xoá chỉ phá pipeline cũ của team — xem QĐ2).
 
 ## Vì sao đổi
 

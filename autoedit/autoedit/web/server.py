@@ -690,6 +690,51 @@ def _pdir_offline(project_id: str) -> Path:
     return d
 
 
+def tham_so_dung(pdir: Path, project_id: str) -> dict:
+    r"""Tham số dựng của MỘT chương: {avd_s, kenh_ref, uu_tien_nguon, dia_danh}.
+
+    HỒ SƠ CHƯƠNG (`project.json` → `inputs`) là nguồn sự thật; bảng `jobs` chỉ
+    còn là lưới đỡ cho project dựng TRƯỚC 07/09.
+
+    Vì sao đổi (SEQUENCE PH1): job nộp CẢ TẬP ghi `project_id` là chuỗi nối 17
+    mã chương, nên `WHERE project_id=?` bằng một mã chương KHÔNG BAO GIỜ khớp
+    → Framing/AVD/địa danh/ưu tiên nguồn rớt sạch, im lặng. LI103 ngày 07/09
+    dựng trọn 17 chương như vậy.
+
+    Thiếu thì trả 0/rỗng — KHÔNG bịa số mặc định (METHODOLOGY BH5); `phan_tich`
+    sẽ ghi cảnh báo đỏ vào hợp đồng thay vì chạy im (BH1).
+    """
+    ra = {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": ""}
+    try:
+        inp = (json.loads((Path(pdir) / "project.json").read_text(encoding="utf-8"))
+               .get("inputs") or {})
+    except Exception:  # noqa: BLE001 — hồ sơ hỏng thì rơi xuống lưới đỡ jobs
+        inp = {}
+    if inp.get("avd_phut") is not None:
+        ra["avd_s"] = float(inp["avd_phut"]) * 60
+    for k in ("kenh_ref", "uu_tien_nguon", "dia_danh"):
+        ra[k] = inp.get(k) or ""
+    if ra["avd_s"] or ra["kenh_ref"]:
+        return ra
+    try:                                  # lưới đỡ: project cũ, tham số ở jobs
+        from autoedit.web import queue as _q
+
+        conn_j = _q.connect()
+        r_j = conn_j.execute(
+            "SELECT opts FROM jobs WHERE project_id=? ORDER BY id DESC LIMIT 1",
+            (project_id,)).fetchone()
+        conn_j.close()
+        if r_j:
+            o = json.loads(r_j["opts"] or "{}")
+            if o.get("avd_phut") is not None:
+                ra["avd_s"] = float(o["avd_phut"]) * 60
+            for k in ("kenh_ref", "uu_tien_nguon", "dia_danh"):
+                ra[k] = ra[k] or (o.get(k) or "")
+    except Exception:  # noqa: BLE001
+        pass
+    return ra
+
+
 @app.post("/api/offline/{project_id}/phan-tich")
 def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request):
     """Chạy phân tích Offline nền (cắt khối + 4 lớp + ứng viên Library)."""
@@ -744,22 +789,11 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         return 0.0                             # không thấy chương -> coi như đầu tập
 
     if not req.avd_s and not req.kenh_ref:
-        try:
-            from autoedit.web import queue as _q
-
-            conn_j = _q.connect()
-            r_j = conn_j.execute(
-                "SELECT opts FROM jobs WHERE project_id=? ORDER BY id DESC LIMIT 1",
-                (project_id,)).fetchone()
-            conn_j.close()
-            if r_j:
-                o = json.loads(r_j["opts"] or "{}")
-                req.avd_s = float(o.get("avd_phut") or 6) * 60
-                req.kenh_ref = o.get("kenh_ref") or ""
-                req.uu_tien_nguon = req.uu_tien_nguon or o.get("uu_tien_nguon") or "ref"
-                req.dia_danh = req.dia_danh or o.get("dia_danh") or ""
-        except Exception:  # noqa: BLE001 — không tra được job thì mặc định
-            req.avd_s = req.avd_s or 360.0
+        t = tham_so_dung(d, project_id)
+        req.avd_s = req.avd_s or t["avd_s"]
+        req.kenh_ref = req.kenh_ref or t["kenh_ref"]
+        req.uu_tien_nguon = req.uu_tien_nguon or t["uu_tien_nguon"]
+        req.dia_danh = req.dia_danh or t["dia_danh"]
     # mốc bắt đầu chương tính MỌI TRƯỜNG HỢP (kể cả avd_s gửi tường minh) —
     # nằm trong if trên là gửi avd_s tay thì mốc lại về 0, mọi chương đồng kiểm
     if not req.mo_dau_tap_s:
