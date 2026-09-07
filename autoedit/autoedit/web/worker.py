@@ -88,6 +88,58 @@ def _run_cli(args: list[str], root: Path, log, conn, job_id: int) -> tuple[int, 
     return proc.wait(), project_id
 
 
+def _ma_tap_tu_folder(folder: Path) -> str:
+    """Mã tập của thư mục nộp — dùng CHUNG hàm với tab Offline.
+
+    Suy mã theo hai cách khác nhau ở hai nơi là cách chắc chắn nhất để ref nạp
+    dưới `LI104` còn lúc tra lại tìm `LI104 TOOL`: rào geo khi đó chặn nhầm
+    chính ref của tập mình.
+    """
+    from autoedit.sotra.db import ma_tap_tu_duong_dan
+
+    return ma_tap_tu_duong_dan(folder) or folder.name
+
+
+def _nap_ref_nen(folder: Path, dia_danh: str, log_path: Path) -> None:
+    """Nạp ref của TẬP ngay lúc nộp — song song với ALIGN các chương.
+
+    Trước 07/09 việc này nằm trong `offline.runner.phan_tich`, tức là ai bấm
+    phân tích CHƯƠNG ĐẦU của tập phải ngồi chờ nạp ref của CẢ TẬP. Đo trên
+    LI103: 153 phút ref chưa nạp -> chương đầu treo ~40 phút, 15 chương sau
+    tức thì. User bắt đúng: "phân tích 1 chương lâu vậy hả".
+
+    Ref là dữ liệu cấp TẬP nên thuộc về lúc nộp tập. `phan_tich` vẫn gọi
+    `nap_ref_cua_tap` như cũ — sau bản vá `_da_nap` nó chỉ mất vài giây khi ref
+    đã nằm sẵn, và vẫn là lưới an toàn nếu luồng này gãy.
+
+    Luồng riêng, fail-open tuyệt đối: hỏng ref KHÔNG được đụng tới việc dựng.
+    """
+    try:
+        from autoedit.sotra import db as sdb
+        from autoedit.sotra.hut import nap_ref_tap
+
+        if not any(folder.rglob("*.mp4")):
+            return
+        tap = _ma_tap_tu_folder(folder)
+        conn = sdb.mo()
+        with open(log_path, "a", encoding="utf-8") as lg:
+            def ghi(m):
+                lg.write(f"[ref] {m}\n")
+                lg.flush()
+
+            ghi(f"nạp ref tập «{tap}» (geo={dia_danh or 'chưa khai'}) — chạy nền")
+            n = nap_ref_tap(conn, folder, tap=tap, quoc_gia=dia_danh,
+                            doc_hinh=True, log=ghi)
+            ghi(f"xong: +{n} cảnh vào Library")
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        try:
+            with open(log_path, "a", encoding="utf-8") as lg:
+                lg.write(f"[ref] ⚠ nạp ref lỗi ({str(exc)[:120]}) — bỏ qua, "
+                         f"phân tích chương sẽ nạp bù\n")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
     """Chạy 1 job (có thể nhiều chương) tới khi xong.
 
@@ -133,6 +185,10 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
             # đổ ra ngay. 31/08 user hỏi "C7 C8 đã trả ra kết quả chưa?" — chúng dựng
             # xong từ lâu nhưng phải đợi C9 mới được giao.
             _don_giao(folder, log)
+            threading.Thread(
+                target=_nap_ref_nen,
+                args=(folder, str(opts.get("dia_danh") or ""), log_path),
+                daemon=True, name=f"ref-{job.id}").start()
             tom_tat: list[dict] = []
             for i, ch in enumerate(chapters, start=1):
                 log.write(f"\n{'=' * 70}\nCHƯƠNG {i}/{len(chapters)}: {ch.name}\n{'=' * 70}\n")

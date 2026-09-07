@@ -46,16 +46,19 @@ def _framing(kenh_ref: str) -> dict:
 
 
 def _ma_tap(project_dir: Path) -> str:
-    """Mã tập (LI100...) suy từ đường dẫn kịch bản gốc trên NAS."""
-    import re
+    """Mã tập (LI100...) suy từ đường dẫn kịch bản gốc trên NAS.
+
+    Regex nằm ở `sotra.db.ma_tap_tu_duong_dan` — dùng CHUNG với worker để hai
+    nơi không suy ra hai mã khác nhau cho cùng một tập (`LI104` vs `LI104 TOOL`).
+    """
+    from autoedit.sotra.db import ma_tap_tu_duong_dan
 
     try:
         p = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))
         goc = (p.get("inputs") or {}).get("original_script_path") or ""
     except Exception:  # noqa: BLE001
         goc = ""
-    m = re.search(r"[\\/]([A-Z]{2,4}\d{2,4})(?:_[\w-]+)?[\\/]", goc)
-    return m.group(1) if m else project_dir.name
+    return ma_tap_tu_duong_dan(goc) or project_dir.name
 
 
 def _thu_muc_nas(project_dir: Path) -> Path | None:

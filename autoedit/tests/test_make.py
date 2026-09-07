@@ -46,7 +46,7 @@ def test_make_launcher_creates_executable(tmp_path):
     out = tmp_path / "Dung-NghiHuu.command"
     cli.make_launcher_cmd(channel="retirement-abroad", out=out)
     assert out.is_file()
-    body = out.read_text()
+    body = out.read_text(encoding="utf-8")
     assert "retirement-abroad" in body          # kênh nhúng sẵn
     assert "autoedit make" in body              # gọi lệnh make
     assert "choose folder" in body              # hộp chọn folder (osascript)

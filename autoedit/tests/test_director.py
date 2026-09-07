@@ -457,7 +457,8 @@ def test_run_direct_happy_path(project):
     assert saved.cost_total_usd > 0
     assert saved.outline["chapters"][0]["title"] == "Hook"
     # beats.json cho người review
-    review = json.loads((Path(project.project_dir) / "beats.json").read_text())
+    review = json.loads((Path(project.project_dir) / "beats.json")
+                    .read_text(encoding="utf-8"))
     assert len(review["beats"]) == 4
 
 

@@ -344,3 +344,21 @@ def lich_su(conn, clip_id: str, limit: int = 20) -> list[dict]:
     return [dict(r) for r in conn.execute(
         "SELECT tap, vi_tri, loai, chi_tiet, ts FROM su_kien WHERE clip_id=? "
         "ORDER BY sk DESC LIMIT ?", (clip_id, limit))]
+
+
+def ma_tap_tu_duong_dan(duong_dan: str) -> str:
+    r"""Mã tập (LI103, LI104...) suy từ một đường dẫn bất kỳ — MỘT nguồn sự thật.
+
+    Trước 07/09 `offline.runner._ma_tap` và tab Offline mỗi nơi suy một kiểu.
+    Hệ quả đo được trong kho: bên cạnh mã sạch (LI100, LI103) còn nằm lẫn
+    `h-20260905-104130`, `chuong-ref-20260902-070916` — đó là fallback tên
+    thư mục khi regex trượt. Hai cách suy khác nhau trên cùng một tập là đúng
+    cái sinh ra lẫn tập mà rào geo phải chặn.
+
+    Bắt được cả hậu tố ngăn bằng gạch dưới lẫn khoảng trắng (`LI096_Hai`,
+    `LI104 TOOL` -> `LI104`) vì cả hai đều có thật trên NAS. Không suy được thì
+    trả "" — người gọi tự quyết fallback, không đoán bừa.
+    """
+    m = re.search(r"[\\/]([A-Z]{2,4}\d{2,4})(?:[ _-][^\\/]*)?(?:[\\/]|$)",
+                  str(duong_dan))
+    return m.group(1) if m else ""

@@ -120,7 +120,7 @@ def test_ingest_insert_footage_copies_and_tags(tmp_path):
     folder.mkdir()
     (folder / "b_can.mp4").write_bytes(b"x")
     (folder / "a_rong.mp4").write_bytes(b"y")
-    (folder / "note.txt").write_text("bỏ qua")  # không phải media
+    (folder / "note.txt").write_text("bỏ qua", encoding="utf-8")  # không phải media
     proj = tmp_path / "proj"
     proj.mkdir()
 

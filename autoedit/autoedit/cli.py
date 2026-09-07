@@ -1641,7 +1641,22 @@ def run(
             report(project_dir)
 
     if chi_chuan_bi is True:
-        typer.secho("\n✓ Đã chuẩn bị (chỉ ALIGN) — dựng tiếp ở tab Offline.",
+        # voice_master.wav chỉ là convert WAV 48kHz (KHÔNG phụ thuộc beat) nhưng
+        # nằm trong stage CUT — bỏ qua CUT là Offline báo "thiếu voice_master,
+        # chạy align/cut trước" (bug user bắt 07/09 sau khi nộp đủ 17 chương).
+        # Tạo thẳng ở đây, vài giây mỗi chương.
+        try:
+            from autoedit.cutter.runner import _ensure_master_wav
+            from autoedit.project import Project as _P
+
+            _pj = _P.load(project_dir)
+            _ensure_master_wav(_pj, Path(project_dir))
+            _pj.save()
+            typer.echo("  ✓ voice_master.wav sẵn sàng cho Offline")
+        except Exception as exc:  # noqa: BLE001 — thiếu thì Offline báo, không chết job
+            typer.secho(f"  ⚠ Không tạo được voice_master: {str(exc)[:90]}",
+                        fg=typer.colors.YELLOW)
+        typer.secho("\n✓ Đã chuẩn bị — dựng tiếp ở tab Offline.",
                     fg=typer.colors.GREEN)
     else:
         typer.secho("\n✓ Pipeline hoàn tất — mở CapCut + report.html kiểm tra.",

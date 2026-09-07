@@ -178,6 +178,29 @@ def loi_chong(cau: list[tuple[float, float, str]], t0: float, t1: float,
     return " ".join(c[2] for c in cau if c[1] > t0 and c[0] < t1)[:gioi_han]
 
 
+def _da_nap(conn, vid: Path, du_s: float = 20.0) -> bool:
+    """Video ref này đã cắt + nạp XONG vào Library chưa.
+
+    Đo 07/09: `phan_tich` của MỖI chương gọi `nap_ref_cua_tap`, mà hàm đó trước
+    đây cắt cảnh + đọc hình lại TOÀN BỘ ref của tập, mỗi lần. LI103 có 744 cảnh
+    -> mỗi chương đốt ~15 phút GLM để ghi đè đúng thứ đã có (`them_clip` trả 0
+    "mới"). 17 chương = 17 lần. Người dùng bắt đúng: chừng đó thời gian dựng
+    xong cả một chương rồi.
+
+    "Xong" = cảnh cuối chạm gần hết thời lượng video. Cắt dở giữa chừng (job
+    trước bị ngắt) -> False để chạy lại; id cảnh tính từ (tap, stem, t0-t1) nên
+    chạy lại là upsert, không nhân bản.
+    """
+    from autoedit.project import ffprobe_duration
+
+    r = conn.execute("SELECT COUNT(*) n, MAX(t1) het FROM clip WHERE path_local=?",
+                     (str(vid),)).fetchone()
+    if not r or not r[0]:
+        return False
+    dai = ffprobe_duration(vid) or 0.0
+    return bool(dai) and float(r[1] or 0.0) >= dai - du_s
+
+
 def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
                 doc_hinh: bool = True, log=None) -> int:
     """Quét *.mp4 trong thư mục tập -> mỗi CẢNH QUAY là một khúc ref.
@@ -200,7 +223,11 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
     thu_muc_tap = Path(thu_muc_tap)
     tap = tap or thu_muc_tap.name
     moi = 0
+    bo_qua = 0
     for vid in sorted(thu_muc_tap.rglob("*.mp4")):
+        if _da_nap(conn, vid):
+            bo_qua += 1
+            continue
         cs = cat_canh(vid)
         if not cs:
             continue
@@ -230,11 +257,19 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
         # ---- việc 2: đọc hình theo lô ----
         docs = {}
         if doc_hinh:
-            co_anh = [(h[2], h[3]) for h in ho_so if h[2]]
-            if co_anh:
-                kq = doc_nhieu(co_anh, log=log)
-                for h, d in zip([h for h in ho_so if h[2]], kq):
+            # Cảnh ĐÃ đọc hình lần trước thì thôi — video cắt dở nửa chừng vẫn
+            # còn phần cũ trong DB, đọc lại là trả tiền GLM cho câu trả lời cũ.
+            da_co = {r[0] for r in conn.execute(
+                "SELECT id FROM clip WHERE path_local=? AND COALESCE(subject,'')!=''",
+                (str(vid),))}
+            can = [h for h in ho_so if h[2] and h[1] not in da_co]
+            if can:
+                kq = doc_nhieu([(h[2], h[3]) for h in can], log=log)
+                for h, d in zip(can, kq):
                     docs[h[1]] = d
+            if log and da_co:
+                log(f"sotra: «{vid.name}» {len(da_co)} cảnh đã đọc hình — "
+                    f"chỉ đọc {len(can)} cảnh mới")
 
         for c, cid, anh, loi in ho_so:
             d = docs.get(cid)
@@ -258,5 +293,6 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
             moi += sdb.them_clip(conn, r)
         conn.commit()
     if log:
-        log(f"sotra: nạp ref «{tap}»: +{moi} cảnh")
+        log(f"sotra: nạp ref «{tap}»: +{moi} cảnh"
+            + (f", bỏ qua {bo_qua} video đã có" if bo_qua else ""))
     return moi
