@@ -19,7 +19,12 @@ from autoedit.sotra.tag7 import tag_tu_tieu_de
 
 # Tên nguồn trong project.json cũ -> tên KHO (user chốt 07/09: "download từ
 # trang nào thì kho tên là trang đó · video ref đặt trong kho ref").
-DOI_TEN_NGUON = {"refvideo": "ref", "pexels": "pexels", "pixabay": "pixabay",
+# `refvid` la tien to THAT trong asset_key (do 07/09: pexels 21.340 · pixabay
+# 5.835 · refvid 4.857); `refvideo` la ten trong shots[].source. Thieu mot trong
+# hai la bo sot — ban dau toi chi khai "refvideo" nen 446 clip ref bi giu nham
+# nhan kho, chay thu che do CHI DOC moi lo ra.
+DOI_TEN_NGUON = {"refvid": "ref", "refvideo": "ref", "ref": "ref",
+                 "pexels": "pexels", "pixabay": "pixabay",
                  "envato": "envato", "local": "rec", "aigen": "aigen"}
 # entity (ảnh tra Google) + chart (biểu đồ tự sinh): user chốt 07/09 BỎ HẲN,
 # không phải tải từ trang nào nên không có kho tương ứng.

@@ -1130,3 +1130,18 @@ def test_giao_dien_tach_kho_dung_ten():
     assert "★ REF CỦA TEAM" in h and "★ ENVATO" in h
     assert "· KHO ·" not in h               # nhãn gộp sai đã bỏ
     assert "REC" in h
+
+
+def test_ten_nguon_nhan_ca_refvid_lan_refvideo():
+    """`asset_key` dùng `refvid`, `shots[].source` dùng `refvideo` — thiếu một
+    trong hai là bỏ sót. Chạy thử chế độ chỉ-đọc trên kho thật mới lộ: 446 clip
+    ref bị giữ nhầm nhãn kho."""
+    from autoedit.sotra.khai_quat import DOI_TEN_NGUON, _ban_do_nguon, _nguon_that
+    import hashlib
+
+    for t in ("refvid", "refvideo", "ref"):
+        assert DOI_TEN_NGUON[t] == "ref", t
+    k = "refvid:LI103-ref1:12-18"
+    p = {"rank_log": [{"ranked": [{"asset_key": k}]}]}
+    h = hashlib.sha1(k.encode()).hexdigest()[:6]
+    assert _nguon_that(f"b000_cho_{h}.mp4", _ban_do_nguon(p), {}) == "ref"
