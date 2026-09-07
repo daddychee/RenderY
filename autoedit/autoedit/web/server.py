@@ -1262,12 +1262,15 @@ def api_offline_do_lai_khay(project_id: str, request: Request):
         raise HTTPException(409, "Chưa phân tích")
     _gac_quyen_sua(request, hd)
     conn = _sdb.mo()
+    may_doi: list = []
     try:
-        n = _dung.do_lai_khay(hd, conn)
+        n = _dung.do_lai_khay(hd, conn, may_doi=may_doi)
     finally:
         conn.close()
     orun.luu(d, hd)
-    return {"ok": True, "so_khoi": n, "hop_dong": hd}
+    # QĐ6: khối MÁY chọn được chọn LẠI — phải nói ra con số, đổi ngầm dưới tay
+    # người dùng thì họ bấm nút mà không biết vừa có gì thay đổi (BH5).
+    return {"ok": True, "so_khoi": n, "so_may_doi": len(may_doi), "hop_dong": hd}
 
 
 @app.post("/api/offline/{project_id}/khoa-so")

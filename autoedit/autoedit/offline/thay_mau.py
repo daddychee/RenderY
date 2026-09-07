@@ -95,6 +95,8 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
 
     truoc_file: Path | None = None      # asset của miếng liền trước
     truoc_dung = 0.0                     # đã tiêu bao nhiêu giây của asset đó
+    truoc_id: str | None = None          # clip của miếng trước — miếng CHẢY TIẾP
+    # dùng lại chính nó, sổ nguồn gốc phải ghi tên nó chứ không bỏ trống
     for i, k in enumerate(mhinh.dam_bao(hd)):
         # ---- MIẾNG CHẢY TIẾP (3b): cắt TIẾP asset của miếng trước, đúng chỗ nó
         # dừng. Nếu cắt lại từ giây 0 thì người xem thấy hình NHẢY VỀ ĐẦU —
@@ -106,6 +108,8 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                     cat_clip(truoc_file, truoc_dung, k["dur"] + 0.3, dich)
                     if dich.is_file() and dich.stat().st_size > 5_000:
                         ra[i] = dich
+                        if truoc_id:
+                            dung_id[i] = truoc_id
                         truoc_dung += k["dur"] * SPEED
                         log(f"thay-mau: miếng {i + 1} chảy tiếp «{truoc_file.name[:28]}»"
                             f" từ {truoc_dung - k['dur'] * SPEED:.1f}s")
@@ -185,6 +189,7 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
         else:
             ra[i] = dat
             truoc_file, truoc_dung = dat, k["dur"] * SPEED
+            truoc_id = dung_id.get(i)
         log(f"thay-mau: miếng {i + 1}/{len(mhinh.dam_bao(hd))} -> {dat.name if dat else 'HỞ'}")
     return ra, dung_id, warns
 
@@ -384,6 +389,19 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
             c2.close()
     except Exception as exc:  # noqa: BLE001 — sổ hỏng không giết draft
         log(f"online: ghi GIAY_PHEP lỗi ({str(exc)[:70]})")
+    # SỔ NGUỒN GỐC đi CÙNG draft (chốt 29/08): editor mở draft ở máy khác vẫn
+    # truy được nguồn + ID từng miếng. Cũng bọc try/except — mất sổ chứ không
+    # được mất draft đã dựng xong.
+    try:
+        from autoedit.packager import sourcebook
+
+        js, _ = sourcebook.viet_so_offline(hd, dung_id or {}, Path(draft),
+                                           project_id=project_dir.name)
+        so = json.loads(js.read_text(encoding="utf-8"))
+        ti = " · ".join(f"{g} {st['ratio']:.0%}" for g, st in so["summary"].items())
+        log(f"thay-mau: sổ nguồn gốc {len(so['clips'])} clip — {ti}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"thay-mau: ghi sổ nguồn gốc lỗi ({str(exc)[:70]})")
     log(f"thay-mau: draft {draft}")
     return draft
 
@@ -425,10 +443,15 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> 
         video, dung_id, warns = relocate(project_dir, hd, c, ghi, ark=ark)
         # phản biện: ghi sổ theo clip THẬT được dùng (dự bị tính là dự bị —
         # test 07/09 bắt bug ghi nhầm theo clip 'được chọn' đã chết)
-        for i, k in enumerate(hd["khoi"]):
+        # duyệt theo MIẾNG HÌNH, không theo khối: `relocate` đánh số theo miếng
+        # nên duyệt khối là so le (chương H 08/09: 15 miếng / 14 khối -> lệch từ
+        # chỗ chẻ, miếng cuối không vào sổ lần nào)
+        from autoedit.offline import hinh as _mh
+
+        for i, h in enumerate(_mh.dam_bao(hd)):
             if i in dung_id:
                 sdb.ghi_su_kien(c, dung_id[i], "len_final",
-                                tap=project_dir.name, vi_tri=k["v0"])
+                                tap=project_dir.name, vi_tri=h["t0"])
         c.commit()
     finally:
         if conn is None:

@@ -158,7 +158,8 @@ def kiem_lap(khoi: list, ung_vien: list[list[dict]], chon: list[int]) -> list[in
     return sorted(xau)
 
 
-def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12) -> int:
+def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
+                may_doi: list | None = None) -> int:
     """Tra lại Library cho MỌI khối, bổ sung khay — GIỮ NGUYÊN lựa chọn của người.
 
     Vì sao cần (07/09 khuya): hợp đồng sinh TRƯỚC một bản vá nguồn (vd bản vá
@@ -168,17 +169,47 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12) -> int:
 
     Dùng LỚP NGHĨA ĐÃ LƯU trong hợp đồng nên KHÔNG gọi LLM.
 
-    Luật: clip đang được chọn luôn còn trong khay và `chon` trỏ đúng nó; khối
-    chưa ai chọn thì có ứng viên nhưng KHÔNG tự chọn hộ (người vẫn quyết).
+    Luật (QĐ6, user chốt 08/09): chỉ lựa chọn của NGƯỜI được ghim lại; lựa chọn
+    của MÁY được chọn LẠI theo khay mới. Khối chưa ai chọn (`chon == -1`) vẫn
+    để trống — người vẫn quyết.
+
+    Vì sao phải phân biệt (đo thật 08/09, chương H/LI103): khay sinh trước cửa
+    geo cho 9 khối máy chọn ra clip lệch địa danh ("Sixth street in New York
+    City" cho câu về Afghanistan). Bấm nút này rồi dựng lại thì draft RA Y HỆT,
+    vì bản cũ ghim mọi lựa chọn đang có — kể cả lựa chọn máy đặt theo luật cũ.
+    Người dùng bấm mà tưởng đã chữa; xoá tay `chon` của máy rồi chạy mới đổi
+    được 0/9 -> 9/9 khớp geo.
+
+    Chọn lại bằng chính `chon_mac_dinh` (BH4: một khái niệm, một hàm) nên vẫn
+    theo luật 60s + chảy tiếp. Lưu ý thật thà: hàm đó tính như thể nó cầm trịch
+    cả chương, trong khi khối của người giữ lựa chọn riêng — nên sổ 60s của nó
+    lệch ở những khối đó. Vi phạm còn lại do `kiem_lap` soi ra và UI tô đỏ,
+    không giấu đi.
+
+    `may_doi` (nếu truyền) nhận chỉ số các khối MÁY đã bị chọn lại — UI phải
+    nói ra con số này, đổi ngầm dưới tay người dùng là đúng họ nhà lỗi BH5.
+
     Trả số khối được bổ sung.
     """
     from autoedit.sotra.tra import tra
 
     doi = 0
-    for i, k in enumerate(hd.get("khoi") or []):
+    ds_khoi = hd.get("khoi") or []
+    may_da_chon = [False] * len(ds_khoi)      # khối MÁY đã chọn -> chọn lại
+    id_may_cu: list = [None] * len(ds_khoi)   # để biết khối nào THẬT SỰ đổi
+    # Người dựng sửa ở MIẾNG HÌNH; khối không mang cờ nào (đo chương H 08/09:
+    # khoi 0/14 cờ, hinh 6/15). Xét cờ ở khối thì mọi khối đều thành "máy".
+    nguoi_o_mieng = {h.get("khoi_goc") for h in (hd.get("hinh") or [])
+                     if h.get("nguoi_sua")}
+    for i, k in enumerate(ds_khoi):
         cu = list(k.get("uv") or [])
         c = k.get("chon", -1)
-        dang_chon = cu[c] if 0 <= c < len(cu) else None
+        co_chon = 0 <= c < len(cu)
+        cua_nguoi = bool(k.get("nguoi_sua")) or i in nguoi_o_mieng
+        may_da_chon[i] = co_chon and not cua_nguoi
+        if may_da_chon[i]:
+            id_may_cu[i] = cu[c]["id"]
+        dang_chon = cu[c] if (co_chon and cua_nguoi) else None
         try:
             moi = tra(conn, {"L0": hd.get("chu_the_tap") or [],
                              "L1": k.get("L1") or [], "L2": k.get("L2") or [],
@@ -213,7 +244,8 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12) -> int:
                 continue
             c_h = h.get("chon", -1)
             uv_h = h.get("uv") or []
-            chon_h = uv_h[c_h] if 0 <= c_h < len(uv_h) else None
+            chon_h = (uv_h[c_h] if (0 <= c_h < len(uv_h) and h.get("nguoi_sua"))
+                      else None)
             moi_h = list(gon)
             if chon_h is not None:
                 vi = next((j for j, u in enumerate(moi_h)
@@ -225,7 +257,49 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12) -> int:
             else:
                 h["chon"] = -1
             h["uv"] = moi_h
+
+    if any(may_da_chon):
+        _chon_lai_ho_may(hd, ds_khoi, may_da_chon, id_may_cu, may_doi)
     return doi
+
+
+def _chon_lai_ho_may(hd: dict, ds_khoi: list, may_da_chon: list,
+                     id_may_cu: list, may_doi: list | None = None) -> None:
+    """Đặt lại lựa chọn cho các khối MÁY đã chọn, rồi dội xuống dải hình."""
+    from types import SimpleNamespace
+
+    # `chon_mac_dinh` đọc khối bằng THUỘC TÍNH (k.v0/k.v1/k.tho) vì lúc phân
+    # tích nó nhận dataclass; ở đây hợp đồng đã là dict nên phải bọc lại.
+    ns = [SimpleNamespace(v0=float(k.get("v0") or 0), v1=float(k.get("v1") or 0),
+                          tho=float(k.get("tho") or 0)) for k in ds_khoi]
+    # ID người đang giữ — `chon_mac_dinh` được phép CHÈN clip vào đầu khay
+    # (chảy tiếp) nên mọi chỉ số cũ đều có thể lệch; ghim lại theo ID sau.
+    giu = {i: k["uv"][k["chon"]]["id"] for i, k in enumerate(ds_khoi)
+           if 0 <= k.get("chon", -1) < len(k.get("uv") or [])}
+    moi = chon_mac_dinh(ns, [k.get("uv") or [] for k in ds_khoi],
+                        than=float((hd.get("framing") or {}).get("than") or 0))
+    for i, k in enumerate(ds_khoi):
+        if may_da_chon[i] and moi[i] >= 0:
+            k["chon"] = moi[i]
+            if may_doi is not None and k["uv"][moi[i]]["id"] != id_may_cu[i]:
+                may_doi.append(i)
+        elif i in giu:
+            vi = next((j for j, u in enumerate(k.get("uv") or [])
+                       if u["id"] == giu[i]), None)
+            k["chon"] = vi if vi is not None else -1
+
+    for h in hd.get("hinh") or []:
+        i = h.get("khoi_goc")
+        if h.get("nguoi_sua") or h.get("noi_tiep") or not (0 <= (i or -1) < len(ds_khoi)):
+            continue                     # người chọn / miếng chảy tiếp: không đụng
+        if not may_da_chon[i]:
+            continue
+        k = ds_khoi[i]
+        if not (0 <= k.get("chon", -1) < len(k.get("uv") or [])):
+            continue
+        cid = k["uv"][k["chon"]]["id"]
+        h["uv"] = list(k["uv"])
+        h["chon"] = next((j for j, u in enumerate(h["uv"]) if u["id"] == cid), -1)
 
 
 def lam_tuoi_ref(hd: dict, conn) -> bool:

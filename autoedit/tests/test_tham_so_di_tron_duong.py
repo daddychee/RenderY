@@ -1237,3 +1237,226 @@ def test_tap_KHONG_khai_dia_danh_thi_khong_rao(tmp_path, monkeypatch):
         assert [c for c in uv if c["nguon"] == "envato"], "không khai geo mà vẫn rào"
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# QĐ6 (user chốt 08/09) — "Dò lại khay" PHẢI làm mới lựa chọn của MÁY.
+#
+# Đo thật 08/09 trên chương H (LI103): khay sinh trước cửa geo cho 9 khối máy
+# chọn ra clip lệch địa danh — "Sixth street in New York City" cho câu về
+# Afghanistan, một clip geo=`usa`. Bấm "Dò lại khay" rồi dựng lại: draft RA Y
+# HỆT, vì hàm này ghim MỌI lựa chọn đang có, kể cả lựa chọn máy đặt theo luật
+# cũ. Phải xoá tay `chon` của máy thì lần chạy sau mới đổi (0/9 khớp geo ->
+# 9/9). Người dùng bấm nút mà tưởng đã chữa — đúng họ nhà lỗi BH5 (im lặng).
+#
+# Ranh giới HẸP, không lấn: khối CHƯA AI CHỌN (`chon == -1`) vẫn để nguyên -1
+# (luật cũ, có test riêng ở trên) — chỉ khối MÁY ĐÃ CHỌN mới chọn lại.
+
+def _hd_khay_cu(nguoi: dict, may: dict) -> dict:
+    """Hợp đồng 2 khối: khối 0 NGƯỜI chọn, khối 1 MÁY chọn — cùng lớp nghĩa."""
+    return {
+        "ma_tap": "LI103", "dia_danh": "", "chu_the_tap": [],
+        "framing": {"than": 0},
+        "khoi": [
+            {"v0": 0, "v1": 3, "tho": 0, "L1": ["market"], "L2": [], "L3": [],
+             "uv": [nguoi], "chon": 0, "nguoi_sua": True},
+            {"v0": 3, "v1": 6, "tho": 0, "L1": ["market"], "L2": [], "L3": [],
+             "uv": [may], "chon": 0},
+        ],
+        "hinh": [
+            {"t0": 0.0, "dur": 3.0, "khoi_goc": 0, "uv": [nguoi], "chon": 0,
+             "noi_tiep": False, "nguoi_sua": True},
+            {"t0": 3.0, "dur": 3.0, "khoi_goc": 1, "uv": [may], "chon": 0,
+             "noi_tiep": False, "nguoi_sua": False},
+        ],
+    }
+
+
+def _nap_ref_gia(conn, so: int = 4) -> None:
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+
+    for i in range(so):
+        ten = f"kabul market crowd {i}"
+        sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                             "tieu_de": ten, "path_local": "ref 1.mp4",
+                             **tag_tu_tieu_de(ten)})
+    conn.commit()
+
+
+def test_do_lai_khay_LAM_MOI_lua_chon_cua_MAY(tmp_path, monkeypatch):
+    """Khối MÁY chọn phải đổi sang khay mới; khối NGƯỜI chọn giữ nguyên."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        _nap_ref_gia(conn)
+        nguoi = {"id": "envato:nguoi", "nguon": "envato", "tieu_de": "nguoi da chon",
+                 "lop": "L1", "diem": 9.0}
+        may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+               "tieu_de": "Sixth street in New York City"}
+        hd = _hd_khay_cu(nguoi, may)
+        dung.do_lai_khay(hd, conn)
+
+        k0, k1 = hd["khoi"]
+        assert k0["uv"][k0["chon"]]["id"] == "envato:nguoi", "mất lựa chọn của NGƯỜI"
+        assert k1["chon"] >= 0, "khối máy bị bỏ trống thay vì chọn lại"
+        moi = k1["uv"][k1["chon"]]
+        assert moi["id"] != "envato:may", "khay mới không chữa được lựa chọn của MÁY"
+        assert moi["nguon"] == "ref"
+    finally:
+        conn.close()
+
+
+def test_do_lai_khay_DAI_HINH_cua_may_cung_doi(tmp_path, monkeypatch):
+    """Draft đọc khay của MIẾNG — đổi mỗi khối thì bản dựng vẫn y như cũ."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        _nap_ref_gia(conn)
+        nguoi = {"id": "envato:nguoi", "nguon": "envato", "tieu_de": "nguoi da chon",
+                 "lop": "L1", "diem": 9.0}
+        may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+               "tieu_de": "Sixth street in New York City"}
+        hd = _hd_khay_cu(nguoi, may)
+        dung.do_lai_khay(hd, conn)
+
+        h0, h1 = hd["hinh"]
+        assert h0["uv"][h0["chon"]]["id"] == "envato:nguoi"
+        assert h1["chon"] >= 0 and h1["uv"][h1["chon"]]["id"] != "envato:may"
+        # miếng phải trỏ ĐÚNG clip mà khối của nó chọn — lệch là draft một đằng,
+        # màn hình pha 2 một nẻo
+        k1 = hd["khoi"][1]
+        assert h1["uv"][h1["chon"]]["id"] == k1["uv"][k1["chon"]]["id"]
+    finally:
+        conn.close()
+
+
+def test_do_lai_khay_van_giu_luat_60s(tmp_path, monkeypatch):
+    """Chọn lại hộ máy vẫn phải theo luật 60s — không thể hai khối liền nhau
+    (cách 3s) cùng một clip. Đây là lý do dùng lại `chon_mac_dinh` thay vì
+    quơ đại ứng viên đầu khay (BH4: một khái niệm, một hàm)."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        _nap_ref_gia(conn)
+        may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+               "tieu_de": "clip cu"}
+        hd = _hd_khay_cu(dict(may, id="envato:may2"), may)
+        hd["khoi"][0].pop("nguoi_sua")            # CẢ HAI khối đều do máy chọn
+        hd["hinh"][0]["nguoi_sua"] = False
+        dung.do_lai_khay(hd, conn)
+
+        k0, k1 = hd["khoi"]
+        assert k0["chon"] >= 0 and k1["chon"] >= 0
+        assert k0["uv"][k0["chon"]]["id"] != k1["uv"][k1["chon"]]["id"], \
+            "hai khối cách 3s dùng chung một clip — vi phạm luật 60s"
+    finally:
+        conn.close()
+
+
+def test_do_lai_khay_bao_ro_bao_nhieu_khoi_MAY_bi_doi(tmp_path, monkeypatch):
+    """QĐ6 buộc UI nói rõ đã làm mới bao nhiêu khối máy chọn — im lặng thì
+    người dùng không biết vừa có gì đổi dưới tay mình (BH5)."""
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        _nap_ref_gia(conn)
+        nguoi = {"id": "envato:nguoi", "nguon": "envato", "tieu_de": "nguoi da chon",
+                 "lop": "L1", "diem": 9.0}
+        may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+               "tieu_de": "Sixth street in New York City"}
+        hd = _hd_khay_cu(nguoi, may)
+        may_doi: list = []
+        dung.do_lai_khay(hd, conn, may_doi=may_doi)
+        assert may_doi == [1], "phải kể đúng khối MÁY nào bị đổi, không kể khối người"
+    finally:
+        conn.close()
+
+
+def test_api_do_lai_khay_tra_so_may_doi(du_an_khay, tmp_path, monkeypatch):
+    """Bảng điều khiển đọc `so_may_doi` để hiện lên toast."""
+    from fastapi.testclient import TestClient
+
+    from autoedit.web import server
+
+    du_an, _ = du_an_khay
+    monkeypatch.setattr(server, "PROJECTS_DIR", du_an.parent)
+    tc = TestClient(server.app)
+    r = tc.post(f"/api/offline/{du_an.name}/do-lai-khay")
+    assert r.status_code == 200
+    assert r.json()["so_may_doi"] == 1
+
+
+def test_giao_dien_noi_ro_so_khoi_may_da_doi():
+    from pathlib import Path
+
+    h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
+    assert "so_may_doi" in h, "toast không nhắc số khối máy bị đổi"
+
+
+@pytest.fixture
+def du_an_khay(tmp_path, monkeypatch):
+    """Chương có 1 khối NGƯỜI chọn + 1 khối MÁY chọn, kho có ref khớp."""
+    import json
+
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    _nap_ref_gia(conn)
+    conn.close()
+    d = tmp_path / "projects" / "h-test"
+    d.mkdir(parents=True)
+    nguoi = {"id": "envato:nguoi", "nguon": "envato", "tieu_de": "nguoi da chon",
+             "lop": "L1", "diem": 9.0}
+    may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+           "tieu_de": "Sixth street in New York City"}
+    hd = _hd_khay_cu(nguoi, may)
+    hd["trang_thai"] = "pha2"
+    (d / "offline.json").write_text(json.dumps(hd, ensure_ascii=False), encoding="utf-8")
+    return d, hd
+
+
+def test_do_lai_khay_coi_khoi_la_CUA_NGUOI_khi_MIENG_da_sua(tmp_path, monkeypatch):
+    """Người dựng sửa ở MIẾNG, khối không mang cờ nào.
+
+    Đo thật 08/09 trên chương H: `khoi` có 0/14 cờ `nguoi_sua`, `hinh` có 6/15.
+    Xét cờ ở khối thì cả 14 khối đều bị coi là "máy" — đếm ra 14 khối bị làm
+    mới trong khi thực tế chỉ 9 miếng đổi, và lựa chọn khối lệch hẳn lựa chọn
+    miếng. Con số báo sai còn tệ hơn không báo (BH5).
+    """
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        _nap_ref_gia(conn)
+        nguoi = {"id": "envato:nguoi", "nguon": "envato", "tieu_de": "nguoi da chon",
+                 "lop": "L1", "diem": 9.0}
+        may = {"id": "envato:may", "nguon": "envato", "lop": "L1", "diem": 9.0,
+               "tieu_de": "Sixth street in New York City"}
+        hd = _hd_khay_cu(nguoi, may)
+        hd["khoi"][0].pop("nguoi_sua")        # đúng hợp đồng THẬT: khối trống cờ
+        assert hd["hinh"][0]["nguoi_sua"] is True
+        may_doi: list = []
+        dung.do_lai_khay(hd, conn, may_doi=may_doi)
+
+        k0 = hd["khoi"][0]
+        assert k0["uv"][k0["chon"]]["id"] == "envato:nguoi", \
+            "khối bị chọn lại dù MIẾNG của nó do người chọn"
+        assert may_doi == [1], f"đếm sai khối bị làm mới: {may_doi}"
+    finally:
+        conn.close()

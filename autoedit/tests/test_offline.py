@@ -785,3 +785,119 @@ def test_bo_mieng_vat_nua_noi_nua_tho():
     assert ok and tho_co == 7.8                       # co phần thở (sàn 0.2)
     assert mh.tong_dai(hd["khoi"]) == round(16.0 - 7.8, 2)
     assert mh.kiem(hd) == []
+
+
+# ---------------------------------------------------------------------------
+# Đợt 1 việc 2 (08/09) — sổ nguồn gốc phải đi CÙNG draft, và sổ sự kiện phải
+# ghi theo MIẾNG.
+#
+# Đo thật trên chương H (LI103): draft dựng xong KHÔNG có `nguon_footage.json`
+# — R6 làm rồi nhưng chỉ nối vào đường packager cũ. Editor mở draft trên máy
+# khác là mất dấu nguồn, đúng nỗi lo đã chốt 29/08.
+#
+# Cạnh đó: `relocate` đánh số theo MIẾNG hình (`dam_bao(hd)`) nhưng vòng ghi
+# `su_kien` lại duyệt `hd["khoi"]`. Chương H có 15 miếng / 14 khối -> lệch từ
+# chỗ chẻ trở đi, và miếng cuối KHÔNG được ghi sổ lần nào.
+
+def _hd_ba_mieng_hai_khoi(du_an, uv: list, monkeypatch):
+    from autoedit.offline import hinh as mhinh, runner
+
+    runner.phan_tich(du_an, llm=_LLM())
+    hd = runner.doc(du_an)
+    for k in hd["khoi"]:
+        k["uv"] = uv
+        k["chon"] = 1
+    for h in hd["hinh"]:
+        h["uv"] = uv
+        h["chon"] = 1
+    # chẻ miếng đầu làm đôi -> 3 miếng / 2 khối (phơi đúng chỗ lệch chỉ số)
+    assert mhinh.che_tai(hd, hd["hinh"][0]["t0"] + hd["hinh"][0]["dur"] / 2)
+    assert len(mhinh.dam_bao(hd)) == 3 and len(hd["khoi"]) == 2
+    hd["trang_thai"] = "khoa"
+    runner.luu(du_an, hd)
+    return hd
+
+
+def test_su_kien_ghi_theo_MIENG_khong_theo_khoi(du_an, tmp_path, monkeypatch,
+                                                profile_gia):
+    """15 miếng / 14 khối thì vòng duyệt theo khối bỏ sót miếng cuối."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline.thay_mau import thay_mau
+
+    clip_ok = tmp_path / "clip_ok.mp4"
+    _clip_that(clip_ok)
+    conn = sdb.mo()
+    sdb.them_clip(conn, {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok",
+                         "path_local": str(clip_ok)})
+    conn.commit()
+    conn.close()
+    uv = [{"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok", "lop": "L1",
+           "diem": 5, "url_anh": "", "url_video": "", "geo": "", "dai_s": 30}]
+    _hd_ba_mieng_hai_khoi(du_an, uv, monkeypatch)
+
+    kq = thay_mau(du_an, profile=profile_gia, log=lambda m: None)
+    assert kq["tong_mieng"] == 3
+    conn = sdb.mo()
+    sk = conn.execute("SELECT vi_tri FROM su_kien WHERE loai='len_final'").fetchall()
+    conn.close()
+    assert len(sk) == 3, "sổ sự kiện ghi theo KHỐI nên sót miếng"
+
+
+def test_draft_offline_co_so_nguon_goc(du_an, tmp_path, monkeypatch, profile_gia):
+    """`nguon_footage.json` + `.txt` phải nằm CẠNH draft (chốt 29/08)."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline.thay_mau import thay_mau
+
+    clip_ok = tmp_path / "clip_ok.mp4"
+    _clip_that(clip_ok)
+    conn = sdb.mo()
+    sdb.them_clip(conn, {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok",
+                         "path_local": str(clip_ok)})
+    conn.commit()
+    conn.close()
+    uv = [{"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok", "lop": "L1",
+           "diem": 5, "url_anh": "", "url_video": "", "geo": "", "dai_s": 30}]
+    _hd_ba_mieng_hai_khoi(du_an, uv, monkeypatch)
+
+    kq = thay_mau(du_an, profile=profile_gia, log=lambda m: None)
+    d = Path(kq["draft"])
+    js, tx = d / "nguon_footage.json", d / "nguon_footage.txt"
+    assert js.is_file() and tx.is_file(), "draft Offline thiếu sổ nguồn gốc"
+    so = json.loads(js.read_text(encoding="utf-8"))
+    assert len(so["clips"]) == 3                      # đủ 3 miếng
+    assert all(c["asset_key"] == "kho:t:ok.mp4" for c in so["clips"])
+    # `kho:` là kho riêng của user — không được rơi vào nhóm "other"
+    assert set(so["summary"]) == {"local"}
+    assert "SỔ NGUỒN FOOTAGE" in tx.read_text(encoding="utf-8")
+
+
+def test_so_nguon_goc_hong_khong_giet_draft(du_an, tmp_path, monkeypatch,
+                                            profile_gia):
+    """Sổ là thứ đi kèm — hỏng thì mất sổ, KHÔNG được mất draft đã dựng xong."""
+    from autoedit.sotra import db as sdb
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    from autoedit.offline.thay_mau import thay_mau
+    from autoedit.packager import sourcebook
+
+    clip_ok = tmp_path / "clip_ok.mp4"
+    _clip_that(clip_ok)
+    conn = sdb.mo()
+    sdb.them_clip(conn, {"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok",
+                         "path_local": str(clip_ok)})
+    conn.commit()
+    conn.close()
+    uv = [{"id": "kho:t:ok.mp4", "nguon": "kho", "tieu_de": "quito ok", "lop": "L1",
+           "diem": 5, "url_anh": "", "url_video": "", "geo": "", "dai_s": 30}]
+    _hd_ba_mieng_hai_khoi(du_an, uv, monkeypatch)
+
+    def _no(*a, **k):
+        raise RuntimeError("ổ đĩa đầy")
+
+    monkeypatch.setattr(sourcebook, "viet_so_offline", _no)
+    kq = thay_mau(du_an, profile=profile_gia, log=lambda m: None)
+    assert Path(kq["draft"], "draft_content.json").is_file()

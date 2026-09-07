@@ -802,7 +802,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <button class="btn ghost small" onclick="ofAddShot()"
               title="cắt shot TẠI VẠCH đang đứng — hai mảnh dùng chung clip, chạy liên tục (phím e)">✂ Add Shot</button>
       <button class="btn ghost small" onclick="ofDoLaiKhay()"
-              title="tra lại Library, bổ sung ứng viên cho mọi khối — giữ nguyên lựa chọn của bạn">⟳ Đổ lại khay</button>
+              title="tra lại Library cho mọi khối: làm mới các khối MÁY chọn, giữ nguyên khối bạn tự chọn">⟳ Đổ lại khay</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
               title="pull: kéo phương án footage kế cho shot đang chọn (phím d)">⟳ Pull</button>
       <span style="flex:1"></span>
@@ -1977,7 +1977,8 @@ async function ofDoLaiKhay() {
     const r = await api('/api/offline/' + OF_PID + '/do-lai-khay',
                         {method: 'POST', body: '{}'})
     if (r.hop_dong) OF_HD = r.hop_dong
-    toastOf(`⟳ Đã đổ lại khay ${r.so_khoi} khối — lựa chọn của bạn giữ nguyên`)
+    toastOf(`⟳ Đã đổ lại khay ${r.so_khoi} khối · làm mới ${r.so_may_doi} khối máy chọn`
+            + ` — lựa chọn của bạn giữ nguyên`)
   } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
   ofVeAll()
 }

@@ -30,13 +30,19 @@ _GROUP_OF = {
     # refvid: video CÓ SẴN của user, đặt thẳng trong thư mục chương (02/09).
     # Tách khỏi ytref vì tình trạng pháp lý KHÁC HẲN — đây là tư liệu của mình.
     "refvid": "refvid",
+    # Tiền tố của Sổ Tra (đường Offline). `ref` là cùng loại với `refvid`: video
+    # tham chiếu của tập. `rec` là cảnh user TỰ QUAY, `kho` là kho riêng — cả hai
+    # đều là tư liệu của mình nên xếp chung "local". Thiếu bảng này thì mọi clip
+    # đường Offline rơi vào "other", sổ mất hết ý nghĩa pháp lý.
+    "ref": "refvid", "rec": "local", "kho": "local", "aigen": "aigen",
 }
 _GROUP_LABEL = {
     "stock": "Stock free (dùng thương mại được)",
     "sub": "Subscription (đã trả tiền)",
     "ytref": "CẮT từ YouTube (KHÔNG có quyền)",
     "refvid": "Video có sẵn của bạn (cắt theo transcript)",
-    "local": "Kho riêng",
+    "local": "Kho riêng / tự quay",
+    "aigen": "Ảnh sinh bằng AI",
     "other": "Khác",
 }
 
@@ -74,6 +80,61 @@ def collect_rows(project) -> list[dict]:
             "peak": bool(shot.peak),
         })
     return rows
+
+
+def hang_tu_offline(hd: dict, dung_id: dict) -> list[dict]:
+    """Dải hình của hợp đồng Offline -> các dòng sổ. Một MIẾNG là một dòng.
+
+    Đường Offline không có `project.shots` như packager cũ, nhưng dữ liệu cần
+    ghi thì y hệt: miếng nào lấy clip nào, dài bao lâu. `dung_id` là clip THẬT
+    được dùng (dự bị tính là dự bị) — không phải clip "được chọn" trên màn hình.
+    """
+    from autoedit.offline import hinh as _mh
+
+    ten = {}
+    for h in hd.get("hinh") or []:
+        for u in h.get("uv") or []:
+            ten[u["id"]] = u.get("tieu_de", "")
+    rows: list[dict] = []
+    for i, h in enumerate(_mh.dam_bao(hd)):
+        cid = dung_id.get(i)
+        if not cid:
+            continue                      # miếng hở — editor đắp, không vào sổ
+        rows.append({
+            "beat_id": i,
+            "chapter": hd.get("ma_tap", ""),
+            "asset_key": cid,
+            "group": group_of(cid),
+            "source": cid.split(":", 1)[0],
+            "channel": ten.get(cid, ""),
+            "file": "",
+            "duration": round(float(h.get("dur") or 0), 2),
+            # Envato dùng preview watermark = CHƯA có bản licensed -> cần người
+            # duyệt. Bản sạch đã tải thì `relocate` cắt từ file, không cắm cờ.
+            "licensing_flag": False,
+            "peak": bool(h.get("noi_tiep")),
+        })
+    return rows
+
+
+def viet_so_offline(hd: dict, dung_id: dict, draft_dir: Path,
+                    project_id: str = "") -> tuple[Path, Path]:
+    """Xuất sổ cạnh draft cho đường Offline. Cùng khuôn với `write_sourcebook`."""
+    draft_dir = Path(draft_dir)
+    draft_dir.mkdir(parents=True, exist_ok=True)
+    rows = hang_tu_offline(hd, dung_id)
+    summary = summarize(rows)
+
+    json_path = draft_dir / "nguon_footage.json"
+    json_path.write_text(json.dumps(
+        {"project_id": project_id, "ma_tap": hd.get("ma_tap", ""),
+         "exported_at": datetime.now(timezone.utc).isoformat(),
+         "summary": summary, "clips": rows},
+        ensure_ascii=False, indent=2), encoding="utf-8")
+
+    txt_path = draft_dir / "nguon_footage.txt"
+    txt_path.write_text(render_text(rows, summary, project_id), encoding="utf-8")
+    return json_path, txt_path
 
 
 def summarize(rows: list[dict]) -> dict:

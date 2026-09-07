@@ -294,3 +294,106 @@ RenderY/
 | file lẻ khác | bỏ qua | — |
 
 **Bắt buộc nhận CẢ HAI kiểu**: tập cũ dùng thư mục con (LI104) phải chạy nguyên vẹn.
+
+## PH8 — Auto vỡ khi tập không có ref (đo 07/09/2026)
+
+Đo trên hợp đồng thật, `do_ung_vien` với luật hiện hành (geo gate cứng + suất ref sàn):
+
+| Tập | Auto hiện tại (bỏ envato) | Auto nếu tập chưa có ref |
+|---|---|---|
+| C1 (36 khối) | 36/36 khối · 648 ứng viên · **100% ref** | **0/36 khối** |
+| H (14 khối) | 14/14 khối · 252 ứng viên · **100% ref** | **0/14 khối** |
+
+Kho hiện tại: envato 5149 · ref 3736 · pexels 2716 · pixabay 427 · kho 64.
+
+**Kết luận:** Auto đang xanh 100% **chỉ vì hai tập này có ref**. Sau khi áp chính sách
+lưu trữ đã chốt (chỉ ref là vĩnh viễn; envato/pexels/pixabay là preview theo lượt dựng,
+xoá khi user đóng job), kho thường trực còn **mỗi ref**. Tập mới chưa có ref →
+khay rỗng tuyệt đối → **Auto không dựng được**. Đây đúng là điều user phát hiện.
+
+Nguyên nhân là **hai luật cùng lúc**, không phải một:
+1. Geo gate cứng loại stock không khớp địa danh.
+2. Stock thành tạm thời → không tích luỹ qua các tập.
+
+Auto không có người chọn nên không thể "hút preview rồi để người dựng lọc".
+
+## PH9 — Kho stock KHÔNG phải thư viện chung, nó là CẶN của các tập cũ (đo 08/09/2026)
+
+Chạy thật chương H (LI103, Afghanistan) 3 lượt ra draft CapCut, rồi đếm kho.
+
+**Khớp địa danh theo nguồn:**
+
+| Nguồn | Tổng | Có geo | Khớp Afghanistan |
+|---|---:|---:|---:|
+| ref | 3.736 | 79% | **2.002** |
+| envato | 5.149 | 38% | **0** |
+| pexels | 2.716 | 55% | **0** |
+| pixabay | 427 | 10% | 4 |
+
+**Stock trong kho phủ ở đâu:** ecuador 1.951 · oman 665 · andes 454 · india 196 ·
+quito 136 · amazon 118 · nepal 108 — tức **đúng các tập đã làm**. Chỉ 90 địa danh.
+Kho stock không phải thư viện đa dụng, nó là **cặn của những tập đã dựng**. Tập mới
+về nước mới thì stock trong kho đóng góp ~0.
+
+**Đo độ chính xác trên 9 khối MÁY tự chọn của chương H:**
+
+| | Khay cũ (chưa có cửa geo) | Khay theo luật mới |
+|---|---|---|
+| Nguồn | envato 6 · kho 3 | **ref 9** |
+| Khớp geo | **0/9** (1 clip geo=`usa`, còn lại trống) | **9/9** |
+| Ví dụ hỏng | "Sixth street in **New York** City" cho câu về Afghanistan | — |
+| Thời gian dựng | 104s | **38s** |
+| Cảnh báo watermark | 3 | 1 |
+
+**Kết luận:** dựng auto phải chạy trên **ref**, không phải stock. Stock chỉ đúng khi
+tập nói về nước mà stock sẵn có — mà đó lại là những nước đã làm rồi. Điều này KHỚP
+với cách user làm thật: *"kịch bản của tôi phát triển lên từ video ref"*.
+
+→ **Điều kiện của Auto = tập CÓ ref.** Đây là lời giải cho PH8: Auto không vỡ,
+Auto chỉ đổi điều kiện đầu vào. Tập chưa có ref thì Auto phải TỪ CHỐI và đẩy sang
+Đồng kiểm, chứ không dựng bừa bằng stock lệch địa danh.
+
+**Ngược lại — ref không phải lúc nào cũng hơn:** khối "Girls are not even allowed to
+go to school" khay cũ cho "an empty school classroom" (đúng hơn), khay ref cho
+"girls walking". Nên vẫn giữ stock KHỚP GEO trong khay, không loại theo nguồn.
+
+## QĐ6–QĐ9 — Quyết định user chốt 08/09/2026
+
+| # | Quyết định | Vì sao |
+|---|---|---|
+| QĐ6 | **"Dò lại khay" ĐƯỢC đổi lựa chọn của MÁY**, giữ nguyên lựa chọn của NGƯỜI | Đo PH9: chương H phải xoá tay lựa chọn máy thì khay mới mới có tác dụng. UI phải ghi rõ "đã làm mới N khối máy chọn" |
+| QĐ7 | **Ngưỡng Auto = 60%** khối có ứng viên khớp geo | Dưới ngưỡng → từ chối, đẩy sang Đồng kiểm. User chọn nới rộng để Auto chạy được nhiều tập, chấp nhận phải đắp thêm |
+| QĐ8 | **Hoãn nguồn ảnh + Ken Burns** (đợt 4) tới khi có khoá API | Đợt 1–3 chạy hoàn toàn offline trên ref + kho sẵn có |
+| QĐ9 | Thứ tự thi công: **đợt 1 → 2 → 3** | Cổng Auto (đợt 3) dựa trên khay; khay còn lỗi ở đợt 1 thì đo nhầm |
+
+**Đợt 1 (đang làm):** (1) `do_lai_khay` làm mới lựa chọn máy · (2) nối sổ nguồn gốc R6
+vào đường Offline.
+
+## Đợt 1 — xong 08/09/2026
+
+**Việc 1 — `do_lai_khay` làm mới lựa chọn của MÁY (QĐ6).**
+Chọn lại bằng chính `chon_mac_dinh` nên vẫn theo luật 60s + chảy tiếp (BH4).
+Endpoint trả thêm `so_may_doi`, toast nói rõ số khối bị làm mới.
+
+Nghiệm thu trên hợp đồng thật chương H (bản trước khi chữa tay):
+9 miếng máy đổi từ envato/kho lệch geo sang ref khớp geo · 6 miếng người giữ nguyên ·
+báo cáo 9 = thực tế 9.
+
+**Bẫy bắt được ngay trong lúc làm:** cờ `nguoi_sua` **chỉ nằm ở MIẾNG**, khối không
+mang gì (đo chương H: `khoi` 0/14 cờ, `hinh` 6/15). Xét cờ ở khối thì cả 14 khối đều
+thành "máy" — báo 14 trong khi thực tế 9, và lựa chọn khối lệch hẳn lựa chọn miếng.
+Nay khối được coi là CỦA NGƯỜI nếu chính nó **hoặc miếng bất kỳ của nó** có cờ.
+
+**Việc 2 — sổ nguồn gốc đi cùng draft Offline.**
+`sourcebook.viet_so_offline(hd, dung_id, draft_dir)` — một MIẾNG một dòng, bọc
+try/except (mất sổ chứ không mất draft). Thêm tiền tố Sổ Tra vào bảng nhóm:
+`ref`→refvid · `kho`/`rec`→local · `aigen`→aigen. Thiếu bảng này thì mọi clip đường
+Offline rơi vào "other" và sổ mất ý nghĩa pháp lý.
+
+Chương H thật: `nguon_footage.json` 15 clip — **refvid 84% · sub 10% · local 6%**.
+
+**Lỗi thứ ba, phát hiện khi viết test cho việc 2:** `relocate` đánh số theo MIẾNG
+nhưng vòng ghi `su_kien` duyệt theo KHỐI. Test thu nhỏ (3 miếng / 2 khối) cho thấy sổ
+chỉ ghi **1/3** — miếng chảy tiếp không vào sổ lần nào vì nhánh chảy tiếp `continue`
+trước khi đặt `dung_id`. Nay duyệt theo miếng, và miếng chảy tiếp ghi tên clip nó
+đang dùng tiếp.
