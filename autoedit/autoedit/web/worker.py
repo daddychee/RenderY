@@ -115,6 +115,10 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         extra += ["--phuong-an", str(opts["phuong_an"])]
     if opts.get("kenh_ref"):
         extra += ["--kenh-ref", str(opts["kenh_ref"])]
+    # CHUẨN BỊ CHO OFFLINE (user chốt 07/09): chỉ ALIGN rồi dừng — Offline làm
+    # lại toàn bộ phần sau, chạy pipeline cũ là đốt LLM + vài giờ + draft rác
+    if opts.get("chi_chuan_bi"):
+        extra += ["--chi-chuan-bi"]
 
     log_path = _log_path(logs_dir, job.id)
     ids: list[str] = []

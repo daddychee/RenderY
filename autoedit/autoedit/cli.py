@@ -315,6 +315,10 @@ def make(
                                  help="Dựng MỚI kể cả khi chương này đã có draft xong."),
     aigen: bool = typer.Option(False, "--aigen",
                                help="Bật AI gen cảnh cho beat thiếu hình (gom motif + ảnh duyệt; mặc định TẮT)."),
+    chi_chuan_bi: bool = typer.Option(
+        False, "--chi-chuan-bi",
+        help="CHỈ chạy ALIGN rồi dừng — dựng tiếp ở tab Offline (user chốt 07/09). "
+             "Bỏ 5 stage của pipeline cũ mà Offline làm lại toàn bộ."),
     phuong_an: str = typer.Option("stock", "--phuong-an",
                                   help="Phương án dựng: stock | ai | tu_quay (user 05/09)."),
     kenh_ref: str = typer.Option("", "--kenh-ref",
@@ -405,9 +409,13 @@ def make(
     run(Path(project.project_dir), niche=channel, music=None, model=whisper_model,
         language=language, align_backend=align_backend,
         director_model=director_model, director_engine=director_engine, with_enrich=enrich,
-        use_sub=use_sub, music_sync=music_sync)
+        use_sub=use_sub, music_sync=music_sync, chi_chuan_bi=chi_chuan_bi)
 
     project = Project.load(project.project_dir)
+    if chi_chuan_bi is True:
+        typer.secho(f"✓ '{folder.name}' ĐÃ CHUẨN BỊ — mở tab Offline, chọn chương "
+                    f"rồi bấm Phân tích để dựng.", fg=typer.colors.GREEN, bold=True)
+        return
     if project.report_path:
         import sys as _sys
         if _sys.platform == "win32":
@@ -1533,6 +1541,9 @@ def run(
                                        help="LLM đạo diễn: glm (mặc định) | claude-code | api."),
     with_enrich: bool = typer.Option(False, "--enrich", help="Chèn stage enrich (web-grounded; bổ sung CẦN duyệt mới render)."),
     music_sync: bool = typer.Option(False, "--music-sync", help="MUSIC SYNC: chèn stage music (chọn nhạc + neo accent TRƯỚC assemble). Mặc định TẮT."),
+    chi_chuan_bi: bool = typer.Option(
+        False, "--chi-chuan-bi",
+        help="CHỈ chạy ALIGN rồi dừng — dựng tiếp ở tab Offline (user chốt 07/09)."),
     footage_speed: Optional[float] = typer.Option(
         None, "--footage-speed", min=0.5, max=2.0,
         help="Tốc độ phát footage video ở stage assemble (mặc định 0.9 = chậm 10%)."),
@@ -1561,14 +1572,25 @@ def run(
         rec = project.stages.get(stage)  # .get: project.json cũ thiếu key stage mới (music)
         return rec is not None and rec.status == StageStatus.DONE
 
-    order = [Stage.ALIGN, Stage.DIRECT]
-    if with_enrich:
-        order.append(Stage.ENRICH)
-    order.append(Stage.CUT)
-    if music_sync is True:  # OptionInfo khi gọi trực tiếp -> coi như tắt (bug B2)
-        order.append(Stage.MUSIC)
-    order += [Stage.SOURCE, Stage.ASSEMBLE, Stage.REPORT]
+    if chi_chuan_bi is True:
+        # CHUẨN BỊ CHO OFFLINE (user chốt 07/09): Offline chỉ cần transcript +
+        # voice_master của ALIGN; DIRECT/CUT/SOURCE/ASSEMBLE là pipeline CŨ mà
+        # Offline làm lại từ đầu (cắt khối theo hơi thở, 4 lớp, khay ứng viên,
+        # Export riêng) -> chạy chúng là đốt LLM + vài giờ + đẻ draft bị ghi đè.
+        order = [Stage.ALIGN]
+    else:
+        order = [Stage.ALIGN, Stage.DIRECT]
+        if with_enrich:
+            order.append(Stage.ENRICH)
+        order.append(Stage.CUT)
+        if music_sync is True:  # OptionInfo khi gọi trực tiếp -> coi như tắt (bug B2)
+            order.append(Stage.MUSIC)
+        order += [Stage.SOURCE, Stage.ASSEMBLE, Stage.REPORT]
     plan = [s for s in order if not done(s)]
+    if chi_chuan_bi is True and not plan:
+        typer.secho(f"✓ '{folder.name}' đã chuẩn bị xong — mở tab Offline để dựng.",
+                    fg=typer.colors.GREEN)
+        return
     if not plan:
         typer.echo("Mọi stage đã xong — draft tại: " + (project.draft_path or "?"))
         return
@@ -1605,7 +1627,12 @@ def run(
         elif stage == Stage.REPORT:
             report(project_dir)
 
-    typer.secho("\n✓ Pipeline hoàn tất — mở CapCut + report.html kiểm tra.", fg=typer.colors.GREEN)
+    if chi_chuan_bi is True:
+        typer.secho("\n✓ Đã chuẩn bị (chỉ ALIGN) — dựng tiếp ở tab Offline.",
+                    fg=typer.colors.GREEN)
+    else:
+        typer.secho("\n✓ Pipeline hoàn tất — mở CapCut + report.html kiểm tra.",
+                    fg=typer.colors.GREEN)
 
 
 @app.command(name="set-library-root")

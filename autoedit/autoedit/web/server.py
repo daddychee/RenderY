@@ -2264,6 +2264,9 @@ class JobRequest(BaseModel):
     avd_phut: float = 6.0
     uu_tien_nguon: str = "ref"
     dia_danh: str = ""            # rào cứng geo (06/09): city Ecuador không vào Nepal
+    # KIỂU CHẠY (user chốt 07/09): True = chỉ ALIGN rồi vào tab Offline dựng tay
+    # (mặc định); False = auto dựng trọn gói như pipeline cũ.
+    chi_chuan_bi: bool = True
     # RETENTION (user 04/09): ảnh chụp biểu đồ giữ chân tập CŨ + thời lượng nó
     retention_anh_b64: str = ""    # dataURL/base64 PNG-JPG; rỗng = không dùng
     retention_dai: str = ""        # "28:25" hoặc "1:02:15"
@@ -2325,7 +2328,8 @@ def api_add_job(req: JobRequest, request: Request):
                               "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref,
                               "avd_phut": req.avd_phut,
                               "uu_tien_nguon": req.uu_tien_nguon,
-                              "dia_danh": req.dia_danh})
+                              "dia_danh": req.dia_danh,
+                              "chi_chuan_bi": req.chi_chuan_bi})
         job = q.get_job(conn, jid)
         return {"job": job.to_dict(), "wait_ahead": q.wait_ahead(conn, jid),
                 "retention": bao_cao_ret}

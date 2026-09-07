@@ -547,6 +547,18 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
               <span class="note" style="display:block">Footage team tự quay — đặt cùng định dạng
               Ref *.mp4 (+ .srt nếu có lời) vào folder chương, tool cắt cảnh và nhận diện như trên.</span></span></label>
         </div></div>
+      <div class="formrow"><label>Kiểu chạy</label>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="optbox"><input type="radio" name="ns-kieu" value="chuan_bi" checked>
+            <span><b>Chuẩn bị cho Offline</b>
+              <span class="note" style="display:block">Máy chỉ tách voice + khớp lời, rồi
+              chương hiện ở tab <b>Offline</b> để bạn duyệt khối và dựng. Nhanh, ít tốn.</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-kieu" value="auto">
+            <span><b>Auto dựng trọn gói</b>
+              <span class="note" style="display:block">Máy tự chia beat, tìm footage và ráp
+              draft CapCut luôn (cách cũ). Lâu hơn nhiều và draft sẽ bị ghi đè nếu bạn dựng
+              lại ở Offline.</span></span></label>
+        </div></div>
       <div class="formrow"><label>Địa danh tập</label>
         <div>
           <input type="text" id="ns-diadanh" placeholder="vd: tibet china" style="max-width:240px">
@@ -1309,6 +1321,7 @@ async function nopTap() {
       kenh_ref: document.getElementById('ns-kenh-ref').value.trim(),
       avd_phut: parseFloat(document.getElementById('ns-avd').value || '6'),
       dia_danh: document.getElementById('ns-diadanh').value.trim(),
+      chi_chuan_bi: document.querySelector('input[name="ns-kieu"]:checked').value === 'chuan_bi',
 
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
