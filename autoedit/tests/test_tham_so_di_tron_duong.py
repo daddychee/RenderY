@@ -410,3 +410,90 @@ def test_don_ref_nham_go_dung_dong_va_giu_file(tmp_path, monkeypatch):
         assert goc.exists()                           # FILE VIDEO: không đụng
     finally:
         conn.close()
+
+
+# ================= BẬC 3 — dải hình chẻ theo Framing (07/09 tối) ============
+# PH3: dải hình sinh 1-1 với khối nên nhịp video = nhịp THỞ của người đọc voice,
+# không phải nhịp kênh ref. Đo được: median miếng hình lệch -32%/-34% dưới chuẩn
+# kênh ở 2 chương độc lập, và có chương chứa shot 18 giây.
+
+def _khoi(v0, v1, tho=0.0, ranh_mem=None):
+    return {"v0": v0, "v1": v1, "tho": tho, "tho_them": 0.0,
+            "ranh_mem": ranh_mem or [], "uv": [{"nguon": "ref"}], "chon": 0}
+
+
+def test_khong_co_framing_thi_GIU_NGUYEN_hanh_vi_cu():
+    from autoedit.offline import hinh
+
+    k = [_khoi(0, 18, tho=0.5)]
+    assert len(hinh.sinh_tu_khoi(k)) == 1                  # than=0 -> 1 khối 1 miếng
+    assert hinh.sinh_tu_khoi(k)[0]["dur"] == 18.5
+
+
+def test_khoi_dai_duoc_che_ve_quanh_chuan_kenh():
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 18, tho=0.5)], than=4.73, hold=0.0)
+    assert len(ra) == 4
+    assert all(1.6 * 4.73 > h["dur"] >= hinh.SAN_CHE_S for h in ra)
+    assert sum(h["dur"] for h in ra) == pytest.approx(18.5, abs=0.01)
+    assert all(h["khoi_goc"] == 0 for h in ra)             # vẫn thuộc khối gốc
+
+
+def test_che_NE_VE_ranh_mem_co_san():
+    """Chẻ giữa câu liền mạch thì thấy gượng — né về chỗ người đọc đã ngắt."""
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 18, tho=0.5, ranh_mem=[4.5, 9.0, 13.6])],
+                           than=4.73)
+    assert [h["t0"] for h in ra] == [0.0, 4.5, 9.0, 13.6]
+
+
+def test_khoi_NGAN_khong_bi_dong_toi():
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 3), _khoi(3, 6)], than=4.73)
+    assert len(ra) == 2 and [h["dur"] for h in ra] == [3.0, 3.0]
+
+
+def test_khong_de_lai_mieng_duoi_san():
+    """Ranh mềm lệch sát mép cũng không được đẻ ra miếng 0,2s."""
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 10, ranh_mem=[4.9, 5.0, 5.1])], than=4.73)
+    assert all(h["dur"] >= hinh.SAN_CHE_S for h in ra)
+    assert sum(h["dur"] for h in ra) == pytest.approx(10.0, abs=0.01)
+
+
+def test_hold_giu_lai_shot_dai_nhung_KHONG_giu_shot_qua_dai():
+    from autoedit.offline import hinh
+
+    # 8s = 1,7× chuẩn: trong trần giữ (2,5×) -> quota hold cho phép để nguyên
+    giu = hinh.sinh_tu_khoi([_khoi(0, 8)], than=4.73, hold=1.0)
+    assert len(giu) == 1
+    # 18s = 3,8× chuẩn: quá trần -> PHẢI chẻ dù quota hold còn
+    van_che = hinh.sinh_tu_khoi([_khoi(0, 18)], than=4.73, hold=1.0)
+    assert len(van_che) == 4
+
+
+def test_ung_vien_cua_khoi_gan_vao_MIENG_DAU():
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 18)], than=4.73)
+    assert ra[0]["uv"] and ra[0]["chon"] == 0
+    assert all(not h["uv"] and h["chon"] == -1 for h in ra[1:])
+
+
+def test_mieng_phu_kin_o_khoi_khong_ho_khong_lan():
+    """Bất biến của dải hình: miếng phải lát KÍN ô [nói..thở] của khối gốc."""
+    from autoedit.offline import hinh
+
+    khoi = [_khoi(0, 12, tho=1.0), _khoi(13, 20, tho=0.5)]
+    ra = hinh.sinh_tu_khoi(khoi, than=4.73)
+    moc = hinh.moc_timeline(khoi)
+    for i, (n0, _n1, n2) in enumerate(moc):
+        ds = [h for h in ra if h["khoi_goc"] == i]
+        assert ds and ds[0]["t0"] == pytest.approx(n0, abs=0.01)
+        assert ds[-1]["t0"] + ds[-1]["dur"] == pytest.approx(n2, abs=0.01)
+        for a, b in zip(ds, ds[1:]):
+            assert a["t0"] + a["dur"] == pytest.approx(b["t0"], abs=0.01)

@@ -35,14 +35,84 @@ def tong_dai(khoi: list[dict]) -> float:
     return round(m[-1][2], 2) if m else 0.0
 
 
-def sinh_tu_khoi(khoi: list[dict]) -> list[dict]:
-    """Hợp đồng cũ -> dải hình 1-1 (mỗi khối 1 miếng phủ trọn nói + thở)."""
-    ra = []
-    for i, (t0, t1, tt) in enumerate(moc_timeline(khoi)):
+SAN_CHE_S = 0.7            # sàn cứng của máy — miếng ngắn hơn thì dựng vô nghĩa
+NGUONG_CHE = 1.6          # khối dài hơn 1,6× chuẩn kênh mới xét chẻ
+TRAN_GIU = 2.5            # dài quá mức này thì PHẢI chẻ, dù còn quota "giữ lâu"
+LA_GIU = 1.3              # miếng dài hơn 1,3× chuẩn kênh được tính là "giữ lâu"
+
+
+def _diem_che(k: dict, t0: float, span: float, than: float, n: int) -> list[float]:
+    """n miếng đều nhau, NHƯNG né về RANH MỀM có sẵn nếu ở gần.
+
+    Ranh mềm = chỗ người đọc ngắt 0,3-0,5s (khoi.py đã đo). Chẻ ở đó thì mắt
+    không thấy gượng; chẻ giữa một câu liền mạch thì thấy ngay.
+    """
+    doi = t0 - float(k.get("v0") or 0)             # voice -> timeline
+    mem = sorted(float(x) + doi for x in (k.get("ranh_mem") or []))
+    dung_sai = than * 0.4
+    ra: list[float] = []
+    for j in range(1, n):
+        ly_tuong = t0 + span * j / n
+        gan = min((x for x in mem if abs(x - ly_tuong) <= dung_sai),
+                  key=lambda x: abs(x - ly_tuong), default=None)
+        ra.append(round(gan if gan is not None else ly_tuong, 3))
+    return ra
+
+
+def che_mot_khoi(k: dict, t0: float, tt: float, than: float,
+                 cho_giu: bool = False) -> list[tuple[float, float]]:
+    """1 khối -> [(t0, dur)] các miếng hình. `than` = 0 thì giữ nguyên 1 miếng.
+
+    Vì sao có hàm này (SEQUENCE PH3): dải hình đang sinh 1-1 với khối, tức nhịp
+    video = nhịp THỞ của người đọc voice, không phải nhịp kênh ref. Đo 07/09:
+    median khối 2,18s ở tập này nhưng 4,08s ở tập kia — chênh gần 2×, và có
+    chương chứa shot 18 giây.
+    """
+    span = round(tt - t0, 3)
+    if than <= 0 or span <= than * NGUONG_CHE:
+        return [(t0, span)]
+    # còn quota "giữ lâu" và chưa quá trần -> để nguyên, đó là shot giữ
+    if cho_giu and span <= than * TRAN_GIU:
+        return [(t0, span)]
+    n = max(2, round(span / than))
+    while n > 2 and span / n < SAN_CHE_S:          # đừng chẻ vụn dưới sàn
+        n -= 1
+    if span / n < SAN_CHE_S:
+        return [(t0, span)]
+    moc = [t0] + _diem_che(k, t0, span, than, n) + [tt]
+    ra: list[tuple[float, float]] = []
+    for a, b in zip(moc, moc[1:]):
+        if b - a < SAN_CHE_S and ra:               # né mềm hụt sàn -> nhập lùi
+            truoc = ra[-1]
+            ra[-1] = (truoc[0], round(b - truoc[0], 3))
+        else:
+            ra.append((round(a, 3), round(b - a, 3)))
+    return ra
+
+
+def sinh_tu_khoi(khoi: list[dict], than: float = 0.0,
+                 hold: float = 0.0) -> list[dict]:
+    """Khối -> dải hình. `than`=0 (mặc định) giữ nguyên hành vi cũ: 1 khối 1 miếng.
+
+    `than`/`hold` lấy từ Framing Insight của kênh ref: chẻ khối dài về quanh
+    `than`, nhưng chừa `hold` phần shot cố tình để dài (GoDoc: thân 4,73s,
+    hold 38% — chẻ đều tất thì mất luôn nhịp giữ của kênh).
+    """
+    ra: list[dict] = []
+    so_giu = 0
+    for i, (t0, _t1, tt) in enumerate(moc_timeline(khoi)):
         k = khoi[i]
-        ra.append({"t0": t0, "dur": round(tt - t0, 3), "khoi_goc": i,
-                   "uv": k.get("uv") or [], "chon": k.get("chon", -1),
-                   "nguoi_sua": bool(k.get("nguoi_sua"))})
+        cho_giu = than > 0 and hold > 0 and (so_giu + 1) <= hold * (len(ra) + 1)
+        mieng = che_mot_khoi(k, t0, tt, than, cho_giu=cho_giu)
+        for j, (a, dur) in enumerate(mieng):
+            if than > 0 and dur > than * LA_GIU:
+                so_giu += 1
+            ra.append({"t0": a, "dur": dur, "khoi_goc": i,
+                       # ứng viên/lựa chọn của khối gắn vào MIẾNG ĐẦU — miếng
+                       # chẻ thêm để trống, người (hoặc phễu) đổ hình sau
+                       "uv": (k.get("uv") or []) if j == 0 else [],
+                       "chon": k.get("chon", -1) if j == 0 else -1,
+                       "nguoi_sua": bool(k.get("nguoi_sua")) if j == 0 else False})
     return ra
 
 

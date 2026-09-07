@@ -280,7 +280,10 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     # DẢI HÌNH tách khỏi dải VOICE (08/09) — sinh 1-1, người chẻ thêm trong UI
     from autoedit.offline import hinh as mhinh
 
-    hd["hinh"] = mhinh.sinh_tu_khoi(hd["khoi"])
+    # Dải hình chẻ theo Framing của kênh ref (bậc 3, 07/09). Thiếu hồ sơ kênh
+    # thì than=0 -> giữ nguyên 1 khối 1 miếng như trước, không đoán bừa.
+    hd["hinh"] = mhinh.sinh_tu_khoi(hd["khoi"], than=float(fr.get("than") or 0),
+                                    hold=float(fr.get("hold") or 0))
     (project_dir / TEN_HOP_DONG).write_text(
         json.dumps(hd, ensure_ascii=False, indent=1), encoding="utf-8")
     ghi(f"offline: hợp đồng ghi xong — {len(ds_khoi)} khối · "

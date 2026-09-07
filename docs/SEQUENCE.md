@@ -132,9 +132,33 @@ Envato định tránh.
 | ✅ **0. Nối ống + cây thước** | tham số về **hồ sơ chương** (`project.json`), bảng `jobs` chỉ còn lưới đỡ — không đụng schema `jobs` nên pipeline cũ ở cổng riêng không hề hấn · thiếu `kenh_ref` → cảnh báo đỏ trong hợp đồng, không chạy im · lệnh `kiem-hop-dong` in bảng đo | Phân tích lại 1 chương LI103 → hợp đồng có `framing.ten='godoc-travel-doc'`, `avd_s=420`, địa danh đúng |
 | ✅ **1. Ô Kiểu chạy** | enum `manual/avd/auto` trong hồ sơ chương; `dong_kiem` suy từ enum ở **một hàm duy nhất** `tinh_dong_kiem()`; giá trị lạ thì DỪNG | 3 kiểu × chương giữa tập (mở ở phút 10, mốc 7 phút) → `dong_kiem` đúng cả 3 · `manual` và `auto` cùng `avd_s=0` vẫn ra hai kết quả khác nhau (chỗ bản cũ bó tay) |
 | ✅ **2. Đo Auto** | `kiem-hop-dong --nhu-auto` — tra lại Library bỏ Envato, dùng lớp nghĩa ĐÃ LƯU nên không gọi lại LLM | đo 5 hợp đồng thật: **0/5 dưới ngưỡng 50%**, xem kết quả bên dưới |
-| **3. Dải hình theo Framing** | hàm thuần `chia_hinh(khoi, hoso) -> hinh[]`: khối > 1,6×`than` chẻ thành `ceil(dur/than)` miếng, ưu tiên **ranh mềm có sẵn**, chừa tỉ lệ `hold`, sàn 0,7s. KHÔNG đụng dải voice | median miếng hình ≈ `than` ±20% · không còn miếng > 12s · người vẫn chẻ/gộp tay được |
+| ✅ **3a. Chẻ khối dài theo Framing** | `hinh.che_mot_khoi`: khối > 1,6×`than` chẻ thành `round(span/than)` miếng, **né về ranh mềm có sẵn**, chừa quota `hold`, sàn 0,7s, trần giữ 2,5×. KHÔNG đụng dải voice | C7: shot dài nhất 18,4s → **10,4s**, lệch −7% → **−4%** · C8: 14,7s → 11,7s, +1% → −4% · không còn miếng > 12s |
+| ⏳ **3b. Cho clip CHẢY TIẾP qua ranh khối** | luật chọn phân biệt "lặp" (cấm) với "chảy tiếp" (cho, khi khối ngắn hơn chuẩn kênh và nguồn còn đủ dài); chỗ ráp cắt **một đoạn liên tục** + miếng sau nối đúng chỗ miếng trước dừng | C2: 43 shot/median 3,24s (**−32%**) → 32 shot/median 4,71s (**0%**), số clip phải tải giảm 26% |
 | **4. Cấu trúc phẳng + `Rec/`** | **6 chỗ** (5 chỗ kế hoạch cũ + `_mo_dau_tap_s`) | LI103 phẳng → 17 chương đúng thứ tự · LI104 thư mục → y hệt hôm nay · gộp 1 file cả tập → vẫn bị chặn |
 | **5. Form 6 ô** | bỏ "Phương án dựng", ô Kiểu chạy, đổi nhãn Niche | ảnh chụp 2 trạng thái + `test_smoke_ui` xanh |
+
+### Vì sao cần 3b — chẻ thôi chưa đủ (đo 07/09 tối)
+
+Chẻ chỉ chữa được chương có khối DÀI. Chương C2 của LI103 lệch −32% vì khối quá
+NGẮN: median khối 2,18s trong khi kênh giữ shot 4,73s — không có gì để chẻ.
+
+Gốc bệnh không nằm ở chỗ chia dữ liệu mà ở **luật chọn**: điều "cùng một clip
+không xuất hiện 2 lần trong 60s" (chống lặp) vô tình ép **đổi hình mỗi hơi thở**.
+Người đọc thở 2,2s/lần thì video cắt 2,2s/lần, bất kể kênh ref giữ 4,7s.
+
+Ba đường đã cân (user chọn C, 07/09 tối):
+
+| | Cách | Vì sao chọn / bỏ |
+|---|---|---|
+| A | Giữ nguyên | Đúng cái bệnh đang chữa — bỏ |
+| B | Cho 1 miếng trải nhiều khối | Đúng mô hình nhưng **phá bất biến "mỗi khối luôn có ≥1 miếng"** — bất biến sinh từ lỗi thật 08/09, đang gánh toàn bộ logic nút +/−1s. Không đụng |
+| **C** | **Clip chảy tiếp qua ranh khối** | Bất biến còn nguyên, UI không phải sửa. Chỉ đổi luật chọn + chỗ ráp |
+
+Đo trên C2: **43 shot → 32 shot · median 3,24s → 4,71s (lệch 0%) · số clip phải
+tìm/tải giảm 26%** (ít lượt Envato, ít ô placeholder).
+
+Giới hạn đã lường: chỉ chảy tiếp được khi clip nguồn CÒN ĐỦ DÀI; clip 3s không
+kéo thành 4,7s — khi đó vẫn đổi hình như cũ. Con số 32 đã tính điều này.
 
 ### Kết quả bậc 2 — Auto có giao được hàng không? (đo 07/09 tối)
 
