@@ -523,7 +523,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 
     <div class="panel" id="ns-opts">
       <h2>Tuỳ chọn dựng</h2>
-      <div class="formrow"><label>Kênh / niche</label>
+      <div class="formrow"><label>Niche</label>
         <div>
           <input type="text" id="ns-niche" list="ds-niche" placeholder="vd: life-in"
                  style="max-width:240px" oninput="canhBaoNiche()">
@@ -535,29 +535,29 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
             lỗi này, 0 tiếng động nào vào draft.</div>
         </div></div>
-      <div class="formrow"><label>Phương án dựng</label>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="optbox"><input type="radio" name="ns-pa" value="doi_thu" checked>
-            <span><b>1 · Dựng với video đối thủ</b>
-              <span class="note" style="display:block">Đặt video đối thủ làm <b>Ref 1.mp4 + Ref 1.srt</b>
-              vào folder chương (hoặc RenderY/ cho cả tập) — tool cắt thành từng CẢNH QUAY, đọc nội dung
-              đưa vào Library, ưu tiên trước stock. ~20 phút mỗi giờ ref, chạy nền.</span></span></label>
-          <label class="optbox"><input type="radio" name="ns-pa" value="tu_quay">
-            <span><b>2 · Dựng với video quay thật</b>
-              <span class="note" style="display:block">Footage team tự quay — đặt cùng định dạng
-              Ref *.mp4 (+ .srt nếu có lời) vào folder chương, tool cắt cảnh và nhận diện như trên.</span></span></label>
-        </div></div>
       <div class="formrow"><label>Kiểu chạy</label>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="optbox"><input type="radio" name="ns-kieu" value="chuan_bi" checked>
-            <span><b>Chuẩn bị cho Offline</b>
-              <span class="note" style="display:block">Máy chỉ tách voice + khớp lời, rồi
-              chương hiện ở tab <b>Offline</b> để bạn duyệt khối và dựng. Nhanh, ít tốn.</span></span></label>
-          <label class="optbox"><input type="radio" name="ns-kieu" value="auto">
-            <span><b>Auto dựng trọn gói</b>
-              <span class="note" style="display:block">Máy tự chia beat, tìm footage và ráp
-              draft CapCut luôn (cách cũ). Lâu hơn nhiều và draft sẽ bị ghi đè nếu bạn dựng
-              lại ở Offline.</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-kieu" value="manual" checked
+                 onchange="ofKieuChay()">
+            <span><b>Manual</b> — mọi chương người duyệt
+              <span class="note" style="display:block">Máy tách voice + chia khối, rồi
+              CHỜ bạn duyệt từng chương ở tab Offline. Chậm nhất, chắc nhất.</span></span></label>
+          <label class="optbox"><input type="radio" name="ns-kieu" value="avd"
+                 onchange="ofKieuChay()">
+            <span><b>AVD Mode</b> — nửa đầu duyệt tay, nửa sau tự chạy
+              <span class="note" style="display:block">Chương BẮT ĐẦU trước mốc AVD thì bạn
+              duyệt; chương sau mốc máy tự dựng tới timeline. Kiểu dùng hàng ngày: nộp tập
+              trước khi về, sáng ra có sẵn khối đầu để chỉnh và timeline phần sau.</span>
+              <span id="ns-avd-box" hidden style="display:block;margin-top:6px">
+                Mốc AVD: <input type="number" id="ns-avd" value="6" min="0" step="0.5"
+                       style="max-width:110px"> phút
+              </span></span></label>
+          <label class="optbox"><input type="radio" name="ns-kieu" value="auto"
+                 onchange="ofKieuChay()">
+            <span><b>Auto</b> — máy tự chạy hết
+              <span class="note" style="display:block">Mọi chương tự dựng tới timeline, không
+              chờ ai. Chương auto KHÔNG dùng Envato (giữ hạn mức cho đường duyệt tay); đo
+              07/09 khay vẫn phủ trung bình 87% khối.</span></span></label>
         </div></div>
       <div class="formrow"><label>Địa danh tập</label>
         <div>
@@ -1287,6 +1287,7 @@ async function kiemTap() {
     document.getElementById('ns-nut').disabled = false
     document.getElementById('ns-msg').textContent = ''
     canhBaoNiche()          // niche trống = mất SFX — báo NGAY khi form lộ ra
+    ofKieuChay()            // ô mốc AVD chỉ hiện khi chọn AVD Mode
   }
 }
 async function nopTap() {
@@ -1317,11 +1318,15 @@ async function nopTap() {
       nguoi: NGUOI_LOCAL,            // vào thẳng không có SSO — tự khai; CRM thắng
       niche: document.getElementById('ns-niche').value.trim(),
 
-      phuong_an: document.querySelector('input[name="ns-pa"]:checked').value,
+      // "Phương án dựng" đã bỏ (07/09): mọi nguồn cùng chảy vào khay, Offline chỉ
+      // ghi rõ clip đến từ đâu; bật/tắt gen AI chuyển về TỪNG KHỐI trong Offline.
       kenh_ref: document.getElementById('ns-kenh-ref').value.trim(),
       avd_phut: parseFloat(document.getElementById('ns-avd').value || '6'),
       dia_danh: document.getElementById('ns-diadanh').value.trim(),
-      chi_chuan_bi: document.querySelector('input[name="ns-kieu"]:checked').value === 'chuan_bi',
+      // 3 kiểu chạy đều đi CHUNG đường Offline (SEQUENCE QĐ1) — pipeline cũ giữ
+      // ở cổng riêng cho team, không còn là một lựa chọn trên form.
+      chi_chuan_bi: true,
+      kieu_chay: document.querySelector('input[name="ns-kieu"]:checked').value,
 
       retention_anh_b64: retB64,
       retention_dai: document.getElementById('ns-ret-dai').value.trim(),
@@ -1335,7 +1340,13 @@ async function nopTap() {
   nut.disabled = false
 }
 
-/* ── 3 phương án dựng: nhớ kênh ref lần cuối THEO TỪNG PA (localStorage) ── */
+/* Ô mốc AVD chỉ có nghĩa với kiểu AVD Mode — hiện đúng lúc cần (form 6 ô 07/09) */
+function ofKieuChay() {
+  const k = document.querySelector('input[name="ns-kieu"]:checked')
+  const box = document.getElementById('ns-avd-box')
+  if (box) box.hidden = !(k && k.value === 'avd')
+}
+
 function canhBaoNiche() {
   const trong = !document.getElementById('ns-niche').value.trim()
   document.getElementById('ns-niche-canh-bao').hidden = !trong

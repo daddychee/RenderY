@@ -357,6 +357,11 @@ def make(
                                  help="Địa danh của tập — rào geo khay ứng viên Offline."),
     uu_tien_nguon: str = typer.Option("", "--uu-tien-nguon",
                                       help="Nguồn được cộng điểm trong khay: ref | envato."),
+    script_ro: Optional[Path] = typer.Option(
+        None, "--script", help="Kịch bản TƯỜNG MINH (cấu trúc phẳng: C1.txt). "
+                               "Bỏ trống = tự dò trong folder như cũ."),
+    voice_ro: Optional[Path] = typer.Option(
+        None, "--voice", help="Voice TƯỜNG MINH (cấu trúc phẳng: C1.mp3)."),
     kieu_chay: str = typer.Option(
         "", "--kieu-chay",
         help="manual (mọi chương người duyệt) | avd (trước mốc AVD thì duyệt, "
@@ -395,6 +400,16 @@ def make(
             raise typer.Exit(code=1)
 
     srt_src = _pick_input(folder, (".srt",), voice.stem)[0]
+    # CẤU TRÚC PHẲNG: file được chỉ tên thẳng, KHÔNG dò folder (folder chứa cả
+    # 17 chương thì dò sẽ vớ nhầm chương khác).
+    if script_ro is not None and voice_ro is not None:
+        script, voice = Path(script_ro), Path(voice_ro)
+        if not script.is_file() or not voice.is_file():
+            typer.secho(f"✗ Không thấy {script} hoặc {voice}", fg=typer.colors.RED)
+            raise typer.Exit(2)
+        s2 = voice.with_suffix(".srt")
+        srt_src = s2 if s2.is_file() else None
+        ten_project = script.stem                 # title = C1, không phải RenderY
 
     kieu_chay = (kieu_chay or "").strip().lower()
     if kieu_chay and kieu_chay not in KIEU_CHAY_HOP_LE:   # sai thì DỪNG (BH5)
@@ -402,6 +417,7 @@ def make(
                     f"{' | '.join(KIEU_CHAY_HOP_LE)}", fg=typer.colors.RED)
         raise typer.Exit(2)
 
+    ten_project = folder.name if script_ro is None else Path(script_ro).stem
     cu = None if lam_lai else _project_cu_dung_duoc(
         folder, Path("projects"), chi_align=(chi_chuan_bi is True))
     if cu is not None:
@@ -419,7 +435,7 @@ def make(
 
     try:
         project = create_project(script=script, voice=voice, out_dir=Path("projects"),
-                                 title=folder.name, channel=channel or None, srt=srt_src)
+                                 title=ten_project, channel=channel or None, srt=srt_src)
     except (FileNotFoundError, ValueError) as exc:
         typer.secho(f"Lỗi: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)

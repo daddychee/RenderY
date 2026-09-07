@@ -596,3 +596,121 @@ def test_luc_RAP_phai_do_file_that_moi_cho_chay_tiep(tmp_path):
     assert con_du_nguon(f, da_dung=2.0, can=2.0) is False    # còn 1s, cần 2s
     assert con_du_nguon(None, 0.0, 1.0) is False
     assert con_du_nguon(tmp_path / "khong-co.mp4", 0.0, 1.0) is False
+
+
+# ============== BẬC 4 — nhận CẤU TRÚC PHẲNG, giữ nguyên kiểu thư mục =========
+# LI103 đặt file thẳng trong RenderY/ và cách đó RÕ hơn: 17 chương nhìn một màn
+# hình là thấy hết. Tập cũ dùng thư mục con (LI104) phải chạy nguyên vẹn.
+
+def _tap_phang(tmp_path, ma=("H", "C1", "C2", "E"), srt=False):
+    d = tmp_path / "tap" / "RenderY"
+    d.mkdir(parents=True)
+    for m in ma:
+        (d / f"{m}.txt").write_text("loi", encoding="utf-8")
+        (d / f"{m}.mp3").write_bytes(b"a")
+        if srt:
+            (d / f"{m}.srt").write_text("1\n", encoding="utf-8")
+    return d.parent
+
+
+def _tap_thu_muc(tmp_path, ma=("H", "C1", "E")):
+    d = tmp_path / "tap2" / "RenderY"
+    for m in ma:
+        (d / m).mkdir(parents=True)
+        (d / m / "script.txt").write_text("loi", encoding="utf-8")
+        (d / m / "voice.mp3").write_bytes(b"a")
+    return d.parent
+
+
+def test_cau_truc_PHANG_nhan_dung_thu_tu_va_file(tmp_path):
+    from autoedit.web.chapters import doc_chuong
+
+    tap = _tap_phang(tmp_path, ma=("H", "C1", "C2", "C10", "E"), srt=True)
+    ch, loi = doc_chuong(tap)
+    assert [c.ma for c in ch] == ["H", "C1", "C2", "C10", "E"]   # C10 SAU C2
+    assert loi == []
+    assert all(c.phang and c.script and c.voice for c in ch)
+    assert ch[0].script.name == "H.txt" and ch[0].voice.name == "H.mp3"
+    assert ch[0].co_srt is True
+
+
+def test_kieu_THU_MUC_chay_y_het_hom_nay(tmp_path):
+    from autoedit.web.chapters import doc_chuong
+
+    ch, loi = doc_chuong(_tap_thu_muc(tmp_path))
+    assert [c.ma for c in ch] == ["H", "C1", "E"] and loi == []
+    assert all(not c.phang and c.script is None for c in ch)     # make tự dò
+
+
+def test_co_CA_HAI_kieu_thi_thu_muc_thang_khong_nhan_doi(tmp_path):
+    from autoedit.web.chapters import doc_chuong
+
+    tap = _tap_thu_muc(tmp_path)
+    goc = tap / "RenderY"
+    (goc / "C9.txt").write_text("loi", encoding="utf-8")          # thêm file lẻ
+    (goc / "C9.mp3").write_bytes(b"a")
+    ch, _ = doc_chuong(tap)
+    assert [c.ma for c in ch] == ["H", "C1", "E"]                 # C9 bị bỏ qua
+    assert len({c.ma for c in ch}) == len(ch)                     # không nhân đôi
+
+
+def test_GOP_ca_tap_van_bi_chan(tmp_path):
+    """1 voice cho cả tập vẫn phải chặn — nhịp và đồng kiểm tính theo CHƯƠNG."""
+    from autoedit.web.chapters import doc_chuong
+
+    tap = _tap_thu_muc(tmp_path)
+    (tap / "RenderY" / "ca-tap.mp3").write_bytes(b"a")
+    _, loi = doc_chuong(tap)
+    assert any("không được gộp cả tập" in x for x in loi)
+
+
+def test_file_ref_khong_bi_nham_la_voice_chuong(tmp_path):
+    from autoedit.web.chapters import doc_chuong
+
+    tap = _tap_phang(tmp_path)
+    (tap / "RenderY" / "ref 1.mp4").write_bytes(b"v")
+    ch, loi = doc_chuong(tap)
+    assert [c.ma for c in ch] == ["H", "C1", "C2", "E"] and loi == []
+
+
+def test_thieu_nua_cap_thi_khong_tinh_la_chuong(tmp_path):
+    from autoedit.web.chapters import doc_chuong
+
+    tap = _tap_phang(tmp_path, ma=("H", "C1", "E"))
+    (tap / "RenderY" / "C5.txt").write_text("loi", encoding="utf-8")   # thiếu mp3
+    ch, _ = doc_chuong(tap)
+    assert [c.ma for c in ch] == ["H", "C1", "E"]
+
+
+# ============== BẬC 5 — form 6 ô (user chốt 07/09) ==========================
+
+def _html() -> str:
+    from pathlib import Path as _P
+    return (_P(__file__).resolve().parents[1] / "autoedit" / "web" / "static"
+            / "index.html").read_text(encoding="utf-8")
+
+
+def test_form_co_3_kieu_chay_va_BO_phuong_an_dung():
+    h = _html()
+    for v in ("manual", "avd", "auto"):
+        assert f'name="ns-kieu" value="{v}"' in h, v
+    assert 'name="ns-pa"' not in h            # ô "Phương án dựng" đã bỏ
+    assert "<label>Phương án dựng</label>" not in h
+
+
+def test_form_gui_kieu_chay_va_luon_di_duong_Offline():
+    h = _html()
+    assert "kieu_chay: document.querySelector" in h
+    assert "chi_chuan_bi: true" in h          # 3 kiểu đều chung đường Offline
+
+
+def test_o_moc_AVD_nam_TRONG_lua_chon_AVD_Mode():
+    h = _html()
+    assert 'id="ns-avd-box"' in h and "function ofKieuChay()" in h
+    assert h.index('id="ns-avd-box"') > h.index('name="ns-kieu" value="avd"')
+    assert h.index('id="ns-avd-box"') < h.index('name="ns-kieu" value="auto"')
+
+
+def test_nhan_niche_da_doi():
+    h = _html()
+    assert "<label>Niche</label>" in h and "<label>Kênh / niche</label>" not in h

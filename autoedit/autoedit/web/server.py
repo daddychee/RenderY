@@ -768,6 +768,12 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         pass
     nguoi_tao = nguoi_tao or current_user(request)
     # Thông số dựng lấy từ JOB lúc nộp tập (user 06/09) — request rỗng là mặc định
+    def _phang_o(nas: Path) -> bool:
+        """Thư mục NAS của chương chính là RenderY/ -> tập dùng cấu trúc phẳng."""
+        from autoedit.web.chapters import THU_MUC_CON
+
+        return nas.name.lower() == THU_MUC_CON.lower()
+
     def _mo_dau_tap_s() -> float:
         """Chương này bắt đầu ở giây bao nhiêu của TẬP = tổng voice các chương
         TRƯỚC nó (thứ tự H -> C1.. -> E). Bug chặn go-live user bắt 06/09:
@@ -779,9 +785,23 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         nas = _thu_muc_nas(d)
         if nas is None:
             return 0.0
-        chuong, _ = doc_chuong(nas.parent)
+        # Chương PHẲNG thì mọi chương chung một thư mục -> nhận theo TÊN FILE
+        # voice; kiểu thư mục con thì theo tên thư mục như cũ. Chỗ này kế hoạch
+        # cũ bỏ sót (SEQUENCE PH5): hỏng ở đây là Auto chết mà không báo gì.
+        goc_voice = ""
+        try:
+            _p = json.loads((d / "project.json").read_text(encoding="utf-8"))
+            goc_voice = (_p.get("inputs") or {}).get("original_voice_path") or ""
+        except Exception:  # noqa: BLE001
+            pass
+        chuong, _ = doc_chuong(nas if _phang_o(nas) else nas.parent)
         tong = 0.0
         for ch in chuong:                      # đã SẮP đúng thứ tự
+            if ch.phang:
+                if goc_voice and Path(goc_voice).name.lower() == ch.voice.name.lower():
+                    return round(tong, 2)
+                tong += ffprobe_duration(ch.voice) or 0.0
+                continue
             if ch.path.name.lower() == nas.name.lower():
                 return round(tong, 2)
             for f in sorted(ch.path.iterdir()):
@@ -2344,6 +2364,9 @@ class JobRequest(BaseModel):
     # THÔNG SỐ OFFLINE khai lúc NỘP TẬP (user 06/09: Offline chỉ chọn + xem,
     # không nhập thông số) — phan-tich đọc lại từ opts của job.
     avd_phut: float = 6.0
+    # KIỂU CHẠY (SEQUENCE QĐ1, form 6 ô 07/09): manual = mọi chương người duyệt ·
+    # avd = trước mốc AVD thì duyệt, sau mốc tự chạy · auto = tự chạy hết.
+    kieu_chay: str = ""
     uu_tien_nguon: str = "ref"
     dia_danh: str = ""            # rào cứng geo (06/09): city Ecuador không vào Nepal
     # KIỂU CHẠY (user chốt 07/09): True = chỉ ALIGN rồi vào tab Offline dựng tay
@@ -2410,6 +2433,7 @@ def api_add_job(req: JobRequest, request: Request):
                               "phuong_an": req.phuong_an, "kenh_ref": req.kenh_ref,
                               "avd_phut": req.avd_phut,
                               "uu_tien_nguon": req.uu_tien_nguon,
+                              "kieu_chay": req.kieu_chay,
                               "dia_danh": req.dia_danh,
                               "chi_chuan_bi": req.chi_chuan_bi})
         job = q.get_job(conn, jid)

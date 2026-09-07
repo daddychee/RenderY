@@ -306,7 +306,7 @@ def test_worker_lay_chuong_DUNG_THU_TU_H_C_E(tmp_path):
     job = tmp_path / "IN002"
     for ten in ("E", "C10", "C2", "H", "C1"):
         _chuong(job / THU_MUC_CON, ten)
-    assert [c.name for c in chapters_of(job)] == ["H", "C1", "C2", "C10", "E"]
+    assert [c.ma for c in chapters_of(job)] == ["H", "C1", "C2", "C10", "E"]
 
 
 def test_worker_bo_qua_thu_muc_sai_quy_uoc(tmp_path):
@@ -319,7 +319,7 @@ def test_worker_bo_qua_thu_muc_sai_quy_uoc(tmp_path):
     _chuong(job / THU_MUC_CON, "ch01")          # tên cũ, sai quy ước
     (job / THU_MUC_CON / "footage").mkdir()
     (job / THU_MUC_CON / ".tam").mkdir()
-    assert [c.name for c in chapters_of(job)] == ["H"]
+    assert [c.ma for c in chapters_of(job)] == ["H"]
 
 
 def test_hai_worker_cung_luc_khong_vuot_tran(tmp_path):

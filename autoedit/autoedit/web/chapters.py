@@ -57,6 +57,15 @@ class Chuong:
     co_script: bool
     co_voice: bool
     co_srt: bool
+    # CẤU TRÚC PHẲNG (user nêu 07/09): file đặt thẳng trong RenderY/ theo tên
+    # `C1.txt` + `C1.mp3`. Kiểu thư mục con để None -> `make` tự dò như cũ.
+    script: Path | None = None
+    voice: Path | None = None
+    srt: Path | None = None
+
+    @property
+    def phang(self) -> bool:
+        return self.script is not None
 
     @property
     def du_file(self) -> bool:
@@ -96,6 +105,39 @@ def thu_muc_rendery(tap: Path) -> Path:
     return tap / THU_MUC_CON
 
 
+def _la_ref(f: Path) -> bool:
+    """`ref 1.mp4` là phim mẫu của tập, không phải voice chương."""
+    return f.stem.lower().startswith("ref")
+
+
+def _chuong_phang(goc: Path) -> list[Chuong]:
+    """File đặt THẲNG trong RenderY/ -> chương. Cần đủ cặp .txt + audio cùng tên."""
+    theo_ma: dict[str, dict] = {}
+    for f in sorted(goc.iterdir()):
+        if not f.is_file() or f.name.startswith("."):
+            continue
+        pt = phan_tich_ten(f.stem)
+        if pt is None:
+            continue
+        ma, thu_tu, nhan = pt
+        o = theo_ma.setdefault(ma, {"pt": pt})
+        if f.suffix.lower() in _TEXT_EXTS:
+            o.setdefault("script", f)
+        elif f.suffix.lower() in _AUDIO_EXTS:
+            o.setdefault("voice", f)
+        elif f.suffix.lower() in _SRT_EXTS:
+            o.setdefault("srt", f)
+    ra = []
+    for ma, o in theo_ma.items():
+        if not (o.get("script") and o.get("voice")):
+            continue                     # thiếu nửa cặp -> chưa phải chương
+        _ma, thu_tu, nhan = o["pt"]
+        ra.append(Chuong(path=goc, ma=ma, thu_tu=thu_tu, nhan=nhan,
+                         co_script=True, co_voice=True, co_srt=bool(o.get("srt")),
+                         script=o["script"], voice=o["voice"], srt=o.get("srt")))
+    return ra
+
+
 def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
     """Đọc các chương của 1 tập. Trả (danh sách đã SẮP ĐÚNG THỨ TỰ, lỗi).
 
@@ -125,6 +167,12 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
         chuong.append(Chuong(path=d, ma=ma, thu_tu=thu_tu, nhan=nhan,
                              co_script=s, co_voice=v, co_srt=srt))
 
+    # ---- CẤU TRÚC PHẲNG: file đặt thẳng trong RenderY/ ----
+    # LI103 làm vậy và cách này RÕ hơn: 17 chương nhìn một màn hình là thấy hết,
+    # khỏi tạo 17 thư mục chỉ để chứa 2 file. Thư mục con VẪN chạy nguyên (LI104).
+    if not chuong:
+        chuong += _chuong_phang(goc)
+
     if not chuong and not loi:
         loi.append(f"Thư mục '{THU_MUC_CON}' trống — chưa có chương nào.")
 
@@ -137,19 +185,23 @@ def doc_chuong(tap: Path) -> tuple[list[Chuong], list[str]]:
             da_thay[c.ma] = c.path.name
 
     for c in chuong:
+        ten = c.ma if c.phang else c.path.name
         if not c.co_script:
-            loi.append(f"{c.nhan} ({c.path.name}): thiếu kịch bản (.txt)")
+            loi.append(f"{c.nhan} ({ten}): thiếu kịch bản (.txt)")
         if not c.co_voice:
-            loi.append(f"{c.nhan} ({c.path.name}): thiếu voice (.mp3/.wav)")
+            loi.append(f"{c.nhan} ({ten}): thiếu voice (.mp3/.wav)")
 
     # ĐỊNH DẠNG BẮT BUỘC (user chốt 06/09): Hook + ít nhất 1 Chapter + End.
     # CẤM gộp cả tập vào 1 voice/1 script — nhịp chia khối và đồng kiểm/auto
     # đều tính theo CHƯƠNG, gộp là toàn bộ logic phía sau sai lặng lẽ.
     # voice ở gốc = gộp chắc chắn; .txt lẻ (ghi chú) vô hại — chỉ tính khi có voice
+    # File PHẲNG đúng quy ước (C1.mp3...) là CHƯƠNG, không phải gộp cả tập.
     giong = [f.name for f in goc.iterdir()
-             if f.is_file() and f.suffix.lower() in (".mp3", ".wav")]
+             if f.is_file() and f.suffix.lower() in _AUDIO_EXTS
+             and phan_tich_ten(f.stem) is None and not _la_ref(f)]
     gop = giong + ([f.name for f in goc.iterdir()
-                    if f.is_file() and f.suffix.lower() == ".txt"] if giong else [])
+                    if f.is_file() and f.suffix.lower() == ".txt"
+                    and phan_tich_ten(f.stem) is None] if giong else [])
     if gop:
         loi.append("Voice/script đang nằm THẲNG trong RenderY/ (" + ", ".join(gop[:3])
                    + ") — không được gộp cả tập; chia vào thư mục H / C1 / C2... / E.")

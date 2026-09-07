@@ -12,6 +12,7 @@
 | 07/09 sáng | Cấu trúc phẳng + `Rec/` · 3 kiểu chạy · bỏ ép nhịp Padoma · form 6 ô | user |
 | 07/09 chiều | Rà lại bằng số → **chèn bậc 0 "nối ống"**, hoãn đổi tên package, chia hình bắt đầu bằng 2 con số | user duyệt sau phản biện |
 | 07/09 tối | Bậc 0 XONG (`3c5af46`) · bậc 1 XONG · gom hết ở cổng dev rồi mới đẩy production một lượt | user chốt |
+| 07/09 khuya | Bậc 2 + vá nhãn ref (`3e4277b`) · 3a (`ccf16b4`) · 3b (`b9504b3`) · **bậc 4 + 5 XONG** — hết 5 bậc | user: "cố gắng done app tối nay" |
 
 ---
 
@@ -134,8 +135,19 @@ Envato định tránh.
 | ✅ **2. Đo Auto** | `kiem-hop-dong --nhu-auto` — tra lại Library bỏ Envato, dùng lớp nghĩa ĐÃ LƯU nên không gọi lại LLM | đo 5 hợp đồng thật: **0/5 dưới ngưỡng 50%**, xem kết quả bên dưới |
 | ✅ **3a. Chẻ khối dài theo Framing** | `hinh.che_mot_khoi`: khối > 1,6×`than` chẻ thành `round(span/than)` miếng, **né về ranh mềm có sẵn**, chừa quota `hold`, sàn 0,7s, trần giữ 2,5×. KHÔNG đụng dải voice | C7: shot dài nhất 18,4s → **10,4s**, lệch −7% → **−4%** · C8: 14,7s → 11,7s, +1% → −4% · không còn miếng > 12s |
 | ✅ **3b. Cho clip CHẢY TIẾP qua ranh khối** | luật chọn phân biệt "lặp" (cấm) với "chảy tiếp" (cho); chỗ ráp cắt tiếp đúng chỗ miếng trước dừng, **đo file thật** trước khi cho tiếp | C2 đo thật: 43 → **33 shot** · median 3,24s → **4,57s** · lệch −32% → **−3%** · clip phải tải 36 → 31 |
-| **4. Cấu trúc phẳng + `Rec/`** | **6 chỗ** (5 chỗ kế hoạch cũ + `_mo_dau_tap_s`) | LI103 phẳng → 17 chương đúng thứ tự · LI104 thư mục → y hệt hôm nay · gộp 1 file cả tập → vẫn bị chặn |
-| **5. Form 6 ô** | bỏ "Phương án dựng", ô Kiểu chạy, đổi nhãn Niche | ảnh chụp 2 trạng thái + `test_smoke_ui` xanh |
+| ✅ **4. Cấu trúc phẳng** | `Chuong` mang thẳng `script/voice/srt` · `doc_chuong` thêm nhánh gom file lẻ · `make --script/--voice` · worker truyền file khi chương phẳng · `_mo_dau_tap_s` nhận cả hai kiểu | tập phẳng dựng từ file thật LI103 → 5 chương đúng thứ tự, `ref 1.mp4` không bị nhầm là voice · kiểu thư mục chạy y hệt · có cả hai kiểu → thư mục thắng, không nhân đôi · gộp 1 voice cả tập → vẫn chặn |
+| ✅ **5. Form 6 ô** | bỏ "Phương án dựng" · ô **Kiểu chạy** 3 lựa chọn, ô mốc AVD nằm TRONG lựa chọn AVD Mode · nhãn "Kênh / niche" → **Niche** · form luôn gửi `chi_chuan_bi=true` (3 kiểu chung một đường Offline) | form thật trên cổng dev phục vụ đúng 3 lựa chọn + nhãn Niche; 4 test khoá hành vi + `test_smoke_ui` xanh |
+
+### Bậc 4 — 6 chỗ, và chỗ thứ 6 là chỗ kế hoạch cũ bỏ sót
+
+| Chỗ | Sửa gì |
+|---|---|
+| `chapters.Chuong` | thêm `script`/`voice`/`srt` + cờ `phang`; kiểu thư mục để None (make tự dò như cũ) |
+| `chapters.doc_chuong` | thêm nhánh `_chuong_phang` gom file lẻ theo tên; **chỉ chạy khi không có thư mục chương** → có cả hai kiểu thì thư mục thắng |
+| luật "gộp cả tập" | file phẳng đúng quy ước KHÔNG bị tính là gộp; `ref *.mp4` không bị nhầm là voice |
+| `cli.make` | `--script`/`--voice` tường minh; title lấy từ tên file (`C1`) chứ không phải tên thư mục (`RenderY`) |
+| `worker` | `chapters_of` trả `Chuong`; chương phẳng thì truyền file thẳng — để `make` tự dò trong thư mục chứa 17 chương là vớ nhầm |
+| **`server._mo_dau_tap_s`** | **chỗ kế hoạch cũ THIẾU (PH5)** — chương phẳng nhận theo tên file voice thay vì tên thư mục. Hỏng ở đây là Auto chết mà không báo |
 
 ### Vì sao cần 3b — chẻ thôi chưa đủ (đo 07/09 tối)
 

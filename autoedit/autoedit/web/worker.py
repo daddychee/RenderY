@@ -33,7 +33,7 @@ def _log_path(logs_dir: Path, job_id: int) -> Path:
     return logs_dir / f"job_{job_id}.log"
 
 
-def chapters_of(folder: Path) -> list[Path]:
+def chapters_of(folder: Path) -> list:
     """Thư mục TẬP -> danh sách thư mục chương, ĐÚNG THỨ TỰ H → C1..Cn → E.
 
     Quy ước OUTLIERY: `<tập>/RenderY/{H,C1,C2,...,E}`. Sắp theo tên là sai cả hai
@@ -42,7 +42,7 @@ def chapters_of(folder: Path) -> list[Path]:
     from autoedit.web.chapters import doc_chuong
 
     chuong, _ = doc_chuong(Path(folder))
-    return [c.path for c in chuong]
+    return chuong
 
 
 def _run_cli(args: list[str], root: Path, log, conn, job_id: int) -> tuple[int, str]:
@@ -191,7 +191,7 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
         chapters = chapters_of(folder)
         with open(log_path, "w", encoding="utf-8") as log:
             log.write(f"Job {job.id}: {folder}\n{len(chapters)} chương: "
-                      f"{', '.join(c.name for c in chapters)}\n\n")
+                      f"{', '.join(c.ma for c in chapters)}\n\n")
             # Giao DẦN: xoá kết quả lần trước một lần ở đây, rồi mỗi chương xong là
             # đổ ra ngay. 31/08 user hỏi "C7 C8 đã trả ra kết quả chưa?" — chúng dựng
             # xong từ lâu nhưng phải đợi C9 mới được giao.
@@ -202,22 +202,27 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
                 daemon=True, name=f"ref-{job.id}").start()
             tom_tat: list[dict] = []
             for i, ch in enumerate(chapters, start=1):
-                log.write(f"\n{'=' * 70}\nCHƯƠNG {i}/{len(chapters)}: {ch.name}\n{'=' * 70}\n")
+                log.write(f"\n{'=' * 70}\nCHƯƠNG {i}/{len(chapters)}: {ch.ma}\n{'=' * 70}\n")
                 log.flush()
-                q.set_chuong(conn, job.id, f"{ch.name} ({i}/{len(chapters)})")
-                code, pid = _run_cli(["make", str(ch)] + extra, root, log, conn, job.id)
+                q.set_chuong(conn, job.id, f"{ch.ma} ({i}/{len(chapters)})")
+                # CẤU TRÚC PHẲNG: chỉ tên file thẳng — mọi chương chung một thư mục,
+                # để `make` tự dò là vớ nhầm chương khác.
+                rieng = (["--script", str(ch.script), "--voice", str(ch.voice)]
+                         if ch.phang else [])
+                code, pid = _run_cli(["make", str(ch.path)] + extra + rieng,
+                                     root, log, conn, job.id)
                 # CHỈ giao chương chạy XONG: project_id được in ngay lúc tạo project,
                 # nên chương chết giữa chừng cũng có pid — giao ra là timeline dở.
                 if pid and code == 0:
                     ids.append(pid)
-                    _giao_ngay(root, folder, ch.name, pid, tom_tat,
+                    _giao_ngay(root, folder, ch.ma, pid, tom_tat,
                                xong_het=(i == len(chapters)), log=log)
                 if code != 0:
                     # KHÔNG dừng cả tập: 31/08 chương cuối C9 chết vì Pexels trả 504
                     # mà H/C7/c8 đã dựng xong — huỷ hết thì nhân sự chẳng có gì làm.
                     # Chạy nốt chương còn lại, cuối cùng báo rõ chương nào hỏng.
-                    chuong_loi.append(ch.name)
-                    log.write(f"\n⚠ Chương {ch.name} lỗi (mã {code}) — bỏ qua, "
+                    chuong_loi.append(ch.ma)
+                    log.write(f"\n⚠ Chương {ch.ma} lỗi (mã {code}) — bỏ qua, "
                               f"chạy tiếp chương sau.\n")
                     log.flush()
 
