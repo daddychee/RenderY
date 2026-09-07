@@ -30,6 +30,15 @@ def do(hd: dict) -> dict:
 
     dai = [round(float(k.get("v1", 0)) - float(k.get("v0", 0)), 2) for k in khoi]
     dai_hinh = [round(float(h.get("dur") or 0), 2) for h in hinh]
+    # SHOT NGƯỜI XEM THẤY: miếng "chảy tiếp" nối liền clip của miếng trước nên
+    # mắt thấy MỘT shot dài, dù dữ liệu là nhiều ô (SEQUENCE 3b).
+    thay: list[float] = []
+    for h in hinh:
+        d = round(float(h.get("dur") or 0), 2)
+        if h.get("noi_tiep") and thay:
+            thay[-1] = round(thay[-1] + d, 2)
+        else:
+            thay.append(d)
     co_uv = sum(1 for k in khoi if k.get("uv"))
     n = len(khoi) or 1
 
@@ -58,6 +67,8 @@ def do(hd: dict) -> dict:
         "khoi_p90": round(_phan_vi(dai, 0.9), 2),
         "khoi_max": round(max(dai), 2) if dai else 0.0,
         "hinh_median": round(st.median(dai_hinh), 2) if dai_hinh else 0.0,
+        "so_shot_thay": len(thay),
+        "shot_thay_median": round(st.median(thay), 2) if thay else 0.0,
         "hinh_max": round(max(dai_hinh), 2) if dai_hinh else 0.0,
         # cổng của bậc 3: khối dài hơn 1,6× chuẩn kênh là chỗ nhịp bị ì
         "khoi_qua_dai": sum(1 for x in dai if than > 0 and x > than * 1.6),
@@ -81,6 +92,10 @@ def dong_bao_cao(s: dict, ten: str = "") -> list[str]:
     if s["framing_than"] > 0 and s["hinh_median"] > 0:
         d = s["hinh_median"] / s["framing_than"] - 1
         lech = f"  (lệch chuẩn kênh {d:+.0%})"
+    lech_thay = ""
+    if s["framing_than"] > 0 and s.get("shot_thay_median"):
+        lech_thay = (f"  (lệch chuẩn kênh "
+                     f"{s['shot_thay_median'] / s['framing_than'] - 1:+.0%})")
     ra = [
         f"{ten or s['ma_tap'] or '?'} · {s['trang_thai']} · "
         f"{'ĐỒNG KIỂM' if s['dong_kiem'] else 'AUTO'}",
@@ -97,6 +112,8 @@ def dong_bao_cao(s: dict, ten: str = "") -> list[str]:
         f"  Có ứng viên: {s['co_uv']}/{s['so_khoi']} ({s['ty_le_co_uv']:.0%})"
         + ("  ⚠ dưới 50% — Auto sẽ KHÔNG tự khoá sổ"
            if s["ty_le_co_uv"] < 0.5 else ""),
+        f"  NGƯỜI XEM THẤY: {s.get('so_shot_thay', 0)} shot · "
+        f"median {s.get('shot_thay_median', 0)}s{lech_thay}",
         f"  Nguồn đang chọn: "
         + (" · ".join(f"{k} {v}" for k, v in s["nguon"].items()) or "chưa chọn"),
     ]

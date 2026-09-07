@@ -226,6 +226,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     # ứng viên Library — fail-open
     ung_vien: list[list[dict]] = [[] for _ in ds_khoi]
     chon = [-1] * len(ds_khoi)
+    noi_tiep: list[bool] = []
     try:
         from autoedit.sotra import db as sdb
 
@@ -241,7 +242,12 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 bo_nguon=() if dong_kiem else ("envato",),
                 # rào cứng theo tập (06/09): geo lệch/ref tập khác không chảy vào
                 geo_tap=dia_danh, tap=_ma_tap(project_dir))
-            chon = dung.chon_mac_dinh(ds_khoi, ung_vien)
+            # CHẢY TIẾP theo chuẩn kênh (3b): khối ngắn hơn `than` thì dùng
+            # tiếp clip của khối trước thay vì đổi hình mỗi hơi thở.
+            noi_tiep = []
+            chon = dung.chon_mac_dinh(ds_khoi, ung_vien,
+                                      than=float(fr.get("than") or 0),
+                                      noi_tiep=noi_tiep)
         finally:
             if conn is None:
                 c.close()
@@ -284,6 +290,11 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     # thì than=0 -> giữ nguyên 1 khối 1 miếng như trước, không đoán bừa.
     hd["hinh"] = mhinh.sinh_tu_khoi(hd["khoi"], than=float(fr.get("than") or 0),
                                     hold=float(fr.get("hold") or 0))
+    # khối CHẢY TIẾP -> miếng ĐẦU của khối đó nối tiếp clip của khối trước
+    for h in hd["hinh"]:
+        i = h.get("khoi_goc", -1)
+        if not h.get("noi_tiep") and 0 <= i < len(noi_tiep) and noi_tiep[i]:
+            h["noi_tiep"] = bool(h["t0"] == mhinh.moc_timeline(hd["khoi"])[i][0])
     (project_dir / TEN_HOP_DONG).write_text(
         json.dumps(hd, ensure_ascii=False, indent=1), encoding="utf-8")
     ghi(f"offline: hợp đồng ghi xong — {len(ds_khoi)} khối · "

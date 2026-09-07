@@ -133,7 +133,7 @@ Envato định tránh.
 | ✅ **1. Ô Kiểu chạy** | enum `manual/avd/auto` trong hồ sơ chương; `dong_kiem` suy từ enum ở **một hàm duy nhất** `tinh_dong_kiem()`; giá trị lạ thì DỪNG | 3 kiểu × chương giữa tập (mở ở phút 10, mốc 7 phút) → `dong_kiem` đúng cả 3 · `manual` và `auto` cùng `avd_s=0` vẫn ra hai kết quả khác nhau (chỗ bản cũ bó tay) |
 | ✅ **2. Đo Auto** | `kiem-hop-dong --nhu-auto` — tra lại Library bỏ Envato, dùng lớp nghĩa ĐÃ LƯU nên không gọi lại LLM | đo 5 hợp đồng thật: **0/5 dưới ngưỡng 50%**, xem kết quả bên dưới |
 | ✅ **3a. Chẻ khối dài theo Framing** | `hinh.che_mot_khoi`: khối > 1,6×`than` chẻ thành `round(span/than)` miếng, **né về ranh mềm có sẵn**, chừa quota `hold`, sàn 0,7s, trần giữ 2,5×. KHÔNG đụng dải voice | C7: shot dài nhất 18,4s → **10,4s**, lệch −7% → **−4%** · C8: 14,7s → 11,7s, +1% → −4% · không còn miếng > 12s |
-| ⏳ **3b. Cho clip CHẢY TIẾP qua ranh khối** | luật chọn phân biệt "lặp" (cấm) với "chảy tiếp" (cho, khi khối ngắn hơn chuẩn kênh và nguồn còn đủ dài); chỗ ráp cắt **một đoạn liên tục** + miếng sau nối đúng chỗ miếng trước dừng | C2: 43 shot/median 3,24s (**−32%**) → 32 shot/median 4,71s (**0%**), số clip phải tải giảm 26% |
+| ✅ **3b. Cho clip CHẢY TIẾP qua ranh khối** | luật chọn phân biệt "lặp" (cấm) với "chảy tiếp" (cho); chỗ ráp cắt tiếp đúng chỗ miếng trước dừng, **đo file thật** trước khi cho tiếp | C2 đo thật: 43 → **33 shot** · median 3,24s → **4,57s** · lệch −32% → **−3%** · clip phải tải 36 → 31 |
 | **4. Cấu trúc phẳng + `Rec/`** | **6 chỗ** (5 chỗ kế hoạch cũ + `_mo_dau_tap_s`) | LI103 phẳng → 17 chương đúng thứ tự · LI104 thư mục → y hệt hôm nay · gộp 1 file cả tập → vẫn bị chặn |
 | **5. Form 6 ô** | bỏ "Phương án dựng", ô Kiểu chạy, đổi nhãn Niche | ảnh chụp 2 trạng thái + `test_smoke_ui` xanh |
 
@@ -158,7 +158,18 @@ Ba đường đã cân (user chọn C, 07/09 tối):
 tìm/tải giảm 26%** (ít lượt Envato, ít ô placeholder).
 
 Giới hạn đã lường: chỉ chảy tiếp được khi clip nguồn CÒN ĐỦ DÀI; clip 3s không
-kéo thành 4,7s — khi đó vẫn đổi hình như cũ. Con số 32 đã tính điều này.
+kéo thành 4,7s — khi đó vẫn đổi hình như cũ.
+
+**Hai chỗ chặn lộ ra khi chạy thật (07/09 tối) — bản đầu KHÔNG chảy tiếp lần nào:**
+
+| Chặn | Đo được | Sửa |
+|---|---|---|
+| Điều kiện "nguồn còn đủ dài" | **39/39** clip kho **không ghi `dai_s`** → luôn coi như hết nguồn | Lạc quan lúc CHỌN, **đo file thật lúc RÁP** (`con_du_nguon`); hụt thì quay về clip riêng |
+| Điều kiện "clip phải có trong khay khối kế" | chỉ **8/39** chỗ có — mỗi khối tra Library bằng từ khóa riêng | Chảy tiếp là quyết định về TIMELINE, không phải về khay → đưa clip đang chiếu vào **đầu khay** khối đó, editor thấy đúng thứ đang chiếu và đổi được |
+
+Kèm theo, vá một lỗ do chính 3a tạo ra: miếng chẻ thêm trước đó **không có clip
+nào** → mỗi lần chẻ là một lỗ trên timeline. Nay miếng chẻ là phần chảy tiếp của
+chính clip đang chiếu, và vẫn giữ khay để nếu chảy tiếp hụt thì còn clip đắp.
 
 ### Kết quả bậc 2 — Auto có giao được hàng không? (đo 07/09 tối)
 

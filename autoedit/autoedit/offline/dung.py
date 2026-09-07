@@ -52,16 +52,58 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
     return ra
 
 
-def chon_mac_dinh(khoi: list, ung_vien: list[list[dict]]) -> list[int]:
-    """Chỉ số ứng viên mặc định mỗi khối (-1 = không có) theo 3 luật trên."""
+def chon_mac_dinh(khoi: list, ung_vien: list[list[dict]], than: float = 0.0,
+                  noi_tiep: list | None = None) -> list[int]:
+    """Chỉ số ứng viên mặc định mỗi khối (-1 = không có) theo 3 luật trên.
+
+    `than` > 0 bật CHẢY TIẾP (user chốt 07/09 tối): khối ngắn hơn chuẩn kênh thì
+    khối kế dùng TIẾP chính clip đó, ngay sau đoạn vừa dùng — người xem thấy một
+    shot dài đúng nhịp kênh thay vì hai shot vụn.
+
+    Phân biệt rõ với LẶP (clip quay lại sau vài chục giây — vẫn cấm bởi luật
+    60s): chảy tiếp là hai khối LIỀN KỀ, nguồn còn đủ dài. Vì sao cần (SEQUENCE
+    3b): luật 60s vô tình ép ĐỔI HÌNH MỖI HƠI THỞ — người đọc thở 2,2s/lần thì
+    video cắt 2,2s/lần, bất kể kênh ref giữ shot 4,7s. Đo trên C2: 43 shot
+    median 3,24s (lệch -32%) -> 32 shot median 4,71s (lệch 0%).
+
+    `noi_tiep` (nếu truyền) được điền True ở khối chảy tiếp.
+    """
     dung_luc: dict[str, float] = {}
+    cha_dung = 0.0            # thời lượng shot hiện tại đã kéo dài bao nhiêu
+    con_nguon = 0.0           # nguồn của clip đang dùng còn lại bao nhiêu giây
+    dang = -1                 # vị trí ứng viên đang dùng ở khối trước
     lop_gan: list[str] = []
     neo_cuoi = -999.0
     chon: list[int] = []
     for i, k in enumerate(khoi):
         uv = ung_vien[i]
+        if noi_tiep is not None:
+            noi_tiep.append(False)
         if not uv:
             chon.append(-1)
+            dang, cha_dung, con_nguon = -1, 0.0, 0.0
+            continue
+        dai_khoi = float(k.v1 - k.v0) + max(0.0, float(getattr(k, "tho", 0) or 0))
+        # ---- CHẢY TIẾP: giữ nguyên clip của khối trước nếu còn hợp lệ ----
+        if (than > 0 and dang >= 0 and chon and chon[-1] >= 0
+                and cha_dung + dai_khoi <= than * 1.3
+                and con_nguon >= dai_khoi):
+            truoc = ung_vien[i - 1][chon[-1]]
+            vi_tri = next((j for j, u in enumerate(uv) if u["id"] == truoc["id"]), None)
+            if vi_tri is None:
+                # Clip đang chiếu THƯỜNG KHÔNG nằm trong khay khối kế (đo trên
+                # C2: chỉ 8/39 chỗ có) vì mỗi khối tra Library bằng từ khóa
+                # riêng. Chảy tiếp là quyết định về TIMELINE chứ không phải về
+                # khay, nên đưa nó vào đầu khay khối này — editor nhìn thấy
+                # đúng clip đang chiếu và đổi được nếu muốn.
+                uv.insert(0, truoc)
+                vi_tri = 0
+            chon.append(vi_tri)
+            if noi_tiep is not None:
+                noi_tiep[-1] = True
+            cha_dung += dai_khoi
+            con_nguon -= dai_khoi
+            lop_gan.append(truoc.get("lop", "L3"))
             continue
         can_l1 = (k.v0 - neo_cuoi) >= CHOT_NEO_S
         ba_l3 = len(lop_gan) >= 2 and lop_gan[-1] == "L3" and lop_gan[-2] == "L3"
@@ -81,6 +123,13 @@ def chon_mac_dinh(khoi: list, ung_vien: list[list[dict]]) -> list[int]:
             c = 0
         chon.append(c)
         u = uv[c]
+        dang = c
+        cha_dung = dai_khoi
+        # `dai_s` rỗng ở HẦU HẾT clip kho (đo C2: 39/39) — nếu coi rỗng là "hết
+        # nguồn" thì chảy tiếp không bao giờ chạy. Lạc quan ở đây, KIỂM THẬT lúc
+        # ráp: thay_mau đo độ dài file thật, hụt thì tự chuyển sang clip riêng.
+        dai_nguon = float(u.get("dai_s") or 0) or (than * 2 if than > 0 else 0.0)
+        con_nguon = max(0.0, dai_nguon - dai_khoi)
         dung_luc[u["id"]] = k.v0
         lop_gan.append(u["lop"])
         if u["lop"] == "L1":

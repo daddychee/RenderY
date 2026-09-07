@@ -476,12 +476,14 @@ def test_hold_giu_lai_shot_dai_nhung_KHONG_giu_shot_qua_dai():
     assert len(van_che) == 4
 
 
-def test_ung_vien_cua_khoi_gan_vao_MIENG_DAU():
+def test_chon_gan_vao_MIENG_DAU_con_khay_thi_moi_mieng_deu_giu():
+    """Miếng chẻ giữ khay để chảy tiếp hụt nguồn thì còn clip đắp, không thành
+    lỗ; nhưng `chon` chỉ ở miếng đầu — miếng sau là phần chảy tiếp."""
     from autoedit.offline import hinh
 
     ra = hinh.sinh_tu_khoi([_khoi(0, 18)], than=4.73)
-    assert ra[0]["uv"] and ra[0]["chon"] == 0
-    assert all(not h["uv"] and h["chon"] == -1 for h in ra[1:])
+    assert ra[0]["chon"] == 0 and ra[0]["uv"]
+    assert all(h["uv"] and h["chon"] == -1 and h["noi_tiep"] for h in ra[1:])
 
 
 def test_mieng_phu_kin_o_khoi_khong_ho_khong_lan():
@@ -497,3 +499,100 @@ def test_mieng_phu_kin_o_khoi_khong_ho_khong_lan():
         assert ds[-1]["t0"] + ds[-1]["dur"] == pytest.approx(n2, abs=0.01)
         for a, b in zip(ds, ds[1:]):
             assert a["t0"] + a["dur"] == pytest.approx(b["t0"], abs=0.01)
+
+
+# ============ BẬC 3b — clip CHẢY TIẾP qua ranh khối (user chốt 07/09 tối) ====
+# Gốc bệnh không ở chỗ chia dữ liệu mà ở LUẬT CHỌN: điều "cùng clip không xuất
+# hiện 2 lần trong 60s" (chống lặp) vô tình ép ĐỔI HÌNH MỖI HƠI THỞ. Người đọc
+# thở 2,2s/lần thì video cắt 2,2s/lần, bất kể kênh ref giữ shot 4,7s.
+
+class _K:                                   # khối tối thiểu cho chon_mac_dinh
+    def __init__(self, v0, v1, tho=0.0):
+        self.v0, self.v1, self.tho = v0, v1, tho
+
+
+def _uv(cid, lop="L1", dai_s=30.0):
+    return {"id": cid, "nguon": "ref", "tieu_de": cid, "lop": lop,
+            "diem": 9.0, "dai_s": dai_s}
+
+
+def test_khoi_ngan_thi_clip_CHAY_TIEP_thay_vi_doi_hinh():
+    from autoedit.offline import dung
+
+    khoi = [_K(0, 2.2), _K(2.2, 4.4), _K(4.4, 6.6)]
+    uv = [[_uv("ref:a"), _uv("ref:b")]] * 3
+    nt: list = []
+    chon = dung.chon_mac_dinh(khoi, uv, than=4.73, noi_tiep=nt)
+    # khối 1+2 gộp thành 1 shot 4,4s (≈ chuẩn kênh) rồi ĐỔI clip — đúng ý:
+    # chảy tiếp tới khi đủ nhịp kênh, không phải chảy mãi
+    assert chon == [0, 0, 1]
+    assert nt == [False, True, False]
+
+
+def test_khong_khai_than_thi_GIU_NGUYEN_luat_cu():
+    from autoedit.offline import dung
+
+    khoi = [_K(0, 2.2), _K(2.2, 4.4)]
+    uv = [[_uv("ref:a"), _uv("ref:b")]] * 2
+    assert dung.chon_mac_dinh(khoi, uv) == [0, 1]      # luật 60s: phải đổi clip
+
+
+def test_nguon_NGAN_thi_khong_chay_tiep_duoc():
+    """Clip 3 giây không kéo thành 4,7 giây — phải đổi hình như cũ."""
+    from autoedit.offline import dung
+
+    khoi = [_K(0, 2.2), _K(2.2, 4.4)]
+    uv = [[_uv("ref:a", dai_s=2.5), _uv("ref:b")]] * 2
+    nt: list = []
+    chon = dung.chon_mac_dinh(khoi, uv, than=4.73, noi_tiep=nt)
+    assert nt == [False, False] and chon[1] != chon[0]
+
+
+def test_chay_tiep_KHONG_bi_tinh_la_lap():
+    """Chảy tiếp (liền kề) khác lặp (quay lại sau vài chục giây)."""
+    from autoedit.offline import dung
+
+    khoi = [_K(0, 2.2), _K(2.2, 4.4)]
+    uv = [[_uv("ref:a"), _uv("ref:b")]] * 2
+    nt: list = []
+    chon = dung.chon_mac_dinh(khoi, uv, than=4.73, noi_tiep=nt)
+    assert dung.kiem_lap(khoi, uv, chon) == [0, 1]     # luật cũ vẫn thấy trùng
+    assert nt[1] is True                               # nhưng đây là chảy tiếp
+
+
+def test_mieng_che_them_la_mieng_chay_tiep():
+    """3a chẻ khối dài: miếng thêm phải nối tiếp, không để trống thành lỗ."""
+    from autoedit.offline import hinh
+
+    ra = hinh.sinh_tu_khoi([_khoi(0, 18)], than=4.73)
+    assert ra[0].get("noi_tiep") is False
+    assert all(h["noi_tiep"] for h in ra[1:])
+
+
+def test_thuoc_dem_shot_NGUOI_XEM_THAY():
+    from autoedit.offline import thuoc
+
+    hd = {"khoi": [], "framing": {"than": 4.73},
+          "hinh": [{"dur": 2.2}, {"dur": 2.3, "noi_tiep": True}, {"dur": 4.8}]}
+    s = thuoc.do(hd)
+    assert s["so_hinh"] == 3 and s["so_shot_thay"] == 2
+    assert s["shot_thay_median"] == 4.65
+    assert "NGƯỜI XEM THẤY: 2 shot" in " ".join(thuoc.dong_bao_cao(s))
+
+
+def test_luc_RAP_phai_do_file_that_moi_cho_chay_tiep(tmp_path):
+    """Lúc chọn thì lạc quan, lúc ráp phải kiểm: hụt nguồn -> clip riêng."""
+    import subprocess
+
+    from autoedit.offline.thay_mau import con_du_nguon
+
+    f = tmp_path / "v.mp4"
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+                        "-i", "color=c=black:s=64x64:d=3", "-pix_fmt", "yuv420p",
+                        str(f)], capture_output=True)
+    assert r.returncode == 0 and f.is_file()
+
+    assert con_du_nguon(f, da_dung=0.0, can=2.0) is True     # còn 3s, cần 2s
+    assert con_du_nguon(f, da_dung=2.0, can=2.0) is False    # còn 1s, cần 2s
+    assert con_du_nguon(None, 0.0, 1.0) is False
+    assert con_du_nguon(tmp_path / "khong-co.mp4", 0.0, 1.0) is False

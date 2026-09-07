@@ -93,7 +93,27 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
     # thể chứa nhiều miếng, miếng có thể trải qua nhiều khối voice
     from autoedit.offline import hinh as mhinh
 
+    truoc_file: Path | None = None      # asset của miếng liền trước
+    truoc_dung = 0.0                     # đã tiêu bao nhiêu giây của asset đó
     for i, k in enumerate(mhinh.dam_bao(hd)):
+        # ---- MIẾNG CHẢY TIẾP (3b): cắt TIẾP asset của miếng trước, đúng chỗ nó
+        # dừng. Nếu cắt lại từ giây 0 thì người xem thấy hình NHẢY VỀ ĐẦU —
+        # còn xấu hơn cắt sang clip khác.
+        if k.get("noi_tiep"):
+            if con_du_nguon(truoc_file, truoc_dung, k["dur"]):
+                dich = assets / f"h{i:02d}_noi.mp4"
+                try:
+                    cat_clip(truoc_file, truoc_dung, k["dur"] + 0.3, dich)
+                    if dich.is_file() and dich.stat().st_size > 5_000:
+                        ra[i] = dich
+                        truoc_dung += k["dur"] * SPEED
+                        log(f"thay-mau: miếng {i + 1} chảy tiếp «{truoc_file.name[:28]}»"
+                            f" từ {truoc_dung - k['dur'] * SPEED:.1f}s")
+                        continue
+                except Exception as exc:  # noqa: BLE001 — hụt thì chọn clip riêng
+                    log(f"thay-mau: miếng {i + 1} chảy tiếp lỗi ({str(exc)[:60]})")
+            else:
+                log(f"thay-mau: miếng {i + 1} nguồn cạn — chuyển sang clip riêng")
         ung = (k.get("uv") or [])
         thu_tu = ([ung[k["chon"]]] if 0 <= k.get("chon", -1) < len(ung) else []) + \
                  [u for j, u in enumerate(ung) if j != k.get("chon")]
@@ -164,8 +184,31 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
             warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — timeline hở, editor đắp")
         else:
             ra[i] = dat
+            truoc_file, truoc_dung = dat, k["dur"] * SPEED
         log(f"thay-mau: miếng {i + 1}/{len(mhinh.dam_bao(hd))} -> {dat.name if dat else 'HỞ'}")
     return ra, dung_id, warns
+
+
+def con_du_nguon(f: Path | None, da_dung: float, can: float) -> bool:
+    """Asset của miếng trước còn đủ để chảy tiếp thêm `can` giây không?
+
+    Chốt an toàn của luật CHẢY TIẾP (SEQUENCE 3b): lúc CHỌN thì lạc quan (hầu
+    hết clip kho không ghi `dai_s` — đo C2: 39/39 rỗng), nhưng lúc RÁP phải đo
+    file thật. Hụt thì miếng đó quay về chọn clip riêng, không kéo hình cụt.
+    """
+    if f is None or not Path(f).is_file():
+        return False
+    return (_dai_video(Path(f)) - da_dung) >= can
+
+
+def _dai_video(f: Path) -> float:
+    """Độ dài video (giây); 0 nếu không đo được — caller coi như nguồn cạn."""
+    try:
+        from autoedit.project import ffprobe_duration
+
+        return float(ffprobe_duration(f) or 0.0)
+    except Exception:  # noqa: BLE001
+        return 0.0
 
 
 def _cat_voice(project_dir: Path, hd: dict, log) -> dict[int, Path]:

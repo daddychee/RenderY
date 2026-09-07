@@ -108,10 +108,14 @@ def sinh_tu_khoi(khoi: list[dict], than: float = 0.0,
             if than > 0 and dur > than * LA_GIU:
                 so_giu += 1
             ra.append({"t0": a, "dur": dur, "khoi_goc": i,
-                       # ứng viên/lựa chọn của khối gắn vào MIẾNG ĐẦU — miếng
-                       # chẻ thêm để trống, người (hoặc phễu) đổ hình sau
-                       "uv": (k.get("uv") or []) if j == 0 else [],
+                       # ứng viên/lựa chọn của khối gắn vào MIẾNG ĐẦU. Miếng chẻ
+                       # thêm là phần CHẢY TIẾP của chính clip đó — nếu để trống
+                       # thì mỗi lần chẻ lại đẻ ra một lỗ trên timeline.
+                       # miếng chẻ giữ NGUYÊN khay của khối: chảy tiếp hụt
+                       # nguồn thì còn clip để đắp, không thành lỗ trên timeline
+                       "uv": k.get("uv") or [],
                        "chon": k.get("chon", -1) if j == 0 else -1,
+                       "noi_tiep": j > 0,
                        "nguoi_sua": bool(k.get("nguoi_sua")) if j == 0 else False})
     return ra
 
