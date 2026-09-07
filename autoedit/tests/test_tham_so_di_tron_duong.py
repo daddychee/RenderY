@@ -760,3 +760,44 @@ def test_sso_chi_tin_header_khi_loopback(monkeypatch):
     assert server.current_user(_Req("192.168.1.50")) == ""          # từ LAN: KHÔNG
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "")
     assert server.current_user(_Req("127.0.0.1")) == ""             # tắt cờ: KHÔNG
+
+
+# ====== Suất giữ chỗ REF phải theo TẬP ĐANG DỰNG (bug bắt 07/09 khuya) ======
+# Chương H của LI103 chạy thật: khay ref RỖNG dù kho có 1.995 cảnh ref của tập,
+# 1.768 cảnh khớp từ khoá. Nguyên nhân: câu lấy ref giữ chỗ là
+#   SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' LIMIT 600
+# — KHÔNG lọc tập, KHÔNG sắp xếp, nên lấy 600 dòng ĐẦU BẢNG. Đo: 600 dòng đó
+# toàn của LI100 (nạp trước). Ref LI103 nằm ngoài cửa sổ -> không bao giờ được
+# xét; rồi rào tập loại nốt ref LI100 (đúng luật) -> khay trống.
+# Suất giữ chỗ chỉ đúng khi kho có MỘT tập; có tập thứ hai là hỏng.
+
+def test_suat_giu_cho_ref_lay_dung_TAP_DANG_DUNG(tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+    from autoedit.sotra.tra import tra
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    conn = sdb.mo()
+    try:
+        # tập CŨ nạp trước -> chiếm HẾT cả hai cửa sổ: 800 dòng của FTS và 600
+        # dòng của suất giữ chỗ. Kho thật 07/09: LI100 871 cảnh nạp trước LI103.
+        for i in range(850):
+            ten = f"old market crowd {i}"
+            sdb.them_clip(conn, {"id": f"ref:LI100-r:{i}", "nguon": "ref", "tap": "LI100",
+                                 "tieu_de": ten, "path_local": "ref 1.mp4",
+                                 **tag_tu_tieu_de(ten)})
+        # tập ĐANG DỰNG nạp sau -> nằm cuối bảng
+        for i in range(20):
+            ten = f"kabul market crowd {i}"
+            sdb.them_clip(conn, {"id": f"ref:LI103-r:{i}", "nguon": "ref", "tap": "LI103",
+                                 "tieu_de": ten, "path_local": "ref 1.mp4",
+                                 **tag_tu_tieu_de(ten)})
+        conn.commit()
+
+        uv = tra(conn, {"L0": [], "L1": ["market"], "L2": [], "L3": []},
+                 so=12, uu_tien_nguon="ref", tap="LI103")
+        ref = [c for c in uv if c["nguon"] == "ref"]
+        assert ref, "khay ref RỖNG — suất giữ chỗ lấy nhầm tập khác rồi bị rào loại"
+        assert all(c["id"].startswith("ref:LI103") for c in ref)
+    finally:
+        conn.close()

@@ -208,6 +208,31 @@ Envato thì hụt thật: C7 rớt từ 100% xuống 63%, mất 11/30 khối. Ch
 → Auto dùng được cho ca đêm. Chỗ cần theo dõi là **chương nào đang sống nhờ
 Envato** — chạy `--nhu-auto` trước khi bật đêm là biết ngay.
 
+### PH7. Suất giữ chỗ REF lấy nhầm tập — khay ref RỖNG (user bắt 07/09 khuya)
+
+Chạy thật chương H của LI103: panel "REF CỦA TEAM" trắng trơn, dù kho có 1.995
+cảnh ref của tập, **1.768 cảnh khớp từ khoá**.
+
+Không phải rào geo (ref LI103 đều mang geo `afghanistan`), cũng không phải rào
+tập (luật "ref tập khác không sang tập này" viết đúng). Thủ phạm là câu lấy ref:
+
+```sql
+SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' LIMIT 600
+```
+
+**Không lọc tập, không sắp xếp** → lấy 600 dòng ĐẦU BẢNG, mà đầu bảng là tập nạp
+TRƯỚC. Đo: 600 dòng đó **toàn LI100**. Ref LI103 nằm ngoài cửa sổ, không bao giờ
+được xét; rồi rào tập loại nốt LI100 → khay trống.
+
+Cơ chế giữ chỗ này sinh ra để ref khỏi bị FTS bỏ rơi, và **đúng khi kho có MỘT
+tập**. LI103 là tập thứ hai nên vỡ — nghĩa là nó vỡ đúng lúc kho bắt đầu có giá
+trị. Vá: lọc theo tập ngay trong câu lấy.
+
+Đo lại trên kho thật, chương H: khối 1 · 5 · 10 đều từ **ref 0 → ref 2**.
+
+> Test lần đầu XANH GIẢ vì kho giả quá nhỏ (mọi thứ lọt cửa sổ). Phải làm đầy
+> CẢ HAI cửa sổ (800 của FTS + 600 của suất giữ chỗ) mới tái hiện được lỗi.
+
 ### PH6. Footage ĐÃ GIAO bị ghi vào Library dưới nhãn `ref` (sửa 07/09 tối)
 
 `nap_ref_tap` quét `rglob("*.mp4")` — mọi file mp4 nằm sâu bất kỳ trong thư mục

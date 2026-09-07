@@ -47,11 +47,23 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         "SELECT c.* FROM clip_fts f JOIN clip c ON c.id=f.id "
         "WHERE clip_fts MATCH ? AND c.trang_thai='song' LIMIT 800", (fts,)).fetchall()
     # REF lấy RIÊNG, không qua FTS (bài học V5: ref ít + từ khóa lệch ngôn ngữ
-    # -> FTS bỏ rơi; suất giữ chỗ phải đến từ quét thẳng bảng, ref mỗi tập ít)
+    # -> FTS bỏ rơi; suất giữ chỗ phải đến từ quét thẳng bảng, ref mỗi tập ít).
+    #
+    # LỌC THEO TẬP ngay trong câu này (bug bắt 07/09 khi chạy chương H LI103):
+    # bản cũ `LIMIT 600` không lọc tập và không sắp xếp -> lấy 600 dòng ĐẦU
+    # BẢNG, mà đầu bảng là tập nạp TRƯỚC. Đo thật: 600 dòng đó toàn LI100, nên
+    # 1.995 cảnh ref của LI103 (1.768 khớp từ khoá) không bao giờ được xét; rồi
+    # rào "ref tập khác không sang tập này" loại nốt LI100 -> KHAY REF RỖNG.
+    # Suất giữ chỗ chỉ đúng khi kho có MỘT tập; có tập thứ hai là hỏng.
     da_co = {r["id"] for r in rows}
-    rows = list(rows) + [r for r in conn.execute(
-        "SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' LIMIT 600")
-        if r["id"] not in da_co]
+    if tap:
+        cau, tham = ("SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' "
+                     "AND tap=? LIMIT 600", (tap,))
+    else:
+        cau, tham = ("SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' "
+                     "LIMIT 600", ())
+    rows = list(rows) + [r for r in conn.execute(cau, tham)
+                         if r["id"] not in da_co]
     # LỚP NGHĨA: topic + cờ ẩn dụ của beat, tra một lượt cho cả mẻ (rẻ)
     nghia: dict[str, tuple] = {}
     if DUNG_LOP_NGHIA:
