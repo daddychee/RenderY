@@ -21,7 +21,10 @@ from pathlib import Path
 
 from autoedit.packager.machine import resolve_data_root
 
-NGUON_HOP_LE = ("envato", "pexels", "pixabay", "ref", "kho", "aigen")
+# Tên kho = NGUỒN THẬT của clip (user chốt 07/09): tải từ trang nào thì kho tên
+# trang đó · phim mẫu vào `ref` · footage tự quay vào `rec`. `kho` chỉ còn là
+# chỗ tạm cho clip cũ chưa tra được nguồn.
+NGUON_HOP_LE = ("envato", "pexels", "pixabay", "ref", "rec", "kho", "aigen")
 # 7 trục từ khóa (chốt 06/09) — cột nào cũng text thường, cách nhau dấu phẩy
 TRUC = ("subject", "action", "setting", "geo", "people", "shot", "mood")
 

@@ -99,6 +99,17 @@ phải vì bộ test độc lập.
 **LUẬT:** test không được chạm mạng. Có sẵn chỗ tiêm mà không dùng thì coi như
 chưa có. Bộ test chạy được khi rút dây mạng mới là bộ test thật.
 
+### BH8. Log ghi ra file bị ĐỆM — đừng đọc tiến độ để đoán tốc độ
+
+07/09 khuya: theo dõi `pytest > file.txt` thấy tiến độ "đứng yên" hàng chục
+phút, kết luận máy chậm, thậm chí giết nhầm tiến trình vì tưởng chạy trùng.
+Sự thật: pytest tự báo **303 giây** — đúng như mọi lượt. Ghi ra file (không
+phải màn hình) thì stdout đệm theo khối, chữ hiện thành từng cụm.
+
+**LUẬT:** tiến độ trong file log KHÔNG phải thước đo tốc độ. Muốn biết nhanh
+chậm thì đọc con số tổng do chính công cụ in ra lúc kết thúc, hoặc đo bằng
+`time`. Đừng suy luận từ số dấu chấm.
+
 ---
 
 ## Quy trình một đợt (user chốt 07/09)

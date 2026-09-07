@@ -787,7 +787,8 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         <div id="of-khu">
           <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
           <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
-          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS · PIXABAY · KHO · AI <span id="of-n-stock"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-stock"></div></div>
+          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS · PIXABAY <span id="of-n-stock"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-stock"></div></div>
+          <div class="of-khu phu"><h4 style="color:#6fb7c9">REC · AI <span id="of-n-rec"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-rec"></div></div>
         </div>
       </div>
     </div>
@@ -2096,20 +2097,22 @@ function ofVeKhay() {
   if (_otn) _otn.textContent = OF_TIM_KQ !== null
     ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của miếng hình ${OF_HCHON + 1}`
   // 3 KHỐI: ref · envato · stock (pexels+pixabay+kho+AI gộp) — user 08/09
-  const nhom = {ref: [], envato: [], stock: []}
-  ds.forEach((u, j) => {
-    const khu = u.nguon === 'ref' ? 'ref' : (u.nguon === 'envato' ? 'envato' : 'stock')
-    nhom[khu].push([u, j])
-  })
+  // Panel = TÊN KHO THẬT (user chốt 07/09): tải từ trang nào thì kho tên trang
+  // đó. Pexels + Pixabay chung một panel (user cho phép). `kho` là clip cũ chưa
+  // tra được nguồn — để cùng REC/AI chứ không trộn vào panel hai trang stock.
+  const KHU = {ref: 'ref', envato: 'envato', pexels: 'stock', pixabay: 'stock',
+               rec: 'rec', aigen: 'rec', kho: 'rec'}
+  const nhom = {ref: [], envato: [], stock: [], rec: []}
+  ds.forEach((u, j) => nhom[KHU[u.nguon] || 'rec'].push([u, j]))
   // clip ĐANG DÙNG của miếng đứng ĐẦU khu của nó (user 06/09): bấm footage nào
   // trên timeline thì thấy ngay nguồn của nó, không phải lục cả dải
   if (OF_TIM_KQ === null && Number.isInteger(k.chon)) {
-    for (const ng of ['ref', 'envato', 'stock']) {
+    for (const ng of ['ref', 'envato', 'stock', 'rec']) {
       const i = nhom[ng].findIndex(([, j]) => j === k.chon)
       if (i > 0) nhom[ng].unshift(nhom[ng].splice(i, 1)[0])
     }
   }
-  for (const ng of ['ref', 'envato', 'stock']) {
+  for (const ng of ['ref', 'envato', 'stock', 'rec']) {
     const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
     document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
     const khu = dai.parentElement

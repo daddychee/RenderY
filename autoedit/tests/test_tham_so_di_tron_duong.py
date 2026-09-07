@@ -1029,3 +1029,104 @@ def test_giao_dien_Add_Shot_goi_may_chu_va_co_nut_do_lai_khay():
     assert "chia đều shot đang chọn" not in h                # nhãn cũ đã bỏ
     assert "ofDoLaiKhay()" in h and "/do-lai-khay" in h
     assert "OF_ADD" not in h                                 # state của kiểu cũ đã dọn
+
+
+# ========== DÁN LẠI NHÃN KHO CHO ĐÚNG NGUỒN (user chốt 07/09 khuya) =========
+# "Anh không được tự đặt nhãn, khi tôi đặt là ref thì cái kho chứa ref phải tên
+# là ref, chứ không thể để là Kho được." Luật: tải từ trang nào thì kho tên
+# trang đó · ref vào kho ref · footage tự quay vào kho rec.
+#
+# `khai_quat` đang gán CỨNG 'kho' cho mọi file nó quét trong assets/ của project
+# cũ -> xoá sạch nguồn gốc. Đo 07/09: 4.089 clip nhãn 'kho', trong đó 870 THẬT
+# RA LÀ REF (đúng những cảnh phim tài liệu user thấy nằm nhầm panel stock).
+#
+# Cầu nối tìm được: đuôi 6 ký tự trong tên file = sha1(asset_key)[:6], mà
+# asset_key ("pexels:30281933") nằm trong rank_log — có cho CẢ clip không được
+# chọn. Phủ 98% (2.714 pexels · 870 ref · 429 pixabay · 64 chưa tra được).
+
+def _project_gia(tmp_path, ten="c7-20260831-062744"):
+    """1 project cũ: rank_log có asset_key, assets/ có file đặt tên theo sha1."""
+    import hashlib
+
+    d = tmp_path / "projects" / ten
+    (d / "assets").mkdir(parents=True)
+    khoa = {"pexels:111": "b000_bien-xanh", "pixabay:222": "b001_nui-cao",
+            "refvideo:LI103-ref1": "b002_cho-kabul"}
+    ranked = []
+    for k, ten_file in khoa.items():
+        h = hashlib.sha1(k.encode()).hexdigest()[:6]
+        (d / "assets" / f"{ten_file}_{h}.mp4").write_bytes(b"v")
+        ranked.append({"asset_key": k, "diem_tong": 9})
+    (d / "assets" / "b003_khong-ro-nguon.mp4").write_bytes(b"v")   # không tra được
+    (d / "project.json").write_text(json.dumps({
+        "project_id": ten, "title": "C7",
+        "inputs": {"script_path": "", "voice_path": "", "original_script_path":
+                   r"F:\OutlierY Nas 2\Life In\US\LI104\Rendery\C7\C7.txt",
+                   "original_voice_path": "", "script_text": ""},
+        "rank_log": [{"beat_id": 1, "ranked": ranked}], "shots": [],
+    }), encoding="utf-8")
+    return d.parent
+
+
+def test_khai_quat_dat_nhan_theo_NGUON_THAT(tmp_path, monkeypatch):
+    from autoedit.sotra import db as sdb, khai_quat as kq
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    pdir = _project_gia(tmp_path)
+    conn = sdb.mo()
+    try:
+        kq.khai_quat(conn, pdir)
+        theo = {r[0]: r[1] for r in conn.execute(
+            "SELECT nguon, COUNT(*) FROM clip GROUP BY nguon")}
+        assert theo.get("pexels") == 1
+        assert theo.get("pixabay") == 1
+        assert theo.get("ref") == 1, "refvideo phải vào kho REF, không phải kho"
+        # file không tra được nguồn: GIỮ nhãn kho, KHÔNG đoán bừa
+        assert theo.get("kho") == 1
+    finally:
+        conn.close()
+
+
+def test_dan_lai_nhan_cho_du_lieu_CU(tmp_path, monkeypatch):
+    """4.089 dòng đã lỡ mang nhãn 'kho' phải dán lại được, KHÔNG đổi id
+    (id là khoá tham chiếu của sự kiện + tên file ảnh frame)."""
+    from autoedit.sotra import db as sdb, khai_quat as kq
+    from autoedit.sotra.tag7 import tag_tu_tieu_de
+    import hashlib
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    pdir = _project_gia(tmp_path)
+    conn = sdb.mo()
+    try:
+        h = hashlib.sha1(b"refvideo:LI103-ref1").hexdigest()[:6]
+        cid = f"kho:c7-20260831-062744:b002_cho-kabul_{h}.mp4"
+        sdb.them_clip(conn, {"id": cid, "nguon": "kho", "tieu_de": "cho kabul",
+                             **tag_tu_tieu_de("cho kabul")})
+        sdb.ghi_su_kien(conn, cid, "them")
+        conn.commit()
+
+        n = kq.dan_lai_nhan(conn, pdir)
+        r = conn.execute("SELECT id, nguon FROM clip WHERE id=?", (cid,)).fetchone()
+        assert r["nguon"] == "ref", "clip ref vẫn mang nhãn kho"
+        assert r["id"] == cid                       # id KHÔNG đổi
+        assert conn.execute("SELECT COUNT(*) FROM su_kien WHERE clip_id=?",
+                            (cid,)).fetchone()[0] == 1   # sự kiện còn nguyên
+        assert n["ref"] == 1
+    finally:
+        conn.close()
+
+
+def test_nhan_rec_la_nguon_hop_le():
+    """Footage tự quay có kho riêng tên REC (user chốt 07/09)."""
+    from autoedit.sotra import db as sdb
+
+    assert "rec" in sdb.NGUON_HOP_LE
+    assert sdb.lam_id("rec", "quay-tay-01") == "rec:quay-tay-01"
+
+
+def test_giao_dien_tach_kho_dung_ten():
+    h = _html()
+    assert "PEXELS · PIXABAY" in h          # 2 trang chung 1 panel (user chốt)
+    assert "★ REF CỦA TEAM" in h and "★ ENVATO" in h
+    assert "· KHO ·" not in h               # nhãn gộp sai đã bỏ
+    assert "REC" in h
