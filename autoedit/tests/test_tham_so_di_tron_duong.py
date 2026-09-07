@@ -714,3 +714,49 @@ def test_o_moc_AVD_nam_TRONG_lua_chon_AVD_Mode():
 def test_nhan_niche_da_doi():
     h = _html()
     assert "<label>Niche</label>" in h and "<label>Kênh / niche</label>" not in h
+
+
+# ============ CHUYỂN CỔNG: launcher phải bật SSO của CRM (07/09 khuya) ======
+# Đo thật trước khi chuyển: production trả `nguoi=nguyenvana` khi nhận header
+# X-Remote-User, còn dev trả RỖNG — vì `RENDERY_TRUST_PROXY=1` đặt ở cấp MÁY,
+# tiến trình nào không thừa kế thì SSO chết LẶNG LẼ: mọi người thành vô danh,
+# luật "người nộp tập mới được sửa sequence" và cổng owner/admin sai hết.
+
+def _launcher() -> str:
+    from pathlib import Path as _P
+    f = _P(__file__).resolve().parents[2] / "chay_production.sh"
+    return f.read_text(encoding="utf-8") if f.is_file() else ""
+
+
+def test_launcher_production_bat_co_TIN_PROXY():
+    t = _launcher()
+    assert t, "chưa có chay_production.sh"
+    # phải là DÒNG EXPORT thật, không phải chữ trong ghi chú hay dòng echo —
+    # bản đầu chỉ tìm chuỗi nên tiêm bug (bỏ export) mà test VẪN XANH
+    import re as _re
+    assert _re.search(r"^export\s+RENDERY_TRUST_PROXY=1\s*$", t, _re.M),         "thiếu dòng export -> SSO của CRM chết lặng lẽ"
+
+
+def test_launcher_production_dung_DU_LIEU_THAT_va_cong_9118():
+    t = _launcher()
+    assert "--port 9118" in t
+    # KHÔNG được trỏ sang data root của dev — kho ref/Library của team ở AutoEdit
+    assert "RenderY-dev" not in t
+    # chạy TỪ checkout production: hàng đợi + 48 project của team nằm trong đó
+    assert "F:/RenderY/autoedit" in t or 'dirname "$0"' in t
+
+
+def test_sso_chi_tin_header_khi_loopback(monkeypatch):
+    """Cờ bật nhưng gọi từ LAN thì KHÔNG được tin header — người ngoài tự đặt được."""
+    from autoedit.web import server
+
+    class _Req:
+        def __init__(self, host):
+            self.headers = {"x-remote-user": "gia_mao", "x-remote-role": "admin"}
+            self.client = type("C", (), {"host": host})()
+
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
+    assert server.current_user(_Req("127.0.0.1")) == "gia_mao"      # qua CRM
+    assert server.current_user(_Req("192.168.1.50")) == ""          # từ LAN: KHÔNG
+    monkeypatch.setenv("RENDERY_TRUST_PROXY", "")
+    assert server.current_user(_Req("127.0.0.1")) == ""             # tắt cờ: KHÔNG
