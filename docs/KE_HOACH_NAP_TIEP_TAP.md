@@ -71,6 +71,46 @@ Chỉ làm: quét lại thư mục + nhận diện phiên bản + popup. KHÔNG 
 phiên bản, so sánh diff, khôi phục bản cũ — nghe hay nhưng sẽ không ai dùng mà
 phải bảo trì mãi.
 
+## Đợt 0 — NHẬN CẤU TRÚC PHẲNG (user nêu 07/09, ưu tiên hơn 5 đợt dưới)
+
+Thực tế LI103: team đặt file THẲNG trong `RenderY/`, không tạo thư mục chương:
+
+```
+RenderY/
+  H.mp3   H.txt              <- hook
+  C1.mp3  C1.txt  ... C15    <- 15 chuong
+  E.mp3   E.txt              <- ket
+  ref 1..5 (.mp4 + .srt)     <- ref ca tap (da co luat rieng)
+```
+
+Cách này RÕ RÀNG HƠN cách thư mục (17 chương nhìn một màn hình là thấy hết) và
+bắt tạo 17 thư mục chỉ để chứa 2 file mỗi cái là việc vô nghĩa. Hiện `doc_chuong`
+chỉ duyệt thư mục con nên báo "RenderY trống" + "voice/script nằm thẳng — không
+được gộp cả tập" (cảnh báo đúng cho trường hợp GỘP 1 file, sai cho trường hợp
+này vì tên file đã tách chương rõ ràng).
+
+**Phạm vi — 5 chỗ, `doc_chuong` là lõi (sai là không nộp được tập nào):**
+
+| Chỗ | Hiện tại | Cần |
+|---|---|---|
+| `chapters.doc_chuong` | chỉ duyệt thư mục con | thêm nhánh gom file lẻ theo tên gốc |
+| `chapters.Chuong` | chỉ mang path thư mục | mang thẳng script/voice/srt |
+| `cli.make` | nhận folder, tự dò `_pick_input` | nhận file tường minh |
+| `worker` | truyền folder chương | truyền file |
+| `runner._thu_muc_nas` + `nap_ref_cua_tap` | suy thư mục chương | phẳng thì thư mục chương = `RenderY/` |
+
+**Luật nhận diện (không mơ hồ):** file có tên khớp quy ước chương (`H`, `C<số>`,
+`E`, kèm biến thể `.1` `.2`) VÀ có đủ cặp .txt + .mp3 -> là một chương. File
+`ref *` -> ref. File lẻ khác -> bỏ qua như cũ.
+
+**Bắt buộc: hỗ trợ CẢ HAI kiểu** — tập cũ dùng thư mục (LI104) phải chạy nguyên.
+
+**Cổng:** LI103 phẳng -> nhận đúng 17 chương đúng thứ tự H·C1..C15·E + 5 ref ·
+LI104 thư mục -> chạy y hệt hôm nay · thư mục CÓ CẢ hai kiểu -> ưu tiên thư mục,
+không nhân đôi chương · gộp thật (1 file voice cả tập) -> vẫn bị chặn như cũ.
+
+> 07/09: user quyết SẮP TAY trước cho LI103, fix sau. Không đụng NAS.
+
 ## Kế hoạch thực thi — 5 đợt, mỗi đợt một cổng
 
 ### Đợt 1 — Quy ước phiên bản (nền của mọi thứ)
