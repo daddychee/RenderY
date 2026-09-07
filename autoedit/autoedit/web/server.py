@@ -2166,7 +2166,10 @@ def api_jobs(request: Request, all_users: bool = False):
     from autoedit.web import queue as q
 
     nguoi = current_user(request)
-    xem_het = all_users and is_admin(request)
+    # OWNER/ADMIN LUÔN XEM HẾT (user chốt 07/09: "owner có thể xem có thể sửa").
+    # Trước đòi thêm cờ all_users=1 mà UI không gửi -> vừa chuyển job LI103 sang
+    # thanhdn là owner mất luôn khỏi Lịch sử, tưởng hỏng.
+    xem_het = is_admin(request) or (all_users and is_admin(request))
     conn = _queue_conn()
     try:
         jobs = q.list_jobs(conn, nguoi="" if (xem_het or not nguoi) else nguoi)
