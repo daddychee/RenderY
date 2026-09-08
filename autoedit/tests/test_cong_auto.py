@@ -154,7 +154,7 @@ def test_auto_khay_day_thi_TU_khoa_so_va_dung(tmp_path, monkeypatch):
     tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=True)
     r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
     assert r.status_code == 200, r.text
-    hd = _cho_xong(d)
+    hd = _cho_xong(d, lambda h: h.get("trang_thai") == "khoa")
     assert hd["dong_kiem"] is False
     assert hd["trang_thai"] == "khoa", "auto không tự khoá sổ"
     assert goi, "auto không tự chạy Online"
@@ -166,22 +166,41 @@ def test_auto_khay_rong_thi_DUNG_va_bao(tmp_path, monkeypatch):
     tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=False)
     r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
     assert r.status_code == 200, r.text
+    # khay rỗng: đợi luồng nền chạy XONG rồi mới kết luận, nếu không thì test
+    # xanh chỉ vì soi quá sớm
+    _cho_xong(d, lambda h: (h.get("canh_bao") or []) != [])
+    from autoedit.web import server as _sv
+    import time
+    het = time.time() + 20
+    while time.time() < het and _sv._offline_dang.get(d.name, {}).get("tt") == "dang":
+        time.sleep(0.2)
     hd = _cho_xong(d)
     assert hd["trang_thai"] != "khoa", "khay rỗng mà vẫn tự khoá sổ"
     assert not goi, "khay rỗng mà vẫn chạy Online"
     assert any("khay" in c.lower() or "auto" in c.lower() for c in hd["canh_bao"])
 
 
-def _cho_xong(d, giay: float = 25.0):
-    """Endpoint chạy nền — đợi hợp đồng hiện ra rồi mới soi."""
+def _cho_xong(d, dieu_kien=None, giay: float = 40.0):
+    """Endpoint chạy nền — đợi tới ĐIỀU KIỆN CUỐI, không chỉ đợi file hiện ra.
+
+    Đợi file là chưa đủ: `phan_tich` ghi hợp đồng TRƯỚC, dây chuyền auto (khoá
+    sổ + Online) chạy SAU. Máy tải nặng thì assert chạy trúng khoảng giữa —
+    test đỏ chập chờn (bắt được 08/09 khi chạy suite trên checkout production:
+    xanh lúc chạy riêng, đỏ khi chạy cùng 1497 test khác).
+    """
     import time
 
     from autoedit.offline import runner
 
     het = time.time() + giay
+    cuoi = None
     while time.time() < het:
         hd = runner.doc(d)
         if hd is not None:
-            return hd
+            cuoi = hd
+            if dieu_kien is None or dieu_kien(hd):
+                return hd
         time.sleep(0.2)
-    raise AssertionError("phân tích không xong trong hạn — hợp đồng chưa ghi ra")
+    raise AssertionError(
+        f"quá hạn {giay:.0f}s — hợp đồng: "
+        + ("chưa ghi ra" if cuoi is None else f"trang_thai={cuoi.get('trang_thai')!r}"))
