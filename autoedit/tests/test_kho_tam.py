@@ -292,14 +292,14 @@ def test_nop_tap_thieu_dia_danh_bi_chan(may_chu_nas):
     trống địa danh nên khay của nó có 265 clip envato không lọc geo, trong khi
     C1/H cùng tập khai Afghanistan thì envato bị loại sạch."""
     tc, folder = may_chu_nas
-    r = tc.post("/api/jobs", json={"folder": folder, "dia_danh": ""})
+    r = tc.post("/api/jobs", json={"folder": folder, "niche": "LIFE IN", "dia_danh": ""})
     assert r.status_code == 422
     assert "địa danh" in r.json()["detail"].lower()
 
 
 def test_nop_tap_co_dia_danh_thi_qua(may_chu_nas):
     tc, folder = may_chu_nas
-    r = tc.post("/api/jobs", json={"folder": folder, "dia_danh": "Afghanistan"})
+    r = tc.post("/api/jobs", json={"folder": folder, "niche": "LIFE IN", "dia_danh": "Afghanistan"})
     assert r.status_code == 200, r.text
 
 
@@ -311,6 +311,10 @@ def may_chu_nas(tmp_path, monkeypatch):
     from autoedit.web import queue as q, server
 
     monkeypatch.setattr(server, "ROOT", tmp_path)
+    # Danh bạ ngách trỏ vào chỗ KHÔNG CÓ: test phải kín, không được đọc danh bạ
+    # thật của CRM trên ổ D. Sổ hỏng -> `hop_le` cho qua, `can_dia_danh` trả
+    # True nên luật địa danh mà test này đo vẫn nguyên.
+    monkeypatch.setenv("RENDERY_DANH_BA", str(tmp_path / "khong-co-danh-ba.db"))
     nas = tmp_path / "nas"
     tap = nas / "LI103"
     (tap / "RenderY").mkdir(parents=True)

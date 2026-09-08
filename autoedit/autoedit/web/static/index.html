@@ -525,11 +525,13 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <h2>Tuỳ chọn dựng</h2>
       <div class="formrow"><label>Niche</label>
         <div>
-          <input type="text" id="ns-niche" list="ds-niche" placeholder="vd: life-in"
-                 style="max-width:240px" oninput="canhBaoNiche()">
-          <datalist id="ds-niche"><option>investigate</option><option>life-in</option></datalist>
-          <div class="note">Niche chỉ trỏ KHO: thư viện footage local + bộ SFX/tiếng nền.
-            KHÔNG ảnh hưởng nhịp/logic dựng — nhịp do «Phong cách tham chiếu» quyết.</div>
+          <select id="ns-niche" style="max-width:280px" onchange="nicheDoi()">
+            <option value="">— đang nạp danh mục ngách —</option>
+          </select>
+          <div class="note">Ngách lấy từ <b>danh bạ nền</b> của CRM — chọn, không gõ.
+            Gõ tay chính là thứ đẻ ra <code>Life In</code> và <code>life-in</code>, hai
+            thư mục Library cho cùng một ngách. Ngách trỏ KHO (footage local + SFX/tiếng
+            nền); nhịp dựng do «Phong cách tham chiếu» quyết, không phải ngách.</div>
           <div class="note" id="ns-niche-canh-bao" style="color:var(--bad)" hidden>
             ⚠ Bỏ trống niche: SFX + tiếng nền sẽ TẮT HẲN (kho tiếng tra theo niche) và
             nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
@@ -559,7 +561,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
               chờ ai. Chương auto KHÔNG dùng Envato (giữ hạn mức cho đường duyệt tay); đo
               07/09 khay vẫn phủ trung bình 87% khối.</span></span></label>
         </div></div>
-      <div class="formrow"><label>Địa danh tập <span style="color:#e05">*</span></label>
+      <div class="formrow"><label>Địa danh tập <span id="ns-diadanh-sao" style="color:#e05">*</span></label>
         <div>
           <input type="text" id="ns-diadanh" placeholder="vd: tibet china" required
                  style="max-width:240px">
@@ -1322,8 +1324,8 @@ async function nopTap() {
       r.readAsDataURL(f)
     })
   }
-  // ĐỊA DANH BẮT BUỘC (user 08/09): thiếu nó thì cửa geo không có gì để so
-  if (!document.getElementById('ns-diadanh').value.trim()) {
+  // ĐỊA DANH: chỉ đòi với ngách gắn địa lý (user 08/09)
+  if (ngachCanDiaDanh() && !document.getElementById('ns-diadanh').value.trim()) {
     msg.innerHTML = '<span class="err">Nhập ĐỊA DANH của tập — bỏ trống thì khay ứng viên '
                   + 'không lọc được theo vùng, clip lệch vùng chảy thẳng vào timeline.</span>'
     return
@@ -1373,6 +1375,46 @@ function ofKieuChay() {
 function canhBaoNiche() {
   const trong = !document.getElementById('ns-niche').value.trim()
   document.getElementById('ns-niche-canh-bao').hidden = !trong
+}
+
+/* NGÁCH lấy từ danh bạ nền của CRM (user chốt 08/09) — chọn, không gõ.
+   Mỗi ngách mang cờ `can_dia_danh`: chỉ LIFE IN / LIVING IN / TRAVEL
+   DOCUMENTARY mới cần địa danh; COOKING, SENIOR HEALTH... thì không, ép khai
+   chỉ làm khay ứng viên nghèo đi vô cớ. */
+let NGACH_DS = []
+async function napNgach() {
+  const o = document.getElementById('ns-niche')
+  try {
+    const d = await api('/api/ngach')
+    NGACH_DS = d.ngach || []
+    if (!NGACH_DS.length) {
+      // Danh bạ không đọc được (CRM tắt / ổ D chưa gắn): KHÔNG chặn nộp tập —
+      // lùi về gõ tay, nhưng nói rõ vì sao.
+      o.outerHTML = '<input type="text" id="ns-niche" style="max-width:280px" '
+                  + 'placeholder="danh bạ ngách không đọc được — gõ tay" '
+                  + 'oninput="canhBaoNiche()">'
+      return
+    }
+    o.innerHTML = '<option value="">— chọn ngách —</option>'
+      + NGACH_DS.map(n => `<option value="${esc(n.ten)}">${esc(n.ten)}`
+          + `${n.can_dia_danh ? ' · cần địa danh' : ''}</option>`).join('')
+  } catch (e) { o.innerHTML = '<option value="">— lỗi nạp ngách —</option>' }
+  nicheDoi()
+}
+function ngachCanDiaDanh() {
+  const ten = (document.getElementById('ns-niche').value || '').trim().toUpperCase()
+  const n = NGACH_DS.find(x => x.ten.toUpperCase() === ten)
+  return n ? !!n.can_dia_danh : true      // không tra ra -> giữ luật cũ, vẫn đòi
+}
+function nicheDoi() {
+  canhBaoNiche()
+  const can = ngachCanDiaDanh()
+  const o = document.getElementById('ns-diadanh')
+  const hang = o && o.closest('.formrow')
+  if (hang) hang.style.opacity = can ? '1' : '.5'
+  if (o) o.placeholder = can ? 'vd: tibet china' : 'ngách này không cần địa danh'
+  const sao = document.getElementById('ns-diadanh-sao')
+  if (sao) sao.hidden = !can
 }
 
 /* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
@@ -3236,6 +3278,7 @@ let ME = {}
   veNguoiDung(ME.nguoi || '')
   loadJobs()
   loadKenh()          // nạp thư viện kênh cho dropdown form nộp ngay từ đầu
+  napNgach()          // danh mục ngách từ danh bạ nền của CRM (chọn, không gõ)
   setInterval(() => { if (!document.hidden) loadJobs() }, 7000)
 })()
 

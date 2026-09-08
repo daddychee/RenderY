@@ -552,3 +552,29 @@ người khác `False`, admin `True`.
 **Đo trước khi code:** cửa geo trong `tra()` **đã tự tắt** khi `geo_tap` rỗng (`gt` rỗng →
 bỏ qua cả hai điều kiện lọc). Nên "ngách không cần địa danh thì không lọc theo vùng"
 KHÔNG phải viết thêm gì ở tầng tra cứu — chỉ cần cho phép bỏ trống địa danh đúng chỗ.
+
+### Nối ngách — đã làm xong 08/09
+
+`autoedit/ngach.py` — đọc `danh_ba.db` bằng `sqlite3` chế độ **`mode=ro`** (rào thật:
+mọi lệnh ghi ném `OperationalError`, có test khoá). Đường dẫn ở `RENDERY_DANH_BA`,
+bộ ngách cần địa danh ở `RENDERY_NGACH_GEO` — cả hai thêm vào whitelist trang Cài đặt.
+
+| Hàm | Việc |
+|---|---|
+| `liet_ke()` | 13 ngách + cờ `can_dia_danh` |
+| `hop_le(x)` | ngách có THẬT trong danh bạ không (nhận cả mã lẫn tên) |
+| `can_dia_danh(x)` | ngách này có bắt buộc khai địa danh không |
+| `doc_duoc()` | có đọc được sổ không — UI cần biết để nói rõ khi rỗng |
+
+**Fail-open có chủ ý:** CRM tắt / ổ D chưa gắn → `liet_ke()` rỗng, `hop_le()` cho qua,
+UI lùi về ô gõ tay. Một app khác chết KHÔNG được kéo cả RenderY chết theo. **Nhưng**
+`can_dia_danh()` khi đó trả True — đang mù thì giữ luật chặt; nới lỏng lúc mù là mở lại
+đúng bẫy "chợ Trung Quốc cho tập Afghanistan".
+
+**Nghiệm thu trên danh bạ THẬT:** 13 ngách, đúng 3 ngách cần địa danh
+(LIFE IN · LIVING IN · TRAVEL DOCUMENTARY). `life-in` gõ tay **bị từ chối**;
+`Life In` và `cooking` được nhận; `cooking` **không đòi địa danh**.
+
+**Test cũ phải sửa theo:** 11 test nộp job không kèm ngách — nay ngách là bắt buộc.
+Nhân tiện trỏ `RENDERY_DANH_BA` sang đường dẫn không tồn tại trong các fixture đó:
+test phải KÍN, không được đọc danh bạ thật của CRM trên ổ D.

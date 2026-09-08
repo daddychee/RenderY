@@ -45,6 +45,9 @@ SETTINGS_KEYS = [
     "ENVATO_EMAIL", "VECTEEZY_EMAIL",
     "GLM_API_KEY", "ANTHROPIC_API_KEY", "SERPER_API_KEY",
     "RENDERY_WEB_TOKEN",
+    # Ngách (QĐ12/QĐ13): đường dẫn danh bạ nền của CRM, và bộ ngách cần địa
+    # danh — cờ đó thuộc về RenderY, không ghi vào danh bạ của tổ chức.
+    "RENDERY_DANH_BA", "RENDERY_NGACH_GEO",
 ]
 SECRET_KEYS = {k for k in SETTINGS_KEYS if k.endswith(("_KEY", "_TOKEN"))}
 
@@ -676,6 +679,19 @@ def _gac_quyen_sua(request: Request, hd: dict) -> None:
     if ai and ai != chu and not is_admin(request):
         raise HTTPException(403, f"Sequence này do «{chu}» tạo — chỉ người tạo "
                                  "(hoặc admin) được sửa")
+
+
+@app.get("/api/ngach")
+def api_ngach(request: Request):
+    """Danh mục ngách cho form nộp tập — đọc từ danh bạ nền của CRM.
+
+    `doc_duoc=False` (CRM tắt / ổ D chưa gắn) thì `ngach` rỗng và form cho gõ
+    tay trở lại: một app khác chết KHÔNG được chặn cả team nộp tập.
+    """
+    _require_auth(request)
+    from autoedit import ngach as _ng
+
+    return {"ngach": _ng.liet_ke(), "doc_duoc": _ng.doc_duoc()}
 
 
 TEN_THU_MUC_CHUONG = "rendery"     # thư mục chứa các chương, ngay dưới thư mục TẬP
@@ -2498,13 +2514,23 @@ def api_add_job(req: JobRequest, request: Request):
     if not folder.is_dir():
         raise HTTPException(404, f"Không thấy thư mục: {folder}")
 
-    # ĐỊA DANH BẮT BUỘC (user chốt 08/09). Thiếu nó thì cửa geo không có gì để
-    # so, và đúng cái bẫy "chợ Trung Quốc cho tập Afghanistan" quay lại. Đo
-    # thật: C2 bỏ trống -> khay 265 clip envato không lọc geo, trong khi C1/H
-    # cùng tập khai Afghanistan thì envato bị loại sạch.
-    if not (req.dia_danh or "").strip():
-        raise HTTPException(422, "Thiếu ĐỊA DANH của tập — không khai thì khay "
-                                 "ứng viên không lọc được theo vùng")
+    # NGÁCH phải có THẬT trong danh bạ nền (QĐ12). Gõ tay chính là thứ đẻ ra
+    # `Life In` và `life-in` — hai thư mục Library cho cùng một ngách.
+    from autoedit import ngach as _ng
+
+    if not _ng.hop_le(req.niche):
+        raise HTTPException(422, f"Ngách «{req.niche}» không có trong danh mục — "
+                                 "chọn từ danh sách, đừng gõ tay")
+    # ĐỊA DANH: chỉ BẮT BUỘC với ngách gắn địa lý (QĐ14 — LIFE IN, LIVING IN,
+    # TRAVEL DOCUMENTARY). Thiếu nó thì cửa geo không có gì để so, và đúng cái
+    # bẫy "chợ Trung Quốc cho tập Afghanistan" quay lại. Đo thật: C2 bỏ trống
+    # -> khay 265 clip envato không lọc geo, trong khi C1/H cùng tập khai
+    # Afghanistan thì envato bị loại sạch.
+    # Ngách khác (COOKING, SENIOR HEALTH...) nội dung không gắn địa điểm: ép
+    # khai chỉ làm khay nghèo đi vô cớ. Bỏ trống -> `tra()` tự tắt cửa geo.
+    if _ng.can_dia_danh(req.niche) and not (req.dia_danh or "").strip():
+        raise HTTPException(422, f"Ngách «{req.niche}» cần ĐỊA DANH của tập — "
+                                 "không khai thì khay ứng viên không lọc được theo vùng")
 
     # Chặn ở đây thay vì để worker chạy 24 phút rồi mới báo
     chuong, loi = doc_chuong(folder)
