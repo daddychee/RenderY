@@ -244,7 +244,7 @@ def test_o_mang_KHAC_van_bi_chan(nas):
 # ------------------------------ nộp job -------------------------------------
 def test_nop_job_vao_hang_doi(nas):
     d = _job_folder(nas, "LI070")
-    r = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req())
+    r = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req())
     assert r["job"]["status"] == "queued"
     assert r["job"]["job_folder"] == str(d)
 
@@ -283,14 +283,14 @@ def test_folder_khong_ton_tai_bao_404(nas):
 def test_job_ghi_ten_nguoi_nop(nas, monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = _job_folder(nas, "LI070")
-    r = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))
+    r = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))
     assert r["job"]["nguoi"] == "lam"
 
 
 def test_tuy_chon_di_kem_job(nas):
     d = _job_folder(nas, "LI070")
     r = srv.api_add_job(
-        srv.JobRequest(folder=str(d), niche="life-in", no_sub=True), _Req())
+        srv.JobRequest(dia_danh="tibet", folder=str(d), niche="life-in", no_sub=True), _Req())
     assert r["job"]["opts"]["niche"] == "life-in"
     assert r["job"]["opts"]["no_sub"] is True
 
@@ -299,8 +299,8 @@ def test_tuy_chon_di_kem_job(nas):
 def test_chi_thay_job_cua_minh(nas, monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = _job_folder(nas, "LI070")
-    srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))
-    srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="hoa"))
+    srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))
+    srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="hoa"))
 
     assert len(srv.api_jobs(_Req(user="lam"))["jobs"]) == 1
     # owner xem được hết
@@ -312,7 +312,7 @@ def test_khong_huy_job_nguoi_khac(nas, monkeypatch):
     from fastapi import HTTPException
 
     d = _job_folder(nas, "LI070")
-    jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
+    jid = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))["job"]["id"]
     with pytest.raises(HTTPException) as e:
         srv.api_cancel_job(jid, _Req(user="hoa"))
     assert e.value.status_code == 403
@@ -322,7 +322,7 @@ def test_khong_huy_job_nguoi_khac(nas, monkeypatch):
 def test_admin_huy_duoc_job_nguoi_khac(nas, monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = _job_folder(nas, "LI070")
-    jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
+    jid = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))["job"]["id"]
     assert srv.api_cancel_job(jid, _Req(user="sep", role="admin"))["ok"] is True
 
 
@@ -332,7 +332,7 @@ def test_badge_dem_job_xong_chua_xem(nas, monkeypatch):
     from autoedit.web import queue as q
 
     d = _job_folder(nas, "LI070")
-    jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
+    jid = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))["job"]["id"]
     assert srv.api_badge(_Req(user="lam"))["unseen"] == 0     # chưa xong
 
     conn = q.connect(nas / "jobs.db")
@@ -350,7 +350,7 @@ def test_badge_hoi_ho_ten_khac(nas, monkeypatch):
     from autoedit.web import queue as q
 
     d = _job_folder(nas, "LI070")
-    jid = srv.api_add_job(srv.JobRequest(folder=str(d)), _Req(user="lam"))["job"]["id"]
+    jid = srv.api_add_job(srv.JobRequest(dia_danh="tibet", folder=str(d)), _Req(user="lam"))["job"]["id"]
     conn = q.connect(nas / "jobs.db")
     q.finish(conn, jid, ok=True)
     conn.close()

@@ -559,11 +559,14 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
               chờ ai. Chương auto KHÔNG dùng Envato (giữ hạn mức cho đường duyệt tay); đo
               07/09 khay vẫn phủ trung bình 87% khối.</span></span></label>
         </div></div>
-      <div class="formrow"><label>Địa danh tập</label>
+      <div class="formrow"><label>Địa danh tập <span style="color:#e05">*</span></label>
         <div>
-          <input type="text" id="ns-diadanh" placeholder="vd: tibet china" style="max-width:240px">
-          <div class="note">RÀO CỨNG nguồn hình: clip mang geo LỆCH địa danh này không
-            chảy vào tập (city Ecuador không được vào tập Nepal). Gõ tiếng Anh thường.</div>
+          <input type="text" id="ns-diadanh" placeholder="vd: tibet china" required
+                 style="max-width:240px">
+          <div class="note">BẮT BUỘC. RÀO CỨNG nguồn hình: clip mang geo LỆCH địa danh này
+            không chảy vào tập (city Ecuador không được vào tập Nepal). Gõ tiếng Anh thường.
+            Bỏ trống thì khay không lọc được vùng — đo thật 08/09: chương bỏ trống nhận 265
+            clip envato lệch vùng, chương khai địa danh thì bị loại sạch.</div>
         </div></div>
       <div class="formrow"><label>AVD của tập</label>
         <div>
@@ -1318,6 +1321,12 @@ async function nopTap() {
       const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = loi
       r.readAsDataURL(f)
     })
+  }
+  // ĐỊA DANH BẮT BUỘC (user 08/09): thiếu nó thì cửa geo không có gì để so
+  if (!document.getElementById('ns-diadanh').value.trim()) {
+    msg.innerHTML = '<span class="err">Nhập ĐỊA DANH của tập — bỏ trống thì khay ứng viên '
+                  + 'không lọc được theo vùng, clip lệch vùng chảy thẳng vào timeline.</span>'
+    return
   }
   // Framing Insight BẮT BUỘC (user 06/09): nhịp chia khối lấy từ đây
   if (!document.getElementById('ns-kenh-ref').value.trim()) {

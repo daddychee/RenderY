@@ -2448,6 +2448,14 @@ def api_add_job(req: JobRequest, request: Request):
     if not folder.is_dir():
         raise HTTPException(404, f"Không thấy thư mục: {folder}")
 
+    # ĐỊA DANH BẮT BUỘC (user chốt 08/09). Thiếu nó thì cửa geo không có gì để
+    # so, và đúng cái bẫy "chợ Trung Quốc cho tập Afghanistan" quay lại. Đo
+    # thật: C2 bỏ trống -> khay 265 clip envato không lọc geo, trong khi C1/H
+    # cùng tập khai Afghanistan thì envato bị loại sạch.
+    if not (req.dia_danh or "").strip():
+        raise HTTPException(422, "Thiếu ĐỊA DANH của tập — không khai thì khay "
+                                 "ứng viên không lọc được theo vùng")
+
     # Chặn ở đây thay vì để worker chạy 24 phút rồi mới báo
     chuong, loi = doc_chuong(folder)
     if loi:

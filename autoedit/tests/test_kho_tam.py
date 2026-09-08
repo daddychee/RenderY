@@ -282,3 +282,42 @@ def test_don_lech_tu_khoa_chi_dung_clip_DA_TAI(conn, tmp_path):
     assert don_lech_tu_khoa(conn, xoa=True) == 1
     con = {r[0] for r in conn.execute("SELECT id FROM clip")}
     assert con == {"envato:khop"}
+
+
+# ----------------------------------------------- bắt buộc khai địa danh
+
+def test_nop_tap_thieu_dia_danh_bi_chan(may_chu_nas):
+    """User chốt 08/09: thiếu địa danh thì cửa geo KHÔNG chạy được, và đúng cái
+    bẫy "chợ Trung Quốc cho tập Afghanistan" quay lại. Đo thật: chương C2 bỏ
+    trống địa danh nên khay của nó có 265 clip envato không lọc geo, trong khi
+    C1/H cùng tập khai Afghanistan thì envato bị loại sạch."""
+    tc, folder = may_chu_nas
+    r = tc.post("/api/jobs", json={"folder": folder, "dia_danh": ""})
+    assert r.status_code == 422
+    assert "địa danh" in r.json()["detail"].lower()
+
+
+def test_nop_tap_co_dia_danh_thi_qua(may_chu_nas):
+    tc, folder = may_chu_nas
+    r = tc.post("/api/jobs", json={"folder": folder, "dia_danh": "Afghanistan"})
+    assert r.status_code == 200, r.text
+
+
+@pytest.fixture
+def may_chu_nas(tmp_path, monkeypatch):
+    """Máy chủ + một thư mục tập hợp lệ (1 chương phẳng H)."""
+    from fastapi.testclient import TestClient
+
+    from autoedit.web import queue as q, server
+
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+    nas = tmp_path / "nas"
+    tap = nas / "LI103"
+    (tap / "RenderY").mkdir(parents=True)
+    for ten in ("H", "C1", "E"):                 # định dạng bắt buộc H / C1..Cn / E
+        (tap / "RenderY" / f"{ten}.mp3").write_bytes(b"0" * 64)
+        (tap / "RenderY" / f"{ten}.txt").write_text("xin chao", encoding="utf-8")
+    monkeypatch.setattr(server, "NAS_ROOT", nas, raising=False)
+    monkeypatch.setattr(server, "_trong_nas", lambda p: tap)
+    q.connect(tmp_path / "jobs.db").close()
+    return TestClient(server.app), str(tap)

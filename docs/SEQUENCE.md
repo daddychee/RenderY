@@ -397,3 +397,26 @@ nhưng vòng ghi `su_kien` duyệt theo KHỐI. Test thu nhỏ (3 miếng / 2 kh
 chỉ ghi **1/3** — miếng chảy tiếp không vào sổ lần nào vì nhánh chảy tiếp `continue`
 trước khi đặt `dung_id`. Nay duyệt theo miếng, và miếng chảy tiếp ghi tên clip nó
 đang dùng tiếp.
+
+## QĐ10–QĐ11 (user chốt 08/09) + Đợt 2
+
+| # | Quyết định | Vì sao |
+|---|---|---|
+| QĐ10 | **Hoãn dọn 5.102 preview envato** tới khi nối xong "hút theo lượt dựng" | Đo thật: chương **C2 bỏ trống địa danh** đang sống bằng 265 preview envato. Chương CÓ địa danh (C1 432 ứng viên, H 168) thì envato đã bị cửa geo loại sạch — xoá không mất gì. Xoá trước khi có đường hút mới là rút khay của C2. Công cụ `don-kho` đã xong, chạy lúc nào cũng được |
+| QĐ11 | **Địa danh BẮT BUỘC khi nộp tập** | Không khai thì cửa geo không có gì để so, và bẫy "chợ Trung Quốc cho tập Afghanistan" quay lại. Chặn ở form + ở API (sau kiểm thư mục, để lỗi 404 vẫn là 404) |
+
+**Đợt 2 đã xong:** cột `tam_tap` trên `clip` · `phien_hut(ma_tap=)` đóng dấu clip MỚI ·
+`dong_job(conn, tap)` giữ clip đã tải hoặc đã lên timeline · cột `dong`/`dong_at` trên
+`jobs` · endpoint `POST /api/jobs/{id}/dong` + nút "đóng job" ngoài Overview ·
+lệnh `don-kho` (mặc định chỉ đếm).
+
+**Còn lại của đợt 2:** nối "hút preview theo lượt dựng" (truyền `ma_tap` vào `phien_hut`
+từ màn hình Offline), rồi mới chạy `don-kho --xoa`.
+
+**Hai lỗi bắt được trong lúc làm:**
+1. Nhánh UPDATE của `them_clip` ghi đè MỌI cột bằng dữ liệu lượt hút, mà lượt hút không
+   mang `path_local` — **hút lại một clip ĐÃ TẢI là mất đường dẫn file**. Mà luật giữ/dọn
+   lại đọc đúng cột đó.
+2. Nút "đóng job" tôi viết gọi `toast()` trong khi cả file chỉ có `toastOf()` — bấm là
+   ReferenceError. Máy không có Node (BH3) nên thêm **rào tĩnh**: mọi `onclick="tên("`
+   phải có `function tên(` trong file.
