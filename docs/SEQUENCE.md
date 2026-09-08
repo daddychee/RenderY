@@ -420,3 +420,28 @@ từ màn hình Offline), rồi mới chạy `don-kho --xoa`.
 2. Nút "đóng job" tôi viết gọi `toast()` trong khi cả file chỉ có `toastOf()` — bấm là
    ReferenceError. Máy không có Node (BH3) nên thêm **rào tĩnh**: mọi `onclick="tên("`
    phải có `function tên(` trong file.
+
+## Đợt 3 — Cổng Auto (08/09)
+
+`runner.NGUONG_AUTO = 0.6` + `du_khay_cho_auto(ung_vien)`. Chương khai `auto` mà khay
+phủ dưới 60% khối thì **chuyển sang Đồng kiểm** kèm cảnh báo nói rõ tỉ lệ và lý do
+thường gặp (tập chưa có ref, hoặc stock lệch địa danh bị loại).
+
+Auto cố tình bỏ envato để không đốt hạn mức license; khi cổng đẩy chương sang Đồng kiểm
+thì **dò lại khay đầy đủ** — giữ khay Auto là bắt người chọn trong đúng cái rổ vừa bị
+kết luận là quá mỏng.
+
+**Đo trên 7 chương thật (khay Auto, bỏ envato):**
+
+| Chương | Địa danh | Phủ | Kết quả |
+|---|---|---|---|
+| C1 | Afghanistan | 36/36 · 100% | Auto chạy |
+| C2 | *(trống)* | 43/43 · 100% | Auto chạy |
+| C3 | Afghanistan | 43/43 · 100% | Auto chạy |
+| C7 | *(trống)* | 17/30 · **57%** | **→ Đồng kiểm** |
+| C8 | tibet china | 25/34 · 74% | Auto chạy |
+| H (cũ) | *(trống)* | 17/17 · 100% | Auto chạy |
+| H | Afghanistan | 14/14 · 100% | Auto chạy |
+
+Ngưỡng 60% chặn đúng 1/7 chương. Nếu chọn 80% thì C8 (74%) cũng bị chặn — đó chính là
+khác biệt thực tế giữa hai phương án user cân nhắc.

@@ -138,6 +138,24 @@ def _canh_bao_phien(dong_kiem: bool) -> list[str]:
 KIEU_CHAY_HOP_LE = ("manual", "avd", "auto")
 
 
+# CỔNG AUTO (QĐ7, user chốt 08/09): tỉ lệ khối phải có ứng viên thì Auto mới
+# được tự chạy. Dưới ngưỡng -> chuyển sang Đồng kiểm cho người đắp.
+#
+# Vì sao cần (SEQUENCE PH8/PH9): Auto đạt 100% khối trên C1/H chỉ vì hai tập đó
+# CÓ ref (648 và 252 ứng viên, 100% ref). Tập chưa có ref thì khay rỗng tuyệt
+# đối — 0/36 và 0/14 khối — mà Auto vẫn chạy tiếp và đẻ ra timeline không có gì
+# khớp ngữ nghĩa. User chọn 60% (nới rộng, chấp nhận đắp thêm) thay vì 80/100%.
+NGUONG_AUTO = 0.6
+
+
+def du_khay_cho_auto(ung_vien: list) -> bool:
+    """Khay có đủ dày để Auto tự chạy không? Chương 0 khối luôn là KHÔNG."""
+    if not ung_vien:
+        return False
+    co = sum(1 for x in ung_vien if x)
+    return (co / len(ung_vien)) >= NGUONG_AUTO
+
+
 def tinh_dong_kiem(kieu_chay: str, avd_s: float, mo_dau_tap_s: float) -> bool:
     """Chương này có phải người duyệt không — MỘT chỗ quyết duy nhất.
 
@@ -244,6 +262,22 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 geo_tap=dia_danh, tap=_ma_tap(project_dir))
             # CHẢY TIẾP theo chuẩn kênh (3b): khối ngắn hơn `than` thì dùng
             # tiếp clip của khối trước thay vì đổi hình mỗi hơi thở.
+            # CỔNG AUTO (QĐ7): chương tự chạy mà khay quá mỏng thì KHÔNG dựng
+            # bừa — chuyển sang Đồng kiểm cho người đắp, và nói rõ vì sao.
+            if not dong_kiem and not du_khay_cho_auto(ung_vien):
+                co, tong = sum(1 for x in ung_vien if x), len(ung_vien) or 1
+                dong_kiem = True
+                _thieu.append(
+                    f"Khay chỉ phủ {co}/{tong} khối ({co / tong:.0%}) — dưới ngưỡng "
+                    f"Auto {NGUONG_AUTO:.0%}, chương chuyển sang ĐỒNG KIỂM. Thường "
+                    "là tập chưa có ref, hoặc stock trong kho lệch địa danh nên bị loại.")
+                ghi(f"offline: cổng Auto — khay {co}/{tong} khối, chuyển đồng kiểm")
+                # Auto cố tình bỏ envato (không đốt hạn mức license). Đã sang
+                # diện người duyệt thì dò lại khay ĐẦY ĐỦ — giữ khay Auto là bắt
+                # người chọn trong đúng cái rổ vừa bị kết luận là quá mỏng.
+                ung_vien = dung.do_ung_vien(
+                    c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
+                    bo_nguon=(), geo_tap=dia_danh, tap=_ma_tap(project_dir))
             noi_tiep = []
             chon = dung.chon_mac_dinh(ds_khoi, ung_vien,
                                       than=float(fr.get("than") or 0),

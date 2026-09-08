@@ -253,6 +253,15 @@ def test_auto_ghi_vao_hop_dong_va_cay_thuoc_hien(du_an, tmp_path, monkeypatch):
     from autoedit.sotra import db as sdb
 
     monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    # Khay giả ĐẦY: cổng Auto (QĐ7) đẩy chương khay mỏng sang đồng kiểm, mà
+    # Library trong test là rỗng — không tiêm thì test này đo nhầm cổng đó chứ
+    # không đo luật AVD/kiểu chạy mà nó định đo.
+    from autoedit.offline import dung as _dung
+
+    monkeypatch.setattr(_dung, "do_ung_vien", lambda c, k, *a, **kw: [
+        [{"id": "ref:x", "nguon": "ref", "tieu_de": "t", "lop": "L1", "diem": 9,
+          "url_anh": "", "url_video": "", "geo": "", "dai_s": 30}] for _ in k])
+
     hd = runner.phan_tich(du_an, avd_s=0, kieu_chay="auto", llm=_LLM())
     assert hd["dong_kiem"] is False and hd["kieu_chay"] == "auto"
     assert "Kiểu chạy : auto" in " ".join(thuoc.dong_bao_cao(thuoc.do(hd)))
