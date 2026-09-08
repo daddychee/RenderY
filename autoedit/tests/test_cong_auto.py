@@ -166,14 +166,10 @@ def test_auto_khay_rong_thi_DUNG_va_bao(tmp_path, monkeypatch):
     tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=False)
     r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
     assert r.status_code == 200, r.text
-    # khay rỗng: đợi luồng nền chạy XONG rồi mới kết luận, nếu không thì test
-    # xanh chỉ vì soi quá sớm
-    _cho_xong(d, lambda h: (h.get("canh_bao") or []) != [])
-    from autoedit.web import server as _sv
-    import time
-    het = time.time() + 20
-    while time.time() < het and _sv._offline_dang.get(d.name, {}).get("tt") == "dang":
-        time.sleep(0.2)
+    # Tín hiệu XONG THẬT của luồng nền là trạng thái phiên, không phải nội dung
+    # hợp đồng: đợi `canh_bao` khác rỗng là đoán mò — cảnh báo có thể tới trước,
+    # sau, hoặc không tới. Test này từng đỏ chập chờn đúng vì đợi nhầm tín hiệu.
+    _cho_luong_nen_xong(d.name)
     hd = _cho_xong(d)
     assert hd["trang_thai"] != "khoa", "khay rỗng mà vẫn tự khoá sổ"
     assert not goi, "khay rỗng mà vẫn chạy Online"
@@ -204,3 +200,20 @@ def _cho_xong(d, dieu_kien=None, giay: float = 40.0):
     raise AssertionError(
         f"quá hạn {giay:.0f}s — hợp đồng: "
         + ("chưa ghi ra" if cuoi is None else f"trang_thai={cuoi.get('trang_thai')!r}"))
+
+
+def _cho_luong_nen_xong(pid: str, giay: float = 60.0):
+    """Đợi luồng phân tích nền rời trạng thái 'dang'. Báo rõ nếu nó BÁO LỖI."""
+    import time
+
+    from autoedit.web import server as _sv
+
+    het = time.time() + giay
+    while time.time() < het:
+        tt = dict(_sv._offline_dang.get(pid, {}))
+        if tt.get("tt") and tt["tt"] != "dang":
+            assert tt["tt"] != "loi", f"luồng nền báo lỗi: {tt.get('ghi_chu')}"
+            return tt
+        time.sleep(0.2)
+    raise AssertionError(f"luồng nền chưa xong sau {giay:.0f}s: "
+                         f"{dict(_sv._offline_dang.get(pid, {}))}")

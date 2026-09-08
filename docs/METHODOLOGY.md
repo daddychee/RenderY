@@ -144,3 +144,23 @@ Chạy thật trong Chrome chỉ ra ngay giả thuyết thứ ba.
 **Kèm theo — đọc log máy chủ TRƯỚC khi đoán:** `prod.log` cho thấy 121 lượt
 `/api/sotra/khuc` đều **206**. Một dòng grep loại sạch nửa số giả thuyết trước khi
 viết dòng test đầu tiên.
+
+## BH10 — Test luồng nền: đợi TÍN HIỆU XONG, đừng đợi hệ quả
+
+**Bài học:** trong hai lần chạy suite liên tiếp (08/09), cùng một file test
+`test_cong_auto.py` đỏ chập chờn — xanh khi chạy riêng, đỏ khi chạy cùng 1500 test
+khác. **Cả hai lần đều là lỗi của test, không phải của code.**
+
+Lần 1: đợi *file hợp đồng hiện ra*. Nhưng `phan_tich` ghi file TRƯỚC, dây chuyền auto
+(khoá sổ + Online) chạy SAU — máy tải nặng thì assert rơi trúng khoảng giữa.
+
+Lần 2: sửa thành đợi *`canh_bao` khác rỗng*. Vẫn sai kiểu cũ — cảnh báo là **hệ quả**,
+có thể tới trước, sau, hoặc không tới.
+
+**Luật:** đợi đúng **tín hiệu kết thúc** của luồng nền (ở đây là trạng thái phiên rời
+`'dang'`), rồi mới soi kết quả. Và khi hết giờ thì **in ra trạng thái thật** — "quá hạn"
+trơ trọi không nói được test hỏng hay code hỏng. Nếu luồng nền báo `loi` thì test phải
+nói thẳng lỗi đó, đừng để nó chết vì hết giờ.
+
+**Vì sao đáng ghi:** test đỏ chập chờn nguy hiểm hơn test đỏ hẳn — chạy lại thấy xanh
+thì rất dễ cho qua, và lần sau nó che mất một lỗi thật.

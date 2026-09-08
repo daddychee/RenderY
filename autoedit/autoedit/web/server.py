@@ -316,10 +316,8 @@ def api_offline_tap_list(request: Request):
             goc = (pj.get("inputs") or {}).get("original_script_path") or ""
         except Exception:  # noqa: BLE001
             continue
-        m = _re.search(r"[\/]([A-Z]{2,4}\d{2,4})", goc)
-        # khong co ma chuan (vd thu muc test) -> ten thu muc TAP (cha cua RenderY)
-        ma = m.group(1) if m else (Path(goc).parent.parent.parent.name[:18] or "khac")
-        nhan = Path(goc).parent.name.upper() if goc else d.name
+        ma = ma_tap_tu_script(goc) or "khac"
+        nhan = nhan_chuong_tu_script(goc) or d.name
         hd = orun.doc(d)
         if hd is None:
             tt, he = "chua_phan_tich", ""
@@ -678,6 +676,42 @@ def _gac_quyen_sua(request: Request, hd: dict) -> None:
     if ai and ai != chu and not is_admin(request):
         raise HTTPException(403, f"Sequence này do «{chu}» tạo — chỉ người tạo "
                                  "(hoặc admin) được sửa")
+
+
+TEN_THU_MUC_CHUONG = "rendery"     # thư mục chứa các chương, ngay dưới thư mục TẬP
+
+
+def ma_tap_tu_script(goc: str) -> str:
+    """Mã tập (LI089) suy từ đường dẫn kịch bản gốc — ĐÚNG cho cả hai bố cục.
+
+    Bố cục thư mục con : `...\\US\\LI103\\Rendery\\H\\H.txt`
+    Bố cục PHẲNG       : `...\\US\\LI089\\RenderY\\H.txt`
+
+    Mốc neo là THƯ MỤC `RenderY`: tập luôn là cha của nó, không phụ thuộc chương
+    nằm sâu mấy cấp. Bản cũ đếm lùi 3 cấp nên bố cục phẳng ra `US` — user báo
+    08/09 "thanhdn nộp LI089 mà không mở được khối Offline", tab Offline hiện
+    một mục lạ `US` thay vì LI089.
+
+    (Bản cũ thử regex `[\\/]([A-Z]{2,4}\\d{2,4})` trước. Trong LỚP KÝ TỰ, `\\/`
+    chỉ là dấu `/` — lớp KHÔNG chứa `\\`. Đường dẫn Windows toàn `\\` nên nhánh
+    đó chưa bao giờ khớp; mọi tập lâu nay đều đi bằng nhánh dự phòng.)
+    """
+    if not goc:
+        return ""
+    phan = [x for x in Path(str(goc).replace("\\", "/")).parts if x not in ("/", "")]
+    for i, x in enumerate(phan):
+        if x.lower() == TEN_THU_MUC_CHUONG and i >= 1:
+            return phan[i - 1][:18]
+    return (phan[-3][:18] if len(phan) >= 3 else (phan[0] if phan else ""))
+
+
+def nhan_chuong_tu_script(goc: str) -> str:
+    """Nhãn chương (H, C12) — thư mục con thì lấy TÊN THƯ MỤC, phẳng thì TÊN FILE."""
+    if not goc:
+        return ""
+    p = Path(str(goc).replace("\\", "/"))
+    return (p.stem.upper() if p.parent.name.lower() == TEN_THU_MUC_CHUONG
+            else p.parent.name.upper())
 
 
 def _pdir_offline(project_id: str) -> Path:

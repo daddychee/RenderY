@@ -187,7 +187,8 @@ def _gan_tham_so_dung(project, kenh_ref: str, avd_phut: float, dia_danh: str,
 
 
 def _project_cu_dung_duoc(folder: Path, out_dir: Path,
-                          chi_align: bool = False) -> "object | None":
+                          chi_align: bool = False,
+                          script: Path | None = None) -> "object | None":
     """Project đã dựng XONG cho đúng thư mục chương này (nếu có).
 
     31/08: job LI093 chết ở chương cuối vì Pexels trả 504. H/C7/c8 đã có draft nhưng
@@ -217,6 +218,13 @@ def _project_cu_dung_duoc(folder: Path, out_dir: Path,
         except (TypeError, ValueError):
             continue
         if sc.parent.resolve() != Path(folder).resolve():
+            continue
+        # CHƯƠNG ĐẶT PHẲNG (H.txt, C1.txt... chung một thư mục): khớp theo thư
+        # mục cha là mọi chương trúng project của chương ĐẦU. Đo thật 08/09 —
+        # LI089 nộp 16 chương chỉ ra MỘT project: từ chương 2 log đều in "đã
+        # chuẩn bị trước đó — dùng lại", 15 chương không bao giờ được align nên
+        # Offline không có gì để mở. Có `script` thì khớp ĐÚNG FILE.
+        if script is not None and sc.resolve() != Path(script).resolve():
             continue
         if chi_align:
             # Chế độ CHUẨN BỊ (07/09): không bao giờ có draft, nên điều kiện tái
@@ -419,7 +427,8 @@ def make(
 
     ten_project = folder.name if script_ro is None else Path(script_ro).stem
     cu = None if lam_lai else _project_cu_dung_duoc(
-        folder, Path("projects"), chi_align=(chi_chuan_bi is True))
+        folder, Path("projects"), chi_align=(chi_chuan_bi is True),
+        script=Path(script_ro) if script_ro else None)
     if cu is not None:
         # Chương này đã dựng XONG (có draft, nguồn không đổi) -> giao lại bản cũ.
         # NHƯNG tham số dựng thì lấy lần khai MỚI NHẤT: user sửa Framing/AVD rồi

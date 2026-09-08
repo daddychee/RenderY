@@ -526,3 +526,29 @@ thanhdn, job 22 mới là của `bot`. **Không đụng luật** — tập sau v
 
 Nghiệm thu qua đúng đường server gác quyền: 6/6 chương LI103 → thanhdn `True`,
 người khác `False`, admin `True`.
+
+## Ngách lấy từ DANH BẠ NỀN của CRM (user chốt 08/09)
+
+**Vấn đề:** ô Niche đang nhập tay tự do. Hậu quả đo được: Library có **cả `Life In` lẫn
+`life-in`** — hai thư mục cho cùng một ngách.
+
+**Khảo sát (CRM đã chuyển sang ổ D — bản trên ổ C là bản cũ, tôi tìm nhầm ở đó trước):**
+
+| | |
+|---|---|
+| Sổ ngách | `D:\AI AGENT OUTLIERY\data\nen\danh_ba.db`, bảng `ngach` |
+| Đọc qua | `nen.common.danh_ba.liet_ke("ngach")` — thư viện, **không có API HTTP** |
+| Cột | `ma`, `ten_chuan`, `trang_thai`, `ghi_chu`, `tao_luc` — **không có cột "cần địa danh"** |
+| Số ngách | 13: LIFE IN · LIVING IN · TRAVEL DOCUMENTARY · SENIOR HEALTH · HEALTHY EATING · COOKING · RETIREMENT · OLD · OLD NEWBIE · INVESTIGATION · SPACE · STORM · SCI-FI |
+
+**Quyết định (user chốt 08/09):**
+
+| # | Quyết định | Vì sao |
+|---|---|---|
+| QĐ12 | Đọc **thẳng `danh_ba.db` ở chế độ chỉ-đọc**, đường dẫn khai trong `.env` (`RENDERY_DANH_BA`) | Không phụ thuộc CRM có chạy hay không, và không thể ghi nhầm vào dữ liệu của app khác |
+| QĐ13 | Cờ "ngách cần địa danh" **đặt trong RenderY** (sửa được ở trang Cài đặt) | Danh bạ nền là của chung; RenderY ghi vào đó là lấn sân |
+| QĐ14 | Ngách cần địa danh: **LIFE IN · LIVING IN · TRAVEL DOCUMENTARY** | Ba ngách gắn trực tiếp với một vùng địa lý |
+
+**Đo trước khi code:** cửa geo trong `tra()` **đã tự tắt** khi `geo_tap` rỗng (`gt` rỗng →
+bỏ qua cả hai điều kiện lọc). Nên "ngách không cần địa danh thì không lọc theo vùng"
+KHÔNG phải viết thêm gì ở tầng tra cứu — chỉ cần cho phép bỏ trống địa danh đúng chỗ.
