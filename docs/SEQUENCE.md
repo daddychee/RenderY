@@ -488,3 +488,41 @@ KHÔNG BAO GIỜ bắn, hai thẻ ẩn mãi mà không ai biết vì sao (BH1). 
 khung hình tĩnh của clip.
 
 **Thu hoạch lớn hơn bản vá:** lớp giao diện từ nay test được — xem METHODOLOGY BH9.
+
+## Lỗi "đổi hình xong F5 lại về mặc định" (user báo 08/09)
+
+User báo team gặp, còn user tự thử thì KHÔNG bị. Đo ra **hai** lỗi khác nhau.
+
+### Lỗi 1 — `lam_tuoi_ref` không dời `chon` theo khay mới
+
+`api_offline_doc` gọi `lam_tuoi_ref` ngay lúc ĐỌC hợp đồng rồi ghi đè file. Hàm đó dựng
+lại `uv` (bỏ mục ref hỏng, thêm mục tươi) nhưng **giữ nguyên `chon`** — mục hỏng đứng
+TRƯỚC mục đang chọn thì chỉ số tụt một bậc, `chon` trỏ sang clip khác.
+
+Test tái hiện: chọn `r:2`, sau khi làm tươi thành `r:5`. Đã vá (`_thay` trả thêm chỉ số
+mới; mục bị loại hẳn thì trả `-1` chứ không trỏ bừa).
+
+**Nhưng đo trên 9 hợp đồng thật với code CŨ: 0 miếng bị dính.** Kho đang sạch nên lỗi
+chưa nổ. Vá vì nó là bẫy đang nằm chờ — KHÔNG phải vì nó giải thích báo cáo của team.
+
+### Lỗi 2 — cái team thật sự gặp: quyền sửa báo quá muộn
+
+`nguoi_tao` của 9 hợp đồng: **5 chương LI103 mang `'bot'`** (cả tập nộp dưới tên đó),
+C2 `thanhdn`, C7/C8/H-cũ trống. Luật "quyền sequence = người nộp tập" (chốt 07/09) vì
+thế khoá cửa với mọi người trừ admin. User là admin nên thử không bị.
+
+Luật ĐÚNG, cách hỏng thì SAI: giao diện cho đổi hình, hình hiện lên, **700ms sau**
+autosave mới ăn 403 — toast chớp rồi trôi, người dựng chỉnh tiếp cả loạt rồi F5 mất sạch.
+
+Vá: `GET /api/offline/{id}` trả `duoc_sua` + `chu_sequence`; UI đọc lúc NẠP, chặn ngay
+tại chỗ bấm và nói rõ ai mới sửa được.
+
+### Xử lý dữ liệu (user chốt 08/09)
+
+*"Tập này anh mở cho thanhdn giúp tôi, còn từ các tập sau thì vẫn theo rule đã bàn."*
+Đổi `nguoi_tao` của 5 chương LI103 từ `bot` sang `thanhdn` (sao lưu
+`.truoc-mo-quyen-1224`, ghi atomic). Khớp thực tế: job 21 nộp cùng thư mục LI103 là của
+thanhdn, job 22 mới là của `bot`. **Không đụng luật** — tập sau vẫn theo người nộp.
+
+Nghiệm thu qua đúng đường server gác quyền: 6/6 chương LI103 → thanhdn `True`,
+người khác `False`, admin `True`.

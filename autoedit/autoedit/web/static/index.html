@@ -1377,7 +1377,8 @@ function canhBaoNiche() {
 
 /* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
 let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_HCHON = 0, OF_PXS = 14
-let OF_KHOA_SUA = false          // sequence của người khác -> chỉ xem (403 từ server)
+let OF_KHOA_SUA = false          // sequence của người khác -> chỉ xem (server báo lúc nạp)
+let OF_CHU_SEQ = ''              // ai nộp tập này — để nói rõ ai mới sửa được
 let OF_AUDIO = null, OF_LUU_T = 0
 const ofK = () => (OF_HD ? OF_HD.khoi : [])
 const ofUv = k => (k && k.uv && k.chon >= 0 && k.uv[k.chon]) ? k.uv[k.chon] : null
@@ -1607,6 +1608,11 @@ async function ofNap() {
     document.getElementById('of-nut-pha').disabled = true
     return
   }
+  // QUYỀN SỬA biết NGAY lúc mở (user báo 08/09: đổi hình xong F5 lại về mặc
+  // định). Trước đây chỉ biết sau khi autosave ăn 403 — toast chớp rồi trôi,
+  // người dựng cứ chỉnh tiếp rồi mất sạch công.
+  OF_KHOA_SUA = d.duoc_sua === false
+  OF_CHU_SEQ = d.chu_sequence || ''
   const tt = d.tt || {}
   document.getElementById('of-pt-tt').textContent =
     tt.tt === 'dang' ? 'đang phân tích nền...' : (tt.ghi_chu || '')
@@ -2163,6 +2169,9 @@ function ofVeKhay() {
       d.onmouseleave = () => { if (v) v.pause() }
       d.ondblclick = () => ofReview(u)       // double-click = mở CỬA SỔ trim
       d.onclick = () => {                      // 1 click = dùng cả clip
+        // CHẶN NGAY, không cho đổi rồi mới mất: sequence của người khác thì
+        // autosave sẽ ăn 403 và F5 là về như cũ (user báo 08/09)
+        if (OF_KHOA_SUA) return ofBaoChiXem()
         ofChup()
         if (OF_TIM_KQ !== null) {
           k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
@@ -2195,7 +2204,15 @@ function ofUvLap(uid) {
   return ks.some((k, j) => { const w = ofUv(k)
     return j !== OF_HCHON && w && w.id === uid && Math.abs(k.t0 - k0.t0) < 60 })
 }
+function ofBaoChiXem() {
+  alert('CHỈ XEM — sequence này do «' + (OF_CHU_SEQ || 'người khác')
+      + '» nộp, chỉ người đó (hoặc admin) mới sửa được.
+
+'
+      + 'Đổi hình ở đây sẽ KHÔNG lưu được và mất khi tải lại trang.')
+}
 function ofDoiHinh(i) {
+  if (OF_KHOA_SUA) return ofBaoChiXem()
   const k = ofHinh()[i]; if (!k || !k.uv || k.uv.length < 2 || OF_PHA !== 2) return
   let c = k.chon
   for (let n = 1; n <= k.uv.length; n++) {

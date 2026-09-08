@@ -344,11 +344,23 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
                          (u.get("id"),)).fetchone()
         return r is None or r[0] != "song"
 
-    def _thay(ds: list[dict], i_khoi: int, chon: int) -> tuple[list[dict], bool]:
+    def _thay(ds: list[dict], i_khoi: int,
+              chon: int) -> tuple[list[dict], bool, int]:
+        """Trả (khay mới, có đổi không, CHỈ SỐ MỚI của mục đang chọn).
+
+        Phải trả cả chỉ số: khay được dựng lại, mục hỏng nằm TRƯỚC mục đang
+        chọn thì mọi chỉ số sau nó tụt một bậc. Bản cũ giữ nguyên `chon` nên nó
+        trỏ sang clip khác — người dựng đổi hình, F5, thấy "về mặc định" (user
+        báo 08/09). Chỉ thỉnh thoảng, vì cần đủ hai điều kiện: khay CÓ mục ref
+        hỏng, và mục hỏng đứng TRƯỚC mục đang chọn.
+        """
         if not any(_hong(u) for u in ds):
-            return ds, False
+            return ds, False, chon
         moi, giu_chon = [], ds[chon] if 0 <= chon < len(ds) else None
+        chon_moi = -1
         for j, u in enumerate(ds):
+            if j == chon:
+                chon_moi = len(moi)      # vị trí mục đang chọn TRÊN KHAY MỚI
             if not _hong(u):
                 moi.append(u)
             elif j == chon and giu_chon is not None:
@@ -363,18 +375,24 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
                 moi.append(u)
         co = {u["id"] for u in moi}
         moi.extend(u for u in _tuoi(i_khoi) if u["id"] not in co)
-        return moi, True
+        # mục đang chọn bị loại HẲN (hỏng mà không giữ chỗ được) -> không còn
+        # trên khay mới: trả -1 thay vì để chỉ số cũ trỏ bừa vào clip lạ
+        if 0 <= chon_moi < len(moi) and giu_chon is not None \
+                and moi[chon_moi]["id"] != giu_chon["id"]:
+            chon_moi = next((j for j, u in enumerate(moi)
+                             if u["id"] == giu_chon["id"]), -1)
+        return moi, True, chon_moi
 
     for i, k in enumerate(hd.get("khoi") or []):
-        ds, d1 = _thay(k.get("uv") or [], i, int(k.get("chon", -1)))
+        ds, d1, c = _thay(k.get("uv") or [], i, int(k.get("chon", -1)))
         if d1:
-            k["uv"] = ds
+            k["uv"], k["chon"] = ds, c
             doi = True
     for h in hd.get("hinh") or []:
         i = int(h.get("khoi_goc") or 0)
-        ds, d1 = _thay(h.get("uv") or [], min(i, max(0, len(hd.get("khoi") or []) - 1)),
-                       int(h.get("chon", -1)))
+        ds, d1, c = _thay(h.get("uv") or [], min(i, max(0, len(hd.get("khoi") or []) - 1)),
+                          int(h.get("chon", -1)))
         if d1:
-            h["uv"] = ds
+            h["uv"], h["chon"] = ds, c
             doi = True
     return doi

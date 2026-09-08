@@ -945,7 +945,18 @@ def api_offline_doc(project_id: str, request: Request):
         tt = dict(_offline_dang.get(project_id, {}))
     if hd is None and not tt:
         raise HTTPException(404, "Chưa phân tích — POST /phan-tich trước")
-    return {"hop_dong": hd, "tt": tt}
+    # QUYỀN SỬA nói ngay lúc MỞ chương (user báo 08/09: "đổi hình xong F5 lại
+    # về mặc định"). Đo trên hợp đồng thật: 5/9 chương có nguoi_tao='bot' — cả
+    # tập nộp dưới tên đó — nên luật "chỉ người nộp tập được sửa" khoá cửa với
+    # mọi người trừ admin. Trước đây UI cho đổi hình, hiện lên màn hình, rồi
+    # 700ms sau autosave mới ăn 403: toast chớp một cái rồi trôi, F5 là mất.
+    try:
+        _gac_quyen_sua(request, hd or {})
+        duoc_sua = True
+    except HTTPException:
+        duoc_sua = False
+    return {"hop_dong": hd, "tt": tt, "duoc_sua": duoc_sua,
+            "chu_sequence": (hd or {}).get("nguoi_tao") or ""}
 
 
 @app.put("/api/offline/{project_id}")
