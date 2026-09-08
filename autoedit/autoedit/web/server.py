@@ -855,9 +855,14 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
             # AUTO chỉ tự chạy khi CÓ HÌNH THẬT. Rà go-live 06/09: khay rỗng
             # (GLM hỏng / kho chưa có chủ đề) mà vẫn tự khóa sổ là giao draft
             # RÁC kèm nhãn "✓draft" — editor tưởng xong, tệ hơn không làm gì.
-            co_hinh = sum(1 for k in hd.get("khoi") or [] if (k.get("uv") or []))
-            tong_k = max(1, len(hd.get("khoi") or []))
-            if not hd["dong_kiem"] and co_hinh < tong_k * 0.5:
+            # MỘT ngưỡng duy nhất cho cả hệ (BH4): `runner.NGUONG_AUTO`. Trước
+            # 08/09 chỗ này giữ rào riêng 0.5 trong khi cổng ở runner là 0.6 —
+            # hai con số cho cùng một khái niệm, mà cổng runner chặn trước nên
+            # nhánh 0.5 thành code chết vẫn đọc như đang bảo vệ cái gì đó.
+            khay = [k.get("uv") or [] for k in hd.get("khoi") or []]
+            co_hinh = sum(1 for x in khay if x)
+            tong_k = max(1, len(khay))
+            if not hd["dong_kiem"] and not orun.du_khay_cho_auto(khay):
                 hd.setdefault("canh_bao", []).append(
                     f"AUTO DỪNG: chỉ {co_hinh}/{tong_k} khối có ứng viên — "
                     "kho chưa đủ hình cho chủ đề này. Hút thêm ở Library rồi "

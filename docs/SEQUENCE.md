@@ -445,3 +445,27 @@ kết luận là quá mỏng.
 
 Ngưỡng 60% chặn đúng 1/7 chương. Nếu chọn 80% thì C8 (74%) cũng bị chặn — đó chính là
 khác biệt thực tế giữa hai phương án user cân nhắc.
+
+## Rà cuối tuỳ chọn (08/09) — `tests/test_ma_tran_tuy_chon.py`
+
+Rà theo hai trục, 51 test:
+
+**Dọc** — form → JobRequest → opts hàng đợi → cờ `make`. Cả 11 tuỳ chọn đi trọn đường
+(bật riêng và bật cùng lúc); opts rỗng KHÔNG đẻ ra cờ lạ; mọi cờ worker sinh ra đều có
+thật trên `make --help` (đối chiếu `--help` thật, không chép tay). Tách
+`worker.co_lenh(opts)` thành hàm thuần để test được — đây là họ nhà lỗi PH1.
+
+**Ngang** — ma trận `kieu_chay` × vị trí chương (12 tổ hợp) và × độ dày khay (6 tổ hợp).
+Mốc AVD: chương bắt đầu ĐÚNG mốc thì tự chạy, trước mốc thì duyệt. Cổng Auto chỉ đụng
+chương đang định tự chạy, không lấn sang chương của người.
+
+**Dây chuyền Auto đầu-cuối** (`test_cong_auto.py`): bấm Phân tích → tự khoá sổ → tự chạy
+Online. Khay rỗng thì DỪNG và báo, không giao draft rác kèm nhãn "✓ xong".
+
+**Lỗi bắt được:** máy chủ giữ rào auto riêng `co_hinh < tong_k * 0.5` trong khi cổng ở
+runner là 60%. Cổng runner chặn trước nên nhánh 50% đã thành **code chết** mà đọc vào vẫn
+tưởng đang bảo vệ điều gì đó (BH4). Gộp về `runner.du_khay_cho_auto` — một hàm, một số.
+
+**Không phải lỗi nhưng cần biết:** `uu_tien_nguon` KHÔNG có ô chọn trên giao diện, luôn
+là mặc định `"ref"` của JobRequest. Đã kiểm giá trị hợp lệ và có tác dụng thật (ref đứng
+đầu khay). Muốn đổi theo tập thì phải thêm ô.

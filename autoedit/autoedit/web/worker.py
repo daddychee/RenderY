@@ -140,20 +140,13 @@ def _nap_ref_nen(folder: Path, dia_danh: str, log_path: Path) -> None:
             pass
 
 
-def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
-    """Chạy 1 job (có thể nhiều chương) tới khi xong.
+def co_lenh(opts: dict) -> list[str]:
+    """Tuỳ chọn khai lúc nộp tập -> cờ dòng lệnh `make`. MỘT chỗ dịch duy nhất.
 
-    Mỗi CHƯƠNG là một lượt `make` riêng -> một draft riêng, đúng mô hình R4.
-
-    Chương lỗi KHÔNG dừng cả tập: chạy nốt chương còn lại rồi báo rõ chương nào hỏng.
-    Chương nào xong là GIAO NGAY ra Compose Timeline, không đợi chương chậm nhất.
+    Tách khỏi `run_one` để test được (BH4): đây là họ nhà lỗi PH1 — tham số
+    khai ở form nhưng rớt giữa đường và IM LẶNG, chương vẫn dựng, chỉ là dựng
+    bằng mặc định. Không có rào thì không ai biết.
     """
-    folder = Path(job.job_folder)
-    if not folder.is_dir():
-        q.finish(conn, job.id, ok=False, error=f"Không thấy folder: {folder}")
-        return
-
-    opts = job.opts or {}
     extra: list[str] = []
     if opts.get("niche"):
         extra += ["--channel", str(opts["niche"])]
@@ -182,6 +175,24 @@ def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
     # lại toàn bộ phần sau, chạy pipeline cũ là đốt LLM + vài giờ + draft rác
     if opts.get("chi_chuan_bi"):
         extra += ["--chi-chuan-bi"]
+    return extra
+
+
+def run_one(conn, job: q.Job, root: Path, logs_dir: Path) -> None:
+    """Chạy 1 job (có thể nhiều chương) tới khi xong.
+
+    Mỗi CHƯƠNG là một lượt `make` riêng -> một draft riêng, đúng mô hình R4.
+
+    Chương lỗi KHÔNG dừng cả tập: chạy nốt chương còn lại rồi báo rõ chương nào hỏng.
+    Chương nào xong là GIAO NGAY ra Compose Timeline, không đợi chương chậm nhất.
+    """
+    folder = Path(job.job_folder)
+    if not folder.is_dir():
+        q.finish(conn, job.id, ok=False, error=f"Không thấy folder: {folder}")
+        return
+
+    opts = job.opts or {}
+    extra = co_lenh(opts)
 
     log_path = _log_path(logs_dir, job.id)
     ids: list[str] = []

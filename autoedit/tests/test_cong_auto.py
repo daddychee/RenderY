@@ -121,3 +121,67 @@ def test_chuyen_sang_dong_kiem_thi_do_LAI_khay_co_envato(tmp_path, monkeypatch):
     assert hd["dong_kiem"] is True
     assert goi == [("envato",), ()], f"chưa dò lại khay khi đổi diện: {goi}"
     assert hd["khoi"][0]["uv"], "người dựng nhận khay rỗng của Auto"
+
+
+# ------------------------------------------------- dây chuyền Auto đầu-cuối
+
+def _may_chu_auto(tmp_path, monkeypatch, khay_day: bool):
+    """Máy chủ + 1 chương, khay đầy hoặc rỗng, sẵn sàng bấm Phân tích."""
+    from fastapi.testclient import TestClient
+
+    from autoedit.offline import dung
+    from autoedit.sotra import db as sdb
+    from autoedit.web import server
+
+    monkeypatch.setattr(sdb, "resolve_data_root", lambda *a, **k: tmp_path)
+    mot = [{"id": "ref:x", "nguon": "ref", "tieu_de": "t", "lop": "L1", "diem": 9,
+            "url_anh": "", "url_video": "", "geo": "", "dai_s": 30}]
+    monkeypatch.setattr(dung, "do_ung_vien",
+                        lambda c, k, *a, **kw: [(list(mot) if khay_day else []) for _ in k])
+    d = _du_an_gia(tmp_path)
+    monkeypatch.setattr(server, "PROJECTS_DIR", d.parent)
+    server._offline_dang.clear()          # trạng thái dùng chung giữa các test
+    goi: list = []
+    monkeypatch.setattr("autoedit.offline.thay_mau.thay_mau",
+                        lambda *a, **k: goi.append(a) or {"draft": "x"})
+    return TestClient(server.app), d, goi
+
+
+def test_auto_khay_day_thi_TU_khoa_so_va_dung(tmp_path, monkeypatch):
+    """Bấm Phân tích một lần là xong: máy tự khoá sổ rồi chạy Online. Nếu dây
+    chuyền này đứt thì `kieu_chay=auto` chỉ còn nghĩa 'khỏi duyệt khay', chứ
+    không phải 'tool tự dựng' như tên gọi hứa."""
+    tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=True)
+    r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
+    assert r.status_code == 200, r.text
+    hd = _cho_xong(d)
+    assert hd["dong_kiem"] is False
+    assert hd["trang_thai"] == "khoa", "auto không tự khoá sổ"
+    assert goi, "auto không tự chạy Online"
+
+
+def test_auto_khay_rong_thi_DUNG_va_bao(tmp_path, monkeypatch):
+    """Khay rỗng -> KHÔNG được tự khoá sổ. Giao draft rác kèm nhãn '✓ xong'
+    tệ hơn không làm gì (rà go-live 06/09)."""
+    tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=False)
+    r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
+    assert r.status_code == 200, r.text
+    hd = _cho_xong(d)
+    assert hd["trang_thai"] != "khoa", "khay rỗng mà vẫn tự khoá sổ"
+    assert not goi, "khay rỗng mà vẫn chạy Online"
+    assert any("khay" in c.lower() or "auto" in c.lower() for c in hd["canh_bao"])
+
+
+def _cho_xong(d, giay: float = 25.0):
+    """Endpoint chạy nền — đợi hợp đồng hiện ra rồi mới soi."""
+    import time
+
+    from autoedit.offline import runner
+
+    het = time.time() + giay
+    while time.time() < het:
+        hd = runner.doc(d)
+        if hd is not None:
+            return hd
+        time.sleep(0.2)
+    raise AssertionError("phân tích không xong trong hạn — hợp đồng chưa ghi ra")
