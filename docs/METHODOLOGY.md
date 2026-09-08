@@ -124,3 +124,23 @@ chậm thì đọc con số tổng do chính công cụ in ra lúc kết thúc, 
 
 **Không tự nhận "xong" khi chưa chạy.** Test xanh chỉ nói code không gãy; nó
 không nói tính năng tới được tay người dùng (BH2).
+
+## BH9 — Lớp giao diện KHÔNG còn là vùng mù: Playwright + Chrome thật
+
+**Bài học:** BH3 ghi "mắt user là kênh phát hiện lỗi duy nhất" cho JS, vì máy không có
+Node. Điều đó ĐÚNG nhưng chưa đầy đủ — máy có sẵn **Playwright + Chrome thật** (cài từ
+R5b cho Envato). Nạp được trình duyệt thật thì test được JS thật.
+
+**Cách làm (xem `tests/test_preview_trinh_duyet.py`):** trích **nguyên văn** hàm cần
+kiểm từ `index.html` bằng khớp ngoặc, nhét vào một trang tối thiểu với đồ giả cho
+những gì nó gọi, rồi chạy trong Chrome. Không chép lại logic sang test — chép là test
+xanh trên bản sao trong khi bản đang ship vẫn hỏng.
+
+**Vì sao cần:** lỗi 08/09 "preview đen dù timeline có hình" nằm trọn trong 6 dòng JS.
+Không có cách chạy thì chỉ còn suy luận, mà suy luận thì không phân biệt được ba giả
+thuyết đều nghe hợp lý (server không trả video / thẻ video sai src / callback bị huỷ).
+Chạy thật trong Chrome chỉ ra ngay giả thuyết thứ ba.
+
+**Kèm theo — đọc log máy chủ TRƯỚC khi đoán:** `prod.log` cho thấy 121 lượt
+`/api/sotra/khuc` đều **206**. Một dòng grep loại sạch nửa số giả thuyết trước khi
+viết dòng test đầu tiên.

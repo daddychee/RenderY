@@ -469,3 +469,22 @@ tưởng đang bảo vệ điều gì đó (BH4). Gộp về `runner.du_khay_cho
 **Không phải lỗi nhưng cần biết:** `uu_tien_nguon` KHÔNG có ô chọn trên giao diện, luôn
 là mặc định `"ref"` của JobRequest. Đã kiểm giá trị hợp lệ và có tác dụng thật (ref đứng
 đầu khay). Muốn đổi theo tập thì phải thêm ô.
+
+## Lỗi preview đen (user báo 08/09) — `tests/test_preview_trinh_duyet.py`
+
+**Triệu chứng:** timeline có hình chảy vào, PREVIEW đen.
+
+**Bằng chứng trước khi sửa:** `/api/sotra/khuc` cho 6/6 miếng của C5 đều ra file khúc có
+thật; `prod.log` ghi **121 lượt `/khuc` đều 206**. Dữ liệu CÓ, chỉ không được hiện.
+
+**Nguyên nhân:** hai thẻ `<video>` thay phiên để tránh chớp đen. `ofVeAll` chạy lại liên
+tục; lần vẽ sau rơi vào nhánh "đang hiện đúng clip rồi" → gọi `ofNapKe` nạp ngầm shot kế
+→ hàm này chọn **thẻ đang ẩn**, đúng thẻ đang chờ nạp clip HIỆN TẠI, ghi đè `src` bằng
+clip kế và **xoá `onloadeddata`**. Callback bật hình bị huỷ → cả hai thẻ ở lại `hidden`
+→ đen vĩnh viễn. Vá: `ofNapKe` không đụng thẻ có `_src === ofVeXem._key`.
+
+**Đường thứ hai cũng ra màn đen** (test riêng bắt được): clip hỏng thì `onloadeddata`
+KHÔNG BAO GIỜ bắn, hai thẻ ẩn mãi mà không ai biết vì sao (BH1). Vá: `onerror` rơi về
+khung hình tĩnh của clip.
+
+**Thu hoạch lớn hơn bản vá:** lớp giao diện từ nay test được — xem METHODOLOGY BH9.

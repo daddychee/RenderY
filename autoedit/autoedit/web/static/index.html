@@ -2403,6 +2403,14 @@ function ofVeXem() {
   if (cur && cur._src === vs) { len_song(cur); return }
   kia._src = vs; kia.src = vs
   kia.onloadeddata = () => { if (ofVeXem._key === vs) len_song(kia) }
+  // Clip hỏng / không giải mã được thì `onloadeddata` KHÔNG BAO GIỜ bắn: hai
+  // thẻ ở lại hidden mãi mãi và không ai biết vì sao (BH1 — fail-open phải rung
+  // chuông). Rơi về KHUNG HÌNH tĩnh của clip, có còn hơn màn đen.
+  kia.onerror = () => {
+    if (ofVeXem._key !== vs) return
+    v1.hidden = v2.hidden = true; v1.pause(); v2.pause()
+    anh.src = ofAnh(u); anh.hidden = false
+  }
   // trong lúc chờ: cur (hình cũ) vẫn hiện — KHÔNG màn đen
 }
 function ofNapKe() {                             // nạp ngầm shot KẾ vào thẻ đang ẩn
@@ -2412,6 +2420,13 @@ function ofNapKe() {                             // nạp ngầm shot KẾ vào 
   if (!vs || vs === ofVeXem._key) return
   const v1 = document.getElementById('of-video'), v2 = document.getElementById('of-video2')
   const an = v1.hidden ? v1 : v2
+  // KHÔNG cướp thẻ đang chờ nạp clip HIỆN TẠI. Lỗi user báo 08/09 (preview đen
+  // dù timeline có hình): `ofVeAll` chạy lại liên tục, lần vẽ sau rơi vào nhánh
+  // "đang hiện đúng clip rồi" -> gọi hàm này -> nó chọn đúng thẻ ĐANG ẨN chờ
+  // nạp, ghi đè src bằng clip KẾ và xoá `onloadeddata`. Callback bật hình bị
+  // huỷ, cả hai thẻ ở lại hidden -> đen vĩnh viễn dù video đã tải xong
+  // (prod.log: 121 lượt /api/sotra/khuc đều 206).
+  if (an._src === ofVeXem._key) return
   if (an._src !== vs) { an._src = vs; an.preload = 'auto'; an.src = vs; an.onloadeddata = null }
 }
 
