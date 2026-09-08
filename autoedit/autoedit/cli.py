@@ -2909,6 +2909,43 @@ def merge_drafts_cmd(
     typer.echo("  Mở CapCut → draft tổng phải có đủ các chương nối tiếp đúng thứ tự.")
 
 
+@app.command(name="don-kho")
+def don_kho_cmd(
+    preview: bool = typer.Option(True, "--preview/--khong-preview",
+                                 help="Dọn dòng CHỈ-LÀ-PREVIEW của Envato."),
+    lech: bool = typer.Option(True, "--lech/--khong-lech",
+                              help="Dọn clip ĐÃ TẢI mà tiêu đề lệch từ khoá hút."),
+    xoa: bool = typer.Option(False, "--xoa",
+                             help="Xoá thật. Mặc định CHỈ ĐẾM + liệt kê mẫu."),
+) -> None:
+    """Dọn kho một lần (đợt 2, 08/09) — bỏ thứ không còn lý do tồn tại.
+
+    Giữ lại clip đã tải, đã lên timeline, hoặc có giấy phép. `giay_phep` và
+    clip nguồn khác KHÔNG bị đụng. File video trên đĩa KHÔNG bị xoá.
+    """
+    from autoedit.sotra import db as sdb
+    from autoedit.sotra import don_kho as dk
+
+    conn = sdb.mo()
+    try:
+        if preview:
+            ds = dk.liet_ke_preview(conn, "envato")
+            typer.echo(f"envato chỉ-là-preview : {len(ds)}")
+        if lech:
+            dl = dk.liet_ke_lech_tu_khoa(conn)
+            typer.echo(f"đã tải mà lệch từ khoá: {len(dl)}")
+            for r in dl[:15]:
+                typer.echo(f"   «{r['tu_khoa_hut']}» -> {r['tieu_de'][:52]}")
+        if not xoa:
+            typer.echo("\n(chế độ THỬ — chưa xoá gì. Thêm --xoa để dọn thật)")
+            return
+        n1 = dk.don_preview(conn, "envato", xoa=True) if preview else 0
+        n2 = dk.don_lech_tu_khoa(conn, xoa=True) if lech else 0
+        typer.echo(f"\nĐÃ XOÁ {n1} preview envato + {n2} clip lệch từ khoá")
+    finally:
+        conn.close()
+
+
 @app.command(name="don-ref-nham")
 def don_ref_nham_cmd(
     xoa: bool = typer.Option(False, "--xoa",

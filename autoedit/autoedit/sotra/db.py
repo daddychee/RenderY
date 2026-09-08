@@ -149,11 +149,19 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
     # ref cắt theo cảnh (06/09): vật thể nhìn thấy trong hình + độ khớp lời-hình
     for _cot, _kieu in (("vat_the", "TEXT DEFAULT ''"), ("khop", "INTEGER DEFAULT 0"),
                         ("loi_quanh", "TEXT DEFAULT ''"), ("may_dong", "INTEGER DEFAULT 0"),
-                        ("beat_id", "TEXT DEFAULT ''")):
+                        ("beat_id", "TEXT DEFAULT ''"),
+                        # HÀNG TẠM của một tập (08/09): preview hút trong lúc
+                        # dựng tập nào thì mang dấu tập đó, đóng job là dọn.
+                        # Rỗng = hàng thường trực, không ai dọn.
+                        ("tam_tap", "TEXT DEFAULT ''")):
         try:
             conn.execute(f"ALTER TABLE clip ADD COLUMN {_cot} {_kieu}")
         except sqlite3.OperationalError:
             pass
+    try:
+        conn.execute("ALTER TABLE phien_hut ADD COLUMN ma_tap TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     if conn.execute("SELECT COUNT(*) FROM alias").fetchone()[0] == 0:
         conn.executemany("INSERT OR IGNORE INTO alias(tu, chuan) VALUES(?,?)",
                          list(_ALIAS_GOC.items()))
@@ -213,13 +221,23 @@ def them_clip(conn: sqlite3.Connection, r: dict) -> bool:
     d["ngay_them"] = datetime.now(timezone.utc).isoformat()
     moi = conn.execute("SELECT 1 FROM clip WHERE id=?", (d["id"],)).fetchone() is None
     if moi:
+        # `tam_tap` CHỈ đặt lúc thêm mới: clip đã nằm kho vĩnh viễn mà lượt hút
+        # của tập sau chạm phải thì không được hạ xuống hàng tạm — đóng job là
+        # mất hàng thật.
+        d["tam_tap"] = str(r.get("tam_tap") or "")
         conn.execute(
             f"INSERT INTO clip({','.join(d)}) VALUES({','.join('?' * len(d))})",
             list(d.values()))
     else:
         # đã có: chỉ nâng cấp tag khi tầng mới ĐẮT hơn (tieu_de < vision < nguoi)
         bac = {"tieu_de": 0, "vision": 1, "nguoi": 2}
-        cu = conn.execute("SELECT tag_nguon FROM clip WHERE id=?", (d["id"],)).fetchone()
+        cu = conn.execute("SELECT tag_nguon, path_local FROM clip WHERE id=?",
+                          (d["id"],)).fetchone()
+        # Lượt hút không mang `path_local` (preview không biết bản đã tải nằm
+        # đâu). Ghi đè bằng rỗng = mất đường dẫn file đã tải về — mà luật
+        # giữ/dọn hàng tạm lại đọc đúng cột này.
+        if not d["path_local"]:
+            d["path_local"] = cu["path_local"] or ""
         if bac.get(str(r.get("tag_nguon", "tieu_de")), 0) >= bac.get(cu[0], 0):
             conn.execute(
                 "UPDATE clip SET " + ",".join(f"{k}=?" for k in cot[2:]) + " WHERE id=?",
@@ -236,9 +254,37 @@ def ghi_su_kien(conn, clip_id: str, loai: str, tap: str = "",
         (clip_id, tap, vi_tri, loai, chi_tiet, datetime.now(timezone.utc).isoformat()))
 
 
-def ghi_phien_hut(conn, tu_khoa: str, nguon: str, so_moi: int, so_trung: int) -> None:
-    conn.execute("INSERT INTO phien_hut(tu_khoa, nguon, so_moi, so_trung, ts) VALUES(?,?,?,?,?)",
-                 (tu_khoa, nguon, so_moi, so_trung, datetime.now(timezone.utc).isoformat()))
+def dong_job(conn, tap: str) -> int:
+    """Đóng job của `tap` -> dọn HÀNG TẠM đã hút cho tập đó. Trả số clip xoá.
+
+    User chốt 07/09: *"ngoài ref, tôi không cần lưu vĩnh viễn cái gì cả"* và
+    *"stock nào đã được download tức là đã được dùng thì giữ lại"*.
+
+    Giữ lại clip đã tải (`path_local`) HOẶC đã lên timeline (`len_final`) —
+    Pexels/Pixabay tải thẳng vào assets của project chứ không đặt `path_local`
+    trên clip, nên chỉ nhìn một dấu là dọn nhầm clip vừa dùng.
+
+    KHÔNG đụng `giay_phep` (chứng từ đã trả tiền) và clip của tập khác.
+    """
+    if not str(tap or "").strip():
+        return 0
+    ids = [r[0] for r in conn.execute(
+        "SELECT c.id FROM clip c WHERE c.tam_tap=? AND COALESCE(c.path_local,'')='' "
+        "AND NOT EXISTS(SELECT 1 FROM su_kien s WHERE s.clip_id=c.id "
+        "               AND s.loai='len_final')", (tap,))]
+    for cid in ids:
+        conn.execute("DELETE FROM clip WHERE id=?", (cid,))
+        conn.execute("DELETE FROM clip_fts WHERE id=?", (cid,))
+    conn.commit()
+    return len(ids)
+
+
+def ghi_phien_hut(conn, tu_khoa: str, nguon: str, so_moi: int, so_trung: int,
+                  ma_tap: str = "") -> None:
+    conn.execute("INSERT INTO phien_hut(tu_khoa, nguon, so_moi, so_trung, ts, ma_tap) "
+                 "VALUES(?,?,?,?,?,?)",
+                 (tu_khoa, nguon, so_moi, so_trung,
+                  datetime.now(timezone.utc).isoformat(), ma_tap))
 
 
 # ------------------------------------------------------------ đọc

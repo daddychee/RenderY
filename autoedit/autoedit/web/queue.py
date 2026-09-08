@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     seen         INTEGER NOT NULL DEFAULT 0, -- 0 = xong mà user CHƯA XEM -> badge CRM
     opts         TEXT NOT NULL DEFAULT '{}', -- JSON tuỳ chọn (niche, align_backend...)
     chuong       TEXT NOT NULL DEFAULT '',   -- chương đang dựng, vd 'C2 (2/5)'
-    dong_cuoi    TEXT NOT NULL DEFAULT ''    -- dòng log gần nhất, hiện thẳng trên UI
+    dong_cuoi    TEXT NOT NULL DEFAULT '',   -- dòng log gần nhất, hiện thẳng trên UI
+    dong         INTEGER NOT NULL DEFAULT 0, -- người dựng ĐÓNG job -> được dọn hàng tạm
+    dong_at      TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_nguoi ON jobs(nguoi, seen);
@@ -85,9 +87,13 @@ def _them_cot_thieu(conn: sqlite3.Connection) -> None:
     """Thêm cột mới vào DB ĐÃ CÓ dữ liệu. CREATE TABLE IF NOT EXISTS không đụng bảng
     cũ, nên thêm cột vào _SCHEMA thôi là chưa đủ — máy chủ đang chạy sẽ vỡ ở SELECT."""
     co = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
-    for ten in ("chuong", "dong_cuoi"):
+    for ten in ("chuong", "dong_cuoi", "dong_at"):
         if ten not in co:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
+    # ĐÓNG JOB (08/09): người dựng xong hẳn với tập -> được phép dọn hàng tạm.
+    # Khác `status` (máy chạy xong) và khác `seen` (đã liếc kết quả).
+    if "dong" not in co:
+        conn.execute("ALTER TABLE jobs ADD COLUMN dong INTEGER NOT NULL DEFAULT 0")
 
 
 def _now() -> str:
@@ -110,6 +116,8 @@ class Job:
     opts: dict
     chuong: str = ""
     dong_cuoi: str = ""
+    dong: int = 0
+    dong_at: str = ""
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Job":
@@ -251,6 +259,23 @@ def cancel(conn: sqlite3.Connection, job_id: int) -> bool:
     cur = conn.execute(
         "UPDATE jobs SET status='canceled', finished_at=? WHERE id=? AND status='queued'",
         (_now(), job_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def dong(conn: sqlite3.Connection, job_id: int) -> bool:
+    """Người dựng ĐÓNG job — xong hẳn với tập này. True nếu vừa đóng.
+
+    Khác `status` (máy chạy xong) và khác `seen` (mới liếc kết quả): đây là lúc
+    người dựng nói "không đụng tập này nữa", tức lúc DUY NHẤT được phép dọn
+    hàng tạm đã hút cho nó.
+
+    Từ chối job đang chạy (dọn kho giữa chừng là rút thảm dưới chân nó) và job
+    đã đóng rồi (đóng hai lần không được dọn hai lần).
+    """
+    cur = conn.execute(
+        "UPDATE jobs SET dong=1, dong_at=? WHERE id=? AND dong=0 "
+        "AND status IN ('done','failed','canceled')", (_now(), job_id))
     conn.commit()
     return cur.rowcount > 0
 

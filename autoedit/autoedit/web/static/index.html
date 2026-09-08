@@ -1132,10 +1132,21 @@ function veTap(j) {
       <span class="note">AI đã tiêu <span class="mono">${cp == null ? '$0.00' : '$' + cp.toFixed(2)}</span></span>
       <span class="note">voice → beat → cắt → nguồn → AI → ráp · vàng = chờ người · xanh = máy chạy</span>
       <span class="note" style="margin-left:auto"><a onclick="xemLog(${j.id})">log</a>${run
-        ? ` · <a onclick="huyJob(${j.id})" style="color:var(--muted)">huỷ</a>` : ''}</span>
+        ? ` · <a onclick="huyJob(${j.id})" style="color:var(--muted)">huỷ</a>`
+        : (j.dong ? ' · <span style="color:var(--muted)">đã đóng</span>'
+                  : ` · <a onclick="dongJob(${j.id})" title="xong hẳn với tập này — dọn preview đã hút tạm">đóng job</a>`)}</span>
     </div></div>`
 }
 
+async function dongJob(id) {
+  if (!confirm('Đóng job này?\n\nPreview stock hút tạm cho tập sẽ bị xoá khỏi kho.\n'
+             + 'Clip đã tải hoặc đã lên timeline vẫn giữ.')) return
+  try {
+    const r = await api(`/api/jobs/${id}/dong`, {method: 'POST'})
+    alert(`Đã đóng job ${r.ma_tap} — dọn ${r.so_clip_don} preview tạm khỏi kho`)
+    loadJobs()
+  } catch (e) { alert('Lỗi: ' + e.message) }
+}
 async function huyJob(id) {
   if (!confirm('Huỷ job này?')) return
   try { await api(`/api/jobs/${id}/cancel`, {method: 'POST'}); loadJobs() }

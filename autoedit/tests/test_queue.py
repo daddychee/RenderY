@@ -379,3 +379,29 @@ def test_hai_worker_cung_luc_khong_vuot_tran(tmp_path):
     # Điều quan trọng là KHÔNG VƯỢT TRẦN. Worker thua cuộc trả None và sẽ gọi
     # lại ở vòng sau — chấp nhận được, rẻ hơn nhiều so với khoá tường minh.
     assert sum(1 for x in ket if x is not None) <= 1
+
+
+# ---------------------------------------------------------------------------
+# ĐÓNG JOB (user chốt 07/09) — "nút đóng job đặt ở list job ngoài overview",
+# đóng thì dọn hàng tạm đã hút cho tập đó. Bảng `jobs` chỉ có status
+# done/failed/canceled + cờ `seen`, không có khái niệm "người dựng đã xong
+# hẳn với tập này" — mà đó mới là lúc được phép dọn.
+
+def test_dong_job_danh_dau_va_khong_dong_lai(conn):
+    j = q.add_job(conn, "F:/kho/LI103", nguoi="an")
+    q.finish(conn, j, ok=True)
+    assert q.dong(conn, j) is True
+    assert q.get_job(conn, j).dong == 1
+    assert q.dong(conn, j) is False, "đóng lần hai phải trả False, không dọn lại"
+
+
+def test_khong_dong_duoc_job_dang_chay(conn):
+    j = q.add_job(conn, "F:/kho/LI103", nguoi="an")
+    conn.execute("UPDATE jobs SET status='running' WHERE id=?", (j,))
+    conn.commit()
+    assert q.dong(conn, j) is False, "job đang chạy mà dọn kho thì rút thảm dưới chân nó"
+
+
+def test_job_moi_mac_dinh_chua_dong(conn):
+    j = q.add_job(conn, "F:/kho/LI103", nguoi="an")
+    assert q.get_job(conn, j).dong == 0

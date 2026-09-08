@@ -128,8 +128,13 @@ _BO_HUT = {"envato": hut_envato, "pexels": hut_pexels, "pixabay": hut_pixabay}
 
 
 def phien_hut(conn, tu_khoas: list[str], nguons: list[str],
-              so_trang: int = 1, log=None) -> dict:
-    """Chạy 1 PHIÊN hút tuần tự rón rén. Trả {"moi": n, "trung": n, "loi": [..]}."""
+              so_trang: int = 1, log=None, ma_tap: str = "") -> dict:
+    """Chạy 1 PHIÊN hút tuần tự rón rén. Trả {"moi": n, "trung": n, "loi": [..]}.
+
+    `ma_tap` (hút TRONG LÚC dựng một tập): clip MỚI mang dấu hàng tạm của tập
+    đó, đóng job là dọn. Bỏ trống = hút nghiên cứu từ trang Sổ Tra, vào kho
+    thường trực như cũ.
+    """
     def ghi(m):
         if log:
             log(m)
@@ -147,8 +152,8 @@ def phien_hut(conn, tu_khoas: list[str], nguons: list[str],
                     kq["loi"].append(f"{ng} «{tk}» tr{tr}: {str(exc)[:90]}")
                     ghi(f"sotra: ! {ng} «{tk}»: {str(exc)[:80]}")
                     break
-                moi = sum(sdb.them_clip(conn, r) for r in ds)
-                sdb.ghi_phien_hut(conn, tk, ng, moi, len(ds) - moi)
+                moi = sum(sdb.them_clip(conn, {**r, "tam_tap": ma_tap}) for r in ds)
+                sdb.ghi_phien_hut(conn, tk, ng, moi, len(ds) - moi, ma_tap=ma_tap)
                 conn.commit()
                 kq["moi"] += moi
                 kq["trung"] += len(ds) - moi

@@ -2517,6 +2517,49 @@ def api_cancel_job(job_id: int, request: Request):
         conn.close()
 
 
+@app.post("/api/jobs/{job_id}/dong")
+def api_dong_job(job_id: int, request: Request):
+    """ĐÓNG job — người dựng xong hẳn với tập, dọn hàng tạm đã hút cho nó.
+
+    User chốt 07/09: *"nút đóng job đặt ở list job ngoài overview"* và
+    *"user đóng job — xóa"*. Giữ lại clip đã tải hoặc đã lên timeline; clip
+    của tập khác và `giay_phep` không bị đụng (xem `sotra.db.dong_job`).
+    """
+    _require_auth(request)
+    from autoedit.offline import runner as orun
+    from autoedit.sotra import db as _sdb
+    from autoedit.web import queue as q
+
+    conn = _queue_conn()
+    try:
+        job = q.get_job(conn, job_id)
+        if job is None:
+            raise HTTPException(404, "Không thấy job")
+        nguoi = current_user(request)
+        if nguoi and job.nguoi and job.nguoi != nguoi and not is_admin(request):
+            raise HTTPException(403, "Chỉ đóng được job của mình")
+        if not q.dong(conn, job_id):
+            raise HTTPException(409, "Job đang chạy hoặc đã đóng rồi")
+    finally:
+        conn.close()
+    # Mã tập lấy từ hợp đồng (dấu `tam_tap` đóng theo mã này), lùi về tên thư
+    # mục job khi chương chưa phân tích — đóng job vẫn phải dọn được.
+    ma_tap = ""
+    try:
+        hd = orun.doc(PROJECTS_DIR / job.project_id) if job.project_id else None
+        ma_tap = (hd or {}).get("ma_tap") or ""
+    except Exception:  # noqa: BLE001 — hợp đồng hỏng không cản việc đóng job
+        pass
+    if not ma_tap:
+        ma_tap = Path(job.job_folder).name
+    sc = _sdb.mo()
+    try:
+        n = _sdb.dong_job(sc, ma_tap)
+    finally:
+        sc.close()
+    return {"ok": True, "ma_tap": ma_tap, "so_clip_don": n}
+
+
 @app.post("/api/jobs/seen")
 def api_mark_seen(request: Request):
     """User đã xem kết quả -> tắt badge trên CRM."""
