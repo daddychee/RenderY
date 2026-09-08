@@ -160,3 +160,28 @@ def test_video_hong_thi_ROI_VE_ANH_chu_khong_de_den(chrome, tmp_path):
         assert hien.endswith("khung.jpg"), "video hỏng mà preview để đen, không rơi về ảnh"
     finally:
         pg.close()
+
+
+def test_CA_TRANG_khong_co_loi_cu_phap(chrome, tmp_path):
+    """Rào cho cả lớp lỗi: một ký tự sai ở BẤT KỲ đâu trong khối <script> là
+    TOÀN BỘ script chết — không hàm nào tồn tại, trang tải 200 nhưng bấm gì
+    cũng không ăn. Người dùng thấy "tool đơ".
+
+    Chuyện thật 08/09: bản vá "chỉ xem" của tôi có `\n` bị biến thành xuống
+    dòng THẬT giữa chuỗi một nháy -> `Invalid or unexpected token` -> đơ trên
+    production. Test cũ không bắt được vì chúng chỉ TRÍCH vài hàm ra chạy
+    riêng, không nạp cả trang.
+    """
+    loi: list = []
+    pg = chrome.new_page()
+    try:
+        pg.on("pageerror", lambda e: loi.append(str(e)[:200]))
+        # `file://` là đủ: lỗi cú pháp nổ lúc PARSE, không cần máy chủ
+        pg.goto(GOC.as_uri(), wait_until="load", timeout=30000)
+        pg.wait_for_timeout(700)
+        assert not loi, f"script chết ngay lúc nạp: {loi[:3]}"
+        # vài hàm xương sống phải tồn tại — script chết thì tất cả undefined
+        for ten in ("ofNap", "ofVeXem", "ofLuu", "ofDoiHinh", "dongJob", "huyJob"):
+            assert pg.evaluate(f"typeof {ten}") == "function", f"thiếu hàm {ten}"
+    finally:
+        pg.close()
