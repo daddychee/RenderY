@@ -578,3 +578,31 @@ UI lùi về ô gõ tay. Một app khác chết KHÔNG được kéo cả Render
 **Test cũ phải sửa theo:** 11 test nộp job không kèm ngách — nay ngách là bắt buộc.
 Nhân tiện trỏ `RENDERY_DANH_BA` sang đường dẫn không tồn tại trong các fixture đó:
 test phải KÍN, không được đọc danh bạ thật của CRM trên ổ D.
+
+## Preview đen lần 2 — khúc cắt DỞ nằm lại trong cache (08/09 chiều)
+
+Lần 1 (sáng) là lỗi front-end (`ofNapKe` cướp thẻ đang chờ nạp). Lần này **gốc khác
+hẳn, nằm ở máy chủ** — bài học: cùng triệu chứng không có nghĩa cùng nguyên nhân.
+
+**Đo trước khi sửa:**
+- `/api/sotra/khuc` 69 lượt **đều 206**; trang đang phục vụ **đã có cả hai bản vá** lần 1;
+  không lỗi JS nào.
+- Bấm LẦN LƯỢT 42 miếng của C5 (LI089): **22 miếng đen**, đúng 22 miếng đó, lặp lại y
+  hệt, cache đã nóng, chờ 2s vẫn đen. Nhưng **nhảy thẳng** vào một miếng thì nó hiện.
+- `ffprobe` các khúc đen: **`Invalid NAL unit`**, không đếm nổi frame; khúc tốt đếm bình
+  thường. Quét cả kho: **27/305 khúc hỏng**, toàn bộ là ref của LI089, sinh 09:57–16:16 —
+  nhiều cái đúng phút máy chủ bị dừng để nâng cấp.
+
+**Nguyên nhân:** `khuc_clip` ghi ffmpeg THẲNG vào file cache, lần sau chỉ kiểm
+`size > 0` là tin. ffmpeg bị giết giữa chừng (restart, timeout, hết đĩa) để lại file dở
+nhưng khác rỗng → cache tin nó **mãi mãi**, preview đen không lời giải thích (BH1).
+
+Sự thật khó nghe: **chính hai lần tôi khởi động lại production hôm nay đã sinh ra chúng**,
+trong lúc luồng hâm cache đang cắt.
+
+**Vá:** cắt ra `.tmp.mp4` → `doc_duoc()` kiểm ffprobe → `os.replace` (nguyên tử). Chết
+giữa chừng thì chỉ còn `.tmp`, không ai nhầm nó là khúc thật. Kèm `don-khuc-hong`
+(mặc định chỉ đếm) cho khúc đã lỡ vào cache.
+
+**Nghiệm thu trên chính trang production:** trước 22/42 miếng đen → sau khi dọn 27 khúc,
+**0/42**.

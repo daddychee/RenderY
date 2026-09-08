@@ -2918,6 +2918,25 @@ def merge_drafts_cmd(
     typer.echo("  Mở CapCut → draft tổng phải có đủ các chương nối tiếp đúng thứ tự.")
 
 
+@app.command(name="don-khuc-hong")
+def don_khuc_hong_cmd(
+    xoa: bool = typer.Option(False, "--xoa", help="Xoá thật. Mặc định CHỈ ĐẾM."),
+) -> None:
+    """Dọn khúc preview HỎNG đã lỡ nằm trong cache — nguồn của "preview đen".
+
+    Khúc cắt dở (máy chủ bị dừng giữa chừng, timeout, hết đĩa) vẫn khác rỗng nên
+    bản cũ tin nó mãi mãi. Xoá đi thì lần xem sau tự cắt lại. KHÔNG đụng file
+    gốc, không đụng Sổ Tra — đây chỉ là cache.
+    """
+    from autoedit.sotra.media import don_khuc_hong
+
+    n = don_khuc_hong(xoa=xoa)
+    if not xoa:
+        typer.echo(f"khúc preview hỏng: {n}\n(chế độ THỬ — thêm --xoa để dọn thật)")
+    else:
+        typer.echo(f"ĐÃ XOÁ {n} khúc hỏng — lần xem sau tự cắt lại")
+
+
 @app.command(name="don-kho")
 def don_kho_cmd(
     preview: bool = typer.Option(True, "--preview/--khong-preview",

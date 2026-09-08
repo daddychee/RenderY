@@ -57,8 +57,8 @@ TRANG = """<!doctype html><meta charset="utf-8">
 <script>
 /* --- đồ giả tối thiểu cho hai hàm thật bên dưới --- */
 let OF_PHA = 2, OF_HCHON = 0
-const HINH = [{uv: [{id: 'a', tieu_de: 'A', url_video: 'a.mp4'}], chon: 0},
-              {uv: [{id: 'b', tieu_de: 'B', url_video: 'b.mp4'}], chon: 0}]
+let HINH = [{uv: [{id: 'a', tieu_de: 'A', url_video: 'a.mp4'}], chon: 0},
+            {uv: [{id: 'b', tieu_de: 'B', url_video: 'b.mp4'}], chon: 0}]
 function ofHinh() { return HINH }
 function ofUv(k) { const uv = k && k.uv || []; return uv[k.chon] }
 function ofVid(u) { return u.url_video }
@@ -183,5 +183,43 @@ def test_CA_TRANG_khong_co_loi_cu_phap(chrome, tmp_path):
         # vài hàm xương sống phải tồn tại — script chết thì tất cả undefined
         for ten in ("ofNap", "ofVeXem", "ofLuu", "ofDoiHinh", "dongJob", "huyJob"):
             assert pg.evaluate(f"typeof {ten}") == "function", f"thiếu hàm {ten}"
+    finally:
+        pg.close()
+
+
+def test_bam_LAN_LUOT_qua_nhieu_mieng_khong_mieng_nao_den(chrome, tmp_path):
+    """Đo trên production 08/09 (chương C5 tập LI089, 42 miếng): nhảy THẲNG vào
+    miếng 19 thì hiện bình thường, nhưng bấm LẦN LƯỢT 1->42 thì **22 miếng đen**
+    — đúng 22 miếng đó, lặp lại y hệt, cache đã nóng, chờ 2s vẫn đen.
+
+    Tức lỗi phụ thuộc TRÌNH TỰ, đúng cảnh người dựng bấm lần lượt. Khuôn tái
+    hiện: dãy clip có LẶP LẠI (a b b c a c...) — giống dải hình thật, nơi miếng
+    chảy tiếp dùng lại clip của miếng trước.
+    """
+    import json
+
+    for ten, mau in (("a", "red"), ("b", "blue"), ("c", "green")):
+        _mp4(tmp_path / f"{ten}.mp4", mau)
+    day = ["a", "b", "b", "c", "a", "c", "c", "a", "b", "a"]
+    hinh = [{"uv": [{"id": x, "tieu_de": x.upper(), "url_video": f"{x}.mp4"}],
+             "chon": 0} for x in day]
+    cu = ("let HINH = [{uv: [{id: 'a', tieu_de: 'A', url_video: 'a.mp4'}], chon: 0},\n"
+          "            {uv: [{id: 'b', tieu_de: 'B', url_video: 'b.mp4'}], chon: 0}]")
+    html = TRANG.replace("__HAM__", _ham("ofVeXem") + "\n" + _ham("ofNapKe"))
+    assert cu in html
+    html = html.replace(cu, "let HINH = " + json.dumps(hinh))
+    (tmp_path / "t.html").write_text(html, encoding="utf-8")
+
+    pg = chrome.new_page()
+    try:
+        pg.goto((tmp_path / "t.html").as_uri())
+        den = []
+        for i, ten in enumerate(day):
+            pg.evaluate(f"OF_HCHON = {i}; ofVeXem()")
+            pg.wait_for_timeout(700)
+            hien = _dang_hien(pg)
+            if not hien.endswith(f"{ten}.mp4"):
+                den.append((i + 1, ten, hien.rsplit("/", 1)[-1] or "DEN"))
+        assert not den, f"bấm lần lượt bị hỏng ở: {den}"
     finally:
         pg.close()

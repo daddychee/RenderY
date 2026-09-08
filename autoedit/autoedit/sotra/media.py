@@ -6,6 +6,7 @@ chỉ ref/kho (file trên đĩa, trình duyệt không tự đọc được) c�
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -67,13 +68,57 @@ def khuc_clip(conn, clip_id: str) -> Path | None:
     if dich.is_file() and dich.stat().st_size > 0:
         return dich
     dich.parent.mkdir(parents=True, exist_ok=True)
+    # Cắt ra FILE TẠM rồi mới đổi tên (user báo 08/09: 22/42 miếng preview đen).
+    # Bản cũ ghi thẳng vào file cache và lần sau chỉ kiểm `size > 0` là tin.
+    # ffmpeg bị giết giữa chừng — restart máy chủ, timeout, hết đĩa — để lại
+    # file DỞ nhưng khác rỗng, thế là cache tin nó MÃI MÃI. Đo thật: 27/305
+    # khúc trong kho hỏng (`Invalid NAL unit`), toàn bộ là ref của LI089, nhiều
+    # cái đúng phút máy chủ bị dừng. Đổi tên là thao tác nguyên tử: chết giữa
+    # chừng thì chỉ còn file .tmp, không ai nhầm nó là khúc thật.
+    tam = dich.with_suffix(".tmp.mp4")
+    tam.unlink(missing_ok=True)
     r2 = subprocess.run(
         ["ffmpeg", "-v", "error", "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
          "-i", str(video), "-vf", "scale=960:-2", "-c:v", "libx264",
          "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "96k",
-         "-movflags", "+faststart", "-y", str(dich)],
+         "-movflags", "+faststart", "-y", str(tam)],
         capture_output=True, timeout=180)
-    if r2.returncode != 0 or not dich.is_file() or dich.stat().st_size == 0:
-        dich.unlink(missing_ok=True)
+    if r2.returncode != 0 or not doc_duoc(tam):
+        tam.unlink(missing_ok=True)
         return None
+    os.replace(tam, dich)
     return dich
+
+
+def doc_duoc(f: Path) -> bool:
+    """File video này có ĐỌC ĐƯỢC không? Rào duy nhất chặn khúc dở vào cache.
+
+    Chỉ hỏi `format=duration` (rẻ, không giải mã cả file). File dở thì ffprobe
+    trả mã lỗi hoặc kêu ra stderr — cả hai đều coi là hỏng.
+    """
+    if not f.is_file() or f.stat().st_size == 0:
+        return False
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(f)],
+            capture_output=True, text=True, timeout=30)
+    except Exception:  # noqa: BLE001 — không probe được thì coi như hỏng
+        return False
+    return r.returncode == 0 and bool(r.stdout.strip()) and not r.stderr.strip()
+
+
+def don_khuc_hong(xoa: bool = False) -> int:
+    """Dọn khúc preview ĐÃ LỠ cache lúc còn hỏng. Trả số khúc hỏng.
+
+    Bản vá ghi-tạm-rồi-đổi-tên chỉ chặn khúc hỏng MỚI; khúc đã nằm trong cache
+    từ trước vẫn đen mãi cho tới khi bị xoá. `xoa=False` = chỉ đếm.
+    """
+    cache = sdb.goc_so_tra() / "prev_cache"
+    if not cache.is_dir():
+        return 0
+    hong = [f for f in sorted(cache.glob("*.mp4")) if not doc_duoc(f)]
+    if xoa:
+        for f in hong:
+            f.unlink(missing_ok=True)
+    return len(hong)
