@@ -179,27 +179,49 @@ class GLMDirectorClient:
             {"role": "system", "content": system + _YEU_CAU_JSON + schema},
             {"role": "user", "content": noi_dung},
         ]
-        r = self._goi(messages)
-        text = (r["choices"][0]["message"].get("content") or "").strip()
-        if not text:
-            raise ValueError(
-                f"GLM trả nội dung RỖNG cho {output_model.__name__} "
-                f"(finish_reason={r['choices'][0].get('finish_reason')})"
-            )
-        try:
-            parsed = output_model.model_validate_json(_clean_json(text))
-        except Exception as exc:
-            # GLM thỉnh thoảng chèn PHẦN TỬ RÁC vào danh sách — đo thật 02/09:
-            # `verdicts[7]` là chuỗi rỗng '' giữa các object hợp lệ, giết cả lượt
-            # chấm 20 beat. Lỗi HÌNH THỨC, không phải nội dung: dọn rồi validate lại
-            # còn hơn vứt bỏ 19 phán quyết đúng.
-            try:
-                parsed = output_model.model_validate(
-                    _don_rac(json.loads(_clean_json(text))))
-            except Exception:
+        # ĐỌC KHÔNG RA THÌ GỌI LẠI (09/09). `_goi` đã thử lại khi mạng lỗi/5xx,
+        # nhưng chỗ này chạy SAU khi nó thành công: HTTP 200 mà nội dung CỤT thì
+        # rơi thẳng xuống `raise`, không thử lại lần nào. Đo thật: chương C9 tập
+        # LI106 nhận `Invalid JSON: EOF while parsing` -> khay 0/29 khối -> cổng
+        # Auto đẩy sang Đồng kiểm, người dựng phải làm tay 29 khối. Chạy lại một
+        # lượt là qua (0/29 -> 29/29), tức chỉ là cú hỏng nhất thời.
+        parsed = loi_doc = None
+        for lan in range(self.retries):
+            r = self._goi(messages)
+            choice = r["choices"][0]
+            finish = choice.get("finish_reason")
+            text = (choice["message"].get("content") or "").strip()
+            if not text:
+                # Trả RỖNG là ca khác hẳn (hết tiền, bị lọc nội dung) — thử lại
+                # cũng vậy, ném ngay như cũ.
                 raise ValueError(
-                    f"GLM không trả được {output_model.__name__} hợp lệ: {exc}"
-                ) from exc
+                    f"GLM trả nội dung RỖNG cho {output_model.__name__} "
+                    f"(finish_reason={finish})"
+                )
+            try:
+                parsed = output_model.model_validate_json(_clean_json(text))
+                break
+            except Exception as exc:
+                # GLM thỉnh thoảng chèn PHẦN TỬ RÁC vào danh sách — đo thật 02/09:
+                # `verdicts[7]` là chuỗi rỗng '' giữa các object hợp lệ, giết cả lượt
+                # chấm 20 beat. Lỗi HÌNH THỨC, không phải nội dung: dọn rồi validate lại
+                # còn hơn vứt bỏ 19 phán quyết đúng.
+                try:
+                    parsed = output_model.model_validate(
+                        _don_rac(json.loads(_clean_json(text))))
+                    break
+                except Exception:
+                    loi_doc = (exc, finish)
+                    if lan < self.retries - 1:
+                        time.sleep(2 ** lan)
+        if parsed is None:
+            exc, finish = loi_doc
+            # `finish_reason` vào thẳng câu lỗi: lần sau nhìn là biết cụt vì hết
+            # hạn mức token (`length`) hay model trả sai khuôn (BH1).
+            raise ValueError(
+                f"GLM không trả được {output_model.__name__} hợp lệ sau "
+                f"{self.retries} lần (finish_reason={finish}): {exc}"
+            ) from exc
 
         u = r.get("usage") or {}
         usage = Usage(input_tokens=int(u.get("prompt_tokens") or 0),

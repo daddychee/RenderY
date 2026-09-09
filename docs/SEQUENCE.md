@@ -659,3 +659,26 @@ sai chỗ.
 2. Khoá nút Export trong lúc chạy, thay vì để bấm rồi mới từ chối.
 3. Câu 409: *"Đang làm bản Online — miếng 12/46. Xong sẽ hiện draft, không cần bấm
    lại."* hiện bằng toast ⏳, bỏ chữ "Lỗi".
+
+## C9 không tự sinh auto — GLM trả JSON CỤT, và thử lại đặt sai tầng (09/09)
+
+Chương C9 tập LI106 (haint) không tự chạy auto.
+
+**Đo:**
+- Hợp đồng ghi `GÁN NGHĨA HỎNG (GLM không trả được LopOut hợp lệ: Invalid JSON: EOF
+  while parsing)` → khay **0/29 khối** → cổng Auto đẩy sang Đồng kiểm. **Cổng chặn
+  ĐÚNG** — khay rỗng thì không được dựng bừa.
+- **Không phải do chương dài:** C6 có **37 khối** (nhiều hơn C9) mà khay phủ 37/37.
+- Chạy lại Phân tích một lượt là qua: **0/29 → 29/29**, tự về diện Auto.
+
+**Gốc:** cơ chế thử lại đặt SAI TẦNG. `_goi()` thử lại khi mạng lỗi/5xx, nhưng
+`complete()` đọc JSON **sau** khi `_goi` đã thành công — HTTP 200 với nội dung cụt rơi
+thẳng xuống `raise`, không thử lại lần nào. Cụt một lần là mất trọn lớp nghĩa của cả
+chương và người dựng phải làm tay 29 khối.
+
+**Vá (user duyệt):** thử lại ngay ở tầng ĐỌC JSON, giãn 1s → 2s. Giữ nguyên: trả rỗng
+vẫn ném ngay (hết tiền/bị lọc — thử lại cũng vậy), đường dọn rác 02/09 vẫn không tốn
+lượt gọi thừa. Câu lỗi cuối kèm **`finish_reason`** — nhìn là biết cụt vì hết hạn mức
+token (`length`) hay model trả sai khuôn (BH1).
+
+**Dữ liệu:** đã chạy lại Phân tích cho C9 (sao lưu `.truoc-phan-tich-lai-1402`).
