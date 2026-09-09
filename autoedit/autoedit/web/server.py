@@ -140,6 +140,38 @@ def _duoc_nghien_cuu_kenh(request: Request) -> bool:
     return current_role(request) in _VAI_NGHIEN_CUU_KENH
 
 
+# ĐĂNG NHẬP NHÀ CUNG CẤP là cửa gác RIÊNG (user chốt 09/09). Trước đây nó dùng
+# nhờ `_duoc_nghien_cuu_kenh` — cửa viết cho việc KHÁC, lý do ghi ngay trên kia:
+# nghiên cứu kênh tốn tải YouTube + lượt GLM nên là quyết định cấp quản lý.
+# Đăng nhập Envato thì KHÔNG tốn gì, và đúng là việc người dựng cần làm ngay lúc
+# gặp clip watermark. Đo trên IAM của CRM: haint/hieuvn đều level 2 (Vận hành —
+# Sản xuất) nên bị chặn oan.
+LEVEL_DUNG_TOI_THIEU = 2       # 5 ban quản trị · 4 quản lý · 2 vận hành/sản xuất
+_VAI_DUOC_DANG_NHAP = {"admin", "owner", "manager", "leader"}
+
+
+def current_level(request: Request) -> int:
+    """Cấp nhân sự từ CRM (X-Remote-Level). 0 = không rõ."""
+    if not _trust_proxy(request):
+        return 0
+    try:
+        return int((request.headers.get("x-remote-level") or "0").strip() or 0)
+    except ValueError:
+        return 0
+
+
+def duoc_dang_nhap_nha(request: Request) -> bool:
+    """Được kích đăng nhập Envato/Epidemic không?
+
+    Gác theo LEVEL (mô hình của chính CRM) và nhận VAI làm đường lùi khi cổng
+    cũ không gửi header level. Ngoài CRM thì mở — y khuôn `is_admin`.
+    """
+    if not behind_crm(request):
+        return True
+    return (current_level(request) >= LEVEL_DUNG_TOI_THIEU
+            or current_role(request) in _VAI_DUOC_DANG_NHAP)
+
+
 def is_admin(request: Request) -> bool:
     return current_role(request) in _VAI_TOAN_QUYEN
 
@@ -1896,8 +1928,9 @@ def api_phien_dang_nhap(request: Request, nha: str):
     """Máy tự đăng nhập bằng tài khoản trong két; captcha -> cửa sổ hiện trên
     desktop server để người bấm. Manager/owner mới được kích."""
     _require_auth(request)
-    if not _duoc_nghien_cuu_kenh(request):
-        raise HTTPException(403, "Chỉ manager/owner")
+    if not duoc_dang_nhap_nha(request):
+        raise HTTPException(403, "Chỉ nhân sự từ cấp vận hành trở lên được đăng "
+                                 "nhập nhà cung cấp")
     from autoedit.sourcer import phien as _ph
 
     if nha not in _ph.NHA:

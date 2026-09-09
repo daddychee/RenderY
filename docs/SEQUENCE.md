@@ -712,3 +712,23 @@ cả 10 chương có draft.
 thư mục" đã nổ **ba lần trong hai ngày** (16 chương gộp 1 project · tab Offline hiện
 `US/RENDERY` · tra nhầm người nộp). Mỗi lần một chỗ đếm cấp riêng; nay một hàm dùng
 chung, `server.py` import lại nên chỗ gọi và test cũ không phải sửa.
+
+## Người dựng không bấm được nút đăng nhập Envato (user báo 09/09)
+
+Gặp clip watermark thì phải đăng nhập lại Envato rồi Export lại. Nhưng nút đó bị gác bởi
+`_duoc_nghien_cuu_kenh` = {admin, owner, manager} — **cửa gác viết cho việc KHÁC**. Lý do
+của nó ghi ngay trong code: *nghiên cứu kênh ref tốn tải YouTube + lượt GLM, và chuẩn dựng
+là quyết định cấp quản lý*. Đăng nhập Envato **không tốn gì**, và đúng là việc người dựng
+cần làm ngay lúc gặp watermark.
+
+**Đo trên IAM của CRM** (`data/nen/iam.db`): `haint` và `hieuvn` đều **level 2 — Vận hành/
+Sản xuất**. Level 5 = Ban quản trị, 4 = quản lý. Nên người dựng bị chặn oan.
+
+**Vá (user chốt):** tách cửa gác riêng `duoc_dang_nhap_nha` — gác theo **level ≥ 2** (mô
+hình của chính CRM), vẫn nhận vai `admin/owner/manager/leader` làm đường lùi khi cổng cũ
+không gửi header level. Quyền **hút nguồn / nạp ref giữ nguyên** cấp quản lý, có test khoá.
+
+**Bẫy dính trong lúc viết test:** đồ giả `Request` dùng `dict` thường, mà `request.headers`
+thật KHÔNG phân biệt hoa thường — `headers.get("x-remote-level")` luôn trả None,
+`behind_crm` thành False, cửa gác **mở toang** và 3 test đầu **xanh vì lý do sai**. Chỉ vì
+có một test kỳ vọng `False` nên mới lộ. Nay đồ giả dùng `starlette.datastructures.Headers`.
