@@ -89,9 +89,15 @@ def soat_truoc_pha(conn, hd: dict) -> list[dict]:
             if not (0 <= c < len(uv)):
                 continue          # chưa chọn: việc của placeholder, không phải Export
             u = uv[c]
-            if clip_hong(conn, u):
-                xau.append({"mieng": i, "id": u.get("id", ""),
-                            "tieu_de": (u.get("tieu_de") or "")[:80]})
+            # `tha_giu_cu=False`: mục đang chọn gần như luôn mang cờ `giu_cu`
+            # (do `_thay` đặt lúc vá khay). Thả cờ ở đây là soát rỗng vĩnh viễn.
+            if clip_hong(conn, u, tha_giu_cu=False):
+                # DỪNG NGAY (user chốt 09/09): kết quả không đổi dù quét tiếp —
+                # vẫn là "chặn", người dựng vẫn phải thay rồi bấm lại. Soi hết
+                # 46 miếng chỉ tốn thời gian. Vẫn trả miếng tìm được để UI tô
+                # đỏ và nhảy tới đúng chỗ.
+                return [{"mieng": i, "id": u.get("id", ""),
+                         "tieu_de": (u.get("tieu_de") or "")[:80]}]
         return xau
     except Exception as exc:  # noqa: BLE001 — soát hỏng KHÔNG được giết Export
         # In ra: fail-open câm là bẫy gỡ rối (mất 20 phút truy 09/09 vì lỗi

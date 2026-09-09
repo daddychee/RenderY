@@ -15,7 +15,7 @@ CUA_SO_LAP_S = 60.0
 CHOT_NEO_S = 30.0
 
 
-def clip_hong(conn, u: dict) -> bool:
+def clip_hong(conn, u: dict, tha_giu_cu: bool = True) -> bool:
     """Mục này trong khay đã lưu còn dùng được không?
 
     Bản cũ mở đầu bằng `if u.get("nguon") != "ref": return False` — CHỈ quét
@@ -26,10 +26,16 @@ def clip_hong(conn, u: dict) -> bool:
     `tra()` đã lọc `trang_thai='song'` nên khay MỚI luôn sạch; chỗ này lo khay
     ĐÃ LƯU — hai đường khác nhau, phải chặn cả hai.
 
-    `giu_cu`: miếng đang chọn đã được vá và giữ chỗ rồi — bỏ qua, không thì lần
-    đọc nào cũng "hỏng" lại và hợp đồng bị ghi lại vô hạn.
+    `tha_giu_cu` — HAI MỤC ĐÍCH KHÁC NHAU, đừng lẫn (bug production 09/09):
+
+    * True (quét khay): mục đang chọn đã được vá và giữ chỗ thì thôi, không thì
+      lần đọc nào cũng "hỏng" lại và hợp đồng bị ghi lại vô hạn.
+    * False (SOÁT TRƯỚC EXPORT): phải kiểm THẬT. Soát Export soi đúng mục đang
+      chọn — mà mục đang chọn thì gần như luôn mang cờ `giu_cu`, nên thả cờ là
+      soát KHÔNG BAO GIỜ bắt được gì. User bấm Export C3 ngày 09/09: server trả
+      200 OK, dựng draft 46/46 miếng với clip `link_chet` nằm bên trong.
     """
-    if u.get("giu_cu"):
+    if tha_giu_cu and u.get("giu_cu"):
         return False
     # Luật RIÊNG của ref: ref là KHÚC cắt từ video dài, thiếu t1 là bản đời cũ
     # không định vị được. Nguồn khác không có t0/t1 là chuyện thường.

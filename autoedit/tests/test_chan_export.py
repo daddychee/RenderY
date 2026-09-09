@@ -128,12 +128,40 @@ def test_KHONG_kiem_ung_vien_du_bi():
     assert mtm.soat_truoc_pha(conn, hd) == []
 
 
-def test_nhieu_mieng_hong_bao_HET(sorted_ok=True):
+def test_nhieu_mieng_hong_bao_CAI_DAU_TIEN():
+    """User chốt 09/09: gặp clip chết là DỪNG, không quét hết.
+
+    Kết quả không đổi dù quét tiếp (vẫn "chặn"), mà người dựng vẫn phải thay
+    rồi bấm lại. Bản cũ mong `[1, 3]`; nay chỉ `[1]`.
+    """
     conn = _kho()
     for i in range(5):
         _them(conn, f"envato:{i}", trang_thai="link_chet" if i % 2 else "song")
     xau = mtm.soat_truoc_pha(conn, _hd(*[f"envato:{i}" for i in range(5)]))
-    assert [x["mieng"] for x in xau] == [1, 3]
+    assert [x["mieng"] for x in xau] == [1], f"phải dừng ở miếng đầu tiên: {xau}"
+
+
+def test_co_giu_cu_VAN_phai_bi_bat(kho_file=None):
+    """BUG production 09/09 — user bấm Export C3, clip `link_chet` vẫn LỌT.
+
+    `clip_hong` bỏ qua mục có cờ `giu_cu`. Cờ đó do `_thay` đặt cho mục ĐANG
+    CHỌN để hợp đồng khỏi bị ghi lại vô hạn — đúng cho việc quét khay. Nhưng
+    soát Export lại soát ĐÚNG mục đang chọn, tức mục nào cũng mang cờ đó, nên
+    KHÔNG BAO GIỜ bắt được gì. Log production: C3 trả 200 OK, dựng draft 46/46
+    miếng với clip đã chết bên trong.
+
+    Hai mục đích khác nhau dùng chung một hàm — phải tách bằng tham số.
+    """
+    conn = _kho()
+    _them(conn, "envato:chet", trang_thai="link_chet")
+    hd = {"khoi": [{"v0": 0.0, "v1": 2.0, "loi": "x"}],
+          "hinh": [{"t0": 0.0, "dur": 2.0, "khoi_goc": 0, "chon": 0,
+                    "uv": [{"id": "envato:chet", "nguon": "envato",
+                            "tieu_de": "clip chết", "giu_cu": 1}]}]}
+    xau = mtm.soat_truoc_pha(conn, hd)
+    assert len(xau) == 1, (
+        "clip link_chet có cờ `giu_cu` vẫn lọt qua soát — đúng bug user gặp "
+        "trên C3 ngày 09/09")
 
 
 def test_moi_nguon_deu_bi_soat():
@@ -146,7 +174,11 @@ def test_moi_nguon_deu_bi_soat():
                     "uv": [{"id": f"{ng}:chet", "nguon": ng, "tieu_de": ng,
                             "t0": 1.0, "t1": 5.0}]}
                    for i, ng in enumerate(("pexels", "pixabay", "ref"))]}
-    assert len(mtm.soat_truoc_pha(conn, hd)) == 3
+    # dừng sớm -> chỉ 1 miếng; kiểm từng nguồn riêng để chắc nguồn nào cũng bắt
+    assert len(mtm.soat_truoc_pha(conn, hd)) == 1
+    for i, ng in enumerate(("pexels", "pixabay", "ref")):
+        rieng = {"khoi": hd["khoi"], "hinh": [hd["hinh"][i]]}
+        assert mtm.soat_truoc_pha(conn, rieng), f"nguồn {ng} không bị soát"
 
 
 # ───────────────────────── phần cổng: server chặn ─────────────────────────
