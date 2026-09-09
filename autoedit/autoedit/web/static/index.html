@@ -753,6 +753,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
           title="phiên tải bản sạch — click để máy đăng nhập lại (manager)"
           onclick="ofPhienDangNhap()"></span>
     <button class="btn ghost" id="of-nhac-nut" onclick="ofNhacMo()" title="nhạc nền của chương — máy đề xuất theo mood">♪ Nhạc</button>
+    <input type="text" id="of-noi-xuat" placeholder="nơi xuất draft — dán Z:\..."
+           title="Thư mục CapCut trên NAS để xuất draft vào. Dán đường dẫn (Z:\ tự quy đổi). Gõ một lần, cả tập dùng chung. Bỏ trống = kho draft mặc định."
+           style="max-width:210px;font-size:11px">
     <button class="btn" id="of-nut-pha" onclick="ofDoiPha()" disabled>Duyệt khối → Đổ video</button>
   </div>
 
@@ -806,9 +809,6 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             style="font-size:21px;font-weight:700;letter-spacing:.04em;min-width:104px">00:00.0</span>
       <button class="btn ghost small" onclick="ofAddShot()"
               title="cắt shot TẠI VẠCH đang đứng — hai mảnh dùng chung clip, chạy liên tục (phím e)">✂ Add Shot</button>
-      <input type="text" id="of-noi-xuat" placeholder="nơi xuất draft (dán Z:\... — bỏ trống = như cũ)"
-             title="Dán đường dẫn thư mục CapCut trên NAS. Gõ một lần, cả tập dùng chung."
-             style="max-width:250px;font-size:11px">
       <button class="btn ghost small" onclick="ofDoLaiKhay()"
               title="tra lại Library cho mọi khối: làm mới các khối MÁY chọn, giữ nguyên khối bạn tự chọn">⟳ Đổ lại khay</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"

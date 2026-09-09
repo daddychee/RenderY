@@ -117,6 +117,14 @@ def test_cot_co_draft_KHONG_ghi_cung_duong_dan():
         "vẫn còn đường dẫn kho draft ghi cứng trong server.py"
 
 
-def test_giao_diem_co_o_nhap_noi_xuat():
+def test_o_nhap_phai_NAM_CANH_nut_Export():
+    """User báo 09/09 "chưa thấy ô dán link" — ô CÓ, nhưng tôi đặt nó ở thanh
+    công cụ timeline dưới đáy, còn nút Export ở góc trên bên phải. Hai thứ đi
+    cùng nhau mà đặt xa nhau thì không ai nối được: có mà như không.
+    """
     h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
-    assert "noi_xuat" in h, "giao diện chưa có ô nhập nơi xuất"
+    assert 'id="of-noi-xuat"' in h, "giao diện chưa có ô nhập nơi xuất"
+    i = h.index('id="of-noi-xuat"')
+    j = h.index('id="of-nut-pha"')
+    assert abs(i - j) < 600, ("ô nhập nơi xuất đặt xa nút Export — người dùng "
+                              f"không thấy (cách nhau {abs(i - j)} ký tự)")
