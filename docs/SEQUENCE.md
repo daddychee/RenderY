@@ -637,3 +637,25 @@ haint sửa được · hieuvn không · admin được.
 **Cảnh báo còn treo:** LI103 tra ra `bot` (job 22 mới hơn job 21 của thanhdn). Ai phân
 tích lại chương LI103 thì `nguoi_tao` **quay về `bot`** và thanhdn mất quyền lần nữa.
 User chốt giữ nguyên thanhdn, chưa xử lý gốc.
+
+## "Xuất timeline bị lỗi" — hoá ra không lỗi, chỉ là màn hình im lặng (09/09)
+
+Nhân sự báo lỗi khi Export. **Đo trên log production: không có lỗi nào** — cả hai lượt
+xuất C3 đều chạy xong, draft `OFF_c3-20260907-050623` ra với 182 material, sổ nguồn gốc
+refvid 71% · local 15% · sub 14%.
+
+Thứ tự lượt gọi `/thay-mau` trong tiến trình: **200 · 409 · 409 · 409 · 409 · 200 · 409**
+— tức bấm Export, không thấy gì, bấm lại 4 lần.
+
+**Gốc:** nút Export CÓ vòng hỏi mỗi 8s, nhưng đọc `d.tt` — trạng thái của khoá PHÂN TÍCH
+(`project_id`) — trong khi lượt Online lưu ở khoá KHÁC (`project_id:thaymau`).
+**Đọc nhầm khoá** nên không bao giờ thấy gì. Cộng thêm hộp thoại 409 mở đầu bằng chữ
+"Lỗi" → ai cũng tưởng hỏng. Đúng BH5, ở dạng nặng hơn: im lặng CỘNG một chữ "Lỗi" đặt
+sai chỗ.
+
+**Vá (user duyệt 09/09):**
+1. `GET /api/offline/{id}` trả thêm `tt_online`; log của `thay_mau` bơm thẳng vào trạng
+   thái nên nó chạy theo TỪNG MIẾNG, không đứng yên. Vòng hỏi 8s → 4s.
+2. Khoá nút Export trong lúc chạy, thay vì để bấm rồi mới từ chối.
+3. Câu 409: *"Đang làm bản Online — miếng 12/46. Xong sẽ hiện draft, không cần bấm
+   lại."* hiện bằng toast ⏳, bỏ chữ "Lỗi".

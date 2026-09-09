@@ -2298,18 +2298,28 @@ async function ofDoiPha() {
       toastOf('✔ ' + r.ghi_chu)
     } catch (e) { alert('Lỗi: ' + e.message) }
   } else {
+    // Lượt Online chạy NỀN. Vòng hỏi cũ đọc `d.tt` — khoá PHÂN TÍCH — nên
+    // không bao giờ thấy gì: màn hình im lặng, nhân sự bấm lại rồi nhận hộp
+    // thoại mở đầu bằng "Lỗi" (báo 09/09). Nay đọc `tt_online` và KHOÁ NÚT
+    // trong lúc chạy, thay vì để bấm rồi mới từ chối.
+    const nut = document.getElementById('of-nut-pha')
     try {
+      nut.disabled = true
       const r = await api('/api/offline/' + OF_PID + '/thay-mau', {method: 'POST', body: '{}'})
       toastOf('⬇ ' + r.ghi_chu)
       const canh = setInterval(async () => {
         const d = await api('/api/offline/' + OF_PID)
-        const tt = Object.values(d.tt || {}).length ? d.tt : null
-        if (tt && tt.tt !== 'dang') {
-          clearInterval(canh)
-          toastOf((tt.tt === 'xong' ? '✔ ' : '✗ ') + (tt.ghi_chu || ''))
-        }
-      }, 8000)
-    } catch (e) { alert('Lỗi: ' + e.message) }
+        const tt = d.tt_online || {}
+        if (tt.tt === 'dang') { ofTtLuu('⬇ Online: ' + (tt.ghi_chu || '...')); return }
+        clearInterval(canh); nut.disabled = false; ofTtLuu('')
+        if (tt.tt) toastOf((tt.tt === 'xong' ? '✔ ' : '✗ ') + (tt.ghi_chu || ''))
+      }, 4000)
+    } catch (e) {
+      nut.disabled = false
+      // 409 = ĐANG CHẠY, không phải hỏng — đừng dán chữ "Lỗi" lên nó
+      const dang = String(e.message).includes('Đang làm bản Online')
+      if (dang) toastOf('⏳ ' + e.message); else alert('Lỗi: ' + e.message)
+    }
   }
 }
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng

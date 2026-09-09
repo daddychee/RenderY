@@ -1039,7 +1039,15 @@ def api_offline_doc(project_id: str, request: Request):
         duoc_sua = True
     except HTTPException:
         duoc_sua = False
-    return {"hop_dong": hd, "tt": tt, "duoc_sua": duoc_sua,
+    # TRẠNG THÁI LƯỢT ONLINE — khoá RIÊNG `<pid>:thaymau`, không phải khoá phân
+    # tích. Nhân sự báo 09/09 "xuất timeline bị lỗi": thật ra không lỗi gì, cả
+    # hai lượt đều xong và draft đã ra. Nhưng vòng hỏi của nút Export đọc `tt`
+    # (khoá phân tích) nên không bao giờ thấy gì -> màn hình im lặng -> bấm lại
+    # -> nhận 409. Log ghi đúng vòng đó: 200, 409, 409, 409, 409, 200, 409.
+    with _offline_lock:
+        tt_online = dict(_offline_dang.get(f"{project_id}:thaymau", {}))
+    return {"hop_dong": hd, "tt": tt, "tt_online": tt_online,
+            "duoc_sua": duoc_sua,
             "chu_sequence": (hd or {}).get("nguoi_tao") or ""}
 
 
@@ -1155,14 +1163,27 @@ def api_offline_thay_mau(project_id: str, request: Request):
     d = _pdir_offline(project_id)
     khoa = f"{project_id}:thaymau"
     with _offline_lock:
-        if _offline_dang.get(khoa, {}).get("tt") == "dang":
-            raise HTTPException(409, "Đang làm bản Online dở")
+        cu = _offline_dang.get(khoa, {})
+        if cu.get("tt") == "dang":
+            # KHÔNG phải lỗi — nói rõ đang tới đâu. Câu cũ ("Đang làm bản Online
+            # dở") hiện trong hộp thoại mở đầu bằng chữ "Lỗi", nên ai cũng tưởng
+            # hỏng rồi bấm lại (BH5).
+            raise HTTPException(409, "Đang làm bản Online — " + (
+                cu.get("ghi_chu") or "vừa bắt đầu")
+                + ". Xong sẽ hiện draft, không cần bấm lại.")
         _offline_dang[khoa] = {"tt": "dang", "ghi_chu": "tải bản thật + ráp draft..."}
+
+    def _ghi_tien_do(m: str) -> None:
+        """Log của thay_mau -> trạng thái, để vòng hỏi có cái mà hiện."""
+        print("[thay-mau]", m, flush=True)
+        with _offline_lock:
+            if _offline_dang.get(khoa, {}).get("tt") == "dang":
+                _offline_dang[khoa] = {"tt": "dang", "ghi_chu": str(m)[:120]}
 
     def _chay():
         from autoedit.offline.thay_mau import thay_mau
         try:
-            kq = thay_mau(d, log=lambda m: print("[thay-mau]", m, flush=True))
+            kq = thay_mau(d, log=_ghi_tien_do)
             with _offline_lock:
                 _offline_dang[khoa] = {
                     "tt": "xong",
