@@ -61,6 +61,45 @@ def la_nguon_chet(exc: BaseException) -> bool:
     return any(c in str(exc) for c in _CAU_CHET)
 
 
+def soat_truoc_pha(conn, hd: dict) -> list[dict]:
+    """Miếng nào ĐANG CHỌN clip đã chết? Trả [{mieng, id, tieu_de}] để UI tô đỏ.
+
+    User chốt 09/09: *"Sau khi ấn export timeline, tool check 1 lượt. Nếu không
+    có link chết thì export. Nếu có thì báo đã có video hỏng."*
+
+    Vì sao kiểm TRƯỚC: `thay_mau` vốn có đường lùi (hết ứng viên thì để hở, ghi
+    warning), nhưng warning chỉ hiện SAU KHI ráp — người dựng chờ vài phút mới
+    biết miếng của mình hỏng. Soát trước tốn chưa tới một giây (đọc DB, không
+    chạm mạng) và chỉ đúng miếng cần thay.
+
+    CHỈ soát miếng ĐANG CHỌN: dự bị hỏng không cản gì vì nó chỉ được dùng khi
+    cái đang chọn hỏng — chặn vì dự bị là chặn oan.
+
+    Fail-open: soát là bước phụ. DB khoá/hỏng thì cho Export chạy tiếp, đường
+    lùi trong lúc ráp vẫn đỡ được — chặn oan tệ hơn bỏ sót.
+    """
+    from autoedit.offline import hinh as _mh
+
+    try:
+        from autoedit.offline.dung import clip_hong
+
+        xau = []
+        for i, h in enumerate(_mh.dam_bao(hd)):
+            uv, c = h.get("uv") or [], h.get("chon", -1)
+            if not (0 <= c < len(uv)):
+                continue          # chưa chọn: việc của placeholder, không phải Export
+            u = uv[c]
+            if clip_hong(conn, u):
+                xau.append({"mieng": i, "id": u.get("id", ""),
+                            "tieu_de": (u.get("tieu_de") or "")[:80]})
+        return xau
+    except Exception as exc:  # noqa: BLE001 — soát hỏng KHÔNG được giết Export
+        # In ra: fail-open câm là bẫy gỡ rối (mất 20 phút truy 09/09 vì lỗi
+        # SQLite xuyên luồng bị nuốt sạch, endpoint cứ lặng lẽ cho qua).
+        print(f"[soat-truoc-pha] bỏ qua vì lỗi: {type(exc).__name__}: {exc}", flush=True)
+        return []
+
+
 def _tai(url: str, dich: Path, timeout: float = 300.0) -> Path:
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=timeout) as r:

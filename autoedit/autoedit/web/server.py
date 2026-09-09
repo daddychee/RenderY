@@ -1200,6 +1200,25 @@ def api_offline_thay_mau(project_id: str, request: Request,
             _orun.luu(d, hd_cu)
     else:
         noi_xuat = ((_orun.doc(d) or {}).get("noi_xuat") or "").strip()
+    # SOÁT MỘT LƯỢT trước khi ráp (user chốt 09/09): miếng đang chọn clip đã
+    # chết thì CHẶN + trả danh sách để UI tô đỏ, thay vì để người dựng chờ vài
+    # phút rồi mới đọc warning. Đo thật: 9 miếng như vậy trên 33 chương.
+    from autoedit.offline.thay_mau import soat_truoc_pha
+    from autoedit.sotra import db as _sdb_soat
+
+    hd_soat = _orun.doc(d)
+    if hd_soat is not None:
+        _c = _sdb_soat.mo()
+        try:
+            hong = soat_truoc_pha(_c, hd_soat)
+        finally:
+            _c.close()
+        if hong:
+            raise HTTPException(409, {
+                "ghi_chu": f"{len(hong)} miếng đang dùng clip đã hỏng/hết hạn — "
+                           "thay clip khác rồi Export lại",
+                "hong": hong})
+
     khoa = f"{project_id}:thaymau"
     with _offline_lock:
         cu = _offline_dang.get(khoa, {})

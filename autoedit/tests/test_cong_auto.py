@@ -170,13 +170,15 @@ def test_auto_khay_rong_thi_DUNG_va_bao(tmp_path, monkeypatch):
     # hợp đồng: đợi `canh_bao` khác rỗng là đoán mò — cảnh báo có thể tới trước,
     # sau, hoặc không tới. Test này từng đỏ chập chờn đúng vì đợi nhầm tín hiệu.
     _cho_luong_nen_xong(d.name)
-    hd = _cho_xong(d)
+    # Đợi ĐÚNG thứ sắp assert: `phan_tich` ghi hợp đồng NHIỀU LẦN, `_cho_xong`
+    # không điều kiện trả về bản đầu tiên đọc được (lại BH10).
+    hd = _cho_xong(d, lambda h: h.get("canh_bao"))
     assert hd["trang_thai"] != "khoa", "khay rỗng mà vẫn tự khoá sổ"
     assert not goi, "khay rỗng mà vẫn chạy Online"
     assert any("khay" in c.lower() or "auto" in c.lower() for c in hd["canh_bao"])
 
 
-def _cho_xong(d, dieu_kien=None, giay: float = 40.0):
+def _cho_xong(d, dieu_kien=None, giay: float = 120.0):
     """Endpoint chạy nền — đợi tới ĐIỀU KIỆN CUỐI, không chỉ đợi file hiện ra.
 
     Đợi file là chưa đủ: `phan_tich` ghi hợp đồng TRƯỚC, dây chuyền auto (khoá
@@ -202,8 +204,17 @@ def _cho_xong(d, dieu_kien=None, giay: float = 40.0):
         + ("chưa ghi ra" if cuoi is None else f"trang_thai={cuoi.get('trang_thai')!r}"))
 
 
-def _cho_luong_nen_xong(pid: str, giay: float = 60.0):
-    """Đợi luồng phân tích nền rời trạng thái 'dang'. Báo rõ nếu nó BÁO LỖI."""
+def _cho_luong_nen_xong(pid: str, giay: float = 180.0):
+    """Đợi luồng phân tích nền rời trạng thái 'dang'. Báo rõ nếu nó BÁO LỖI.
+
+    Hạn 180s chứ không phải 60s: `phan_tich` chạy ffmpeg thật (dò im lặng trên
+    voice_master.wav). Rảnh thì cả file test xong trong ~13s, nhưng khi chạy
+    cùng 1600 test khác — nhiều test cũng gọi ffmpeg — máy nghẽn và lượt đó mất
+    **69s** (đo 09/09: 5 lần xanh rồi 1 lần đỏ đúng ở mốc 60s).
+
+    Đây KHÔNG phải test đợi nhầm tín hiệu, mà hạn đặt quá sát chi phí thật.
+    Nới hạn không làm test chậm đi khi máy rảnh — nó thoát ngay khi đủ điều kiện.
+    """
     import time
 
     from autoedit.web import server as _sv
