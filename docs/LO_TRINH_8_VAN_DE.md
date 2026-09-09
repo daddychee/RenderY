@@ -504,3 +504,87 @@ Mỗi bước: test xanh trước → code → suite đầy đủ → đẩy pro
 | Đủ tương phản | chữ phụ `--muted` trên nền `--panel2`; không chữ xám nhạt trên nền tối |
 
 **Verify UI (BH9):** Playwright + Chrome thật, trích JS từ file đã ship, không viết lại.
+
+---
+
+## NGHIỆM THU NGƯỜI DÙNG 09/09 — 2 phát hiện
+
+### Thử 1: có báo hỏng nhưng KHÔNG tô đỏ — LỖI CSS
+
+User: *"CÓ báo 1 khối đang lỗi nhưng không có các viền đỏ, clip hỏng"*.
+
+Server ĐÚNG (đã gọi thật trên production, trả 409 + đúng miếng + tên clip). Lỗi
+nằm ở CSS: `index.html:227` đặt `.of-mieng.hong` **TRƯỚC** `:232` `.of-mieng.tho`.
+Hai luật cùng độ ưu tiên (0,2,0) -> luật SAU thắng, `border-color` của `.tho`
+đè lên `.hong`. Miếng nào nằm trong khoảng thở là mất viền đỏ.
+
+**Test của tôi báo xanh vô nghĩa:** `test_UI_co_ham_to_do_mieng_hong` chỉ kiểm
+`".of-mieng.hong" in h` — có chuỗi trong file là xanh, bất kể CSS có ăn hay không.
+Đúng loại test tôi từng tự phê ở việc `of-noi-xuat` (kiểm tồn tại thay vì kiểm
+hành vi). User đã dặn UI phải so mockup cạnh code thật + verify bằng trình duyệt
+(BH9) — tôi bỏ qua bước đó ở việc B.
+
+### Thử 2: hút 117 mới / 3 trùng — user cần cơ chế loại trùng
+
+**Loại trùng theo ID đã có và đang chạy đúng**: `them_clip` (db.py:211) upsert
+theo `id`, trả 0 nếu đã có -> "3 trùng" chính là nó làm việc.
+
+Thứ user thật sự gặp là **TRÙNG NỘI DUNG**, đo trên kho thật:
+
+| | |
+|---|---|
+| tổng clip stock (envato/pexels/pixabay) | 8.472 |
+| nhóm cùng NGUỒN + cùng TIÊU ĐỀ | 714 |
+| **bản thừa** | **2.093 (25% kho stock)** |
+| nhóm trùng `url_video` (chắc chắn cùng file) | 7 |
+
+Ví dụ: 13 clip envato cùng tên "Aerial view of the jungle, Ecuador.",
+16 clip pexels cùng tên "the river surface drifting past at...".
+
+**NHƯNG — kiểm sâu thì KHÔNG được xoá theo tiêu đề.** Soi 13 bản "Aerial view of
+the jungle": **khác id, khác `url_video`, khác `url_anh`** -> chúng là các clip
+KHÁC NHAU trong cùng một bộ, tác giả đặt trùng tên. Gộp theo tiêu đề là xoá mất
+hàng thật.
+
+Chỉ 7 nhóm trùng `url_video` mới là trùng CHẮC CHẮN (cùng một file).
+
+**Đề xuất (chờ user duyệt):**
+1. Chặn ở KHÂU HÚT: bỏ qua bản có `url_video` đã tồn tại trong kho (7 nhóm).
+2. Trong KHAY tra cứu: gom clip cùng nguồn+tiêu đề thành một thẻ, ghi "+N bản"
+   (nhãn `so_ban` đã có sẵn ở trang Library, `index.html:2717`) — user thấy 1
+   thẻ thay vì 13, nhưng vẫn mở ra chọn được bản khác.
+3. KHÔNG xoá gì khỏi kho.
+
+### Vòng 7 — sửa sau nghiệm thu 09/09
+
+**Tô đỏ:** đổi thứ tự `.of-mieng.hong` ra SAU `.of-mieng.tho`. Test bằng Chrome
+thật (`tests/test_to_do_trinh_duyet.py`) tái hiện đúng lỗi user gặp: viền ra
+`rgb(92,185,138)` (xanh lục của `.tho`) thay vì đỏ. 6 test, đỏ trước xanh sau.
+
+**Loại trùng — user chốt 2 việc:**
+1. Hút: bỏ bản trùng `url_video` (`db.them_clip`). Kho hiện có 7 nhóm/8 bản thừa.
+2. Khay: gộp cùng nguồn + cùng tiêu đề (`db.gop_ban_trung` -> `tra()`), nhãn
+   "+N bản", bản còn lại giữ ở `ban_khac`. Đo thật: khay `market` 12 -> 9 thẻ;
+   8 từ khoá thử, khay thấp nhất còn 8 thẻ (không bị mỏng).
+
+**HAI LỖI SUITE BẮT ĐƯỢC — cả hai đều lọt qua test riêng:**
+
+| Lỗi | Hậu quả nếu lọt | Vá |
+|---|---|---|
+| Chặn trùng URL giết luôn TRIM | khúc cắt thừa kế url clip mẹ -> bị coi là trùng -> người dựng cắt xong MẤT | chừa 3 ngoại lệ: id có `#` (khúc trim), có `path_local`, url rỗng |
+| `so_ban` rơi ở `do_ung_vien` | khay gộp đúng nhưng nhãn "+N bản" KHÔNG BAO GIỜ hiện — lỗi im lặng | thêm vào danh sách trắng; cố ý KHÔNG chép `ban_khac` (phình hợp đồng) |
+
+### BÀI HỌC — bổ sung METHODOLOGY
+
+**BH11 — Test UI kiểm CHUỖI TRONG FILE là test báo xanh vô nghĩa.**
+`test_UI_co_ham_to_do_mieng_hong` chỉ kiểm `".of-mieng.hong" in h` -> xanh, trong
+khi user nhìn màn hình KHÔNG thấy viền đỏ nào (luật `.tho` đứng sau đè mất).
+CSS/JS phải kiểm bằng **Chrome thật + `getComputedStyle`**, CSS **trích nguyên
+văn** từ file đã ship (chép tay là test một bản khác với bản đang chạy).
+Đây là lần THỨ HAI mắc cùng kiểu: lần trước là `of-noi-xuat` kiểm "có tồn tại"
+trong khi ô nằm sai chỗ.
+
+**BH12 — Danh sách TRẮNG các trường là chỗ rơi dữ liệu im lặng.**
+`do_ung_vien` chép khay theo danh sách trường cố định. Thêm trường mới ở tầng
+dưới (`tra()`) mà quên thêm vào đây thì trường đó biến mất, KHÔNG có lỗi nào
+báo. Mỗi lần thêm trường phải dò ngược mọi chỗ chép-theo-danh-sách.

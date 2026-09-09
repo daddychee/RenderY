@@ -220,6 +220,21 @@ def them_clip(conn: sqlite3.Connection, r: dict) -> bool:
         d[_so] = int(r.get(_so) or 0)
     d["ngay_them"] = datetime.now(timezone.utc).isoformat()
     moi = conn.execute("SELECT 1 FROM clip WHERE id=?", (d["id"],)).fetchone() is None
+    # TRÙNG URL (user chốt 09/09): cùng `url_video` là cùng MỘT FILE — id khác
+    # chỉ vì Envato/Pexels đánh mã trang khác. Giữ lại là kho phình rác mà khay
+    # thì đầy bản y hệt. Đo 09/09: 7 nhóm trùng url trong kho thật.
+    #
+    # BA ngoại lệ, đều phải chừa:
+    #  - `url_video` rỗng: ref/kho không có url. Coi rỗng là "trùng nhau" thì
+    #    gộp sạch 8.781 cảnh ref về một dòng.
+    #  - KHÚC TRIM (`id` có '#'): thừa kế url của clip mẹ nhưng là HÀNG MỚI với
+    #    mốc in/out riêng. Chặn nó là người dựng trim xong không lưu được vào
+    #    kho (test_offline::test_api_trim_ghi_so_va_nap_vao_mieng bắt được).
+    #  - có `path_local`: bản đã tải về máy, luôn là hàng thật.
+    if moi and d["url_video"] and "#" not in str(d["id"]) and not d["path_local"]:
+        if conn.execute("SELECT 1 FROM clip WHERE url_video=? LIMIT 1",
+                        (d["url_video"],)).fetchone() is not None:
+            return False
     if moi:
         # `tam_tap` CHỈ đặt lúc thêm mới: clip đã nằm kho vĩnh viễn mà lượt hút
         # của tập sau chạm phải thì không được hạ xuống hàng tạm — đóng job là
@@ -294,6 +309,42 @@ def ap_alias(conn, chu: str) -> str:
     for tu, chuan in conn.execute("SELECT tu, chuan FROM alias"):
         if tu in ra:
             ra = ra.replace(tu, chuan)
+    return ra
+
+
+def gop_ban_trung(ds: list[dict]) -> list[dict]:
+    """Gộp bản CÙNG NGUỒN + CÙNG TIÊU ĐỀ về một thẻ (user chốt 09/09).
+
+    Gộp là chuyện HIỂN THỊ, không phải xoá: bản còn lại nằm ở `ban_khac` nên
+    người dựng vẫn mở ra chọn được. Lý do không xoá — soi 13 clip envato cùng
+    tên "Aerial view of the jungle, Ecuador." thì khác id, khác `url_video`,
+    khác `url_anh`: chúng là các clip KHÁC NHAU trong một bộ, tác giả đặt trùng
+    tên. Xoá theo tiêu đề là mất hàng thật.
+
+    Đo 09/09 trên 951 khay production: **606 khay (64%) có bản trùng**; gộp lại
+    bỏ được 1.565 ô (12%) — người dựng đang phải lướt qua 13 thẻ y hệt nhau.
+
+    Tiêu đề RỖNG thì không gộp: ref hay để tên chung ("woman", "street") hoặc
+    trống, gộp là dồn hàng trăm cảnh khác nhau về một thẻ.
+
+    Trang Library đã gộp sẵn trong `tim()` (nhãn "+N bản"); hàm này để đường
+    KHAY (`tra()`) dùng cùng một luật.
+    """
+    ra: list[dict] = []
+    vi_tri: dict[tuple, int] = {}
+    for c in ds:
+        ten = (c.get("tieu_de") or "").strip().lower()
+        if not ten:
+            ra.append(c)
+            continue
+        khoa = (c.get("nguon", ""), ten)
+        i = vi_tri.get(khoa)
+        if i is None:
+            vi_tri[khoa] = len(ra)
+            ra.append({**c, "so_ban": 1, "ban_khac": []})
+        else:
+            ra[i]["so_ban"] += 1
+            ra[i]["ban_khac"].append(c)
     return ra
 
 

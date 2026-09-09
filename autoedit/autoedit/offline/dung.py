@@ -77,7 +77,12 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
                     "geo": c.get("geo", ""), "dai_s": c.get("dai_s", 0),
                     # t0/t1 để UI gắn #t= — không có thì hover ref tải cả file 1GB
-                    "t0": c.get("t0", 0), "t1": c.get("t1", 0)}
+                    "t0": c.get("t0", 0), "t1": c.get("t1", 0),
+                    # `so_ban` từ `tra()` đã gộp bản trùng tiêu đề (09/09). Danh
+                    # sách trường ở đây là DANH SÁCH TRẮNG — quên thêm là nhãn
+                    # "+N bản" biến mất mà không báo gì. `ban_khac` KHÔNG chép:
+                    # nó chứa cả bản dự phòng, nhét vào hợp đồng là phình file.
+                    **({"so_ban": c["so_ban"]} if c.get("so_ban", 1) > 1 else {})}
                    for c in uv])
     return ra
 

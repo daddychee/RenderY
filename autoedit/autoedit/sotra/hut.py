@@ -159,7 +159,8 @@ _BO_HUT = {"envato": hut_envato, "pexels": hut_pexels, "pixabay": hut_pixabay}
 
 
 def phien_hut(conn, tu_khoas: list[str], nguons: list[str],
-              so_trang: int = 1, log=None, ma_tap: str = "") -> dict:
+              so_trang: int = 1, log=None, ma_tap: str = "",
+              _bo_hut: dict | None = None) -> dict:
     """Chạy 1 PHIÊN hút tuần tự rón rén. Trả {"moi": n, "trung": n, "loi": [..]}.
 
     `ma_tap` (hút TRONG LÚC dựng một tập): clip MỚI mang dấu hàng tạm của tập
@@ -173,7 +174,7 @@ def phien_hut(conn, tu_khoas: list[str], nguons: list[str],
     kq = {"moi": 0, "trung": 0, "loi": []}
     for tk in tu_khoas:
         for ng in nguons:
-            ham = _BO_HUT.get(ng)
+            ham = (_bo_hut or _BO_HUT).get(ng)
             if ham is None:
                 continue
             for tr in range(1, so_trang + 1):

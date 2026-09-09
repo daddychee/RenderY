@@ -166,4 +166,8 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         ra.append(c)
         gio_ref += 1
     ra.sort(key=lambda c: -c["diem"])
-    return ra
+    # GỘP BẢN TRÙNG (user chốt 09/09): cùng nguồn + cùng tiêu đề về một thẻ,
+    # bản còn lại nằm ở `ban_khac` nên vẫn chọn được. Đo 64% khay production có
+    # bản trùng — người dựng phải lướt qua 13 thẻ y hệt. Gộp SAU khi xếp điểm
+    # để bản đại diện là bản điểm cao nhất.
+    return sdb.gop_ban_trung(ra)
