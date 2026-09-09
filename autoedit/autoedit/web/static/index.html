@@ -233,11 +233,21 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
    PHẢI đứng SAU `.of-mieng.tho`: hai luật cùng độ ưu tiên (0,2,0) thì luật sau
    thắng. Đặt trước là `.tho` đè mất viền đỏ ở mọi miếng trong khoảng thở —
    user nghiệm thu 09/09 báo "có báo lỗi nhưng không có viền đỏ" đúng vì vậy. */
-.of-mieng.hong{border-color:var(--bad); box-shadow:0 0 0 2px var(--bad) inset}
+/* Viền + phủ đỏ NHẠT toàn miếng: đo thật 09/09 trên timeline 14px/s, miếng hẹp
+   nhất chỉ 22px — chỉ viền 1px thì lướt qua là không thấy. Phủ nền để nhận ra
+   từ xa, không cần đọc chữ. */
+.of-mieng.hong{border-color:var(--bad); box-shadow:0 0 0 2px var(--bad) inset;
+               background:var(--bad-soft)}
+.of-mieng.hong img{opacity:.35}          /* dìm hình để màu đỏ nổi lên */
 .of-mieng.hong::after{content:"clip hỏng"; position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%); font-size:10px; font-weight:700; color:#fff;
   background:var(--bad); padding:2px 7px; border-radius:5px; z-index:3;
-  white-space:nowrap; pointer-events:none}
+  white-space:nowrap; pointer-events:none;
+  max-width:calc(100% - 6px); overflow:hidden}
+/* Miếng hẹp (đo: 47px vừa khít nhãn 45px) -> bỏ chữ, để dấu ✕ gọn. Nhãn tràn
+   ra ngoài miếng là đè lên miếng bên cạnh, tưởng miếng đó cũng hỏng. */
+@container (max-width: 62px) { .of-mieng.hong::after{content:"✕"; padding:1px 5px} }
+.of-mieng{container-type:inline-size}
 .of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
                cursor:ew-resize; z-index:5}
 .of-mieng .mep:hover,.of-mieng .mep.dang{background:rgba(232,163,61,.45)}

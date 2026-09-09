@@ -44,6 +44,8 @@ TRANG = """<!doctype html><meta charset="utf-8"><style>__CSS__</style>
   <div class="of-mieng hong" id="m2" style="left:260px;width:120px"></div>
   <div class="of-mieng tho hong" id="m3" style="left:390px;width:120px"></div>
   <div class="of-mieng chon hong" id="m4" style="left:520px;width:120px"></div>
+  <div class="of-mieng hong" id="hep" style="left:660px;width:22px"></div>
+  <div class="of-mieng hong" id="vua" style="left:700px;width:47px"></div>
 </div>"""
 
 
@@ -116,6 +118,32 @@ def test_nhan_clip_hong_HIEN_RA(trang):
             }}""")
         assert "hỏng" in n["noi_dung"], f"{mid}: thiếu nhãn 'clip hỏng' ({n})"
         assert n["hien"] != "none", f"{mid}: nhãn bị ẩn"
+
+
+def test_mieng_HEP_thi_nhan_gon_lai_khong_TRAN(trang):
+    """Đo thật trên production 09/09: timeline 14px/s, miếng hẹp nhất **22px**,
+    miếng hỏng của C3 rộng **47px** trong khi nhãn "clip hỏng" chiếm 45px.
+
+    Nhãn tràn ra ngoài miếng là đè lên miếng bên cạnh — người dựng tưởng miếng
+    đó cũng hỏng. Miếng hẹp phải đổi sang dấu gọn.
+    """
+    for mid in ("hep", "vua"):
+        d = trang.evaluate(
+            f"""() => {{
+                const e = document.getElementById('{mid}')
+                const s = getComputedStyle(e, '::after')
+                return {{rong: e.getBoundingClientRect().width,
+                        chu: s.content, nhan: parseFloat(s.width) || 0}}
+            }}""")
+        assert d["nhan"] <= d["rong"], (
+            f"{mid}: nhãn {d['nhan']}px tràn khỏi miếng {d['rong']}px -> đè miếng bên")
+        assert "hỏng" not in d["chu"], f"{mid}: miếng hẹp vẫn dùng nhãn dài {d['chu']}"
+
+
+def test_mieng_RONG_van_giu_chu_doc_duoc(trang):
+    n = trang.evaluate(
+        "() => getComputedStyle(document.getElementById('m2'), '::after').content")
+    assert "hỏng" in n, f"miếng rộng phải hiện chữ đọc được, đang là {n}"
 
 
 def test_nhan_KHONG_hien_o_mieng_lanh(trang):
