@@ -359,7 +359,7 @@ def api_offline_tap_list(request: Request):
         else:
             tt = hd.get("trang_thai") or "pha1"
             he = "dong_kiem" if hd.get("dong_kiem", True) else "auto"
-        draft = Path(r"F:/OutlierY Nas 2/Tool Edit/Capcut Draft/CapCut Drafts")             / f"OFF_{d.name}"
+        draft = _noi_xuat_draft(d) / f"OFF_{d.name}"
         tap.setdefault(ma, []).append({
             "project_id": d.name, "nhan": nhan, "trang_thai": tt, "he": he,
             "co_draft": draft.is_dir(),
@@ -643,6 +643,29 @@ def doi_duong_dan(tho: str) -> Path:
             con_lai = s[len(tien_to):].lstrip("\\")
             return NAS_ROOT / con_lai if con_lai else NAS_ROOT
     return Path(s)
+
+
+def _noi_xuat_draft(pdir: Path) -> Path:
+    """Kho draft của chương này — nơi CỘT "✓draft" phải đi tìm.
+
+    Trước 09/09 chỗ này ghi CỨNG `F:/OutlierY Nas 2/...`. Từ khi cho chọn nơi
+    xuất theo tập, ghi cứng là cột "✓draft" **sai âm thầm**: chương có draft mà
+    màn hình bảo chưa (BH5). Thứ tự: nơi tập đã nhớ -> hồ sơ máy -> mặc định.
+    """
+    try:
+        from autoedit.offline import runner as _orun
+
+        noi = ((_orun.doc(pdir) or {}).get("noi_xuat") or "").strip()
+        if noi:
+            return Path(noi)
+    except Exception:  # noqa: BLE001 — hợp đồng hỏng không được giết danh sách
+        pass
+    try:
+        from autoedit.packager.machine import MachineProfile
+
+        return MachineProfile.load().out_root()
+    except Exception:  # noqa: BLE001 — máy chưa đăng ký
+        return Path("khong-co-kho-draft")
 
 
 def _trong_nas(p: "Path | str") -> Path:
@@ -1151,11 +1174,32 @@ def api_offline_hinh(project_id: str, req: OfflineHinhRequest, request: Request)
             "tho_co": tho_co}
 
 
+class ThayMauRequest(BaseModel):
+    # NƠI XUẤT draft (user chốt 09/09): dán đường dẫn, nhớ THEO TẬP. Rỗng =
+    # dùng lại nơi đã nhớ trong hợp đồng; vẫn rỗng = kho draft mặc định của máy.
+    noi_xuat: str = ""
+
+
 @app.post("/api/offline/{project_id}/thay-mau")
-def api_offline_thay_mau(project_id: str, request: Request):
+def api_offline_thay_mau(project_id: str, request: Request,
+                         req: ThayMauRequest | None = None):
     """THAY MÁU (Đợt 5): chương KHÓA SỔ -> tải bản thật + ráp draft CapCut (nền)."""
     _require_auth(request)
     d = _pdir_offline(project_id)
+    # Nơi xuất: khai mới thì kiểm + NHỚ vào hợp đồng (16 chương của tập dùng
+    # chung); không khai thì lấy lại nơi đã nhớ. `_trong_nas` tự quy đổi Z:->F:
+    # và chặn đường dẫn ra ngoài NAS — worker ghi thẳng lên thư mục đó.
+    from autoedit.offline import runner as _orun
+
+    noi_xuat = ((req.noi_xuat if req else "") or "").strip()
+    if noi_xuat:
+        noi_xuat = str(_trong_nas(noi_xuat))
+        hd_cu = _orun.doc(d)
+        if hd_cu is not None:
+            hd_cu["noi_xuat"] = noi_xuat
+            _orun.luu(d, hd_cu)
+    else:
+        noi_xuat = ((_orun.doc(d) or {}).get("noi_xuat") or "").strip()
     khoa = f"{project_id}:thaymau"
     with _offline_lock:
         cu = _offline_dang.get(khoa, {})
@@ -1178,7 +1222,7 @@ def api_offline_thay_mau(project_id: str, request: Request):
     def _chay():
         from autoedit.offline.thay_mau import thay_mau
         try:
-            kq = thay_mau(d, log=_ghi_tien_do)
+            kq = thay_mau(d, log=_ghi_tien_do, noi_xuat=noi_xuat)
             with _offline_lock:
                 _offline_dang[khoa] = {
                     "tt": "xong",

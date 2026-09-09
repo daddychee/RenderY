@@ -419,7 +419,8 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
     return draft
 
 
-def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> dict:
+def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
+             noi_xuat: str = "") -> dict:
     """Chạy trọn: relocate -> cắt voice -> draft CapCut. Chỉ chương KHÓA SỔ."""
     def ghi(m):
         if log:
@@ -474,6 +475,12 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None) -> 
         from autoedit.packager.machine import MachineProfile
 
         profile = MachineProfile.load()
+    if noi_xuat:
+        # NƠI XUẤT theo tập (user chốt 09/09): đè `draft_out_root` — đúng chỗ
+        # `package_draft` đọc. Ghi THẲNG vào đó, không ghi rồi chép: chép là
+        # nhân đôi dung lượng và đẻ ra hai bản lệch nhau.
+        profile = profile.model_copy(update={"draft_out_root": str(noi_xuat)})
+        log(f"thay-mau: nơi xuất theo tập -> {noi_xuat}")
     ten = f"OFF_{project_dir.name}"
     draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi,
                        dung_id=dung_id)

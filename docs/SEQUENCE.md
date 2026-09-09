@@ -732,3 +732,27 @@ không gửi header level. Quyền **hút nguồn / nạp ref giữ nguyên** c�
 thật KHÔNG phân biệt hoa thường — `headers.get("x-remote-level")` luôn trả None,
 `behind_crm` thành False, cửa gác **mở toang** và 3 test đầu **xanh vì lý do sai**. Chỉ vì
 có một test kỳ vọng `False` nên mới lộ. Nay đồ giả dùng `starlette.datastructures.Headers`.
+
+## Chọn NƠI XUẤT draft theo tập (user yêu cầu 09/09)
+
+User tự chứng minh: thư mục draft CapCut **copy sang chỗ khác vẫn dùng được**. Nên muốn
+xuất thẳng vào thư mục chứa working file của CapCut, thay vì luôn đổ vào kho chung — kho
+đó hiện có **42 thư mục** lẫn lộn, tên `OFF_<project_id>` **không mang mã tập** nên nhìn
+không biết của tập nào.
+
+**Khảo sát trước khi code — một nửa cơ chế ĐÃ CÓ:** `MachineProfile.draft_out_root`
+(rỗng = `capcut_root`), `profile.out_root()`, và `package_draft` đã dùng nó. Nhưng đó là
+thiết lập TOÀN MÁY (`set-draft-root`), không đè được từng lượt. `_trong_nas` cũng đã tự
+quy đổi `Z:\` → `F:\` và chặn đường dẫn ra ngoài NAS.
+
+**Quyết định (user chốt 09/09):** dán đường dẫn · nhớ **theo TẬP** · thư mục đích nằm
+trên NAS nên máy chủ ghi **thẳng**, không chép hai bản.
+
+**Bằng chứng phụ tìm được:** sổ draft của CapCut trên máy server
+(`User Data/Projects/com.lveditor.draft/root_meta_info.json`) sửa lần cuối **23/08** và
+chỉ biết 2 draft — tức **CapCut trên server không được mở từ 23/08**. Người dựng mở draft
+trên máy của họ. Vì thế câu hỏi "CapCut có quét thư mục con không" là hướng phụ, đã bỏ.
+
+**Kèm theo — sửa một lỗi sắp nổ:** `server.py` ghi CỨNG đường dẫn kho draft để tính cột
+"✓draft". Cho chọn nơi xuất mà để nguyên thì cột đó **sai âm thầm** (BH5). Nay tra theo
+thứ tự: nơi tập đã nhớ → hồ sơ máy → mặc định, và có test cấm ghi cứng lại.

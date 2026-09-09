@@ -806,6 +806,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             style="font-size:21px;font-weight:700;letter-spacing:.04em;min-width:104px">00:00.0</span>
       <button class="btn ghost small" onclick="ofAddShot()"
               title="cắt shot TẠI VẠCH đang đứng — hai mảnh dùng chung clip, chạy liên tục (phím e)">✂ Add Shot</button>
+      <input type="text" id="of-noi-xuat" placeholder="nơi xuất draft (dán Z:\... — bỏ trống = như cũ)"
+             title="Dán đường dẫn thư mục CapCut trên NAS. Gõ một lần, cả tập dùng chung."
+             style="max-width:250px;font-size:11px">
       <button class="btn ghost small" onclick="ofDoLaiKhay()"
               title="tra lại Library cho mọi khối: làm mới các khối MÁY chọn, giữ nguyên khối bạn tự chọn">⟳ Đổ lại khay</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
@@ -1654,6 +1657,8 @@ async function ofNap() {
   // định). Trước đây chỉ biết sau khi autosave ăn 403 — toast chớp rồi trôi,
   // người dựng cứ chỉnh tiếp rồi mất sạch công.
   OF_KHOA_SUA = d.duoc_sua === false
+  const _nx = document.getElementById('of-noi-xuat')
+  if (_nx) _nx.value = (d.hop_dong && d.hop_dong.noi_xuat) || ''   // nhớ theo TẬP
   OF_CHU_SEQ = d.chu_sequence || ''
   const tt = d.tt || {}
   document.getElementById('of-pt-tt').textContent =
@@ -2305,7 +2310,12 @@ async function ofDoiPha() {
     const nut = document.getElementById('of-nut-pha')
     try {
       nut.disabled = true
-      const r = await api('/api/offline/' + OF_PID + '/thay-mau', {method: 'POST', body: '{}'})
+      // NƠI XUẤT (user chốt 09/09): dán đường dẫn, nhớ THEO TẬP. Bỏ trống thì
+      // dùng lại nơi tập đã nhớ; vẫn trống thì kho draft mặc định của máy.
+      const o = document.getElementById('of-noi-xuat')
+      const noi = o ? o.value.trim() : ''
+      const r = await api('/api/offline/' + OF_PID + '/thay-mau',
+                          {method: 'POST', body: JSON.stringify({noi_xuat: noi})})
       toastOf('⬇ ' + r.ghi_chu)
       const canh = setInterval(async () => {
         const d = await api('/api/offline/' + OF_PID)
