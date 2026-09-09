@@ -1465,6 +1465,11 @@ def api_offline_khoa(project_id: str, request: Request):
     _gac_quyen_sua(request, hd)
     hd["trang_thai"] = "khoa"
     orun.luu(d, hd)
+    # ĐÂY mới là lúc tải bản sạch (user chốt 09/09: "timeline chưa được duyệt
+    # thì chưa down video nào"). Khoá sổ = chốt danh sách clip, tải từ giờ không
+    # phí. Phải gọi ở đây: `_xep_tai_ban_sach` nay chặn chương chưa khoá, không
+    # gọi thì Export mới bắt đầu tải và người dựng chờ dài.
+    _xep_tai_ban_sach(hd)
     return {"ok": True, "ghi_chu": f"đã khóa sổ {len(hd['khoi'])} khối — bấm Export timeline để ra bản Online"}
 
 
@@ -1897,6 +1902,17 @@ _tai_nen_worker = {"chay": False}
 
 
 def _xep_tai_ban_sach(hd: dict) -> None:
+    """Xếp hàng tải bản sạch Envato — CHỈ khi chương đã KHOÁ SỔ.
+
+    User chốt 09/09: *"khi timeline chưa được duyệt thì chưa down video nào hết"*.
+    Trước đây chạy ngay mỗi lần người dựng chọn clip, nên dò thử vài clip là tải
+    vài GB cho những clip cuối cùng không dùng.
+
+    Đo thật 09/09 trên production: kho bản sạch **104 file / 44,5 GB** (428 MB
+    mỗi clip); 8 chương chưa duyệt đang giữ 17 miếng envato.
+    """
+    if (hd or {}).get("trang_thai") != "khoa":
+        return
     try:
         from autoedit.sourcer import tai_sach
 
