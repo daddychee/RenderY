@@ -588,3 +588,79 @@ trong khi ô nằm sai chỗ.
 `do_ung_vien` chép khay theo danh sách trường cố định. Thêm trường mới ở tầng
 dưới (`tra()`) mà quên thêm vào đây thì trường đó biến mất, KHÔNG có lỗi nào
 báo. Mỗi lần thêm trường phải dò ngược mọi chỗ chép-theo-danh-sách.
+
+---
+
+## VÒNG 8 (10/09/2026) — VIỆC A: ô giữ chỗ có link, timeline không còn hở
+
+User duyệt thứ tự **A → F → E** ("Đồng ý với thứ tự đó").
+
+### Kiểm TRƯỚC khi code — đo trên production
+
+| Đo | Kết quả |
+|---|---|
+| Chương từng để hở | **1/21** (`c8-20260831-064152`, `thay_mau.json` ghi *"miếng 12: KHÔNG lấy được nguồn nào"*) |
+| Lỗ trong draft đã sinh | `OFF_c8-20260831-064152/draft_content.json`: **33 segment, hở 5.170s tại giây 67.020** |
+| Nguyên nhân miếng đó | khay **RỖNG** (`uv` 0 ứng viên), không phải link chết |
+| Độ dài `url_trang` thật | 82–86 (Envato), dài nhất **226** (Pexels) — trên **5.315 link** trong kho |
+
+Hiếm (1/21) nhưng khi xảy ra là hỏng **cả chương**: main track CapCut là track
+NAM CHÂM, hở thì lúc mở CapCut dồn 22 segment còn lại lên trước 5.17s và ghi đè
+`draft_content.json`; voice nằm track khác nên đứng yên → **nửa sau chương lệch
+tiếng tích luỹ**.
+
+### Đã làm
+
+| # | Thay đổi | File |
+|---|---|---|
+| 1 | `anh_giu_cho(thu_muc, link, tieu_de) -> (Path, chữ)` — ảnh 1920x1080 in câu *"Tool đang cập nhật, vui lòng tải bằng tay theo link"* + link + tên clip; khay rỗng thì in lời dặn chung | `offline/thay_mau.py` |
+| 2 | `be_dong(chu, moi_dong)` — bẻ dòng thủ công | cùng file |
+| 3 | `dung_draft`: `f is None` → lấp ảnh giữ chỗ thay vì `continue` | cùng file |
+| 4 | `relocate`: hết ứng viên thì ghi `hinh[i]["ho_link"]`/`["ho_ten"]` lấy từ `url_trang` của clip ĐANG CHỌN | cùng file |
+
+**KHÔNG dùng lại `assembler._fill_holes_with_slug`** (sổ vòng 6 đoán là dùng
+được): hàm đó nhận `holes` theo mốc beat của đường Auto và tự cộng cờ HOLD từ
+`coverage.insert_hold_flags` — đường Offline không có beat, cũng không có nhóm
+HOLD. Gọi lại là phải bịa dữ liệu giả cho nó. Viết mới 40 dòng thẳng theo dải
+miếng rẻ hơn và đọc được.
+
+### Hai lỗi CHỈ NHÌN ẢNH THẬT MỚI THẤY
+
+Test xanh 9/9 rồi, nhưng mở ảnh ra xem thì:
+
+1. **Link dài bị vẽ TRÀN cả hai mép** — mất `https://...` ở đầu, mất ID ở đuôi
+   → người dựng không tải được, tức là tính năng vô dụng đúng ở ca nó sinh ra để
+   phục vụ. `wrap=True` của matplotlib chỉ bẻ ở **khoảng trắng**, mà link không
+   có khoảng trắng nào.
+2. **Khối chữ dồn lệch lên đỉnh** — toạ độ cứng, không tính theo số dòng thật
+   (ca 226 ký tự ra 3 dòng, ca khay rỗng chỉ 2).
+
+### Ngưỡng bẻ dòng — ĐO trên cả 5.315 link, không ước
+
+| Ngưỡng | Dòng tràn >1728px | Link vừa TRỌN 1 dòng |
+|---|---|---|
+| 78 | 0 | 233 / 5.315 |
+| 80 | 0 | 256 / 5.315 |
+| **82** | **0** | **4.606 / 5.315 (87%)** |
+| 84 | 0 | 4.635 / 5.315 |
+| 86 | **3 dòng tràn** (rộng nhất 1747px) | — |
+
+Chốt **82 ký tự/dòng ở cỡ 26**: điểm nhảy vọt (256 → 4.606) vì link Envato thật
+dài 82–86, và vẫn còn biên an toàn 82px so với trần 1728px (90% của 1920).
+
+### Nghiệm thu
+
+- Test mới: `tests/test_lap_lo_slug.py` — **11 test**, chạy đỏ trước khi code.
+- **Dựng lại bằng hợp đồng c8 THẬT** (35 miếng, 186.83s voice), bỏ file miếng 11
+  đúng như ca lỗi: **35/35 segment, 0 lỗ hở** (trước: 33 segment + hở 5.170s).
+- Xem tận mắt 3 ảnh: link Envato 82 ký tự (1 dòng), link Pexels 226 ký tự
+  (3 dòng), khay rỗng — cả ba đọc trọn, không tràn.
+
+### BH13 — Test xanh không thay được việc NHÌN sản phẩm
+
+11 test xanh, nghiệm thu số liệu sạch, mà ảnh vẫn cụt link. Test kiểm được
+"có chữ trong ảnh không", không kiểm được "chữ có nằm trong khung không" —
+đó là thứ chỉ mắt thấy. Với mọi thứ SINH RA ĐỂ NGƯỜI NHÌN (ảnh, PDF, giao
+diện), bước cuối luôn là mở ra xem, kể cả khi mọi test đã xanh. Cùng gốc với
+BH11 nhưng ở tầng khác: BH11 nói *test sai cách*, BH13 nói *test đúng cách vẫn
+chưa đủ*.

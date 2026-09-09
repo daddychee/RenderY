@@ -259,13 +259,94 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                     #                    dấu đã đánh vẫn còn, không phải dò lại
                 continue
         if dat is None:
-            warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — timeline hở, editor đắp")
+            # Link để in lên ô giữ chỗ: ưu tiên clip ĐANG CHỌN — đó là clip
+            # người dựng đã duyệt, tải tay bản đó mới đúng ý. Khay rỗng (ca c8
+            # thật) thì không có link nào, ô in lời dặn chung.
+            u0 = thu_tu[0] if thu_tu else None
+            if u0:
+                cr = _clip_db(conn, u0["id"]) or {}
+                k["ho_link"] = cr.get("url_trang") or cr.get("url_video") or ""
+                k["ho_ten"] = u0.get("tieu_de") or ""
+            warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — ô giữ chỗ"
+                         + (" kèm link tải tay" if k.get("ho_link") else ""))
         else:
             ra[i] = dat
             truoc_file, truoc_dung = dat, k["dur"] * SPEED
             truoc_id = dung_id.get(i)
         log(f"thay-mau: miếng {i + 1}/{len(mhinh.dam_bao(hd))} -> {dat.name if dat else 'HỞ'}")
     return ra, dung_id, warns
+
+
+def be_dong(chu: str, moi_dong: int) -> list[str]:
+    """Bẻ chuỗi thành các dòng <= `moi_dong` ký tự, KHÔNG mất ký tự nào.
+
+    Cắt cứng theo độ dài chứ không theo khoảng trắng: link không có khoảng
+    trắng nào, mà `wrap=True` của matplotlib chỉ bẻ ở khoảng trắng — nên link
+    dài bị vẽ TRÀN cả hai mép ảnh (nhìn ảnh thật 10/09 mới thấy: mất
+    `https://...` ở đầu, mất ID ở đuôi -> người dựng không tải được).
+    Đo trong kho thật: link dài nhất 226 ký tự.
+    """
+    return [chu[i:i + moi_dong] for i in range(0, len(chu), moi_dong)]
+
+
+def anh_giu_cho(thu_muc: Path, link: str = "", tieu_de: str = "") -> tuple[Path, str]:
+    """Ảnh 1920x1080 giữ chỗ cho miếng KHÔNG lấy được nguồn nào. Trả (file, chữ).
+
+    Vì sao PHẢI có: main track CapCut là track NAM CHÂM. Draft hở thì lúc MỞ,
+    CapCut dồn mọi segment phía sau lên và ghi đè `draft_content.json` — voice
+    nằm track khác nên đứng yên, hình nửa sau chương lệch tiếng tích luỹ. Đo
+    thật 10/09 trên `OFF_c8-20260831-064152`: hở 5.170s tại giây 67.020.
+
+    USER CHỐT 09/09: có link thì in LINK + câu dặn tải tay — người dựng nhìn ô
+    là biết tải ở đâu, không phải mò ngược sổ nguồn.
+
+    Trả cả phần chữ vì matplotlib không cho đọc ngược chữ ra khỏi ảnh; caller
+    (và test) cần biết đã dặn gì.
+    """
+    import hashlib
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if link:
+        chu = ["Tool đang cập nhật, vui lòng tải bằng tay theo link",
+               link, (tieu_de or "")[:70]]
+    else:
+        chu = ["EDITOR: ĐẮP FOOTAGE Ở ĐÂY",
+               "(không tìm được clip nào cho ô này — máy giữ chỗ để CapCut không dồn timeline)",
+               (tieu_de or "")[:70]]
+    thu_muc = Path(thu_muc)
+    thu_muc.mkdir(parents=True, exist_ok=True)
+    # tên theo BĂM của chữ: mỗi link một ảnh, cùng link thì dùng lại — 35 miếng
+    # hở mà render 35 lượt matplotlib là phí (mỗi lượt ~0.4s).
+    ma = hashlib.sha1("\n".join(chu).encode("utf-8")).hexdigest()[:10]
+    out = thu_muc / f"_giu_cho_{ma}.jpg"
+    if out.is_file():
+        return out, "\n".join(chu)
+
+    plt.rcParams["font.family"] = "DejaVu Sans"      # có dấu tiếng Việt
+    fig = plt.figure(figsize=(19.2, 10.8), dpi=100, facecolor="#14181d")
+    # 82 ký tự/dòng ở cỡ 26 — ĐO THẬT trên CẢ 5315 link trong kho (10/09):
+    # 0 dòng vượt 1728px (90% khung), và 4606/5315 link (87%) vừa trọn MỘT
+    # dòng. Ngưỡng 80 chỉ được 256 link một dòng, ngưỡng 86 làm 3 dòng tràn.
+    dong2 = be_dong(chu[1], 82)
+    khoi = [(chu[0], 40 if link else 46, "#e0a33a" if link else "#96a0ab", "bold", "normal")]
+    khoi += [(d, 26, "#7fb3d5" if link else "#5c656f", "normal", "normal") for d in dong2]
+    if chu[2]:
+        khoi.append((chu[2], 22, "#5c656f", "normal", "italic"))
+    # Xếp GIỮA theo tổng chiều cao thật: link 226 ký tự thành 3 dòng, còn khay
+    # rỗng chỉ 2 dòng. Toạ độ cứng thì ca này lệch lên đỉnh, ca kia đè nhau.
+    # Khoảng cách tỉ lệ cỡ chữ (dòng cỡ 40 cần chỗ hơn dòng cỡ 26).
+    khoang = [co / 1080 * 3.5 for _t, co, *_ in khoi]
+    y = 0.5 + sum(khoang) / 2 - khoang[0] / 2
+    for (t, co, mau, dam, nghieng), kc in zip(khoi, khoang):
+        fig.text(0.5, y, t, color=mau, ha="center", va="center", fontsize=co,
+                 fontweight=dam, style=nghieng)
+        y -= kc
+    fig.savefig(out, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    return out, "\n".join(chu[:1] + dong2 + chu[2:])
 
 
 def con_du_nguon(f: Path | None, da_dung: float, can: float) -> bool:
@@ -357,10 +438,21 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
     for h in ds_hinh:
         mep_us.append(mep_us[-1] + round(h["dur"] * SEC))
     for i, h in enumerate(ds_hinh):
+        t0_us, dai_us = mep_us[i], mep_us[i + 1] - mep_us[i]
         f = video.get(i)
         if f is None:
+            # KHÔNG để hở: track nam châm CapCut sẽ dồn cả nửa sau chương lên
+            # (đo thật OFF_c8: hở 5.170s). Lấp bằng ảnh giữ chỗ mang link.
+            try:
+                anh, _ = anh_giu_cho(project_dir / "assets_offline",
+                                     h.get("ho_link") or "", h.get("ho_ten") or "")
+                script.add_segment(VideoSegment(
+                    VideoMaterial(str(anh)), Timerange(t0_us, dai_us),
+                    source_timerange=Timerange(0, dai_us)), "video_l1")
+            except Exception as exc:  # noqa: BLE001 — lưới an toàn, không giết draft
+                log(f"thay-mau: miếng {i + 1} KHÔNG lấp được ô giữ chỗ "
+                    f"({str(exc)[:60]}) — draft HỞ, CapCut sẽ dồn timeline")
             continue
-        t0_us, dai_us = mep_us[i], mep_us[i + 1] - mep_us[i]
         m = VideoMaterial(str(f))
         if f.suffix.lower() == ".png":                 # ảnh AI -> tĩnh
             script.add_segment(VideoSegment(m, Timerange(t0_us, dai_us),
