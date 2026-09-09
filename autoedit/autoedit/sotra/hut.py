@@ -16,6 +16,7 @@ import os
 import random
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -33,6 +34,34 @@ def _get(url: str, headers: dict | None = None, timeout: float = 45.0) -> bytes:
     h.update(headers or {})
     with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=timeout) as r:
         return r.read()
+
+
+def _xoay_khoa(khoas: list[str], bien: str, goi):
+    """Thử `goi(khoa)` lần lượt tới khi được; hết lượt (429) thì sang khoá kế.
+
+    Két V3 cấp NHIỀU khoá cho một việc (đo 09/09: `tim_footage` được 4 khoá —
+    pexels ×2, pixabay ×2) và `nap_env` đổ chúng vào một biến, NỐI BẰNG DẤU PHẨY.
+    Bản cũ `os.getenv(...).strip()` gửi nguyên chuỗi -> Pexels 401, Pixabay 400,
+    trong khi tách ra thì cả 4 khoá đều sống.
+
+    Xoay vòng chứ không chỉ lấy khoá đầu: nhiều khoá tồn tại để NHÂN HẠN MỨC
+    (Pexels 200 query/giờ/khoá). Bám một khoá là vứt nửa hạn mức, và khoá đó hết
+    lượt thì hút chết hẳn dù còn khoá sống.
+
+    Chỉ xoay khi hết lượt / bị từ chối (429, 401, 403). Lỗi khác (mạng, 500) là
+    lỗi chung cho mọi khoá — xoay chỉ tổ nện thêm request vô ích.
+    """
+    if not khoas:
+        raise RuntimeError(f"thiếu {bien}")
+    cuoi: Exception | None = None
+    for k in khoas:
+        try:
+            return goi(k)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (401, 403, 429):
+                raise
+            cuoi = exc
+    raise cuoi if cuoi else RuntimeError(f"thiếu {bien}")
 
 
 # ------------------------------------------------------------ ENVATO (scraping)
@@ -78,13 +107,14 @@ def hut_envato(tu_khoa: str, trang: int = 1) -> list[dict]:
 
 # ------------------------------------------------------------ PEXELS (API)
 def hut_pexels(tu_khoa: str, trang: int = 1, per_page: int = 40) -> list[dict]:
-    key = os.getenv("PEXELS_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("thiếu PEXELS_API_KEY")
-    d = json.loads(_get(
-        "https://api.pexels.com/videos/search?query="
-        f"{urllib.parse.quote_plus(tu_khoa)}&per_page={per_page}&page={trang}",
-        headers={"Authorization": key}))
+    from autoedit.sourcer.pexels import collect_pexels_keys
+
+    d = json.loads(_xoay_khoa(
+        collect_pexels_keys(), "PEXELS_API_KEY",
+        lambda k: _get(
+            "https://api.pexels.com/videos/search?query="
+            f"{urllib.parse.quote_plus(tu_khoa)}&per_page={per_page}&page={trang}",
+            headers={"Authorization": k})))
     ra = []
     for v in d.get("videos", []):
         # preview nhỏ nhất >=540p cho hover-play; link gốc để re-locate đợt 5
@@ -104,12 +134,13 @@ def hut_pexels(tu_khoa: str, trang: int = 1, per_page: int = 40) -> list[dict]:
 
 # ------------------------------------------------------------ PIXABAY (API)
 def hut_pixabay(tu_khoa: str, trang: int = 1, per_page: int = 40) -> list[dict]:
-    key = os.getenv("PIXABAY_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("thiếu PIXABAY_API_KEY")
-    d = json.loads(_get(
-        f"https://pixabay.com/api/videos/?key={key}&q="
-        f"{urllib.parse.quote_plus(tu_khoa)}&per_page={per_page}&page={trang}"))
+    from autoedit.sourcer.pixabay import collect_pixabay_keys
+
+    d = json.loads(_xoay_khoa(
+        collect_pixabay_keys(), "PIXABAY_API_KEY",
+        lambda k: _get(
+            f"https://pixabay.com/api/videos/?key={k}&q="
+            f"{urllib.parse.quote_plus(tu_khoa)}&per_page={per_page}&page={trang}")))
     ra = []
     for v in d.get("hits", []):
         vid = v.get("videos", {})
