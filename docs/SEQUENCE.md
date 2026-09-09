@@ -606,3 +606,34 @@ giữa chừng thì chỉ còn `.tmp`, không ai nhầm nó là khúc thật. K�
 
 **Nghiệm thu trên chính trang production:** trước 22/42 miếng đen → sau khi dọn 27 khúc,
 **0/42**.
+
+## Tra sai NGƯỜI NỘP TẬP — người khác thành chủ sequence (user báo 09/09)
+
+Tập `LI106_Hai` do **haint** (Hải) nộp, nhưng màn Offline ghi `hieuvn` và Hải bị chặn
+"CHỈ XEM". **Không phải lỗi phân quyền** — luật chạy đúng, chỉ là tra sai người.
+
+**Hai lỗi chồng nhau (đo trên jobs.db thật):**
+
+1. `WHERE project_id = ?` **không bao giờ khớp** job nộp cả tập: cột đó ghi **chuỗi nối
+   16 mã** (`h-...,c1-...,c2-...`), còn truy vấn so bằng dấu `=`.
+2. Nhánh dự phòng lấy `thu_muc_nas.parent.parent.name` — đúng với bố cục thư mục con
+   (`LI103/Rendery/H` → `LI103`) nhưng bố cục **PHẲNG** (`LI106_Hai/RenderY`) ra **`US`**.
+   `job_folder LIKE '%US%'` khớp **16 job của mọi tập** → vớ job mới nhất = **job 27 của
+   `hieuvn`, tập LI102**.
+
+Cùng họ với lỗi 08/09: **bố cục phẳng thiếu một cấp thư mục** so với bố cục cũ. Đây là
+lần thứ BA cùng một gốc (project trùng · nhãn tập ở tab Offline · nay là người nộp).
+
+**Vá:** `nguoi_nop_tap(pdir, conn)` — tách `project_id` theo dấu phẩy và so từng mã;
+dự phòng neo theo thư mục `RenderY` (`TEN_THU_MUC_CHUONG`) rồi so **đúng tên thư mục
+tập**, bỏ `LIKE`. Trả rỗng khi không tra ra, người gọi tự quyết cách lùi.
+
+**Nghiệm thu trên jobs thật:** LI106_Hai → `haint` · LI089 → `thanhdn` · LI103 → `bot`.
+
+**Dữ liệu (user cho phép 09/09):** đổi `nguoi_tao` của `h-20260908-112206` từ `hieuvn`
+sang `haint` (ghi atomic, sao lưu `.truoc-doi-chu-0927`). Kiểm trên server thật:
+haint sửa được · hieuvn không · admin được.
+
+**Cảnh báo còn treo:** LI103 tra ra `bot` (job 22 mới hơn job 21 của thanhdn). Ai phân
+tích lại chương LI103 thì `nguoi_tao` **quay về `bot`** và thanhdn mất quyền lần nữa.
+User chốt giữ nguyên thanhdn, chưa xử lý gốc.

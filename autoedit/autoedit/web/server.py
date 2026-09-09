@@ -681,6 +681,50 @@ def _gac_quyen_sua(request: Request, hd: dict) -> None:
                                  "(hoặc admin) được sửa")
 
 
+def thu_muc_tap_tu_script(goc: str) -> str:
+    """Tên thư mục TẬP (LI106_Hai) từ đường dẫn kịch bản — neo theo `RenderY`."""
+    if not goc:
+        return ""
+    phan = [x for x in Path(str(goc).replace("\\", "/")).parts if x not in ("/", "")]
+    for i, x in enumerate(phan):
+        if x.lower() == TEN_THU_MUC_CHUONG and i >= 1:
+            return phan[i - 1]
+    return ""
+
+
+def nguoi_nop_tap(pdir: Path, conn) -> str:
+    """Ai NỘP TẬP chứa project này. Rỗng = không tra ra (người gọi tự quyết lùi).
+
+    Hai lỗi của bản cũ, user báo 09/09 ("tập của Hải mà máy ghi Hiếu nộp"):
+
+    1. `WHERE project_id = ?` KHÔNG BAO GIỜ khớp job nộp cả tập — cột đó ghi
+       **chuỗi nối** 16 mã (`h-...,c1-...,c2-...`). Nay tách theo dấu phẩy và so
+       từng mã.
+    2. Nhánh dự phòng lấy `thu_muc_nas.parent.parent.name`: đúng với bố cục thư
+       mục con (`LI103/Rendery/H` -> LI103) nhưng bố cục PHẲNG
+       (`LI106_Hai/RenderY`) ra **`US`**, rồi `LIKE '%US%'` khớp 16 job của mọi
+       tập và vớ job mới nhất — của người khác, tập khác. Nay neo theo thư mục
+       `RenderY` (dùng chung `TEN_THU_MUC_CHUONG`) và so ĐÚNG TÊN thư mục tập,
+       không dùng LIKE.
+    """
+    from autoedit.offline.runner import _thu_muc_nas
+
+    rows = conn.execute("SELECT nguoi, project_id, job_folder FROM jobs "
+                        "WHERE nguoi != '' ORDER BY id DESC").fetchall()
+    pid = pdir.name
+    for r in rows:                       # 1) job có ĐÚNG project này trong danh sách
+        if pid in [x.strip() for x in (r["project_id"] or "").split(",") if x.strip()]:
+            return r["nguoi"]
+    nas = _thu_muc_nas(pdir)
+    ten_tap = thu_muc_tap_tu_script(str(nas / "x")) if nas else ""
+    if not ten_tap:
+        return ""
+    for r in rows:                       # 2) job của ĐÚNG thư mục tập đó
+        if Path((r["job_folder"] or "").replace("\\", "/")).name == ten_tap:
+            return r["nguoi"]
+    return ""
+
+
 @app.get("/api/ngach")
 def api_ngach(request: Request):
     """Danh mục ngách cho form nộp tập — đọc từ danh bạ nền của CRM.
@@ -800,20 +844,10 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
         from autoedit.web import queue as _q
 
         _cj = _q.connect()
-        _r = _cj.execute(
-            "SELECT nguoi FROM jobs WHERE project_id=? AND nguoi!='' "
-            "ORDER BY id DESC LIMIT 1", (project_id,)).fetchone()
-        if _r is None:                       # job ghi theo TẬP, project_id có thể rỗng
-            from autoedit.offline.runner import _thu_muc_nas
-            _nas = _thu_muc_nas(d)
-            if _nas is not None:
-                _r = _cj.execute(
-                    "SELECT nguoi FROM jobs WHERE job_folder LIKE ? AND nguoi!='' "
-                    "ORDER BY id DESC LIMIT 1",
-                    (f"%{_nas.parent.parent.name}%",)).fetchone()
-        _cj.close()
-        if _r:
-            nguoi_tao = _r["nguoi"]
+        try:
+            nguoi_tao = nguoi_nop_tap(d, _cj)
+        finally:
+            _cj.close()
     except Exception:  # noqa: BLE001 — tra job hỏng thì về người bấm như cũ
         pass
     nguoi_tao = nguoi_tao or current_user(request)
