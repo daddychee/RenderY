@@ -15,6 +15,31 @@ CUA_SO_LAP_S = 60.0
 CHOT_NEO_S = 30.0
 
 
+def clip_hong(conn, u: dict) -> bool:
+    """Mục này trong khay đã lưu còn dùng được không?
+
+    Bản cũ mở đầu bằng `if u.get("nguon") != "ref": return False` — CHỈ quét
+    ref. Clip envato bị gỡ khỏi Envato (`trang_thai='link_chet'`) nằm sẵn trong
+    `uv[]` của hợp đồng cũ không bị quét ra, nên vẫn hiện trên khay và vẫn được
+    chọn. Đo trên 33 chương production 09/09: **9 miếng đang chọn clip đã chết**.
+
+    `tra()` đã lọc `trang_thai='song'` nên khay MỚI luôn sạch; chỗ này lo khay
+    ĐÃ LƯU — hai đường khác nhau, phải chặn cả hai.
+
+    `giu_cu`: miếng đang chọn đã được vá và giữ chỗ rồi — bỏ qua, không thì lần
+    đọc nào cũng "hỏng" lại và hợp đồng bị ghi lại vô hạn.
+    """
+    if u.get("giu_cu"):
+        return False
+    # Luật RIÊNG của ref: ref là KHÚC cắt từ video dài, thiếu t1 là bản đời cũ
+    # không định vị được. Nguồn khác không có t0/t1 là chuyện thường.
+    if u.get("nguon") == "ref" and not (float(u.get("t1") or 0) > 0):
+        return True
+    r = conn.execute("SELECT trang_thai FROM clip WHERE id=?",
+                     (u.get("id"),)).fetchone()
+    return r is None or r[0] != "song"
+
+
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                 uu_tien_nguon: str = "", so_moi_khoi: int = 12,
                 bo_nguon: tuple = (), geo_tap: str = "", tap: str = "") -> list[list[dict]]:
@@ -336,13 +361,7 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
         return tuoi_theo_khoi[i]
 
     def _hong(u: dict) -> bool:
-        if u.get("nguon") != "ref" or u.get("giu_cu"):
-            return False               # giu_cu: đời cũ đang được chọn, đã vá — yên
-        if not (float(u.get("t1") or 0) > 0):
-            return True
-        r = conn.execute("SELECT trang_thai FROM clip WHERE id=?",
-                         (u.get("id"),)).fetchone()
-        return r is None or r[0] != "song"
+        return clip_hong(conn, u)
 
     def _thay(ds: list[dict], i_khoi: int,
               chon: int) -> tuple[list[dict], bool, int]:

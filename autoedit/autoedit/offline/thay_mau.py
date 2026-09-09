@@ -22,6 +22,7 @@ import os
 import random
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -32,6 +33,32 @@ UA = {"User-Agent": "Mozilla/5.0", "Referer": "https://elements.envato.com/"}
 GIAN_NHIP = (2.0, 4.0)
 SPEED = 0.9
 SPEED_MIN = 0.8
+
+# Nguồn ĐÃ MẤT HẲN — đánh `link_chet` để khay không trồi nó lên nữa.
+_MA_CHET = (404, 410)
+# Hết lượt / nhà cung cấp trục trặc — clip VẪN SỐNG, đánh dấu là giết oan.
+_MA_TAM = (408, 425, 429, 500, 502, 503, 504)
+_CAU_CHET = ("file rỗng", "thiếu preview", "API không trả file gốc",
+             "nguồn không có đường lấy")
+
+
+def la_nguon_chet(exc: BaseException) -> bool:
+    """Lỗi này có nghĩa clip MẤT HẲN không? (quyết định đánh `link_chet`).
+
+    Bản cũ kiểm `"không tồn tại" in str(exc)` — KHÔNG luồng nào ném chuỗi đó,
+    nên nhánh đánh dấu gần như không bao giờ chạy: preview Envato chết trả
+    `HTTPError` với `str(exc)` = "HTTP Error 404: Not Found". Kết quả là clip
+    chết cứ được chọn lại mỗi lần dựng.
+
+    Nguyên tắc: THÀ BỎ SÓT CÒN HƠN GIẾT OAN. Repo không có đường gỡ cờ
+    `link_chet` (grep: không chỗ nào set ngược về 'song'), nên chỉ đánh khi
+    chắc chắn mất hẳn; 429/5xx/mạng đứt để nguyên (user chốt: fail 1 lần bỏ qua).
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _MA_CHET
+    if isinstance(exc, (urllib.error.URLError, TimeoutError, OSError)):
+        return False                      # mạng đứt: clip vẫn sống
+    return any(c in str(exc) for c in _CAU_CHET)
 
 
 def _tai(url: str, dich: Path, timeout: float = 300.0) -> Path:
@@ -181,8 +208,10 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                 raise RuntimeError("file rỗng")
             except Exception as exc:  # noqa: BLE001 — thử ứng viên kế
                 log(f"thay-mau: khối {i + 1} «{cid[:40]}» {str(exc)[:70]} — thử dự bị")
-                if "không tồn tại" in str(exc) or "file rỗng" in str(exc):
+                if la_nguon_chet(exc):
                     conn.execute("UPDATE clip SET trang_thai='link_chet' WHERE id=?", (cid,))
+                    conn.commit()      # commit TẠI CHỖ: khâu sau ném lỗi thì
+                    #                    dấu đã đánh vẫn còn, không phải dò lại
                 continue
         if dat is None:
             warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — timeline hở, editor đắp")
