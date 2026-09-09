@@ -664,3 +664,43 @@ dài 82–86, và vẫn còn biên an toàn 82px so với trần 1728px (90% c�
 diện), bước cuối luôn là mở ra xem, kể cả khi mọi test đã xanh. Cùng gốc với
 BH11 nhưng ở tầng khác: BH11 nói *test sai cách*, BH13 nói *test đúng cách vẫn
 chưa đủ*.
+
+### Trạng thái việc A: XONG, đã lên production 10/09
+
+Suite `1656 passed / 14 skipped / 0 failed` (trước việc A: 1645 — đúng 11 test
+mới). Commit `14b50f4`, GitHub đồng bộ, server 9118 đã restart và nạp bản mới
+(`anh_giu_cho` / `be_dong` / `dung_draft` gọi ô giữ chỗ — kiểm bằng venv của
+production, không phải venv dev).
+
+Lưu ý vận hành: `thay_mau` chạy trong **thread cùng tiến trình server**
+(`server.py:1242`), không phải tiến trình con — nên sửa nó là **phải restart**
+9118 mới ăn.
+
+### Việc F — đo lại trước khi code, KẾT QUẢ KHÁC KỲ VỌNG
+
+Đo khay trên **996 miếng thật** (21 chương production):
+
+| Nguồn | Trong khay | Được chọn |
+|---|---|---|
+| ref | 85.2% | 81.8% |
+| envato | 9.0% | 10.1% |
+| kho | 5.5% | 6.8% |
+| pexels | **0.2%** | 1.2% |
+| pixabay | **0.1%** | 0.1% |
+
+Kho có 2.758 pexels + 467 pixabay `song`, nhưng khay chỉ nhận **42 mục**.
+Chúng gần như KHÔNG CÓ MẶT để mà đẩy xuống.
+
+Nhưng khi lọt vào thì đúng là hay đứng đầu bảng: **16/33** pexels và **6/9**
+pixabay ở vị trí ≤2, trong khi envato trung vị vị trí **4**. Đúng điều user
+phàn nàn — chỉ là quy mô nhỏ.
+
+Nguyên nhân khay toàn ref: `tra.py:162-167` thêm ref SAU vòng cân nhóm, và
+vòng đó chỉ dừng khi **cả hai** điều kiện `len(ra) >= so` và
+`gio_ref >= suat_ref` cùng đủ. Khối nào stock cho ít điểm thì `cham` mỏng và
+ref lấp trọn khay. Đây là **thiết kế cố ý** của user 07/09 (*"cái gì nhiều hơn
+thì ưu tiên đổ vào"*), KHÔNG phải lỗi — không tự đổi.
+
+→ F vẫn làm đúng như đã chốt (vài dòng), nhưng phải nói trước với user: nó sẽ
+không đổi cảm nhận về khay. Thứ chi phối khay là tỉ lệ ref/stock, và đó là
+quyết định của user.
