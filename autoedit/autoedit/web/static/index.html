@@ -178,6 +178,11 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
               padding:2px 4px; text-align:center}
 .of-uv .lap{position:absolute; inset:0; background:rgba(224,108,108,.26);
             display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
+/* "+N bản": clip cùng nguồn cùng tiêu đề đã gộp về một thẻ (user chốt 09/09).
+   Không phải cảnh báo — chỉ cho biết còn bản khác, mở review là đổi được. */
+.of-uv .ban{position:absolute; right:4px; bottom:4px; font-size:9px; z-index:2;
+            background:rgba(0,0,0,.74); color:var(--muted); padding:1px 6px;
+            border-radius:4px; pointer-events:none}
 #of-vung-tl{display:flex}
 #of-track-nhan{flex:0 0 30px; padding-top:2px}
 #of-track-nhan .o{display:grid; place-items:center; font-size:11px; font-weight:700;
@@ -223,13 +228,16 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-mieng .d{position:absolute; left:4px; bottom:4px; font-size:11.5px; color:#e8eaed;
              background:rgba(0,0,0,.7); padding:1px 6px; border-radius:4px; z-index:2}
 .of-mieng.chon{outline:2px solid var(--warn); outline-offset:-2px; z-index:4}
-/* miếng đang dùng clip đã hỏng/hết hạn — soát lúc bấm Export (user 09/09) */
+.of-mieng.tho{background:color-mix(in srgb, var(--ok, #5cb98a) 14%, var(--panel)); border-color:var(--ok, #5cb98a)}      /* miếng nằm trong khoảng thở */
+/* Miếng đang dùng clip đã hỏng/hết hạn — soát lúc bấm Export (user 09/09).
+   PHẢI đứng SAU `.of-mieng.tho`: hai luật cùng độ ưu tiên (0,2,0) thì luật sau
+   thắng. Đặt trước là `.tho` đè mất viền đỏ ở mọi miếng trong khoảng thở —
+   user nghiệm thu 09/09 báo "có báo lỗi nhưng không có viền đỏ" đúng vì vậy. */
 .of-mieng.hong{border-color:var(--bad); box-shadow:0 0 0 2px var(--bad) inset}
 .of-mieng.hong::after{content:"clip hỏng"; position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%); font-size:10px; font-weight:700; color:#fff;
   background:var(--bad); padding:2px 7px; border-radius:5px; z-index:3;
   white-space:nowrap; pointer-events:none}
-.of-mieng.tho{background:color-mix(in srgb, var(--ok, #5cb98a) 14%, var(--panel)); border-color:var(--ok, #5cb98a)}      /* miếng nằm trong khoảng thở */
 .of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
                cursor:ew-resize; z-index:5}
 .of-mieng .mep:hover,.of-mieng .mep.dang{background:rgba(232,163,61,.45)}
@@ -2225,7 +2233,8 @@ function ofVeKhay() {
       d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
         <video muted loop playsinline preload="none"></video>
         ${la_dang ? '<div class="dangn">● đang dùng</div>' : ''}
-        ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}</div>
+        ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}
+        ${u.so_ban > 1 ? `<div class="ban">+${u.so_ban - 1} bản</div>` : ''}</div>
         <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
       const v = d.querySelector('video')
       const vsrc = ofVid(u)

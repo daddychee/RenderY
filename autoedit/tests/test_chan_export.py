@@ -223,10 +223,15 @@ def test_soat_hong_KHONG_duoc_giet_export(tmp_path, monkeypatch):
 
 # ───────────────────────── phần giao diện ─────────────────────────
 
-def test_UI_co_ham_to_do_mieng_hong():
+def test_UI_co_bien_giu_danh_sach_hong():
+    """Chỉ kiểm DÂY NỐI có tồn tại. Việc tô đỏ có ĂN THẬT hay không do
+    `test_to_do_trinh_duyet.py` kiểm bằng Chrome — bản cũ của test này chỉ tìm
+    chuỗi `.of-mieng.hong` trong file nên báo xanh trong khi user nhìn màn hình
+    KHÔNG thấy viền đỏ nào (CSS bị luật `.tho` đứng sau đè)."""
     h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
     assert "OF_HONG" in h, "thiếu biến giữ danh sách miếng hỏng"
-    assert ".of-mieng.hong" in h, "thiếu CSS tô đỏ miếng hỏng trên timeline"
+    assert "OF_HONG.has(j) ? ' hong'" in h, "khai biến nhưng không gắn lớp vào miếng"
+    assert "OF_HONG.delete" in h, "không gỡ dấu đỏ khi người dựng đổi clip"
 
 
 def test_UI_moi_onclick_deu_co_ham_that():
