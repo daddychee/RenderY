@@ -682,3 +682,33 @@ lượt gọi thừa. Câu lỗi cuối kèm **`finish_reason`** — nhìn là b
 token (`length`) hay model trả sai khuôn (BH1).
 
 **Dữ liệu:** đã chạy lại Phân tích cho C9 (sao lưu `.truoc-phan-tich-lai-1402`).
+
+## Export xong mà thư mục tập RỖNG (user báo 09/09)
+
+Hải bấm Export, draft RA THẬT — nhưng ở kho draft CapCut
+(`...\Tool Edit\Capcut Draft\CapCut Drafts\OFF_<chương>`), còn
+`...\LI106_Hai\RenderY\Compose Timeline\<chương>\` thì **rỗng hết 14 thư mục**.
+
+**Không phải hiểu nhầm:** chính `DOC_TRUOC.txt` nằm trong đó hứa *"Copy cả thư mục này
+về máy… mỗi chương có draft/, footage/, report.html, nguon_footage.txt"*. Đường Offline
+không giao gì vào đó — tờ hướng dẫn hứa một đằng, thực tế một nẻo.
+
+**Đo:** 10/14 chương có draft, tổng **992MB**. Bốn chương thiếu (H, C1, C2, C3) đều là
+**đồng kiểm** — đúng thiết kế, chờ người duyệt khay rồi bấm Export.
+
+**Quyết định (user chốt 09/09):**
+
+| # | Quyết định | Vì sao |
+|---|---|---|
+| QĐ15 | Giao **GIẤY TỜ + LỐI MỞ**, KHÔNG chép draft | Chép sang là nhân đôi 992MB mỗi tập, và đẻ ra HAI bản lệch nhau sau khi ai đó sửa một bản |
+| QĐ16 | Chương đồng kiểm để người dựng tự bấm | Đúng thiết kế: duyệt khay trước rồi mới Export |
+
+`autoedit/offline/giao.py` — mỗi chương nhận `nguon_footage.txt/.json`,
+`GIAY_PHEP.txt`, và `MO_DRAFT.txt` chỉ rõ mở draft nào. Fail-open: mất giấy tờ chứ
+không được mất draft. Nghiệm thu trên LI106: **12KB/chương**, đúng thư mục, đã giao cho
+cả 10 chương có draft.
+
+**Dọn kèm — gom chỗ suy TẬP/CHƯƠNG về `autoedit/duong_dan.py`.** Cùng gốc "đếm lùi N cấp
+thư mục" đã nổ **ba lần trong hai ngày** (16 chương gộp 1 project · tab Offline hiện
+`US/RENDERY` · tra nhầm người nộp). Mỗi lần một chỗ đếm cấp riêng; nay một hàm dùng
+chung, `server.py` import lại nên chỗ gọi và test cũ không phải sửa.

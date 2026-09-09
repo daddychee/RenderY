@@ -402,6 +402,19 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
         log(f"thay-mau: sổ nguồn gốc {len(so['clips'])} clip — {ti}")
     except Exception as exc:  # noqa: BLE001
         log(f"thay-mau: ghi sổ nguồn gốc lỗi ({str(exc)[:70]})")
+    # GIAO vào thư mục tập trên NAS (user chốt 09/09). Draft ra thật nhưng nằm ở
+    # kho draft CapCut, còn `Compose Timeline/<chương>/` thì rỗng — mà chính
+    # `DOC_TRUOC.txt` trong đó lại hứa có draft/footage/report. Giao GIẤY TỜ +
+    # LỐI MỞ, KHÔNG chép draft (đo LI106: 10 draft = 992MB, chép sang là nhân
+    # đôi và đẻ ra hai bản lệch nhau).
+    try:
+        from autoedit.offline.giao import giao_giay_to
+
+        dich = giao_giay_to(project_dir, Path(draft))
+        log(f"thay-mau: giao giấy tờ -> {dich}" if dich
+            else "thay-mau: không suy được thư mục giao — bỏ qua, draft vẫn nguyên")
+    except Exception as exc:  # noqa: BLE001 — mất giấy tờ chứ không mất draft
+        log(f"thay-mau: giao giấy tờ lỗi ({str(exc)[:70]})")
     log(f"thay-mau: draft {draft}")
     return draft
 
