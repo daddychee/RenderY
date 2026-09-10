@@ -1098,3 +1098,38 @@ vì luồng có ba chỗ dẫn tới cùng kết quả xấu mà tôi mới bị
 Luật: khi chặn một kết quả xấu, phải **đi hết luồng** liệt kê MỌI đường tới nó,
 rồi bịt từng đường — không dừng ở đường đầu tiên tìm thấy. Ở đây chỉ cần
 `grep` nhánh nào tạo ra file cho miếng là thấy đủ ba.
+
+### Nghiệm thu trên PRODUCTION sau khi bịt ba cửa (10/09, sau restart)
+
+**Cửa 1** — soát lúc bấm Export, chạy trên hợp đồng thật:
+
+```
+c1-20260907-044027  -> CHẶN: miếng 31 — Envato chưa có bản sạch, sẽ dính WATERMARK
+c1-20260908-112236  -> CHẶN: miếng 2
+c2-20260908-112314  -> CHẶN: miếng 1
+c3-20260907-050623  -> CHẶN: miếng 6
+--- 6 chương khoá sổ sẽ bị chặn
+```
+
+**Cửa 2** — gọi `thay_mau` thật trên chương `c1-20260907-044027`:
+
+```
+DỪNG — 1 miếng chưa tải được bản sạch Envato, Export ra sẽ dính WATERMARK.
+miếng 31: Aerial View of Majestic Green Mountains.
+Đăng nhập lại Envato (chấm ● cạnh nút Export) rồi Export lại.
+```
+
+Draft **không được dựng**. Trước vá thì chỗ này ra draft đủ 100% miếng.
+
+### PHÁT HIỆN THÊM — phiên Envato chết TRONG NGÀY, không phải từ 07/09
+
+Kiểm lại `lan_cuoi_tai` sau restart: **2026-09-10 10:37:42**, tải được **832MB**
+— tức sáng nay phiên còn SỐNG. Nhưng mở Chrome thật lúc chiều: **PHIÊN CHẾT**.
+
+Nghĩa là phiên Envato rụng trong vòng vài giờ, không phải rụng từ 3 ngày trước
+như suy đoán ban đầu (suy đoán đó dựa trên `giay_phep` cũ, trước khi có lượt
+tải sáng nay).
+
+→ Ngưỡng cảnh báo **≥2 ngày** đang quá lỏng: phiên chết buổi sáng thì chiều
+chỉ báo vẫn xanh. CHƯA sửa — cần user chốt ngưỡng, và việc này KHÔNG cấp bách
+nữa vì cửa 2 + cửa 3 đã chặn không cho draft bẩn ra. Ghi lại để không quên.
