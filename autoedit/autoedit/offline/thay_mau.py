@@ -268,12 +268,16 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                         dai = (float(c.get("t1") or 0) - t0s) if float(c.get("t1") or 0) > t0s                             else k["dur"] + 2.0
                         cat_clip(Path(sach), t0s, dai + 0.3, dich)
                     else:
-                        if not c.get("url_video"):
-                            raise RuntimeError("thiếu preview")
-                        _tai(c["url_video"], dich)       # preview watermark TẠM
-                        warns.append(f"miếng {i + 1}: Envato preview WATERMARK — "
-                                     "phiên Envato sống rồi bấm Online lại là sạch")
-                        time.sleep(random.uniform(*GIAN_NHIP))
+                        # KHÔNG tải preview nữa (user họp team 10/09: FIX TRIỆT
+                        # ĐỂ). Bản cũ tải preview watermark rồi ghi warning —
+                        # timeline ra đủ 100% miếng, team tưởng sạch, chỉ phát
+                        # hiện khi mở ra xem. Ô giữ chỗ nói THẬT là "chưa có
+                        # clip"; watermark nói dối là "có clip rồi" mà giao
+                        # khách không được. Ném lỗi -> thử ứng viên DỰ BỊ, hết
+                        # dự bị thì ô giữ chỗ mang link (việc A).
+                        raise RuntimeError(
+                            "Envato chưa có bản sạch — không dùng preview "
+                            "watermark; đăng nhập Envato rồi Export lại")
                 else:
                     raise RuntimeError("nguồn không có đường lấy")
                 if dich.is_file() and dich.stat().st_size > 5_000:
@@ -297,8 +301,16 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
                 cr = _clip_db(conn, u0["id"]) or {}
                 k["ho_link"] = cr.get("url_trang") or cr.get("url_video") or ""
                 k["ho_ten"] = u0.get("tieu_de") or ""
-            warns.append(f"miếng {i + 1}: KHÔNG lấy được nguồn nào — ô giữ chỗ"
-                         + (" kèm link tải tay" if k.get("ho_link") else ""))
+            # Nói ĐÚNG nguyên nhân: "khay rỗng" và "Envato thiếu bản sạch" là
+            # hai chuyện khác hẳn — cái trước phải đi tìm clip, cái sau chỉ cần
+            # đăng nhập lại. Gộp một câu là đẩy người dựng đi sai hướng (BH15).
+            vi_envato = bool(u0) and se_dinh_watermark(conn, u0)
+            warns.append(
+                f"miếng {i + 1}: Envato CHƯA CÓ BẢN SẠCH (không dùng preview "
+                "watermark) — đăng nhập Envato rồi Export lại"
+                if vi_envato else
+                f"miếng {i + 1}: KHÔNG lấy được nguồn nào — ô giữ chỗ"
+                + (" kèm link tải tay" if k.get("ho_link") else ""))
         else:
             ra[i] = dat
             truoc_file, truoc_dung = dat, k["dur"] * SPEED
@@ -698,8 +710,31 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
                 ghi(f"online: {len(set(tai_sach._uuid_goc(x) for x in can))} clip "
                     "Envato cần bản sạch — tải 1 luồng giãn 2-5s")
                 tai_sach.tai_nhieu_tu_cuu(c, can, log=ghi)
-        except Exception as exc:  # noqa: BLE001
-            ghi(f"online: tải bản sạch LỖI ({str(exc)[:80]}) — dùng preview")
+        except Exception as exc:  # noqa: BLE001 — lỗi tải: để cửa dưới xử
+            ghi(f"online: tải bản sạch LỖI ({str(exc)[:80]})")
+        # CỬA THỨ HAI — CHẶN TRIỆT ĐỂ (user họp team 10/09):
+        # *"ấn export timeline mà có video envato không down được vẫn cho chạy
+        #  hết timeline. TÔI CẦN FIX TRIỆT ĐỂ"*.
+        #
+        # `soat_truoc_pha` chỉ gác lúc BẤM Export. Ngay sau đó là lượt tải bản
+        # sạch, và nếu tải HỤT giữa chừng (phiên chết đúng lúc, mạng đứt, item
+        # bị gỡ) thì bản cũ nuốt lỗi rồi đi thẳng vào `relocate` — nhánh envato
+        # thiếu `path_local` rơi về preview watermark, ghi warning, draft VẪN
+        # RA ĐỦ 100% miếng. Team nhận draft tưởng sạch.
+        #
+        # Hai cửa, trước đây mới khoá một. Đây là cửa thứ hai.
+        thieu = [(i, u) for i, u in (
+            (i, h["uv"][h["chon"]]) for i, h in enumerate(_mh.dam_bao(hd))
+            if 0 <= h.get("chon", -1) < len(h.get("uv") or []))
+            if se_dinh_watermark(c, u)]
+        if thieu:
+            ten = "; ".join(f"miếng {i + 1}: {(u.get('tieu_de') or '')[:40]}"
+                            for i, u in thieu[:5])
+            raise RuntimeError(
+                f"DỪNG — {len(thieu)} miếng chưa tải được bản sạch Envato, "
+                f"Export ra sẽ dính WATERMARK. {ten}"
+                + (f" … và {len(thieu) - 5} miếng nữa" if len(thieu) > 5 else "")
+                + ". Đăng nhập lại Envato (chấm ● cạnh nút Export) rồi Export lại.")
         video, dung_id, warns = relocate(project_dir, hd, c, ghi, ark=ark)
         # phản biện: ghi sổ theo clip THẬT được dùng (dự bị tính là dự bị —
         # test 07/09 bắt bug ghi nhầm theo clip 'được chọn' đã chết)

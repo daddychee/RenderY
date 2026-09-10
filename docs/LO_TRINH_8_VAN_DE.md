@@ -1053,3 +1053,48 @@ Luật: chỉ báo sống/chết phải neo vào **lần cuối làm được vi
 tải được bản sạch), không neo vào việc file cấu hình có tồn tại. Nếu chỉ có dữ
 liệu "có mặt" thì phải nói đúng chừng đó — "có phiên" chứ không phải "phiên
 sống".
+
+### CHẶN TRIỆT ĐỂ — user họp team 10/09 chiều
+
+User: *"logic hôm qua vẫn chưa được thực hiện: ấn export timeline mà có video
+envato không down được vẫn cho chạy hết timeline. TÔI CẦN FIX TRIỆT ĐỂ."*
+
+User đúng. Vá buổi sáng mới khoá **một** cửa. Có **BA**:
+
+| Cửa | Ở đâu | Trước đây |
+|---|---|---|
+| 1 | `soat_truoc_pha` — lúc BẤM Export | đã chặn (sáng 10/09) |
+| 2 | `thay_mau` — sau lượt tải bản sạch | **nuốt lỗi tải, dựng tiếp** |
+| 3 | `relocate` — lúc lấy file từng miếng | **tải thẳng preview watermark** |
+
+Cửa 1 chỉ soi trạng thái LÚC BẤM. Ngay sau đó là lượt tải bản sạch; tải hụt
+giữa chừng (phiên chết đúng lúc, mạng đứt, item bị gỡ) thì cửa 2 nuốt lỗi và
+đi thẳng vào `relocate`, cửa 3 tải preview → **draft ra đủ 100% miếng**, team
+tưởng sạch.
+
+**Vá cửa 2:** sau lượt tải, soát lại `se_dinh_watermark` cho mọi miếng đang
+chọn; còn thiếu thì **ném lỗi, không dựng** — nêu đúng miếng nào và bảo đăng
+nhập Envato.
+
+**Vá cửa 3:** bỏ hẳn nhánh tải preview trong `relocate`. Ném lỗi → thử ứng
+viên DỰ BỊ → hết dự bị thì **ô giữ chỗ mang link** (việc A).
+
+Lý do chọn ô giữ chỗ thay vì watermark: ô giữ chỗ nói **THẬT** là "chưa có
+clip"; watermark nói **DỐI** là "có clip rồi" mà giao khách không được. Với
+người dựng, cái nói dối tốn thời gian hơn nhiều.
+
+Kiểm `la_nguon_chet` với lỗi mới: **False** — không đánh `link_chet` oan cho
+clip vẫn sống, chỉ là chưa tải bản sạch.
+
+Warning cũng tách hai lời: *"Envato CHƯA CÓ BẢN SẠCH — đăng nhập rồi Export
+lại"* khác hẳn *"KHÔNG lấy được nguồn nào — ô giữ chỗ"*. Một cái chỉ cần đăng
+nhập, một cái phải đi tìm clip.
+
+### BH17 — Chặn một cửa không phải là chặn
+
+Sáng 10/09 tôi vá `soat_truoc_pha` rồi báo xong. Chiều team vẫn gặp y nguyên,
+vì luồng có ba chỗ dẫn tới cùng kết quả xấu mà tôi mới bịt chỗ dễ thấy nhất.
+
+Luật: khi chặn một kết quả xấu, phải **đi hết luồng** liệt kê MỌI đường tới nó,
+rồi bịt từng đường — không dừng ở đường đầu tiên tìm thấy. Ở đây chỉ cần
+`grep` nhánh nào tạo ra file cho miếng là thấy đủ ba.

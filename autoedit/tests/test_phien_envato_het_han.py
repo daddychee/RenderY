@@ -223,3 +223,143 @@ def test_UI_bao_VANG_khi_lau_khong_tai_duoc_ban_sach():
     khoi = h[i:i + 1400]
     assert "lan_cuoi_tai" in khoi, (
         "chỉ báo phiên không dùng lan_cuoi_tai — vẫn hiện xanh khi phiên chết")
+
+
+# ═════════ CHẶN TRIỆT ĐỂ (user họp team 10/09, chiều) ═════════
+# *"ấn export timeline mà có video envato không down được vẫn cho chạy hết
+#  timeline. TÔI CẦN FIX TRIỆT ĐỂ VẤN ĐỀ NÀY"*
+#
+# Soát TRƯỚC (`soat_truoc_pha`) chỉ chặn khi bấm Export. Nhưng ngay sau đó
+# `thay_mau` tải bản sạch, và nếu tải HỤT giữa chừng (phiên chết đúng lúc, mạng
+# đứt, item bị gỡ) thì nó đi thẳng vào `relocate` — nhánh envato thiếu
+# `path_local` rơi về preview watermark, ghi warning, draft VẪN RA ĐỦ.
+#
+# Tức là có HAI cửa và mới khoá một. Cửa thứ hai là chỗ team gặp.
+
+def _hd_envato(*ids):
+    return {"trang_thai": "khoa", "offset": 0.0,
+            "khoi": [{"v0": float(i * 2), "v1": float(i * 2 + 2), "tho": 0.0}
+                     for i in range(len(ids))],
+            "hinh": [{"t0": float(i * 2), "dur": 2.0, "khoi_goc": i, "chon": 0,
+                      "uv": [{"id": c, "nguon": "envato", "tieu_de": f"clip {c}"}]}
+                     for i, c in enumerate(ids)]}
+
+
+def test_TAI_HUT_giua_chung_thi_DUNG_khong_dung_draft(tmp_path, monkeypatch):
+    """Cửa thứ hai: soát đã qua, nhưng tải bản sạch HỤT -> phải DỪNG.
+
+    Trước đây `thay_mau` nuốt lỗi tải ("dùng preview") rồi dựng tiếp, nên team
+    nhận draft đủ 100% miếng mà bên trong có watermark.
+    """
+    from autoedit.offline import runner as orun
+    from autoedit.offline import thay_mau as tm
+    from autoedit.sotra import db as sdb
+
+    p = tmp_path / "proj"
+    (p / "media").mkdir(parents=True)
+    c = sdb.mo(tmp_path / "kho" / "sotra.db")
+    sdb.them_clip(c, {"id": "envato:X1", "nguon": "envato", "tieu_de": "a",
+                      "url_video": "https://cdn/p.mp4", "path_local": ""})
+    c.commit()
+    hd = _hd_envato("envato:X1")
+    orun.luu(p, hd)
+    # tải bản sạch KHÔNG lấy được gì (phiên chết giữa chừng)
+    monkeypatch.setattr(tm, "relocate",
+                        lambda *a, **k: pytest.fail("đã dựng draft dù tải hụt"))
+    monkeypatch.setattr("autoedit.sourcer.tai_sach.tai_nhieu_tu_cuu",
+                        lambda *a, **k: {})
+    with pytest.raises(RuntimeError) as e:
+        tm.thay_mau(p, conn=c, log=lambda m: None)
+    c.close()
+    loi = str(e.value).lower()
+    assert "watermark" in loi or "bản sạch" in loi, \
+        f"dừng nhưng không nói rõ vì sao: {e.value}"
+
+
+def test_TAI_DU_thi_chay_binh_thuong(tmp_path, monkeypatch):
+    """Chặn oan tệ hơn bỏ sót: tải đủ bản sạch thì Export phải chạy tiếp."""
+    from autoedit.offline import runner as orun
+    from autoedit.offline import thay_mau as tm
+    from autoedit.sotra import db as sdb
+
+    p = tmp_path / "proj"
+    (p / "media").mkdir(parents=True)
+    sach = tmp_path / "s.mp4"
+    sach.write_bytes(bytes(200_000))
+    c = sdb.mo(tmp_path / "kho" / "sotra.db")
+    sdb.them_clip(c, {"id": "envato:X2", "nguon": "envato", "tieu_de": "a",
+                      "url_video": "https://cdn/p.mp4", "path_local": str(sach)})
+    c.commit()
+    hd = _hd_envato("envato:X2")
+    orun.luu(p, hd)
+    da_dung = []
+    monkeypatch.setattr(tm, "relocate",
+                        lambda *a, **k: (da_dung.append(1), ({}, {}, []))[1])
+    monkeypatch.setattr(tm, "dung_draft", lambda *a, **k: tmp_path / "draft")
+    monkeypatch.setattr(tm, "_cat_voice", lambda *a, **k: {})
+    monkeypatch.setattr("autoedit.sourcer.tai_sach.tai_nhieu_tu_cuu",
+                        lambda *a, **k: {"X2": sach})
+    tm.thay_mau(p, profile=object(), conn=c, log=lambda m: None)
+    c.close()
+    assert da_dung, "clip đã có bản sạch mà vẫn bị chặn"
+
+
+def test_clip_NON_envato_khong_bi_anh_huong(tmp_path, monkeypatch):
+    """pexels/ref/kho không có khái niệm bản sạch — không được chặn nhầm."""
+    from autoedit.offline import runner as orun
+    from autoedit.offline import thay_mau as tm
+    from autoedit.sotra import db as sdb
+
+    p = tmp_path / "proj"
+    (p / "media").mkdir(parents=True)
+    c = sdb.mo(tmp_path / "kho" / "sotra.db")
+    sdb.them_clip(c, {"id": "pexels:9", "nguon": "pexels", "tieu_de": "a",
+                      "url_video": "https://cdn/p.mp4", "path_local": ""})
+    c.commit()
+    hd = {"trang_thai": "khoa", "offset": 0.0,
+          "khoi": [{"v0": 0.0, "v1": 2.0, "tho": 0.0}],
+          "hinh": [{"t0": 0.0, "dur": 2.0, "khoi_goc": 0, "chon": 0,
+                    "uv": [{"id": "pexels:9", "nguon": "pexels", "tieu_de": "a"}]}]}
+    orun.luu(p, hd)
+    da_dung = []
+    monkeypatch.setattr(tm, "relocate",
+                        lambda *a, **k: (da_dung.append(1), ({}, {}, []))[1])
+    monkeypatch.setattr(tm, "dung_draft", lambda *a, **k: tmp_path / "draft")
+    monkeypatch.setattr(tm, "_cat_voice", lambda *a, **k: {})
+    tm.thay_mau(p, profile=object(), conn=c, log=lambda m: None)
+    c.close()
+    assert da_dung, "clip pexels bị chặn oan vì luật bản sạch Envato"
+
+
+def test_relocate_KHONG_TAI_preview_watermark_nua(tmp_path):
+    """Cửa THỨ BA: `relocate` có nhánh tải thẳng preview watermark
+    (`thay_mau.py:273`). Ai gọi `relocate` không qua `thay_mau` là lọt.
+
+    User họp team 10/09: FIX TRIỆT ĐỂ. Preview watermark KHÔNG được lên
+    timeline nữa — miếng đó phải thử ứng viên DỰ BỊ, hết dự bị thì để ô giữ
+    chỗ (việc A). Ô giữ chỗ nói thật là "chưa có clip"; watermark nói dối là
+    "có clip rồi" mà giao khách không được.
+    """
+    from autoedit.offline import thay_mau as tm
+    from autoedit.sotra import db as sdb
+
+    p = tmp_path / "proj"
+    p.mkdir()
+    c = sdb.mo(tmp_path / "kho" / "sotra.db")
+    sdb.them_clip(c, {"id": "envato:P1", "nguon": "envato", "tieu_de": "a",
+                      "url_video": "https://cdn/preview.mp4", "path_local": ""})
+    c.commit()
+    hd = {"offset": 0.0, "khoi": [{"v0": 0.0, "v1": 2.0, "tho": 0.0}],
+          "hinh": [{"t0": 0.0, "dur": 2.0, "khoi_goc": 0, "chon": 0,
+                    "uv": [{"id": "envato:P1", "nguon": "envato", "tieu_de": "a"}]}]}
+    da_tai = []
+    goc = tm._tai
+    tm._tai = lambda url, dich, **k: (da_tai.append(url), goc(url, dich, **k))[1]
+    try:
+        video, _ids, warns = tm.relocate(p, hd, c, lambda m: None)
+    finally:
+        tm._tai = goc
+    c.close()
+    assert not da_tai, f"vẫn tải preview watermark: {da_tai}"
+    assert 0 not in video, "preview watermark vẫn lên timeline"
+    assert any("bản sạch" in w or "watermark" in w.lower() for w in warns), warns

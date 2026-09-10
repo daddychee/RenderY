@@ -220,7 +220,9 @@ def test_relocate_GHI_LINK_cua_clip_dang_chon(tmp_path):
     assert hd["hinh"][0]["ho_link"] == "https://elements.envato.com/rome-V1", \
         f"thiếu/sai link tải tay: {hd['hinh'][0].get('ho_link')!r}"
     assert hd["hinh"][0]["ho_ten"] == "Rome dawn"
-    assert any("giữ chỗ" in w for w in warns), warns
+    # Từ 10/09 (user họp team): clip envato thiếu bản sạch KHÔNG dùng preview
+    # watermark nữa -> warning nói đúng nguyên nhân đó, không nói "khay rỗng".
+    assert any("BẢN SẠCH" in w or "giữ chỗ" in w for w in warns), warns
 
 
 def test_LINK_di_TU_relocate_TOI_anh_tren_draft(tmp_path, profile):
