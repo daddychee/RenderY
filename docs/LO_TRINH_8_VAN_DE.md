@@ -704,3 +704,84 @@ thì ưu tiên đổ vào"*), KHÔNG phải lỗi — không tự đổi.
 → F vẫn làm đúng như đã chốt (vài dòng), nhưng phải nói trước với user: nó sẽ
 không đổi cảm nhận về khay. Thứ chi phối khay là tỉ lệ ref/stock, và đó là
 quyết định của user.
+
+---
+
+## VÒNG 9 (10/09/2026) — VIỆC F: xếp hạng nguồn trong khay
+
+User 10/09: *"Tạm thời vẫn giữ luật cũ. Sau khi hoàn thiện tool thì tôi sẽ đưa
+luật riêng của từng Niche."* → KHÔNG đụng tỉ lệ ref/stock.
+
+### Mức phạt — ĐO, không ước
+
+Khoảng cách điểm trong một khay (996 miếng production): trung vị **13.0**,
+p25 **7.0**. Điểm trung vị: ref 20.5 · envato 10.0 · pixabay 12.0 · pexels 8.0.
+
+Mô phỏng trong nhóm `cham` (KHÔNG đụng ref — ref chèn theo luật `suat_ref`):
+
+| Phạt | Khay đổi thứ tự | Dịch envato | Dịch pexels |
+|---|---|---|---|
+| 2/3 | 6/31 | −0.19 | +0.52 |
+| **3/4** | **8/31** | **−0.25** | **+0.70** |
+| 5/6 | 14/31 | −0.42 | +1.12 |
+| 8/9 | 16/31 | −0.57 | +1.42 |
+
+Chốt **`PHAT_NGUON = {"pexels": 3.0, "pixabay": 4.0}`**.
+
+Kèm theo: **`DIEM_UU_TIEN_NGUON` 2.5 → 6.0**. Bắt buộc, vì 2.5 không thắng nổi
+phạt 4.0 — gõ `--uu-tien-nguon pexels` mà pexels vẫn nằm dưới envato là sai.
+Test `test_sotra.py::test_tra_uu_tien_nguon` có sẵn từ trước sẽ bắt lỗi này.
+
+### LỖI BẮT ĐƯỢC LÚC NGHIỆM THU — phạt điểm KHÔNG kèm giữ chỗ = XOÁ nguồn
+
+Chạy `tra()` thật trên kho production (17.323 clip), 8 từ khoá:
+
+- `market vendor`: `ppRRRRRRE` → `RRRRREEEEEE` — **mất sạch pexels**
+- 3/8 từ khoá mất hẳn stock (`market`, `ocean`, `desert`)
+
+Nguyên nhân: vòng cân nhóm chặn **6 mục/tầng**. Cả khay cùng tầng L1; pexels
+tụt 22.0 → 19.0 nên rơi dưới 6 envato 20.0 điểm và bị cắt khỏi giỏ. Đó là
+**LOẠI**, trái hẳn yêu cầu "đẩy xuống, không loại".
+
+Vá: **1 suất giữ chỗ mỗi nguồn bị phạt** (cùng cơ chế `suat_ref` đã có). Sau vá:
+
+| | Trước | Sau |
+|---|---|---|
+| Khay mất hẳn stock | 3/8 | **0/8** |
+| Vị trí trung bình stock | 5.25 | **9.24** |
+
+### TÁC DỤNG PHỤ có thật — phải nói rõ
+
+Đẩy pexels xuống thì **envato trồi lên chiếm chỗ**, khay đầy hơn nên ref nhận
+ít suất "dôi" hơn:
+
+| Nguồn | Trước | Sau |
+|---|---|---|
+| ref | 46 | 34 |
+| envato | 27 | 42 |
+| pexels | 6 | 10 |
+| pixabay | 2 | 7 |
+
+**LUẬT ref KHÔNG vỡ**: `suat_ref` là SÀN (user chốt 07/09), sàn 2 vẫn được
+tôn trọng ở cả 8 từ khoá (thấp nhất 4 ref/khay). Ref giảm vì nó vốn ăn phần
+"dôi" khi nhóm `cham` mỏng — nay `cham` dày hơn nên phần dôi ít đi. Đây là hệ
+quả tất yếu của việc F, không phải lỗi; đã khoá bằng
+`test_san_suat_ref_van_duoc_giu`.
+
+### Mối nối phải khoá: `do_ung_vien` cắt lại khay
+
+`dung.py:80` cắt `khac[:so_moi_khoi - len(ref_uv)]`. Stock nằm CUỐI `khac`
+(điểm thấp nhất sau phạt) nên **bị cắt trước tiên** — suất giữ chỗ đặt trong
+`tra()` có thể chết ở đây mà không báo gì. Hai hàm ở hai file, sửa bên này
+không ai nhắc bên kia.
+
+Đo qua đúng đường đó trên kho thật: **3/8 khay không có stock trước phạt → 0/8
+sau phạt + giữ chỗ**. Đã khoá bằng `test_suat_giu_cho_SONG_SOT_qua_do_ung_vien`.
+
+### BH14 — Phạt điểm trong hệ có HẠN NGẠCH là xoá, không phải đẩy xuống
+
+Trực giác "trừ vài điểm thì nó tụt vài bậc" chỉ đúng khi danh sách phẳng. Khay
+RenderY có giỏ 6 mục/tầng, nên trừ điểm đủ để rơi khỏi top-6 là **biến mất
+khỏi khay**. Test đơn (2 clip) không bao giờ lộ ra — chỉ chạy trên kho thật
+mới thấy. Mọi thay đổi điểm số phải nghiệm thu trên kho thật, và nếu yêu cầu
+là "không loại" thì phải có **suất giữ chỗ** chứ không chỉ chỉnh điểm.

@@ -14,7 +14,23 @@ from autoedit.sotra import db as sdb
 
 DIEM = {"L1": 10.0, "L2": 6.0, "L3": 3.0}
 DIEM_NEO = 2.0
-DIEM_UU_TIEN_NGUON = 2.5
+# 6.0 chứ không phải 2.5: phải THẮNG được `PHAT_NGUON` (tối đa 4.0), nếu không
+# `--uu-tien-nguon pexels` gõ vào mà pexels vẫn nằm dưới envato — người dùng
+# bảo ưu tiên thì luật chung phải nhường.
+DIEM_UU_TIEN_NGUON = 6.0
+# VIỆC F (user chốt 09/09): pexels/pixabay xấu hơn -> ĐẨY XUỐNG, KHÔNG loại.
+# Thứ tự mong muốn: ref -> envato -> pexels -> pixabay.
+#
+# Mức 3.0/4.0 là số ĐO trên 996 miếng production 10/09, không phải ước:
+#   khoảng cách điểm trong một khay: trung vị 13.0, p25 7.0
+#   mô phỏng trong nhóm `cham` (ref có luật `suat_ref` riêng, không đụng):
+#     phạt 2/3 -> 6/31 khay đổi thứ tự      phạt 5/6 -> 14/31 (envato -0.42)
+#     phạt 3/4 -> 8/31 (envato -0.25)       phạt 8/9 -> 16/31 (envato -0.57)
+# Chọn 3/4: đủ lật khi điểm sát nhau (p25=7), không đủ để đẩy stock văng khỏi
+# khay. Nặng hơn thì bắt đầu kéo tụt cả envato/kho mà stock vẫn không xuống
+# thêm — vì 10/31 khay có stock thì stock là TOÀN BỘ nhóm cham, không có gì
+# để so. Đó là trần tự nhiên, đừng nâng mức phạt để đuổi theo nó.
+PHAT_NGUON = {"pexels": 3.0, "pixabay": 4.0}
 # LỚP NGHĨA (đợt 3, 06/09) — topic của beat khớp lớp L1/L2 của khối voice.
 # Nặng hơn lớp Hình vì đây mới là "video này NÓI VỀ gì", còn pixel chỉ tả vật.
 DIEM_NGHIA_L1 = 12.0
@@ -130,6 +146,7 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
             c["topic_beat"] = tp
             c["an_du"] = int(an_du)
         d += DIEM_NEO if co_neo else 0
+        d -= PHAT_NGUON.get(c["nguon"], 0.0)     # việc F: đẩy xuống, KHÔNG loại
         if uu_tien_nguon and c["nguon"] == uu_tien_nguon:
             d += DIEM_UU_TIEN_NGUON
         # 3. kho b-roll của TẬP KHÁC mà không rõ geo: đè xuống đáy khay —
@@ -153,6 +170,19 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         ra.append(c)
         if len(ra) >= so:
             break
+    # SUẤT GIỮ CHỖ cho nguồn bị phạt — user chốt "ĐẨY XUỐNG, KHÔNG LOẠI".
+    # Bắt thật lúc nghiệm thu 10/09 trên kho production: từ khoá `market vendor`
+    # trước phạt là `ppRRRRRRE`, sau phạt thành `RRRRREEEEEE` — MẤT SẠCH pexels.
+    # Cả khay cùng tầng L1, pexels tụt 22.0 -> 19.0 nên rơi dưới 6 envato 20.0
+    # điểm và bị vòng giỏ trên cắt. Phạt điểm mà không giữ chỗ = xoá nguồn.
+    # Cùng cơ chế `suat_ref` bên dưới, 1 suất/nguồn (đủ để người dựng thấy nó
+    # còn tồn tại; muốn nhiều hơn thì lọc nguồn ở khay tra cứu — việc E).
+    for ng in PHAT_NGUON:
+        if any(c["nguon"] == ng for c in ra):
+            continue
+        tot = next((c for c in cham if c["nguon"] == ng), None)
+        if tot is not None:
+            ra.append(tot)
     # `suat_ref` là SÀN chứ không phải TRẦN (user chốt 07/09: "cái gì nhiều hơn
     # thì ưu tiên đổ vào"). Trước đây `refs[:2]` chốt cứng: mỗi khối có tới 618
     # cảnh ref đủ điều kiện mà khay chỉ nhận 2 — đúng câu hỏi của user "5 video
