@@ -102,20 +102,57 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-trim-cs .hop{width:min(1200px, 92vw); height:min(86vh, 780px); display:flex;
                  flex-direction:column; background:var(--panel);
                  border:1px solid var(--line); border-radius:14px; overflow:hidden}
-/* cột GỢI Ý clip tương tự (user 08/09) */
-#of-rv-goiy{flex:0 0 208px; border-left:1px solid var(--line); display:flex;
-            flex-direction:column; min-height:0; background:var(--panel2, var(--bg))}
-#of-rv-goiy h4{font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
-               color:var(--muted); margin:0; padding:9px 11px 7px}
-#of-goiy-ds{flex:1 1 0; overflow-y:auto; padding:0 9px 10px; display:flex;
-            flex-direction:column; gap:7px}
-.of-goiy{border:1px solid var(--line); border-radius:8px; overflow:hidden;
-         cursor:pointer; background:#000; flex:0 0 auto}
-.of-goiy img{width:100%; height:74px; object-fit:cover; display:block; opacity:.92}
-.of-goiy .n{font-size:10px; padding:3px 7px; color:var(--muted); line-height:1.3;
-            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-            overflow:hidden}
-.of-goiy:hover{border-color:var(--accent)}
+/* ═══ KHAY TRA CỨU PA B (việc E, user chốt 09/09) ═══
+   Số đo lấy TỪ MOCKUP `scratchpad/ui_o_tra_cuu.html` khối #pa-B, không tự đặt.
+   Cột "Tương tự" cũ BỎ: nó chỉ là tra Library bằng từ khoá rút từ tiêu đề —
+   khay này làm được đúng thế và hơn (gõ từ khoá bất kỳ, lọc nguồn, phân trang),
+   nên bỏ không mất chức năng nào. */
+#of-trim-cs .tren{flex:0 0 236px; display:flex; min-height:0;
+                  border-bottom:1px solid var(--line)}
+#of-rv-meta{flex:0 0 254px; border-left:1px solid var(--line); padding:11px 13px;
+            background:var(--panel2, var(--bg)); font-size:11px; color:var(--muted);
+            display:flex; flex-direction:column; gap:7px; overflow-y:auto}
+#of-rv-meta h5{margin:0; font-size:11.5px; color:var(--fg); line-height:1.4}
+#of-rv-meta .d{display:flex; gap:8px}
+#of-rv-meta .d i{color:#5c6875; flex:0 0 60px; font-style:normal}
+#of-tim-boc{flex:1 1 0; display:flex; flex-direction:column; min-height:0;
+            background:var(--panel2, var(--bg))}
+#of-tim-tra{flex:0 0 auto; padding:9px 11px 0}
+#of-tim-hang1{display:flex; align-items:center; gap:9px}
+#of-tim-hang1 .o{position:relative; flex:1 1 0}
+#of-tim{width:100%; box-sizing:border-box; padding:6px 10px; font-size:11.5px}
+#of-tim-loc{display:flex; flex-wrap:wrap; gap:5px; padding:8px 0 9px}
+#of-tim-loc .nut{font-size:10.5px; padding:3px 9px; border-radius:20px;
+                 border:1px solid var(--line); background:var(--bg);
+                 color:var(--muted); cursor:pointer}
+#of-tim-loc .nut.on{border-color:var(--accent); color:var(--accent)}
+#of-tim-luoi{flex:1 1 0; overflow-y:auto; padding:2px 11px 12px; display:grid;
+             grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px;
+             align-content:start}
+#of-tim-luoi .the{border:1px solid var(--line); border-radius:8px; overflow:hidden;
+                  cursor:pointer; background:#000; position:relative}
+#of-tim-luoi .the:hover{border-color:var(--accent)}
+#of-tim-luoi .the.dang{border-color:var(--accent);
+                       box-shadow:0 0 0 1px var(--accent) inset}
+#of-tim-luoi .the .im{aspect-ratio:16/9; position:relative}
+#of-tim-luoi .the .im img{width:100%; height:100%; object-fit:cover; display:block}
+#of-tim-luoi .the .n{font-size:9.5px; padding:3px 6px; color:var(--muted);
+                     line-height:1.3; display:-webkit-box; -webkit-line-clamp:2;
+                     -webkit-box-orient:vertical; overflow:hidden}
+#of-tim-luoi .cd{position:absolute; left:4px; top:4px; font-size:8.5px;
+                 font-weight:700; padding:1px 5px; border-radius:4px;
+                 background:var(--accent); color:#08210f; z-index:2}
+#of-tim-luoi .gio{position:absolute; right:4px; bottom:4px; font-size:9px;
+                  padding:1px 5px; border-radius:4px; background:rgba(0,0,0,.66);
+                  color:#dfe6ee; z-index:2}
+#of-tim-luoi .dd{position:absolute; right:4px; top:4px; font-size:8.5px;
+                 padding:1px 5px; border-radius:4px; background:var(--warn);
+                 color:#231a05; z-index:2}
+#of-tim-luoi .trong{grid-column:1/-1; text-align:center; color:var(--muted);
+                    font-size:11.5px; padding:26px 0}
+#of-tim-trang{display:flex; align-items:center; justify-content:center; gap:9px;
+              grid-column:1/-1; padding:4px 0 2px; font-size:11px;
+              color:var(--muted)}
 #of-trim-cs .dau{display:flex; align-items:center; gap:10px; padding:10px 14px;
                  border-bottom:1px solid var(--line); font-size:13.5px}
 /* thanh trim */
@@ -774,7 +811,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <span style="flex:1"></span>
 
     <span class="note mono" id="of-phien" style="margin:0;cursor:pointer"
-          title="phiên tải bản sạch — click để máy đăng nhập lại (manager)"
+          title="phiên tải bản sạch Envato — click để máy đăng nhập lại"
           onclick="ofPhienDangNhap()"></span>
     <button class="btn ghost" id="of-nhac-nut" onclick="ofNhacMo()" title="nhạc nền của chương — máy đề xuất theo mood">♪ Nhạc</button>
     <input type="text" id="of-noi-xuat" placeholder="nơi xuất draft — dán Z:\..."
@@ -889,15 +926,29 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <span class="note mono" id="of-trim-so" style="margin:0">0.0 – 0.0s</span>
       <button class="btn ghost small" onclick="ofDongTrim()">Đóng (Esc)</button>
     </div>
-    <div style="flex:1 1 0; display:flex; min-height:0">
+    <div class="tren">
       <div class="of-khung-v" id="of-rv-khung" style="flex:1 1 0">
         <video id="of-rv-video" muted loop playsinline controls></video>
         <img id="of-rv-anh" alt="" hidden>
       </div>
-      <div id="of-rv-goiy">
-        <h4>Tương tự <span id="of-goiy-dem"></span></h4>
-        <div id="of-goiy-ds"></div>
+      <div id="of-rv-meta"></div>
+    </div>
+    <!-- KHAY TRA CỨU (việc E) — nằm TRONG popup theo đúng yêu cầu user 09/09:
+         "phải nằm trong phần popup mở ra click đúp vào video chứ không nằm ở ngoài" -->
+    <div id="of-tim-boc">
+      <div id="of-tim-tra">
+        <div id="of-tim-hang1">
+          <div class="o">
+            <input type="text" id="of-tim" oninput="ofTimDebounce()"
+                   placeholder="tra Library: himalaya, chợ, cầu, dòng sông...">
+          </div>
+          <span class="note mono" id="of-tim-nhan" style="margin:0">—</span>
+          <button class="btn ghost small" id="of-tim-hut" onclick="ofTimHut()"
+                  title="tra thẳng Envato/Pexels/Pixabay rồi nạp vào kho">⛏ Hút thêm (~12s)</button>
+        </div>
+        <div id="of-tim-loc"></div>
       </div>
+      <div id="of-tim-luoi"></div>
     </div>
     <div id="of-trim">
       <div id="of-trim-thanh">
@@ -1634,13 +1685,23 @@ async function ofVePhien() {
       ? ` — ${ngay < 0 ? 'chưa tải bản sạch lần nào' : ngay + ' ngày chưa tải được bản sạch'}, phiên có thể đã chết: bấm để đăng nhập lại`
       : ''
     const el = document.getElementById('of-phien')
-    el.title = 'phiên tải bản sạch — click để máy đăng nhập lại (manager)' + nhac
+    // Nói ĐÚNG quyền thật (user báo 10/09: nhân sự level 2 đọc chữ
+    // "(manager)" nên không dám bấm, trong khi server vẫn cho phép).
+    const duoc = !ME || ME.dang_nhap_nha !== false
+    el.style.cursor = duoc ? 'pointer' : 'default'
+    el.title = (duoc ? 'phiên tải bản sạch Envato — click để máy đăng nhập lại'
+                     : 'phiên tải bản sạch Envato — cần cấp Vận hành trở lên mới đăng nhập được')
+               + nhac
     el.innerHTML =
       `<span style="color:${mau_e}">${cu_qua ? '⚠' : dot(d.envato)} Envato</span> ` +
       `<span style="color:${d.epidemic.co_phien ? 'var(--ok,#5cb98a)' : 'var(--muted)'}">${dot(d.epidemic)} Epidemic</span>`
   } catch (e) { }
 }
 async function ofPhienDangNhap() {
+  if (ME && ME.dang_nhap_nha === false) {
+    toastOf('Cần cấp Vận hành trở lên mới đăng nhập được nhà cung cấp — nhờ quản lý bấm giúp')
+    return
+  }
   const nha = prompt('Đăng nhập lại nhà nào? (envato / epidemic)', 'envato')
   if (!nha) return
   try {
@@ -2198,23 +2259,124 @@ async function ofTho(delta) {
   }
   ofVeAll()
 }
+// ═══ KHAY TRA CỨU PA B (việc E) ═══
+// User chốt 09/09: "hơn 21 video 1 lượt hiển thị thì sẽ chuyển sang trang 2".
+// Cắt ở SERVER bằng offset/limit — API đã có sẵn `het` + `offset_tiep`; cắt ở
+// client là tải 200 clip rồi vứt 179, và số đếm sẽ sai.
+const OF_TIM_MOI_TRANG = 21
 let OF_TIM_Q = '', OF_TIM_T = 0, OF_TIM_KQ = null
+let OF_TIM_TRANG = 0, OF_TIM_HET = true
+let OF_TIM_LOC = {ng: '', neo: false, dai: false, chua: false}
+
 function ofTimDebounce() {
   clearTimeout(OF_TIM_T)
-  OF_TIM_T = setTimeout(async () => {
-    const _oti = document.getElementById('of-tim')
-    OF_TIM_Q = _oti ? _oti.value.trim() : ''
-    OF_TIM_KQ = null
-    if (OF_TIM_Q) {
-      try {
-        const d = await api('/api/sotra?q=' + encodeURIComponent(OF_TIM_Q) + '&limit=40')
-        OF_TIM_KQ = (d.clips || []).map(c => ({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
-          lop: 'TIM', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo,
-          t0: c.t0, t1: c.t1}))
-      } catch (e) { }
-    }
-    ofVeKhay()
-  }, 300)
+  OF_TIM_T = setTimeout(() => { OF_TIM_TRANG = 0; ofTimGoi() }, 300)
+}
+async function ofTimGoi() {
+  const _oti = document.getElementById('of-tim')
+  OF_TIM_Q = _oti ? _oti.value.trim() : ''
+  if (!OF_TIM_Q) { OF_TIM_KQ = null; OF_TIM_TRANG = 0; ofTimVe(); return }
+  const u = '/api/sotra?q=' + encodeURIComponent(OF_TIM_Q)
+    + '&limit=' + OF_TIM_MOI_TRANG
+    + '&offset=' + (OF_TIM_TRANG * OF_TIM_MOI_TRANG)
+    + (OF_TIM_LOC.ng ? '&nguon=' + encodeURIComponent(OF_TIM_LOC.ng) : '')
+    + (OF_TIM_LOC.neo ? '&neo=1' : '')
+  try {
+    const d = await api(u)
+    // `het` của API tính theo bản ghi nó trả; trang trả ÍT HƠN một trang đầy
+    // nghĩa là đã hết. Nhìn ảnh thật 10/09: ở trang 2 nút «Sau ›» vẫn bật dù
+    // chỉ còn 21 kết quả -> bấm tiếp là sang trang rỗng.
+    OF_TIM_HET = !!d.het || (d.clips || []).length < OF_TIM_MOI_TRANG
+    // `dai`/`chua` API không có -> lọc ở client TRONG TRANG (nói rõ ở nhãn để
+    // người dựng không tưởng cả kho chỉ có bấy nhiêu)
+    let ds = d.clips || []
+    if (OF_TIM_LOC.dai) ds = ds.filter(c => (c.dai_s || 0) >= 5)
+    if (OF_TIM_LOC.chua) ds = ds.filter(c => !c.da_dung)
+    OF_TIM_KQ = ds
+  } catch (e) { OF_TIM_KQ = []; OF_TIM_HET = true }
+  ofTimVe()
+}
+function ofTimDatNg(n) {
+  OF_TIM_LOC.ng = (OF_TIM_LOC.ng === n ? '' : n); OF_TIM_TRANG = 0; ofTimGoi()
+}
+function ofTimBat(k) {
+  OF_TIM_LOC[k] = !OF_TIM_LOC[k]; OF_TIM_TRANG = 0; ofTimGoi()
+}
+function ofTimSang(b) {
+  OF_TIM_TRANG = Math.max(0, OF_TIM_TRANG + b); ofTimGoi()
+}
+function ofTimThe(c) {
+  // Nhãn thẻ theo mockup: nguồn · độ dài giây · đã dùng
+  const dai = (c.dai_s || 0) > 0 ? `<span class="gio">${(+c.dai_s).toFixed(1)}s</span>` : ''
+  const dung = c.da_dung ? '<span class="dd">đã dùng</span>' : ''
+  const anh = c.url_anh || ('/api/sotra/frame?id=' + encodeURIComponent(c.id) + '&vai=dau')
+  return `<span class="cd">${esc((c.nguon || '').toUpperCase())}</span>${dung}${dai}
+    <div class="im"><img src="${esc(anh)}" loading="lazy" alt=""></div>
+    <div class="n">${esc(c.tieu_de || '')}</div>`
+}
+function ofTimVe() {
+  const luoi = document.getElementById('of-tim-luoi')
+  const nhan = document.getElementById('of-tim-nhan')
+  const loc = document.getElementById('of-tim-loc')
+  if (!luoi) return
+  const f = OF_TIM_LOC
+  loc.innerHTML =
+    `<button class="nut ${f.ng === '' ? 'on' : ''}" onclick="ofTimDatNg('')">Tất cả</button>`
+    + ['ref', 'envato', 'pexels', 'pixabay'].map(n =>
+        `<button class="nut ${f.ng === n ? 'on' : ''}" onclick="ofTimDatNg('${n}')">`
+        + n[0].toUpperCase() + n.slice(1) + '</button>').join('')
+    + `<span style="flex:1"></span>
+       <button class="nut ${f.neo ? 'on' : ''}" onclick="ofTimBat('neo')">⚑ có neo</button>
+       <button class="nut ${f.dai ? 'on' : ''}" onclick="ofTimBat('dai')">≥ 5s</button>
+       <button class="nut ${f.chua ? 'on' : ''}" onclick="ofTimBat('chua')">chưa dùng</button>`
+  if (OF_TIM_KQ === null) {
+    nhan.textContent = '—'
+    luoi.innerHTML = '<div class="trong">gõ từ khoá để tra Library</div>'
+    return
+  }
+  nhan.textContent = OF_TIM_KQ.length
+    ? `${OF_TIM_KQ.length} kết quả · trang ${OF_TIM_TRANG + 1}` : '0 kết quả'
+  luoi.innerHTML = ''
+  if (!OF_TIM_KQ.length) {
+    luoi.innerHTML = '<div class="trong">không có clip nào — thử từ khoá khác '
+      + 'hoặc bấm ⛏ Hút thêm</div>'
+  }
+  for (const c of OF_TIM_KQ) {
+    const d = document.createElement('div')
+    d.className = 'the' + (OF_RV && c.id === OF_RV.id ? ' dang' : '')
+    d.innerHTML = ofTimThe(c)
+    d.onclick = () => ofReview({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
+      lop: 'L2', diem: 0, url_anh: c.url_anh, url_video: c.url_video,
+      geo: c.geo, t0: c.t0, t1: c.t1, dai_s: c.dai_s})
+    luoi.appendChild(d)
+  }
+  if (OF_TIM_TRANG > 0 || !OF_TIM_HET) {
+    const t = document.createElement('div')
+    t.id = 'of-tim-trang'
+    t.innerHTML =
+      `<button class="btn ghost small" ${OF_TIM_TRANG ? '' : 'disabled'}
+               onclick="ofTimSang(-1)">‹ Trước</button>
+       <span>trang ${OF_TIM_TRANG + 1}</span>
+       <button class="btn ghost small" ${OF_TIM_HET ? 'disabled' : ''}
+               onclick="ofTimSang(1)">Sau ›</button>`
+    luoi.appendChild(t)
+  }
+}
+async function ofTimHut() {
+  if (ME && ME.hut_nguon === false) {
+    toastOf('Cần cấp Vận hành trở lên mới hút nguồn mới'); return
+  }
+  const q = (document.getElementById('of-tim') || {}).value || ''
+  if (!q.trim()) { toastOf('Gõ từ khoá trước rồi bấm Hút'); return }
+  const n = document.getElementById('of-tim-hut')
+  n.disabled = true; n.textContent = '⛏ đang hút…'
+  try {
+    await api('/api/sotra/hut', {method: 'POST',
+      body: JSON.stringify({tu_khoa: [q.trim()]})})
+    toastOf('Đang hút «' + q.trim() + '» từ Envato/Pexels/Pixabay — ~12s')
+    setTimeout(() => { OF_TIM_TRANG = 0; ofTimGoi() }, 13000)
+  } catch (e) { toastOf('Lỗi: ' + e.message) }
+  setTimeout(() => { n.disabled = false; n.textContent = '⛏ Hút thêm (~12s)' }, 13000)
 }
 function ofVeKhay() {
   if (OF_PHA !== 2) return
@@ -2412,29 +2574,25 @@ async function ofDoiPha() {
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
-async function ofGoiY(u) {
-  // gợi ý clip TƯƠNG TỰ: tra Library bằng từ khóa rút từ tiêu đề clip đang xem
-  const ds = document.getElementById('of-goiy-ds')
-  ds.innerHTML = '<span class="note" style="margin:0">đang tìm…</span>'
-  const tu = (u.tieu_de || '').toLowerCase().match(/[a-z]{4,}/g) || []
-  const q = tu.filter(w => !['with','from','shot','video','close','stock'].includes(w)).slice(0, 3).join(' ')
-  if (!q) { ds.innerHTML = '<span class="note" style="margin:0">—</span>'; return }
-  try {
-    const d = await api('/api/sotra?q=' + encodeURIComponent(q) + '&limit=24')
-    const kq = (d.clips || []).filter(c => c.id !== u.id).slice(0, 20)
-    document.getElementById('of-goiy-dem').textContent = kq.length || ''
-    ds.innerHTML = ''
-    if (!kq.length) { ds.innerHTML = '<span class="note" style="margin:0">không có clip tương tự</span>'; return }
-    for (const c of kq) {
-      const el = document.createElement('div')
-      el.className = 'of-goiy'
-      el.innerHTML = `<img src="${esc(c.url_anh || ('/api/sotra/frame?id=' + encodeURIComponent(c.id) + '&vai=dau'))}" loading="lazy">
-        <div class="n">${esc(c.tieu_de)}</div>`
-      el.onclick = () => ofReview({id: c.id, nguon: c.nguon, tieu_de: c.tieu_de,
-        lop: 'L2', diem: 0, url_anh: c.url_anh, url_video: c.url_video, geo: c.geo})
-      ds.appendChild(el)
-    }
-  } catch (e) { ds.innerHTML = '<span class="note" style="margin:0">lỗi tra</span>' }
+function ofRvMeta(u) {
+  // Bảng thông tin bên phải — thay chỗ cột "Tương tự" cũ (mockup PA B).
+  // Cột cũ chỉ là tra Library bằng từ khoá rút từ tiêu đề; khay tra cứu bên
+  // dưới làm được đúng thế và hơn, nên bỏ không mất chức năng nào.
+  const el = document.getElementById('of-rv-meta')
+  if (!el) return
+  // Clip `kho:*`/`ref:*` không có cột `dai_s`, nhưng <video> đã đo được độ dài
+  // thật (OF_RV_DAI). Nhìn ảnh thật 10/09: bảng ghi «—» trong khi tiêu đề popup
+  // ghi «15.7s» — dữ liệu CÓ mà không hiện (BH13).
+  const gs = (u.dai_s || 0) > 0 ? +u.dai_s
+           : ((u.t1 || 0) > (u.t0 || 0) ? u.t1 - u.t0 : (OF_RV_DAI || 0))
+  const d = gs > 0 ? gs.toFixed(1) + 's' : '—'
+  const dong = (t, v) => `<div class="d"><i>${t}</i><span>${esc(v || '—')}</span></div>`
+  el.innerHTML = `<h5>${esc(u.tieu_de || u.nhan || '')}</h5>`
+    + dong('nguồn', (u.nguon || '').toUpperCase())
+    + dong('độ dài', d)
+    + dong('neo', u.geo || '')
+    + dong('đã dùng', u.da_dung ? 'có' : 'chưa')
+    + (u.tap ? dong('ở tập', u.tap) : '')
 }
 function ofDongTrim() {
   document.getElementById('of-trim-cs').classList.remove('mo')
@@ -2457,6 +2615,7 @@ async function ofReview(u) {
       OF_RV_T0 = 0; OF_RV_T1 = OF_RV_DAI
       document.getElementById('of-trim').hidden = !(OF_RV_DAI > 0.5)
       ofVeTrim()
+      ofRvMeta(OF_RV)          // giờ mới biết độ dài thật -> vẽ lại bảng
     }
     v.ontimeupdate = () => {
       const ph = document.getElementById('of-trim-ph')
@@ -2468,7 +2627,7 @@ async function ofReview(u) {
     v.hidden = true; a.hidden = false; a.src = ofAnh(u)
     document.getElementById('of-trim').hidden = true
   }
-  ofGoiY(u)
+  ofRvMeta(u)
 }
 function ofVeTrim() {
   if (!(OF_RV_DAI > 0)) return

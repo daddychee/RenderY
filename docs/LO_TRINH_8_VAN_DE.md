@@ -1133,3 +1133,112 @@ tải sáng nay).
 → Ngưỡng cảnh báo **≥2 ngày** đang quá lỏng: phiên chết buổi sáng thì chiều
 chỉ báo vẫn xanh. CHƯA sửa — cần user chốt ngưỡng, và việc này KHÔNG cấp bách
 nữa vì cửa 2 + cửa 3 đã chặn không cho draft bẩn ra. Ghi lại để không quên.
+
+---
+
+## VÒNG 12 (10/09/2026) — "Nhân sự không ấn được vào Envato"
+
+User: *"Nhân sự không ấn được vào envato do quyền đang set chỉ có của Manager"*.
+
+### Kiểm trước: SERVER KHÔNG CHẶN
+
+Gọi endpoint thật trên production với từng cấp:
+
+| Cấp | Kết quả |
+|---|---|
+| level 2, vai editor | **200 OK — được phép** |
+| level 1 | chặn |
+| level 0 | chặn |
+
+Cửa `duoc_dang_nhap_nha` đã sửa **09/09** đúng cho haint/hieuvn (cả hai level 2
+"Vận hành — Sản xuất"). Chú thích trong mã ghi rõ điều đó.
+
+### Lỗi thật nằm ở GIAO DIỆN
+
+1. `/api/me` trả `nghien_cuu_kenh` nhưng **không trả `dang_nhap_nha`** — trang
+   không biết người đang xem có quyền hay không.
+2. Tooltip chỉ báo phiên ghi cứng **"(manager)"** ở HAI chỗ (HTML tĩnh dòng 777
+   + JS dựng lại dòng 1637) — **sai sự thật** với level 2.
+
+Nhân sự đọc "(manager)" nên không dám bấm. Chức năng chạy được mà không ai
+dùng.
+
+### Đã vá
+
+| # | Thay đổi | File |
+|---|---|---|
+| 1 | `/api/me` trả thêm `dang_nhap_nha` | `web/server.py` |
+| 2 | Bỏ "(manager)" ở tooltip tĩnh; JS dựng tooltip theo **quyền thật** | `index.html` |
+| 3 | Con trỏ chuột đổi theo quyền; không có quyền thì bấm ra lời nhắc rõ, không gọi API rồi nhận lỗi khó hiểu | `index.html` |
+
+### BH18 — Giao diện nói SAI quyền cũng là chức năng chết
+
+Ngược với BH11 (test xanh mà chức năng hỏng): ở đây **chức năng chạy được**,
+cửa server đã mở đúng từ hôm trước, nhưng một chữ "(manager)" trong tooltip
+làm cả đội nghĩ mình không có quyền. Sửa cửa quyền mà quên sửa lời giải thích
+đi kèm là chưa sửa xong.
+
+Luật: mỗi lần đổi cửa quyền, phải `grep` tên vai trong giao diện xem còn chỗ
+nào ghi cứng cấp cũ.
+
+---
+
+## VÒNG 13 (10/09/2026) — VIỆC E: khay tra cứu PA B trong popup
+
+User: *"Làm nốt việc E. Kiểm - test xanh mới code - Do phần này có kèm giao
+diện UI nên phải tính toán kỹ và đảm bảo khớp UI đã đề xuất."*
+
+### Kiểm TRƯỚC khi code — hầu hết đã có sẵn
+
+| Kiểm | Kết quả |
+|---|---|
+| `/api/sotra` | **đã trả đủ** `dai_s`, `geo`, `da_dung`, `tap`, `so_ban`, `het`, `offset_tiep` — KHÔNG phải xây gì ở server cho tra cứu |
+| Mã tra cứu client | **đã viết xong** (`ofTimDebounce`, nhánh `OF_TIM_KQ`) nhưng `#of-tim` không tồn tại trong HTML → mọi `getElementById` bọc `if (_oti)` nên hỏng ÂM THẦM |
+| Quyền nút Hút | dùng nhờ `_duoc_nghien_cuu_kenh` (manager/owner) — cửa viết cho `nap-ref` vốn tốn lượt LLM. Hút tốn **0đ, ~12s** |
+
+### Đã làm
+
+| # | Thay đổi | File |
+|---|---|---|
+| 1 | `duoc_hut_nguon()` — cửa RIÊNG theo LEVEL, khuôn `duoc_dang_nhap_nha`; endpoint `hut` đổi sang cửa này | `web/server.py` |
+| 2 | `/api/me` trả thêm `hut_nguon` | `web/server.py` |
+| 3 | Thân popup sắp lại theo PA B: khung xem 236px + bảng thông tin 254px + khay tra cứu dưới | `index.html` |
+| 4 | Ô tìm + đếm kết quả + nút `⛏ Hút thêm (~12s)` LUÔN HIỆN | `index.html` |
+| 5 | Lọc nguồn Ref/Envato/Pexels/Pixabay + `⚑ có neo` · `≥ 5s` · `chưa dùng` | `index.html` |
+| 6 | **Phân trang 21/trang** dùng `offset`/`limit` của API (không cắt ở client) | `index.html` |
+| 7 | Nhãn thẻ: nguồn · độ dài giây · đã dùng | `index.html` |
+
+**BỎ cột "Tương tự"** theo mockup. An toàn: cột đó chỉ là tra Library bằng từ
+khoá rút từ tiêu đề clip — khay mới làm đúng thế và hơn (gõ từ khoá bất kỳ,
+lọc nguồn, phân trang). Thay bằng bảng thông tin 254px.
+
+### Kiểm bằng CHROME THẬT — so mockup từng số đo
+
+```
+popup MO: True
+  khung tren    : cao 236px    (mockup 236)  ✓
+  bang thong tin: rong 254px   (mockup 254)  ✓
+  luoi cot      : 7 cot x 161px (minmax 150px) ✓
+  go 'market'   -> 21 the | nhan «21 kết quả · trang 1» ✓
+  loc Envato    -> 21 the, nguon ['ENVATO']  ✓
+  trang 1 vs 2  -> 21 the moi trang, noi dung KHAC NHAU ✓
+```
+
+### BA lỗi chỉ NHÌN ẢNH mới thấy (BH13 lặp lại)
+
+1. **Popup VỠ** — bỏ cột "Tương tự" mà quên gỡ `ofGoiY`; hàm đó vẫn gọi
+   `getElementById('of-goiy-ds').innerHTML` trên phần tử đã xoá → ném lỗi ngay
+   khi mở popup. Test kiểm chuỗi KHÔNG bắt được vì cả hàm lẫn lời gọi đều còn
+   nguyên trong file. Đã gỡ hẳn + khoá bằng test.
+2. **Bảng thông tin ghi «—»** cho độ dài, trong khi tiêu đề popup ghi rõ
+   «0.0 – 15.7s». Clip `kho:*`/`ref:*` không có cột `dai_s`, phải lấy từ
+   `OF_RV_DAI` (video đã đo) hoặc `t1-t0`. Dữ liệu CÓ mà không hiện.
+3. **Nút «Sau ›» ở trang 2** — kiểm lại thì ĐÚNG: trang 2 trả đủ 21 clip nghĩa
+   là thật sự còn trang 3. Vẫn siết `het` theo số bản ghi thật của trang để
+   không bao giờ bấm sang trang rỗng.
+
+### BH19 — Xoá một khối giao diện phải gỡ CẢ mã đọc nó
+
+Bỏ HTML mà để lại JS truy cập phần tử đó là quả bom hẹn giờ: file vẫn "đúng"
+với mọi test kiểm chuỗi, nhưng mở lên là vỡ. Mỗi lần xoá một `id` khỏi HTML,
+phải `grep` chính `id` đó trong JS và gỡ hết.

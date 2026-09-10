@@ -172,6 +172,23 @@ def duoc_dang_nhap_nha(request: Request) -> bool:
             or current_role(request) in _VAI_DUOC_DANG_NHAP)
 
 
+def duoc_hut_nguon(request: Request) -> bool:
+    """Được bấm «Hút thêm» (Envato/Pexels/Pixabay) không?
+
+    Cửa RIÊNG, không dùng nhờ `_duoc_nghien_cuu_kenh` — cửa đó viết cho
+    `nap-ref` vốn tốn lượt LLM thật nên chốt manager/owner. Hút thì đo được:
+    **0đ, ~12s, ~24 clip mới** (đo 09/09) và là việc người dựng cần làm NGAY
+    lúc gặp khay mỏng. Chặn họ là bắt chờ quản lý bấm hộ.
+
+    Cùng khuôn `duoc_dang_nhap_nha` (bài học vòng 12): gác theo LEVEL, nhận VAI
+    làm đường lùi khi cổng cũ không gửi header level.
+    """
+    if not behind_crm(request):
+        return True
+    return (current_level(request) >= LEVEL_DUNG_TOI_THIEU
+            or current_role(request) in _VAI_DUOC_DANG_NHAP)
+
+
 def is_admin(request: Request) -> bool:
     return current_role(request) in _VAI_TOAN_QUYEN
 
@@ -621,7 +638,14 @@ def api_me(request: Request):
     return {"nguoi": nguoi, "vai": vai, "qua_crm": behind_crm(request),
             # owner xem/huỷ được job của mọi người; vai khác chỉ job của mình
             "xem_het": is_admin(request),
-            "nghien_cuu_kenh": _duoc_nghien_cuu_kenh(request)}
+            "nghien_cuu_kenh": _duoc_nghien_cuu_kenh(request),
+            # Đăng nhập Envato/Epidemic — user báo 10/09: nhân sự tưởng không
+            # có quyền vì tooltip ghi cứng "(manager)". Cửa server đã mở cho
+            # level 2 từ 09/09; trang phải BIẾT quyền thật để nói đúng.
+            "dang_nhap_nha": duoc_dang_nhap_nha(request),
+            # Hút nguồn — cửa riêng theo LEVEL (việc E): trang phải biết quyền
+            # thật, không thì lại ghi cứng "(manager)" như lỗi vòng 12.
+            "hut_nguon": duoc_hut_nguon(request)}
 
 
 # Nhân sự thấy NAS qua Ổ MẠNG, máy chủ thấy qua ổ đĩa — cùng một chỗ, khác đường.
@@ -1647,8 +1671,8 @@ def api_sotra_clip_loi(request: Request, id: str):
 def api_sotra_hut(req: SoTraHutRequest, request: Request):
     """Phiên hút — manager/owner; chạy nền 1 luồng rón rén."""
     _require_auth(request)
-    if not _duoc_nghien_cuu_kenh(request):
-        raise HTTPException(403, "Chỉ manager/owner được hút nguồn mới")
+    if not duoc_hut_nguon(request):
+        raise HTTPException(403, "Cần cấp Vận hành trở lên mới hút nguồn mới")
     tu_khoas = [t.strip() for t in req.tu_khoa if t.strip()][:40]
     if not tu_khoas:
         raise HTTPException(422, "Chưa có từ khóa nào")

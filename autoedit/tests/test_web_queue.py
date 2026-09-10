@@ -137,7 +137,14 @@ def test_api_me_tra_danh_tinh_va_quyen(monkeypatch):
     monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
     d = srv.api_me(_Req(user="lam", role="admin", fwd_host="crm:9000"))
     assert d == {"nguoi": "lam", "vai": "admin", "qua_crm": True, "xem_het": True,
-                 "nghien_cuu_kenh": True}   # admin duoc nghien cuu kenh ref (05/09)
+                 # admin duoc nghien cuu kenh ref (05/09)
+                 "nghien_cuu_kenh": True,
+                 # 10/09: trang can biet quyen THAT de khong ghi cung "(manager)"
+                 # len tooltip nut dang nhap Envato (nhan su level 2 khong dam bam)
+                 "dang_nhap_nha": True,
+                 # viec E: nut Hut cung can quyen that — cua rieng theo LEVEL
+                 # (hut ton 0d/~12s, khac han nap-ref ton luot LLM)
+                 "hut_nguon": True}
 
     d2 = srv.api_me(_Req(user="hoa", role="viewer"))
     assert d2["xem_het"] is False and d2["qua_crm"] is False

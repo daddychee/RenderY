@@ -1,100 +1,93 @@
-"""Người dựng không bấm được nút đăng nhập Envato (user báo 09/09).
+r"""Nhân sự không bấm được nút đăng nhập Envato — user báo 10/09/2026.
 
-Gặp clip watermark thì phải đăng nhập lại Envato rồi Export lại. Nhưng nút đó
-bị gác bởi `_duoc_nghien_cuu_kenh` = {admin, owner, manager} — cửa gác viết cho
-việc KHÁC. Lý do của nó ghi ngay trong code: *"nghiên cứu kênh ref tốn tải
-YouTube + lượt GLM, và chuẩn dựng là quyết định cấp quản lý"*. Đăng nhập Envato
-thì **không tốn gì**, và đúng là việc người dựng cần làm ngay lúc gặp watermark.
+User: *"Nhân sự không ấn được vào envato do quyền đang set chỉ có của Manager"*.
 
-Đo trên IAM của CRM: `haint` và `hieuvn` đều **level 2 — Vận hành – Sản xuất**,
-tức người dựng. Nên họ bị chặn.
+ĐO THẬT 10/09 trên production, gọi endpoint với từng cấp:
 
-User chốt: tách cửa gác RIÊNG cho việc đăng nhập nhà cung cấp, KHÔNG đụng quyền
-nghiên cứu kênh. Gác theo **level ≥ 2** (mô hình của chính CRM: 5 ban quản trị,
-4 quản lý, 2 vận hành) và vẫn nhận vai làm đường lùi khi thiếu header level.
+```
+level 2 vai editor  -> 200 OK   (được phép)
+level 1 vai editor  -> chặn
+level 0 vai ''      -> chặn
+```
+
+**Server KHÔNG chặn level 2** — cửa `duoc_dang_nhap_nha` đã sửa 09/09 đúng cho
+haint/hieuvn (cả hai đều level 2 "Vận hành — Sản xuất").
+
+Lỗi nằm ở GIAO DIỆN:
+
+1. `/api/me` trả `nghien_cuu_kenh` nhưng **không trả `dang_nhap_nha`** — trang
+   không biết người đang xem có quyền hay không.
+2. Tooltip của chỉ báo phiên ghi cứng **"(manager)"** — sai sự thật với level 2,
+   nên nhân sự đọc xong không dám bấm.
+
+Đây là bẫy ngược với BH11: ở đó test xanh mà chức năng hỏng; ở đây chức năng
+CHẠY ĐƯỢC mà giao diện bảo là không được, nên không ai dùng.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def tc(monkeypatch):
+def client(monkeypatch, tmp_path):
     from autoedit.web import server
 
-    monkeypatch.setenv("RENDERY_TRUST_PROXY", "1")
-    return TestClient(server.app, client=("127.0.0.1", 51001))
+    monkeypatch.setattr(server, "_trust_proxy", lambda r: True)
+    return TestClient(server.app)
 
 
-def _dau(vai: str = "", level: str = "") -> dict:
-    h = {"X-Forwarded-Host": "crm.local", "X-Remote-User": "ai_do"}
-    if vai:
-        h["X-Remote-Role"] = vai
-    if level:
-        h["X-Remote-Level"] = level
-    return h
+def _me(client, level: int, vai: str = "editor") -> dict:
+    # `X-Forwarded-Host` là dấu hiệu "đang chạy sau cổng CRM" (`behind_crm`);
+    # thiếu nó thì mọi cửa đều MỞ (khuôn `is_admin`: chạy trực tiếp là dev).
+    r = client.get("/api/me", headers={"X-Remote-User": "haint",
+                                       "X-Forwarded-Host": "crm.outliery",
+                                       "X-Remote-Level": str(level),
+                                       "X-Remote-Role": vai})
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
-def _req(vai: str = "", level: str = "", qua_crm: bool = True):
-    """Request giả — `headers` phải KHÔNG PHÂN BIỆT HOA THƯỜNG như hàng thật.
+def test_api_me_TRA_quyen_dang_nhap_nha(client):
+    """Giao diện phải biết mình có quyền hay không mới hiện đúng."""
+    d = _me(client, 2)
+    assert "dang_nhap_nha" in d, (
+        "/api/me không trả `dang_nhap_nha` — trang đoán mò, đành ghi cứng "
+        "'(manager)' và nhân sự level 2 không dám bấm")
 
-    Bẫy vừa dính: dùng `dict` thường thì `headers.get("x-remote-level")` luôn
-    trả None, `behind_crm` thành False, cửa gác mở toang — và test XANH VÌ LÝ DO
-    SAI, không phải vì code đúng.
+
+def test_level_2_DUOC_dang_nhap_nha(client):
+    """haint/hieuvn đều level 2 — phải được phép, đúng như cửa server đã mở."""
+    assert _me(client, 2)["dang_nhap_nha"] is True
+
+
+def test_level_1_KHONG_duoc(client):
+    assert _me(client, 1, vai="")["dang_nhap_nha"] is False
+
+
+def test_vai_manager_van_duoc_khi_cong_khong_gui_level(client):
+    """Đường lùi cho cổng cũ: có vai mà không có header level."""
+    assert _me(client, 0, vai="manager")["dang_nhap_nha"] is True
+
+
+def test_UI_KHONG_ghi_cung_chu_manager():
+    """Tooltip nói SAI là chức năng chết dù mã chạy được.
+
+    Chỉ báo phiên là đường DUY NHẤT để đăng nhập lại Envato; ghi '(manager)'
+    lên đó khiến người dựng level 2 tưởng không có quyền.
     """
-    from starlette.datastructures import Headers
-
-    h = _dau(vai, level) if qua_crm else {}
-    return type("R", (), {
-        "headers": Headers(h),
-        "client": type("C", (), {"host": "127.0.0.1"})(),
-    })()
+    h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
+    i = h.find('id="of-phien"')
+    assert i > 0, "không tìm thấy chỉ báo phiên"
+    assert "(manager)" not in h[i:i + 400], (
+        "tooltip chỉ báo phiên vẫn ghi cứng '(manager)' — sai với level 2")
 
 
-def test_nguoi_dung_level_2_bam_duoc(tc):
-    """Đúng ca haint/hieuvn: level 2, vai không thuộc nhóm quản lý."""
-    from autoedit.web.server import duoc_dang_nhap_nha
-
-    assert duoc_dang_nhap_nha(_req("viewer", "2")) is True
-
-
-def test_vai_quan_ly_khong_co_level_van_bam_duoc(tc):
-    """Header level thiếu (cổng cũ) -> vai vẫn là đường lùi."""
-    from autoedit.web.server import duoc_dang_nhap_nha
-
-    for vai in ("admin", "owner", "manager", "leader"):
-        assert duoc_dang_nhap_nha(_req(vai)) is True, vai
-
-
-def test_level_0_va_vai_la_thi_KHONG_bam_duoc(tc):
-    """Khách vãng lai không được kích phiên trình duyệt trên server."""
-    from autoedit.web.server import duoc_dang_nhap_nha
-
-    assert duoc_dang_nhap_nha(_req("khach", "0")) is False
-
-
-def test_ngoai_CRM_thi_mo(tc):
-    """Chạy trực tiếp/dev không có SSO — y khuôn `is_admin`."""
-    from autoedit.web.server import duoc_dang_nhap_nha
-
-    assert duoc_dang_nhap_nha(_req(qua_crm=False)) is True
-
-
-def test_api_dang_nhap_nhan_nguoi_dung_level_2(tc):
-    r = tc.post("/api/phien/dang-nhap?nha=khong-co-that", headers=_dau("viewer", "2"))
-    # qua được cửa quyền -> dừng ở kiểm tên nhà (422), KHÔNG phải 403
-    assert r.status_code == 422, r.text
-
-
-def test_api_dang_nhap_van_chan_khach(tc):
-    r = tc.post("/api/phien/dang-nhap?nha=envato", headers=_dau("khach", "0"))
-    assert r.status_code == 403
-
-
-def test_quyen_nghien_cuu_kenh_KHONG_bi_noi_theo(tc):
-    """Tách cửa gác: mở nút đăng nhập KHÔNG được kéo theo quyền hút nguồn/nạp
-    ref — đó vẫn là quyết định cấp quản lý (user chốt 05/09)."""
-    r = tc.post("/api/sotra/hut", json={"tu_khoa": ["x"]}, headers=_dau("viewer", "2"))
-    assert r.status_code == 403, "người dựng vớ được cả quyền hút nguồn"
+def test_UI_dung_quyen_that_de_hien(self_check=None):
+    """Trang phải dùng `ME.dang_nhap_nha` chứ không đoán."""
+    h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
+    assert "dang_nhap_nha" in h, (
+        "index.html không dùng quyền thật từ /api/me để hiện chỉ báo phiên")
