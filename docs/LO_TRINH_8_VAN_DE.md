@@ -785,3 +785,33 @@ RenderY có giỏ 6 mục/tầng, nên trừ điểm đủ để rơi khỏi top
 khỏi khay**. Test đơn (2 clip) không bao giờ lộ ra — chỉ chạy trên kho thật
 mới thấy. Mọi thay đổi điểm số phải nghiệm thu trên kho thật, và nếu yêu cầu
 là "không loại" thì phải có **suất giữ chỗ** chứ không chỉ chỉnh điểm.
+
+### Trạng thái việc F: XONG, đã lên production 10/09
+
+Suite `1667 passed / 14 skipped / 0 failed` (trước việc F: 1656 — đúng 11 test
+mới). Commit `168b1de`, GitHub đồng bộ, server 9118 đã restart.
+
+Kiểm bằng **venv production**, qua đúng đường `do_ung_vien` mà tool thật dùng:
+
+```
+market    EEEEEEpxRRRR      ocean     EEEEEEpRRRRR
+mountain  EEEEEEpxRRRR      desert    EEEEEEpxRR
+ancient   EEpppxRRRRR       snow      EEEEEExpRRR
+city      EEEEEExpRRRR      forest    EExEEpRRRRR
+```
+(E=envato p=pexels x=pixabay R=ref) — envato trước, stock ngay sau, ref cuối.
+**0/8 khay mất stock.** Tổng: envato 42 · pexels 10 · pixabay 7 · ref 32.
+
+Lưu ý vận hành: `tra.py` chạy trong tiến trình server (không phải tiến trình
+con) — sửa nó là **phải restart** 9118, giống `thay_mau.py`.
+
+---
+
+## VẤN ĐỀ 1 — CÒN LẠI: việc E
+
+A ✅ · B ✅ · C ✅ · D ✅ · F ✅ · **E chưa làm**.
+
+Việc E là phần nhiều giao diện nhất (khay tra cứu PA B trong popup: ô tìm, lọc
+nguồn, phân trang 21 clip, bảng thông tin, nút Hút). Áp thêm bước bắt buộc từ
+BH13: **đặt mockup `scratchpad/ui_o_tra_cuu.html` cạnh bản thật, so từng chi
+tiết, rồi mở Chrome bấm nút thật trước khi báo xong.**
