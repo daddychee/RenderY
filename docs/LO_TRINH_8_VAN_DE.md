@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 1 | Video Envato hỏng/không tải được | cơ chế CÓ, thủng 3 lỗ | **đang làm** |
 | 2 | 17 chương → gộp 1 timeline | `merge-drafts` CÓ, thiếu nút web | — |
-| 3 | Trùng clip xuyên chương | bỏ `LIMIT 600` + phạt 20/chương đã dùng — c9 thật 55% → 0% | **đã code 10/09**, chờ deploy |
+| 3 | Trùng clip xuyên chương | bỏ `LIMIT 600` + phạt 20/chương đã dùng — c9 thật 55% → 0% | **XONG — lên production 10/09 23:35** |
 | 4 | Nhạc mỗi chương 1 bài, ghép thế nào | 17 lần fade, chưa xử lý mối nối | — |
 | 5 | Khối 5s / source 4s → tự chia | chưa có; preview loop gây hiểu nhầm | — |
 | 6 | Voice trùm hơn 1 khối | voice KHÔNG trùm; khối thiếu trần dài | — |
@@ -1391,6 +1391,15 @@ bằng công thức lỗi — cột "138 điểm" — phải sửa):
 
 **Chạy 1 chương thật** (bản chép c9 LI106 trong scratchpad, kho production đọc-only):
 16/29 miếng trùng chương anh em (55%) → chỉ bỏ LIMIT: 8 (30%) → **có phạt: 0**. 6.1s.
+
+### Trạng thái vấn đề 3: XONG, lên production 10/09 23:35
+Suite dev `1731 passed / 0 failed`; 81 test liên quan xanh bằng **venv production**.
+Commit `9b30dce` — dev `origin` là `F:/RenderY` (push bị từ chối vì nhánh đang
+checkout) → đứng ở prod `git pull --ff-only F:/RenderY_v2 master` → prod push GitHub.
+Restart theo runbook: kill 2 PID cổng 9118 → `D:\AI AGENT OUTLIERY	ools\scripts\start-all.ps1`
+(chỉ bật app chết; lớp token nội bộ đang TẮT từ 05/09 nên restart lẻ không lệch token).
+PID mới 30928, log `D:\AI AGENT OUTLIERY\logsendery.{out,err}.log`, health 200,
+0 job đang dựng lúc restart. User chốt: KHÔNG sửa lỗi có sẵn bên dưới.
 
 ### Phát hiện ngoài phạm vi — KHÔNG sửa, ghi để không quên
 `do_lai_khay` ("Đổ lại khay") làm **miếng đầu chương mất clip**. Gốc: trong
