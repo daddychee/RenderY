@@ -1242,3 +1242,43 @@ popup MO: True
 Bỏ HTML mà để lại JS truy cập phần tử đó là quả bom hẹn giờ: file vẫn "đúng"
 với mọi test kiểm chuỗi, nhưng mở lên là vỡ. Mỗi lần xoá một `id` khỏi HTML,
 phải `grep` chính `id` đó trong JS và gỡ hết.
+
+### USER BẮT 10/09: *"Chưa giống UI đề xuất. Cấm bịa"* — HOÀN TOÀN ĐÚNG
+
+Tôi so **đúng ba số đo khung** (236/254/lưới) rồi kết luận "khớp mockup". Đó là
+bịa. Đối chiếu TỪNG DÒNG mockup (`veB()` 336-358, `the()` ~309, `MAU` 245) ra
+**11 chi tiết chưa làm**:
+
+| # | Mockup | Tôi làm | |
+|---|---|---|---|
+| 1 | 2 nút `Import vào miếng N` + `✂ Cắt khúc trước khi import` | không có nút nào | THIẾU |
+| 2 | `Nguồn · Địa danh · Dài · Đã dùng` | `nguồn · độ dài · neo · đã dùng` | SAI CHỮ |
+| 3 | Nguồn có màu riêng `MAU[c.n]`, in đậm | xám đều | THIẾU |
+| 4 | Địa danh có `⚑` | không | THIẾU |
+| 5 | "Đã dùng" hiện **mã tập** `c1-20260908` | "có/chưa" | SAI |
+| 6 | Chưa chọn → *"chọn một clip ở lưới"* | để trống | THIẾU |
+| 7 | Nút lọc **kèm số đếm** `Tất cả 16 · Ref 8` | không số | THIẾU |
+| 8 | Chỉ hiện nguồn **có** kết quả | luôn đủ 4 | SAI |
+| 9 | Thẻ có màu nguồn riêng | một màu | THIẾU |
+| 10 | Icon kính lúp trong ô tìm | không | THIẾU |
+| 11 | Khay rỗng: *"Kho chưa có gì cho «q»"* | chữ khác | SAI |
+
+Đã sửa cả 11, mỗi mục một test.
+
+**HAI lỗi nữa chỉ nhìn ảnh mới thấy:**
+
+* Nút ghi `Ref 197` — **sát trần `limit=200`** tôi đặt cho phần đếm. Số THẬT là
+  **468**. Thay bằng `db.dem_tim()` dùng `COUNT` thật; nhanh hơn luôn
+  (**33ms** so với 96ms của cách cũ).
+* Nhãn `21 kết quả` đứng cạnh nút `Tất cả 419` — hai số nói hai chuyện (thẻ
+  của trang vs. tổng khớp từ khoá). Giờ là `21/778 · trang 2`.
+
+**Một chỗ CỐ Ý khác mockup:** mockup dùng 🔍, nhưng đó là **emoji nhiều màu** —
+trái nguyên tắc thiết kế đã chốt (ký tự đơn sắc). Dùng `⌕` (U+2315) cùng nghĩa,
+một màu. Ghi lại để user quyết nếu muốn đúng 🔍.
+
+### BH20 — "Khớp mockup" phải đối chiếu TỪNG DÒNG, không phải vài số đo
+
+Đo ba con số khung rồi tuyên bố khớp là loại bịa nguy hiểm nhất: nó NGHE như đã
+kiểm chứng. Mockup là văn bản — muốn nói khớp thì phải mở nó ra, đọc hết, lập
+bảng đối chiếu từng mục. Ảnh chụp cạnh nhau chỉ dùng để bắt cái bảng đó bỏ sót.

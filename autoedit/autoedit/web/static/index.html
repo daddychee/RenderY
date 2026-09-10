@@ -120,7 +120,11 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-tim-tra{flex:0 0 auto; padding:9px 11px 0}
 #of-tim-hang1{display:flex; align-items:center; gap:9px}
 #of-tim-hang1 .o{position:relative; flex:1 1 0}
-#of-tim{width:100%; box-sizing:border-box; padding:6px 10px; font-size:11.5px}
+#of-tim{width:100%; box-sizing:border-box; padding:6px 26px 6px 10px; font-size:11.5px}
+/* icon kính lúp: mockup dùng 🔍 nhưng đó là EMOJI NHIỀU MÀU — trái nguyên tắc
+   thiết kế đã chốt (ký tự đơn sắc). Dùng ⌕ (U+2315) cùng ý nghĩa, một màu. */
+#of-tim-hang1 .o .kinh{position:absolute; right:9px; top:5px; color:var(--muted);
+                       font-size:13px; pointer-events:none}
 #of-tim-loc{display:flex; flex-wrap:wrap; gap:5px; padding:8px 0 9px}
 #of-tim-loc .nut{font-size:10.5px; padding:3px 9px; border-radius:20px;
                  border:1px solid var(--line); background:var(--bg);
@@ -941,6 +945,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
           <div class="o">
             <input type="text" id="of-tim" oninput="ofTimDebounce()"
                    placeholder="tra Library: himalaya, chợ, cầu, dòng sông...">
+            <span class="kinh">⌕</span>
           </div>
           <span class="note mono" id="of-tim-nhan" style="margin:0">—</span>
           <button class="btn ghost small" id="of-tim-hut" onclick="ofTimHut()"
@@ -2264,8 +2269,11 @@ async function ofTho(delta) {
 // Cắt ở SERVER bằng offset/limit — API đã có sẵn `het` + `offset_tiep`; cắt ở
 // client là tải 200 clip rồi vứt 179, và số đếm sẽ sai.
 const OF_TIM_MOI_TRANG = 21
+// Màu nguồn — lấy NGUYÊN VĂN từ mockup `ui_o_tra_cuu.html:245`
+const OF_TIM_MAU = {ref: '#8fd0a8', envato: '#7fb2e8', pexels: '#e8b97f',
+                    pixabay: '#c9a3e0', kho: '#9aa6b2', aigen: '#c9a3e0'}
 let OF_TIM_Q = '', OF_TIM_T = 0, OF_TIM_KQ = null
-let OF_TIM_TRANG = 0, OF_TIM_HET = true
+let OF_TIM_TRANG = 0, OF_TIM_HET = true, OF_TIM_DEM = {}
 let OF_TIM_LOC = {ng: '', neo: false, dai: false, chua: false}
 
 function ofTimDebounce() {
@@ -2287,6 +2295,7 @@ async function ofTimGoi() {
     // nghĩa là đã hết. Nhìn ảnh thật 10/09: ở trang 2 nút «Sau ›» vẫn bật dù
     // chỉ còn 21 kết quả -> bấm tiếp là sang trang rỗng.
     OF_TIM_HET = !!d.het || (d.clips || []).length < OF_TIM_MOI_TRANG
+    OF_TIM_DEM = d.dem_q || {}      // số clip KHỚP TỪ KHOÁ theo từng nguồn
     // `dai`/`chua` API không có -> lọc ở client TRONG TRANG (nói rõ ở nhãn để
     // người dựng không tưởng cả kho chỉ có bấy nhiêu)
     let ds = d.clips || []
@@ -2310,7 +2319,8 @@ function ofTimThe(c) {
   const dai = (c.dai_s || 0) > 0 ? `<span class="gio">${(+c.dai_s).toFixed(1)}s</span>` : ''
   const dung = c.da_dung ? '<span class="dd">đã dùng</span>' : ''
   const anh = c.url_anh || ('/api/sotra/frame?id=' + encodeURIComponent(c.id) + '&vai=dau')
-  return `<span class="cd">${esc((c.nguon || '').toUpperCase())}</span>${dung}${dai}
+  const mau = OF_TIM_MAU[c.nguon] || '#9aa6b2'
+  return `<span class="cd" style="background:${mau}">${esc((c.nguon || '').toUpperCase())}</span>${dung}${dai}
     <div class="im"><img src="${esc(anh)}" loading="lazy" alt=""></div>
     <div class="n">${esc(c.tieu_de || '')}</div>`
 }
@@ -2320,11 +2330,16 @@ function ofTimVe() {
   const loc = document.getElementById('of-tim-loc')
   if (!luoi) return
   const f = OF_TIM_LOC
+  // Nút lọc KÈM SỐ ĐẾM theo từ khoá, và CHỈ hiện nguồn CÓ kết quả (mockup:
+  // ảnh không có nút Pixabay vì kho không có clip pixabay nào). Hiện nút của
+  // nguồn rỗng là mời người dựng bấm vào chỗ trống.
+  const tong = Object.values(OF_TIM_DEM).reduce((a, b) => a + b, 0)
   loc.innerHTML =
-    `<button class="nut ${f.ng === '' ? 'on' : ''}" onclick="ofTimDatNg('')">Tất cả</button>`
-    + ['ref', 'envato', 'pexels', 'pixabay'].map(n =>
+    `<button class="nut ${f.ng === '' ? 'on' : ''}" onclick="ofTimDatNg('')">`
+    + 'Tất cả' + (tong ? ' ' + tong : '') + '</button>'
+    + ['ref', 'envato', 'pexels', 'pixabay'].filter(n => OF_TIM_DEM[n]).map(n =>
         `<button class="nut ${f.ng === n ? 'on' : ''}" onclick="ofTimDatNg('${n}')">`
-        + n[0].toUpperCase() + n.slice(1) + '</button>').join('')
+        + n[0].toUpperCase() + n.slice(1) + ' ' + OF_TIM_DEM[n] + '</button>').join('')
     + `<span style="flex:1"></span>
        <button class="nut ${f.neo ? 'on' : ''}" onclick="ofTimBat('neo')">⚑ có neo</button>
        <button class="nut ${f.dai ? 'on' : ''}" onclick="ofTimBat('dai')">≥ 5s</button>
@@ -2334,12 +2349,19 @@ function ofTimVe() {
     luoi.innerHTML = '<div class="trong">gõ từ khoá để tra Library</div>'
     return
   }
+  // Nói rõ TRANG vs TỔNG: nhìn ảnh thật 10/09, nút ghi «Tất cả 419» còn nhãn
+  // ghi «21 kết quả» — hai số cạnh nhau nói hai chuyện, người dựng đọc «21»
+  // rồi tưởng cả kho chỉ có bấy nhiêu.
+  const tongq = Object.values(OF_TIM_DEM).reduce((a, b) => a + b, 0)
   nhan.textContent = OF_TIM_KQ.length
-    ? `${OF_TIM_KQ.length} kết quả · trang ${OF_TIM_TRANG + 1}` : '0 kết quả'
+    ? (tongq > OF_TIM_KQ.length
+        ? `${OF_TIM_KQ.length}/${tongq} · trang ${OF_TIM_TRANG + 1}`
+        : `${OF_TIM_KQ.length} kết quả`)
+    : '0 kết quả'
   luoi.innerHTML = ''
   if (!OF_TIM_KQ.length) {
-    luoi.innerHTML = '<div class="trong">không có clip nào — thử từ khoá khác '
-      + 'hoặc bấm ⛏ Hút thêm</div>'
+    luoi.innerHTML = `<div class="trong">Kho chưa có gì cho «${esc(OF_TIM_Q)}» — `
+      + 'bấm <b style="color:var(--warn)">⛏ Hút thêm</b></div>'
   }
   for (const c of OF_TIM_KQ) {
     const d = document.createElement('div')
@@ -2575,27 +2597,52 @@ async function ofDoiPha() {
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
 function ofRvMeta(u) {
-  // Bảng thông tin bên phải — thay chỗ cột "Tương tự" cũ (mockup PA B).
-  // Cột cũ chỉ là tra Library bằng từ khoá rút từ tiêu đề; khay tra cứu bên
-  // dưới làm được đúng thế và hơn, nên bỏ không mất chức năng nào.
+  // Bảng thông tin bên phải — thay chỗ cột "Tương tự" cũ. Nội dung/nhãn/nút
+  // lấy NGUYÊN VĂN từ mockup `ui_o_tra_cuu.html` hàm `veB()` (dòng 346-357).
   const el = document.getElementById('of-rv-meta')
   if (!el) return
+  if (!u) {
+    el.innerHTML = '<div style="margin:auto 0;text-align:center;color:#5c6875;'
+      + 'font-size:11.5px;line-height:1.7">chọn một clip ở lưới<br>'
+      + 'để xem thông tin</div>'
+    return
+  }
   // Clip `kho:*`/`ref:*` không có cột `dai_s`, nhưng <video> đã đo được độ dài
   // thật (OF_RV_DAI). Nhìn ảnh thật 10/09: bảng ghi «—» trong khi tiêu đề popup
   // ghi «15.7s» — dữ liệu CÓ mà không hiện (BH13).
   const gs = (u.dai_s || 0) > 0 ? +u.dai_s
            : ((u.t1 || 0) > (u.t0 || 0) ? u.t1 - u.t0 : (OF_RV_DAI || 0))
-  const d = gs > 0 ? gs.toFixed(1) + 's' : '—'
-  const dong = (t, v) => `<div class="d"><i>${t}</i><span>${esc(v || '—')}</span></div>`
+  const mau = OF_TIM_MAU[u.nguon] || '#9aa6b2'
+  const dong = (t, v) => `<div class="d"><i>${t}</i><span>${v}</span></div>`
+  // "Đã dùng" hiện MÃ TẬP (mockup: `c1-20260908`) — người dựng cần biết trùng
+  // với tập NÀO, không phải chỉ "có/chưa".
+  const dung = u.tap ? `<span style="color:var(--warn)">${esc(u.tap)}</span>`
+             : (u.da_dung ? '<span style="color:var(--warn)">đã dùng</span>'
+                          : 'chưa dùng')
   el.innerHTML = `<h5>${esc(u.tieu_de || u.nhan || '')}</h5>`
-    + dong('nguồn', (u.nguon || '').toUpperCase())
-    + dong('độ dài', d)
-    + dong('neo', u.geo || '')
-    + dong('đã dùng', u.da_dung ? 'có' : 'chưa')
-    + (u.tap ? dong('ở tập', u.tap) : '')
+    + dong('Nguồn', `<span style="color:${mau};font-weight:600">`
+                    + esc((u.nguon || '').toUpperCase()) + '</span>')
+    + dong('Địa danh', u.geo ? '⚑ ' + esc(u.geo) : '—')
+    + dong('Dài', gs > 0 ? gs.toFixed(1) + 's' : '—')
+    + dong('Đã dùng', dung)
+    + '<div style="flex:1"></div>'
+    + `<button class="btn" style="width:100%;padding:7px" onclick="ofTrimDung()">`
+    + `Import vào miếng ${OF_HCHON + 1}</button>`
+    + '<button class="btn ghost" style="width:100%" onclick="ofMoCatKhuc()">'
+    + '✂ Cắt khúc trước khi import</button>'
+}
+function ofMoCatKhuc() {
+  // Thanh cắt đã có sẵn dưới popup — nút này chỉ kéo mắt xuống đó (mockup gọi
+  // là "Mở thanh cắt khúc"). Không dựng thanh thứ hai.
+  const t = document.getElementById('of-trim')
+  if (!t || t.hidden) { toastOf('Clip này không cắt khúc được (ảnh tĩnh)'); return }
+  t.scrollIntoView({behavior: 'smooth', block: 'nearest'})
+  t.style.outline = '2px solid var(--accent)'
+  setTimeout(() => { t.style.outline = '' }, 1200)
 }
 function ofDongTrim() {
   document.getElementById('of-trim-cs').classList.remove('mo')
+  OF_RV = null; ofRvMeta(null)         // lần mở sau: bảng về lời mời chọn clip
   const v = document.getElementById('of-rv-video')
   v.pause(); v.removeAttribute('src'); v.load()
 }

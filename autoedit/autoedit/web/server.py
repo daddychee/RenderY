@@ -1546,11 +1546,23 @@ def api_sotra_tim(request: Request, q: str = "", nguon: str = "",
         dem = _sdb.dem_theo_nguon(conn)
         dem["nhac"] = conn.execute(
             "SELECT COUNT(*) FROM nhac WHERE trang_thai != 'loai_tru'").fetchone()[0]
+        # SỐ ĐẾM THEO TỪ KHOÁ (việc E): nút lọc nguồn phải ghi số clip KHỚP
+        # TỪ KHOÁ, không phải tổng kho. Dán `dem` (envato 5205) lên nút là nói
+        # dối — bấm vào chỉ ra 8 clip.
+        # Dùng COUNT thật (`dem_tim`), KHÔNG đếm bằng len(tim(...)): `tim` có
+        # `limit` nên số bị chặn ở đó — nhìn ảnh thật 10/09 nút ghi «Ref 197»
+        # sát trần 200, trong khi số thật là 468.
+        dem_q: dict = {}
+        if q:
+            for _ng in ("ref", "envato", "pexels", "pixabay", "kho"):
+                n = _sdb.dem_tim(conn, q=q, nguon=_ng, chi_neo=bool(neo), tap=tap)
+                if n:
+                    dem_q[_ng] = n
     finally:
         conn.close()
     with _sotra_lock:
         hut = dict(_sotra_dang_hut)
-    return {"clips": kq, "dem": dem, "hut": hut,
+    return {"clips": kq, "dem": dem, "dem_q": dem_q, "hut": hut,
             "het": meta_tim.get("het", True),
             "offset_tiep": meta_tim.get("offset_tiep", 0)}
 

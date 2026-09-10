@@ -348,6 +348,37 @@ def gop_ban_trung(ds: list[dict]) -> list[dict]:
     return ra
 
 
+def dem_tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
+            tap: str = "") -> int:
+    """Đếm clip KHỚP TỪ KHOÁ — cùng điều kiện với `tim()`, dùng COUNT thật.
+
+    Vì sao không đếm bằng `len(tim(...))`: `tim` có `limit` nên số trả về bị
+    chặn ở đó. Nhìn ảnh thật 10/09: nút lọc ghi «Ref 197» sát trần limit=200
+    tôi đặt — kho lớn hơn là số SAI mà không ai biết.
+
+    Đếm DÒNG THÔ (chưa gộp bản trùng tiêu đề) nên có thể lớn hơn số card thật
+    một chút; đó là con số dùng để người dựng ước lượng «đáng bấm không», không
+    phải để đối chiếu từng cái.
+    """
+    dk, tham = ["c.trang_thai != 'loai_tru'"], []
+    if nguon:
+        dk.append("c.nguon=?")
+        tham.append(nguon)
+    if chi_neo:
+        dk.append("(c.geo != '' OR c.nguon IN ('ref','kho'))")
+    if tap:
+        dk.append("(c.tap=? OR c.id IN (SELECT clip_id FROM su_kien WHERE tap=?))")
+        tham += [tap, tap]
+    q = ap_alias(conn, q)
+    if q.strip():
+        fts = " OR ".join(f'"{t}"' for t in re.findall(r"[\w]+", q))
+        sql = ("SELECT COUNT(*) FROM clip_fts f JOIN clip c ON c.id=f.id "
+               f"WHERE clip_fts MATCH ? AND {' AND '.join(dk)}")
+        return conn.execute(sql, [fts, *tham]).fetchone()[0]
+    return conn.execute(
+        f"SELECT COUNT(*) FROM clip c WHERE {' AND '.join(dk)}", tham).fetchone()[0]
+
+
 def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         tap: str = "", limit: int = 60, offset: int = 0,
         meta: dict | None = None) -> list[dict]:

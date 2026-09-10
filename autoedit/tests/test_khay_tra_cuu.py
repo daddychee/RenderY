@@ -240,3 +240,142 @@ def test_phan_trang_KHONG_bat_nut_Sau_khi_da_het():
     assert "OF_TIM_MOI_TRANG" in khoi and "length <" in khoi, (
         "không suy `het` từ số bản ghi thật của trang — nút Sau sẽ bật khi "
         "đã hết clip")
+
+
+# ═══════════ SO TỪNG CHI TIẾT VỚI MOCKUP (user bắt 10/09) ═══════════
+# User: *"Chưa giống UI đề xuất. Cấm bịa"* — hoàn toàn đúng. Lần trước tôi so
+# ĐÚNG BA số đo khung (236/254/lưới) rồi kết luận "khớp mockup". Đó là bịa:
+# đối chiếu từng dòng mockup ra **11 chi tiết chưa làm**.
+#
+# Mockup: `scratchpad/ui_o_tra_cuu.html` — hàm `veB()` dòng 336-358, `the()`
+# dòng ~309, `MAU` dòng 245.
+
+def _meta() -> str:
+    h = _h()
+    i = h.find("function ofRvMeta")
+    return h[i:h.find("\nfunction ", i + 10)]
+
+
+def _ve() -> str:
+    h = _h()
+    i = h.find("function ofTimVe")
+    return h[i:h.find("\nasync function ", i + 10)]
+
+
+def test_meta_co_NUT_IMPORT_va_CAT_KHUC():
+    """Mockup có 2 nút trong bảng meta: «Import vào miếng N» (nút chính) và
+    «✂ Cắt khúc trước khi import». Không có nút thì bảng chỉ để đọc — người
+    dựng thấy clip ưng mà không có chỗ bấm."""
+    m = _meta()
+    assert "Import vào miếng" in m, "thiếu nút «Import vào miếng N» trong bảng meta"
+    assert "Cắt khúc" in m, "thiếu nút «✂ Cắt khúc trước khi import»"
+
+
+def test_meta_dung_DUNG_NHAN_cua_mockup():
+    """Mockup: Nguồn · Địa danh · Dài · Đã dùng (viết hoa chữ đầu)."""
+    m = _meta()
+    for nhan in ("Nguồn", "Địa danh", "Dài", "Đã dùng"):
+        assert f"'{nhan}'" in m or f'"{nhan}"' in m, f"nhãn «{nhan}» sai/thiếu"
+
+
+def test_meta_NGUON_co_mau_rieng():
+    """Mockup `MAU = {ref:#8fd0a8, envato:#7fb2e8, pexels:#e8b97f,
+    pixabay:#c9a3e0}` — mỗi nguồn một màu, in đậm."""
+    h = _h()
+    for mau in ("#8fd0a8", "#7fb2e8", "#e8b97f", "#c9a3e0"):
+        assert mau in h, f"thiếu màu nguồn {mau} của mockup"
+
+
+def test_meta_DIA_DANH_co_co_neo():
+    """Mockup: `⚑ + geo` khi có neo, «—» khi không."""
+    m = _meta()
+    assert "⚑" in m, "địa danh không có cờ ⚑ như mockup"
+
+
+def test_meta_DA_DUNG_hien_MA_TAP():
+    """Mockup hiện `c1-20260908` (mã tập đã dùng) chứ không phải «có/chưa» —
+    người dựng cần biết trùng với tập NÀO."""
+    m = _meta()
+    assert "chưa dùng" in m, "thiếu chữ «chưa dùng» của mockup"
+    assert "u.tap" in m or "tap" in m, "không hiện mã tập đã dùng"
+
+
+def test_meta_CHUA_CHON_thi_co_loi_moi():
+    """Mockup: «chọn một clip ở lưới / để xem thông tin». Bảng trống 254px
+    không nói gì là ô chết."""
+    m = _meta()
+    assert "chọn một clip" in m, "bảng meta trống không có lời mời chọn clip"
+
+
+def test_nut_loc_nguon_KEM_SO_DEM():
+    """Mockup: `Tất cả 16` · `Ref 8` · `Envato 5` · `Pexels 3` — số đếm cho
+    biết đáng bấm hay không."""
+    v = _ve()
+    assert "OF_TIM_DEM[n]" in v, "nút lọc nguồn không có số đếm như mockup"
+
+
+def test_chi_hien_nguon_CO_KET_QUA():
+    """Ảnh mockup: không có nút Pixabay vì kho không có clip pixabay nào.
+    Hiện nút của nguồn rỗng là mời bấm vào chỗ trống."""
+    v = _ve()
+    assert "filter(n => OF_TIM_DEM[n])" in v, (
+        "luôn hiện đủ 4 nút nguồn — mockup chỉ hiện nguồn CÓ kết quả")
+
+
+def test_the_co_MAU_NGUON_rieng():
+    """Mockup `the()`: `<span class="cd" style="background:${MAU[c.n]}">`."""
+    h = _h()
+    i = h.find("function ofTimThe")
+    khoi = h[i:i + 1200]
+    assert "OF_TIM_MAU" in khoi or "MAU[" in khoi, \
+        "thẻ dùng một màu cho mọi nguồn — mockup mỗi nguồn một màu"
+
+
+def test_khay_RONG_moi_bam_HUT():
+    """Mockup: «Kho chưa có gì cho «q» — bấm ⛏ Hút thêm»."""
+    v = _ve()
+    assert "Kho chưa có gì" in v, "lời khay rỗng không khớp mockup"
+
+
+def test_api_tra_SO_DEM_theo_TU_KHOA(client):
+    """Mockup hiện `Ref 8 · Envato 5 · Pexels 3` — số clip KHỚP TỪ KHOÁ theo
+    từng nguồn, không phải tổng kho.
+
+    Đo 10/09: `/api/sotra` trả `dem` = đếm TOÀN KHO (`envato 5205, ref 8270`).
+    Dán số đó lên nút lọc là nói dối: bấm Ref rồi chỉ ra 8 clip.
+    """
+    r = client.get("/api/sotra?q=market&limit=3",
+                   headers={"X-Remote-User": "haint"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "dem_q" in d, (
+        "API không trả số đếm theo TỪ KHOÁ — nút lọc buộc phải dán số toàn kho")
+
+
+def test_nhan_dem_noi_ro_TONG_hay_TRANG():
+    """Nhìn ảnh thật 10/09: nút ghi «Tất cả 419» còn nhãn ghi «21 kết quả» —
+    hai số cạnh nhau nói hai chuyện (tổng kho khớp từ khoá vs. số thẻ trang
+    này). Người dựng đọc «21 kết quả» rồi tưởng chỉ có 21 clip.
+
+    Phải nói rõ: «21 / 419» hoặc «trang 1 · 419 kết quả».
+    """
+    v = _ve()
+    i = v.find("nhan.textContent")
+    khoi = v[i:i + 400]
+    assert "OF_TIM_DEM" in khoi or "tong" in khoi, (
+        "nhãn đếm chỉ ghi số thẻ của TRANG — không cho biết tổng, mâu thuẫn "
+        "với số trên nút lọc")
+
+
+def test_so_dem_KHONG_bi_chan_o_200():
+    """Nhìn ảnh: «Ref 197» — sát trần `limit=200` tôi đặt. Nếu kho có 500 clip
+    ref khớp thì nút vẫn ghi 200, tức là SỐ SAI.
+
+    Đếm phải dùng COUNT thật, không đếm bằng cách lấy về rồi len().
+    """
+    from autoedit.web import server
+    import inspect
+
+    src = inspect.getsource(server.api_sotra_tim)
+    assert "limit=200" not in src, (
+        "số đếm theo nguồn bị chặn ở 200 — kho lớn hơn là nút ghi số sai")
