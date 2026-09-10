@@ -13,14 +13,14 @@
 
 | # | Vấn đề | Hiện trạng | Đợt |
 |---|---|---|---|
-| 1 | Video Envato hỏng/không tải được | cơ chế CÓ, thủng 3 lỗ | **đang làm** |
+| 1 | Video Envato hỏng/không tải được | việc A–F XONG (sổ dòng 668, 789) | **XONG** 10/09 |
 | 2 | 17 chương → gộp 1 timeline | `merge-drafts` CÓ, thiếu nút web | — |
 | 3 | Trùng clip xuyên chương | bỏ `LIMIT 600` + phạt 20/chương đã dùng — c9 thật 55% → 0% | **XONG — lên production 10/09 23:35** |
 | 4 | Nhạc mỗi chương 1 bài, ghép thế nào | 17 lần fade, chưa xử lý mối nối | — |
 | 5 | Khối 5s / source 4s → tự chia | chưa có; preview loop gây hiểu nhầm | — |
 | 6 | Voice trùm hơn 1 khối | voice KHÔNG trùm; khối thiếu trần dài | — |
-| 7 | Kéo thả nhận video team tìm được | nền CÓ (`trim`), thiếu đường nhận file | — |
-| 8 | Timeline Premiere | code CÓ, nút Export không gọi | — |
+| 7 | Kéo thả nhận video team tìm được | **CHƯA CÓ GÌ** — quét production: 0 `dragover`/`dataTransfer`/`UploadFile`, 0/30 route POST nhận file | **TẠM BỎ QUA** (user 11/09: chưa gấp) |
+| 8 | Timeline Premiere | `xuat_xmeml` + `xuat_fcpxml` đã nối vào `thay_mau` | **XONG** 10/09 |
 
 ---
 
@@ -1398,7 +1398,8 @@ Commit `9b30dce` — dev `origin` là `F:/RenderY` (push bị từ chối vì nh
 checkout) → đứng ở prod `git pull --ff-only F:/RenderY_v2 master` → prod push GitHub.
 Restart theo runbook: kill 2 PID cổng 9118 → `D:\AI AGENT OUTLIERY	ools\scripts\start-all.ps1`
 (chỉ bật app chết; lớp token nội bộ đang TẮT từ 05/09 nên restart lẻ không lệch token).
-PID mới 30928, log `D:\AI AGENT OUTLIERY\logsendery.{out,err}.log`, health 200,
+PID mới 30928, log `D:\AI AGENT OUTLIERY\logs
+endery.{out,err}.log`, health 200,
 0 job đang dựng lúc restart. User chốt: KHÔNG sửa lỗi có sẵn bên dưới.
 
 ### Phát hiện ngoài phạm vi — KHÔNG sửa, ghi để không quên
@@ -1417,3 +1418,29 @@ sai; (2) mô phỏng phạt cả TRONG chương trong khi thật chỉ đọc ch
 (3) định dùng `su_kien` — sẽ mù chương chưa xuất + phạt oan chương xuất lại.
 Ba lỗi đều làm kết quả **đẹp hơn thật**. Luật: kết luận nào chưa qua một vòng
 "cái gì có thể làm số này đẹp giả" thì chưa được đưa cho user.
+
+---
+
+## VẤN ĐỀ 7 (11/09/2026) — TẠM BỎ QUA, và sửa một chỗ tôi ghi SAI
+
+User hỏi "kéo thả đã có nhưng tôi chưa biết dùng ra sao?" → quét production:
+`dragover` / `dataTransfer` / `UploadFile` = **0 chỗ trong toàn bộ mã**; 30 route
+POST **không route nào nhận file**; 2 chỗ `<input type="file">` đều `accept="image/*"`
+(ảnh retention + thumbnail), không phải video.
+
+**Kéo thả CHƯA TỪNG ĐƯỢC LÀM.** Tôi từng ghi "việc 7 gộp vào việc E ✅" — SAI.
+Sổ dòng 287 + 470 ghi rõ: *"PA1 (kéo thả từ Library sang Sequence) **không làm** —
+đắt hơn, dễ lạc ngữ cảnh; PA B giải quyết đúng nhu cầu ngay tại chỗ dựng"*. Đó là
+quyết định **LOẠI BỎ**, tôi đọc thành **HOÀN THÀNH**.
+
+Gần nhất hiện có: `trim` (`server.py:1332`) — cắt khúc clip **đã nằm trong kho**
+rồi nạp vào miếng. Không nhận file mới từ máy team.
+
+**User chốt 11/09: TẠM BỎ QUA, chưa gấp.** Khi làm lại phải chốt 3 câu trước:
+(1) file từ máy team qua trình duyệt hay đường dẫn NAS/ổ chung (rẻ hơn nhiều)?
+(2) thả vào đúng một miếng hay nạp vào kho tập rồi tự vào khay?
+(3) sổ nguồn gốc ghi gì — `NGUON_HOP_LE` hiện 7 giá trị, chưa có chỗ cho "team tự tìm".
+
+**BH23 — "đã gộp vào việc khác" phải kiểm bằng mã, không đọc lướt sổ.**
+Một dòng sổ nói "không làm PA1" và một dòng nói "PA B xong" nằm gần nhau thì rất
+dễ đọc thành "việc đó xong rồi". Trạng thái XONG chỉ được ghi khi `grep` ra mã thật.
