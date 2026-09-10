@@ -379,3 +379,72 @@ def test_so_dem_KHONG_bi_chan_o_200():
     src = inspect.getsource(server.api_sotra_tim)
     assert "limit=200" not in src, (
         "số đếm theo nguồn bị chặn ở 200 — kho lớn hơn là nút ghi số sai")
+
+
+# ═══════ USER BẮT 10/09 (lượt 2): popup mở ra LƯỚI RỖNG ═══════
+# User: *"Tạo sao click double vào 1 video bất kỳ thì không hiện lên video nào
+# khác. Logic thì các video phải hiện ở đây chứ"* + *"Vẫn chưa hiện nguồn video"*.
+
+def test_MO_POPUP_thi_luoi_do_san_UNG_VIEN_cua_mieng():
+    """Mở popup mà lưới rỗng là bắt người dựng gõ từ khoá mới thấy gì — trong
+    khi miếng đó ĐÃ CÓ sẵn 12 ứng viên trong hợp đồng.
+
+    Đúng logic: mở ra thấy ngay ứng viên của miếng; gõ từ khoá mới chuyển sang
+    kết quả tra Library.
+    """
+    v = _ve()
+    i = v.find("if (OF_TIM_KQ === null)")
+    khoi = v[i:i + 500]
+    assert "gõ từ khoá để tra Library" not in khoi, (
+        "popup mở ra chỉ hiện chữ mời gõ — phải đổ sẵn ứng viên của miếng")
+
+
+def test_ofTimVe_do_UV_cua_mieng_khi_chua_go():
+    h = _h()
+    i = h.find("function ofTimVe")
+    khoi = h[i:i + 2600]
+    assert "ofHinh()" in khoi or "k.uv" in khoi, (
+        "ofTimVe không đọc ứng viên của miếng đang chọn")
+
+
+def test_khay_NGOAI_khong_ghi_de_nhan_TRONG_popup():
+    """`ofVeKhay` là khay 4 dải NGOÀI trang; nó đang ghi đè `#of-tim-nhan` —
+    ô đếm nằm TRONG popup. Hai hàm tranh nhau một ô: nhãn popup vừa vẽ xong
+    bị khay ngoài đè thành «ứng viên của miếng hình 31» (user chụp được).
+    """
+    h = _h()
+    i = h.find("function ofVeKhay")
+    khoi = h[i:h.find("\nasync function ", i + 10)]
+    # bỏ dòng chú thích: bản vá GIẢI THÍCH vì sao không được đụng ô đó
+    ma = "\n".join(d for d in khoi.splitlines() if not d.lstrip().startswith("//"))
+    assert "of-tim-nhan" not in ma, (
+        "ofVeKhay (khay ngoài) vẫn ghi đè ô đếm của popup")
+
+
+def test_nhan_nguon_tren_the_KHONG_bi_nen_mat_chu():
+    """User: «Vẫn chưa hiện nguồn video». Huy hiệu nguồn `.cd` dùng
+    `background:var(--accent)` cố định trong CSS, mà thẻ đặt màu qua
+    `style="background:..."` — inline thắng, nhưng nếu CSS có `!important`
+    hoặc thẻ quên đặt thì mọi nguồn một màu.
+
+    Kiểm: CSS KHÔNG được ép màu nền cố định cho `.cd`.
+    """
+    h = _h()
+    i = h.find("#of-tim-luoi .cd")
+    khoi = h[i:i + 260]
+    assert "var(--accent)" not in khoi, (
+        "CSS ép nền `.cd` = accent cho MỌI nguồn — màu riêng từng nguồn vô nghĩa")
+
+
+def test_ofReview_PHAI_GOI_ofTimVe():
+    """Đổ sẵn ứng viên chỉ có tác dụng nếu ai đó GỌI hàm vẽ lúc mở popup.
+
+    Đo bằng Chrome thật 10/09: sửa `ofTimVe` xong, test xanh, nhưng mở popup
+    vẫn **0 thẻ** — vì `ofReview` không gọi nó. Hàm đúng mà không ai gọi thì
+    người dùng vẫn thấy lưới rỗng (cùng kiểu lỗi `#of-tim` không tồn tại).
+    """
+    h = _h()
+    i = h.find("async function ofReview")
+    khoi = h[i:i + 1600]
+    assert "ofTimVe()" in khoi, (
+        "ofReview không gọi ofTimVe — popup mở ra lưới vẫn rỗng dù hàm đã sửa")

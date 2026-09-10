@@ -143,9 +143,11 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-tim-luoi .the .n{font-size:9.5px; padding:3px 6px; color:var(--muted);
                      line-height:1.3; display:-webkit-box; -webkit-line-clamp:2;
                      -webkit-box-orient:vertical; overflow:hidden}
+/* nền do THẺ đặt inline theo `OF_TIM_MAU` — không ép ở đây, không thì mọi
+   nguồn một màu và huy hiệu nguồn thành vô nghĩa */
 #of-tim-luoi .cd{position:absolute; left:4px; top:4px; font-size:8.5px;
                  font-weight:700; padding:1px 5px; border-radius:4px;
-                 background:var(--accent); color:#08210f; z-index:2}
+                 color:#08210f; z-index:2}
 #of-tim-luoi .gio{position:absolute; right:4px; bottom:4px; font-size:9px;
                   padding:1px 5px; border-radius:4px; background:rgba(0,0,0,.66);
                   color:#dfe6ee; z-index:2}
@@ -2344,26 +2346,32 @@ function ofTimVe() {
        <button class="nut ${f.neo ? 'on' : ''}" onclick="ofTimBat('neo')">⚑ có neo</button>
        <button class="nut ${f.dai ? 'on' : ''}" onclick="ofTimBat('dai')">≥ 5s</button>
        <button class="nut ${f.chua ? 'on' : ''}" onclick="ofTimBat('chua')">chưa dùng</button>`
-  if (OF_TIM_KQ === null) {
-    nhan.textContent = '—'
-    luoi.innerHTML = '<div class="trong">gõ từ khoá để tra Library</div>'
-    return
-  }
+  // CHƯA gõ từ khoá -> đổ sẵn ỨNG VIÊN CỦA MIẾNG đang mở (user bắt 10/09:
+  // "click double vào 1 video bất kỳ thì không hiện lên video nào khác. Logic
+  // thì các video phải hiện ở đây chứ"). Miếng đã có sẵn ~12 ứng viên trong
+  // hợp đồng — bắt gõ từ khoá mới thấy gì là giấu thứ đang có.
+  const uv_mieng = OF_TIM_KQ === null
+    ? ((ofHinh()[OF_HCHON] || {}).uv || []) : OF_TIM_KQ
   // Nói rõ TRANG vs TỔNG: nhìn ảnh thật 10/09, nút ghi «Tất cả 419» còn nhãn
   // ghi «21 kết quả» — hai số cạnh nhau nói hai chuyện, người dựng đọc «21»
   // rồi tưởng cả kho chỉ có bấy nhiêu.
   const tongq = Object.values(OF_TIM_DEM).reduce((a, b) => a + b, 0)
-  nhan.textContent = OF_TIM_KQ.length
-    ? (tongq > OF_TIM_KQ.length
-        ? `${OF_TIM_KQ.length}/${tongq} · trang ${OF_TIM_TRANG + 1}`
-        : `${OF_TIM_KQ.length} kết quả`)
-    : '0 kết quả'
+  nhan.textContent = OF_TIM_KQ === null
+    ? `${uv_mieng.length} ứng viên của miếng ${OF_HCHON + 1}`
+    : (uv_mieng.length
+        ? (tongq > uv_mieng.length
+            ? `${uv_mieng.length}/${tongq} · trang ${OF_TIM_TRANG + 1}`
+            : `${uv_mieng.length} kết quả`)
+        : '0 kết quả')
   luoi.innerHTML = ''
-  if (!OF_TIM_KQ.length) {
-    luoi.innerHTML = `<div class="trong">Kho chưa có gì cho «${esc(OF_TIM_Q)}» — `
-      + 'bấm <b style="color:var(--warn)">⛏ Hút thêm</b></div>'
+  if (!uv_mieng.length) {
+    luoi.innerHTML = OF_TIM_KQ === null
+      ? '<div class="trong">Miếng này chưa có ứng viên nào — gõ từ khoá để tra '
+        + 'Library hoặc bấm <b style="color:var(--warn)">⛏ Hút thêm</b></div>'
+      : `<div class="trong">Kho chưa có gì cho «${esc(OF_TIM_Q)}» — `
+        + 'bấm <b style="color:var(--warn)">⛏ Hút thêm</b></div>'
   }
-  for (const c of OF_TIM_KQ) {
+  for (const c of uv_mieng) {
     const d = document.createElement('div')
     d.className = 'the' + (OF_RV && c.id === OF_RV.id ? ' dang' : '')
     d.innerHTML = ofTimThe(c)
@@ -2404,9 +2412,9 @@ function ofVeKhay() {
   if (OF_PHA !== 2) return
   const k = ofHinh()[OF_HCHON] || ofK()[OF_CHON] || {}
   const ds = OF_TIM_KQ !== null ? OF_TIM_KQ : (k.uv || [])
-  const _otn = document.getElementById('of-tim-nhan')
-  if (_otn) _otn.textContent = OF_TIM_KQ !== null
-    ? `${ds.length} kq Library cho «${OF_TIM_Q}»` : `ứng viên của miếng hình ${OF_HCHON + 1}`
+  // KHÔNG đụng `#of-tim-nhan`: ô đó nằm TRONG popup, do `ofTimVe` vẽ. Hai hàm
+  // tranh nhau một ô -> nhãn popup vừa vẽ xong bị khay ngoài đè (user chụp
+  // được 10/09: popup hiện "ứng viên của miếng hình 31" của khay ngoài).
   // 3 KHỐI: ref · envato · stock (pexels+pixabay+kho+AI gộp) — user 08/09
   // Panel = TÊN KHO THẬT (user chốt 07/09): tải từ trang nào thì kho tên trang
   // đó. Pexels + Pixabay chung một panel (user cho phép). `kho` là clip cũ chưa
@@ -2675,6 +2683,10 @@ async function ofReview(u) {
     document.getElementById('of-trim').hidden = true
   }
   ofRvMeta(u)
+  // Đổ sẵn ứng viên của miếng vào lưới (user bắt 10/09). Hàm `ofTimVe` đã biết
+  // làm, nhưng KHÔNG AI GỌI lúc mở popup — sửa hàm mà quên nối là người dùng
+  // vẫn thấy lưới rỗng (cùng kiểu lỗi `#of-tim` không tồn tại).
+  ofTimVe()
 }
 function ofVeTrim() {
   if (!(OF_RV_DAI > 0)) return

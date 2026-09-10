@@ -1282,3 +1282,44 @@ một màu. Ghi lại để user quyết nếu muốn đúng 🔍.
 Đo ba con số khung rồi tuyên bố khớp là loại bịa nguy hiểm nhất: nó NGHE như đã
 kiểm chứng. Mockup là văn bản — muốn nói khớp thì phải mở nó ra, đọc hết, lập
 bảng đối chiếu từng mục. Ảnh chụp cạnh nhau chỉ dùng để bắt cái bảng đó bỏ sót.
+
+### USER BẮT 10/09 (lượt 3): popup mở ra LƯỚI RỖNG + không hiện nguồn
+
+User: *"Tạo sao click double vào 1 video bất kỳ thì không hiện lên video nào
+khác. Logic thì các video phải hiện ở đây chứ"* + *"Vẫn chưa hiện nguồn video"*.
+
+**Lỗi 1 — mở popup lưới rỗng.** Mã cũ: `OF_TIM_KQ === null` (chưa gõ) → chỉ
+hiện chữ *"gõ từ khoá để tra Library"*, trong khi miếng ĐÃ CÓ sẵn ~12 ứng viên
+trong hợp đồng. Giấu thứ đang có. Vá: chưa gõ thì đổ `hinh[i].uv`; gõ mới
+chuyển sang kết quả tra Library.
+
+**LẶP LẠI GỐC RỄ CỦA CẢ VIỆC E:** sửa `ofTimVe` xong, test xanh, mở Chrome vẫn
+**0 thẻ** — vì `ofReview` KHÔNG GỌI nó. Hàm đúng mà không ai gọi thì người dùng
+vẫn thấy lưới rỗng, y hệt ca `#of-tim` không tồn tại. Nếu không mở trình duyệt
+nhìn thì lại báo "xong".
+
+**Lỗi 2 — không hiện nguồn.** Hai nguyên nhân chồng nhau:
+
+* CSS `#of-tim-luoi .cd{background:var(--accent)}` ép MỌI nguồn một màu → huy
+  hiệu màu riêng thành vô nghĩa. Gỡ, để thẻ đặt inline theo `OF_TIM_MAU`.
+  Đo lại: `rgb(154,166,178)` = đúng màu KHO.
+* `ofVeKhay` (khay 4 dải NGOÀI trang) ghi đè `#of-tim-nhan` — ô đếm nằm TRONG
+  popup. Hai hàm tranh nhau một ô, nên nhãn popup vừa vẽ xong bị đè thành
+  *"ứng viên của miếng hình 31"* đúng như ảnh user chụp.
+
+Kiểm bằng Chrome thật sau vá:
+
+```
+MO POPUP  -> 12 the | nhan «12 ứng viên của miếng 1»
+nguon the : ['KHO' x6] | mau huy hieu: rgb(154, 166, 178)
+go 'market' -> 21 the | nhan «21/778 · trang 1»
+```
+
+### BH21 — Sửa hàm chưa đủ, phải kiểm AI GỌI nó
+
+Ba lần trong cùng một việc: `#of-tim` không tồn tại · `ofGoiY` gọi phần tử đã
+xoá · `ofTimVe` không ai gọi. Cùng một hình dạng — **mã đúng nhưng mối nối
+đứt**, và test kiểm chuỗi luôn xanh vì chuỗi vẫn nằm trong file.
+
+Luật: mỗi hàm giao diện mới viết xong phải `grep` tên nó xem có lời gọi chưa,
+rồi mở trình duyệt xác nhận nó CHẠY THẬT.
