@@ -190,7 +190,28 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         raise RuntimeError("thiếu media/voice_master.wav — chạy align/cut trước")
     words = _words(project_dir)
     if not words:
-        raise RuntimeError("transcript rỗng — chạy align trước")
+        # "transcript rỗng — chạy align trước" ĐÚNG triệu chứng nhưng SAI
+        # nguyên nhân: align đã chạy rồi (`stages.align = done`), nó rỗng vì
+        # KỊCH BẢN rỗng. User bấm Phân tích hơn 15 lần với chương
+        # `e-20260908-115102` mà không hiểu vì sao (10/09).
+        #
+        # Tự nạp lại kịch bản từ bản gốc (rẻ, tức thì) rồi bảo chạy Align lại
+        # — không tự chạy align ở đây vì chương không có `.srt` thì phải dùng
+        # whisper, vài phút, không nằm gọn trong một request được.
+        from autoedit.project import doc_script
+
+        truoc = (project_dir / "inputs" / "script.txt")
+        da_rong = not (truoc.read_text(encoding="utf-8").strip()
+                       if truoc.is_file() else "")
+        doc_script(project_dir)          # rỗng cả hai nơi -> ném lỗi nói rõ
+        if da_rong:
+            raise RuntimeError(
+                "Kịch bản trong chương trước đây RỖNG nên transcript rỗng theo "
+                "— đã tự nạp lại từ bản gốc. Chạy Align lại cho chương này rồi "
+                "Phân tích.")
+        raise RuntimeError(
+            "transcript rỗng nhưng kịch bản KHÔNG rỗng — align chưa chạy xong "
+            "hoặc voice không khớp kịch bản. Chạy Align lại cho chương này.")
 
     from autoedit.cutter import silence as sil
     from autoedit.project import ffprobe_duration

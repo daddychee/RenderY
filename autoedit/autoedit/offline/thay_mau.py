@@ -277,6 +277,52 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
     return ra, dung_id, warns
 
 
+def xuat_xml_canh_draft(draft: Path, log=None) -> list[str]:
+    r"""Xuất bản Premiere (`.xml`) + Resolve/FCP (`.fcpxml`) CẠNH draft.
+
+    User báo 10/09: *"nó vẫn chưa có Xml anh ạ"*. Mã dịch đã có đủ
+    (`packager/xmeml.py`, `packager/fcpxml.py`, gọi trong `web/compose.py`),
+    nhưng đường Offline không chỗ nào gọi — thiếu đúng một mối nối.
+
+    KHÔNG dùng `compose_chapter`: hàm đó copy CẢ draft sang thư mục giao, còn
+    đường Offline đã chốt 09/09 là không chép draft (10 draft = 992MB).
+
+    Đặt cạnh draft như `nguon_footage.*` (chốt 29/08): editor mang cả thư mục
+    draft sang máy khác là có luôn bản Premiere/Resolve, không phải xin lại.
+
+    Fail-open: hỏng XML thì mất XML, KHÔNG được mất draft đã dựng xong — cùng
+    luật với sổ nguồn gốc. Trả danh sách cảnh báo.
+    """
+    def ghi(m):
+        if log:
+            log(m)
+
+    draft = Path(draft)
+    canh_bao: list[str] = []
+    # Premiere chỉ import FCP7 XML (.xml); Resolve/FCP đọc .fcpxml. Hai app hai
+    # kiểu nên phải ra hai file — hỏng bản này không cản bản kia.
+    try:
+        from autoedit.packager.xmeml import xuat_xmeml
+
+        canh_bao += xuat_xmeml(draft, draft / f"{draft.name}.xml",
+                               ten_seq=draft.name) or []
+        ghi(f"thay-mau: xuất bản Premiere -> {draft.name}.xml")
+    except Exception as exc:  # noqa: BLE001 — mất XML chứ không mất draft
+        canh_bao.append(f"chưa xuất được bản Premiere (.xml): {str(exc)[:80]}")
+        ghi(f"thay-mau: {canh_bao[-1]}")
+    try:
+        from autoedit.packager.fcpxml import xuat_fcpxml
+
+        # cảnh báo hai bản trùng nội dung (thiếu media, chữ->marker) — bản .xml
+        # ở trên đã ghi rồi, lấy lại là lặp đôi trong sổ
+        xuat_fcpxml(draft, draft / f"{draft.name}.fcpxml", ten_seq=draft.name)
+        ghi(f"thay-mau: xuất bản Resolve/FCP -> {draft.name}.fcpxml")
+    except Exception as exc:  # noqa: BLE001
+        canh_bao.append(f"chưa xuất được bản Resolve/FCP (.fcpxml): {str(exc)[:80]}")
+        ghi(f"thay-mau: {canh_bao[-1]}")
+    return canh_bao
+
+
 def be_dong(chu: str, moi_dong: int) -> list[str]:
     """Bẻ chuỗi thành các dòng <= `moi_dong` ký tự, KHÔNG mất ký tự nào.
 
@@ -568,6 +614,10 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
         log(f"thay-mau: sổ nguồn gốc {len(so['clips'])} clip — {ti}")
     except Exception as exc:  # noqa: BLE001
         log(f"thay-mau: ghi sổ nguồn gốc lỗi ({str(exc)[:70]})")
+    # BẢN PREMIERE / RESOLVE đi CÙNG draft (user chốt 10/09: xuất cùng lúc,
+    # không thêm nút). Trước đó chỉ `web/compose.py` gọi, mà đường Offline
+    # không đi qua đó -> user báo "vẫn chưa có Xml".
+    xuat_xml_canh_draft(Path(draft), log)
     # GIAO vào thư mục tập trên NAS (user chốt 09/09). Draft ra thật nhưng nằm ở
     # kho draft CapCut, còn `Compose Timeline/<chương>/` thì rỗng — mà chính
     # `DOC_TRUOC.txt` trong đó lại hứa có draft/footage/report. Giao GIẤY TỜ +

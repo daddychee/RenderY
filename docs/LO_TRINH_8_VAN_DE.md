@@ -815,3 +815,92 @@ Việc E là phần nhiều giao diện nhất (khay tra cứu PA B trong popup:
 nguồn, phân trang 21 clip, bảng thông tin, nút Hút). Áp thêm bước bắt buộc từ
 BH13: **đặt mockup `scratchpad/ui_o_tra_cuu.html` cạnh bản thật, so từng chi
 tiết, rồi mở Chrome bấm nút thật trước khi báo xong.**
+
+---
+
+## VÒNG 10 (10/09/2026) — VÁ 2 LỖI USER BÁO (chen ngang trước việc E)
+
+User gửi ảnh chụp màn hình + 2 câu: *"nạp đủ script r nhưng vẫn báo transcript
+rỗng là lỗi rì ạ"* · *"nó vẫn chưa có Xml anh ạ"*.
+
+### Lỗi 1 — "nạp đủ script rồi vẫn báo transcript rỗng"
+
+Truy trên production, chương `e-20260908-115102`:
+
+| | |
+|---|---|
+| `E.txt` trên NAS | **1139 byte**, sửa **15:45 ngày 10/09** — user đã nạp thật |
+| `inputs/script.txt` trong chương | **0 byte**, từ 08/09 |
+| `project.json` → `inputs.script_text` | rỗng |
+| `transcript.json` | `match_ratio: 0.0`, `words: []` |
+| Log | `POST .../e-20260908-115102/phan-tich` lặp **hơn 15 lần**, đều 200 OK |
+
+**HAI lỗi chồng nhau:**
+
+1. `project.py:606` copy script rồi đi tiếp, **không kiểm nội dung**. Chương
+   sinh ra đã hỏng; chỗ duy nhất phàn nàn là align — báo *"transcript rỗng"*,
+   tức là **đổ lỗi cho khâu SAU** chứ không chỉ khâu thật sự hỏng.
+2. Script chỉ copy **một lần** lúc tạo chương (chú thích *"self-contained,
+   resume độc lập file gốc"*). User sửa file gốc rồi bấm Phân tích 15 lần, tool
+   vẫn dùng bản rỗng cũ.
+
+Quét 90 chương: **1 chương dính**. Hiếm — nhưng khi dính là chặn hẳn người dùng
+và không nói được vì sao.
+
+**Vá** (user chốt: *tự đọc lại script gốc*):
+
+| # | Thay đổi | File |
+|---|---|---|
+| 1 | `doc_script(project_dir)` — bản trong chương RỖNG thì đọc lại bản gốc, ghi đè cả `inputs/script.txt` lẫn `script_text`; rỗng cả hai nơi thì báo rõ file nào cần nạp | `project.py` |
+| 2 | `create_project` **chặn ngay** nếu script rỗng (kiểm `.strip()`, không kiểm kích thước) | `project.py` |
+| 3 | `phan_tich` khi transcript rỗng: tự nạp lại script + báo *"đã tự nạp lại từ bản gốc, chạy Align lại"*; script KHÔNG rỗng thì báo câu KHÁC (align dở / voice lệch) | `offline/runner.py` |
+
+**Chỉ chép khi bản trong chương RỖNG** — chương đang chạy bình thường giữ
+nguyên self-contained: sửa file gốc không được âm thầm đổi chương đã dựng dở.
+
+**Đã sửa chương E thật cho user:** nạp lại 1129 ký tự → chạy align (whisper,
+chương này không có `.srt`) → **188 từ, khớp 95%**. User bấm Phân tích là chạy.
+
+### Lỗi 2 — "vẫn chưa có XML"
+
+Mã xuất XML **đã có sẵn và đầy đủ**: `packager/xmeml.py` (`.xml`, FCP7 —
+Premiere chỉ import kiểu này) · `packager/fcpxml.py` (`.fcpxml`, Resolve/FCP) ·
+`web/compose.py:96-118` gọi cả hai.
+
+Nhưng đường Offline ráp draft ở `offline/thay_mau.py`, giao giấy ở
+`offline/giao.py` — **không chỗ nào gọi compose** (grep `xml` trong hai file:
+0 kết quả). Thiếu đúng **một mối nối**.
+
+**KHÔNG dùng lại `compose_chapter`**: hàm đó copy CẢ draft sang thư mục giao,
+trong khi đường Offline đã chốt 09/09 là không chép draft (10 draft = 992MB).
+Chỉ gọi thẳng `xuat_xmeml` / `xuat_fcpxml` trỏ vào draft tại chỗ.
+
+**Vá:** `xuat_xml_canh_draft(draft, log)` trong `thay_mau.py`, `dung_draft` gọi
+ngay sau sổ nguồn gốc. Đặt CẠNH draft như `nguon_footage.*` — editor mang cả
+thư mục draft sang máy khác là có luôn. Fail-open: hỏng XML mất XML, KHÔNG
+được mất draft (cùng luật sổ nguồn gốc).
+
+User chốt 10/09: **xuất cùng lúc với draft, không thêm nút**.
+
+**Nghiệm thu trên draft THẬT** `OFF_c2-20260907-101011` (172 file media):
+
+```
+canh bao : KHONG CO
+sequence : OFF_c2-20260907-101011
+  video  : 43 clip
+  audio  : 43 clip
+```
+
+Khớp đúng draft gốc (43 video / 43 audio segment). Đã xoá 2 file thử khỏi draft
+production sau khi kiểm — không để lại rác trên dữ liệu người dùng.
+
+### BH15 — Thông điệp lỗi chỉ sai khâu là đẩy người dùng đi sai hướng
+
+*"transcript rỗng — chạy align trước"* đúng về triệu chứng nhưng sai về nguyên
+nhân: align **đã chạy rồi** (`stages.align = done`), nó rỗng vì kịch bản rỗng.
+User làm đúng theo lời tool bảo (bấm lại) 15 lần mà không thoát được.
+
+Luật rút ra: khi một khâu phát hiện dữ liệu vào hỏng, phải **truy ngược một
+bậc** trước khi kết luận. Và nếu có hai nguyên nhân khác nhau dẫn tới cùng
+triệu chứng thì phải ra **hai thông điệp khác nhau** — gộp làm một là dồn người
+dùng vào ngõ cụt.

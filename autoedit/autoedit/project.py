@@ -573,6 +573,53 @@ def _read_script_text(script_path: Path) -> str:
     return script_path.read_text(encoding="utf-8")
 
 
+def doc_script(project_dir: Path | str) -> str:
+    r"""Kịch bản của chương. Bản trong chương RỖNG thì đọc lại bản gốc trên NAS.
+
+    Vì sao cần (user báo 10/09): chương `e-20260908-115102` có
+    `inputs/script.txt` **0 byte** trong khi `E.txt` trên NAS đã được nạp
+    **1139 byte**. Script chỉ được copy MỘT LẦN lúc tạo chương, nên user sửa
+    file gốc rồi bấm Phân tích 15 lần vẫn dùng bản rỗng cũ.
+
+    CHỈ chép khi bản trong chương RỖNG (user chốt 10/09). Chương đang chạy
+    bình thường giữ nguyên tính self-contained: sửa file gốc KHÔNG được âm
+    thầm đổi chương đã dựng dở.
+
+    Chép xong thì LƯU vào chương (cả `inputs/script.txt` lẫn `script_text`
+    trong `project.json`) — không thì mỗi khâu sau lại phải tự mò ra NAS.
+    """
+    project_dir = Path(project_dir)
+    pj = project_dir / "project.json"
+    try:
+        d = json.loads(pj.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"không đọc được project.json: {exc}") from exc
+    vao = d.get("inputs") or {}
+
+    loc = project_dir / (vao.get("script_path") or "inputs/script.txt")
+    chu = loc.read_text(encoding="utf-8") if loc.is_file() else ""
+    if chu.strip():
+        return chu
+
+    goc = Path(vao.get("original_script_path") or "")
+    if not goc.is_file():
+        raise RuntimeError(
+            f"Kịch bản RỖNG và không tìm thấy bản gốc: {goc or '(chưa ghi đường dẫn)'}\n"
+            "Nạp lại kịch bản rồi nộp tập lại.")
+    moi = _read_script_text(goc)
+    if not moi.strip():
+        raise RuntimeError(
+            f"Kịch bản RỖNG cả trong chương lẫn bản gốc: {goc}\n"
+            "Nạp nội dung vào file đó rồi bấm Phân tích lại.")
+
+    loc.parent.mkdir(parents=True, exist_ok=True)
+    loc.write_text(moi, encoding="utf-8")
+    vao["script_text"] = moi
+    d["inputs"] = vao
+    pj.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    return moi
+
+
 def create_project(
     script: Path | str,
     voice: Path | str,
@@ -604,6 +651,15 @@ def create_project(
         raise FileNotFoundError(f"Không thấy file .srt: {srt_path}")
 
     script_text = _read_script_text(script_path)
+    # CHẶN NGAY (user báo 10/09): chương `e-20260908-115102` sinh ra với
+    # `script.txt` 0 byte, chạy tiếp bình thường, rồi align khớp 0% và báo
+    # "transcript rỗng" — đổ lỗi cho khâu SAU. User bấm Phân tích hơn 15 lần
+    # không hiểu vì sao. Hỏng ở đây thì báo ở đây.
+    if not script_text.strip():
+        raise ValueError(
+            f"Kịch bản RỖNG: {script_path}\n"
+            "Nạp nội dung vào file đó rồi nộp tập lại — chương tạo bằng script "
+            "rỗng sẽ hỏng ở khâu align mà không nói được vì sao.")
 
     now = now or datetime.now(timezone.utc)
     base_title = title or script_path.stem
