@@ -904,3 +904,30 @@ Luật rút ra: khi một khâu phát hiện dữ liệu vào hỏng, phải **t
 bậc** trước khi kết luận. Và nếu có hai nguyên nhân khác nhau dẫn tới cùng
 triệu chứng thì phải ra **hai thông điệp khác nhau** — gộp làm một là dồn người
 dùng vào ngõ cụt.
+
+### Trạng thái vòng 10: XONG, đã lên production 10/09
+
+Suite `1681 passed / 14 skipped / 0 failed` (trước: 1667 — đúng 14 test mới).
+Commit `37aac33`, GitHub đồng bộ, server 9118 restart.
+
+**Chạy trọn chương E qua ĐÚNG ĐƯỜNG NGƯỜI DÙNG BẤM** (POST `/phan-tich` trên
+server production, không gọi hàm thẳng):
+
+```
+POST /api/offline/e-20260908-115102/phan-tich -> 200
+[offline] offline: 14 khối theo hơi thở · offset 0.0s
+[offline] offline-dịch: 14/14 khối có bản dịch
+[offline] offline: hợp đồng ghi xong — 14 khối · AUTO · 0 lỗi lặp
+[offline] e-20260908-115102: AUTO — máy tự khóa sổ + Online
+thay_mau.json: 18/18 miếng, 0 cảnh báo
+```
+
+Thư mục draft `OFF_e-20260908-115102/` có đủ:
+`draft_content.json` · `nguon_footage.json/.txt` · **`.xml` 62.9KB** ·
+**`.fcpxml` 18KB**.
+
+Đối chiếu draft ↔ XML: **22 video + 14 audio** ở cả hai; 2689 khung / 30fps =
+89.6s, khớp đúng độ dài voice chương E (89.626s).
+
+Chương E trước đó **chặn hẳn** người dùng (bấm Phân tích 15 lần vô ích) — nay
+chạy trọn tới draft + XML.
