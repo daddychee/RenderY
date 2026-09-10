@@ -1,0 +1,145 @@
+<!doctype html><meta charset="utf-8">
+<title>Mockup — popup Export timeline (user duyệt 11/09: bỏ nút Chọn, bỏ nút Mở Cài đặt)</title>
+<style>
+:root{
+  --bg:#f5f5f5; --panel:#fff; --panel2:#fafafa; --line:#e6e6e6; --text:#16181c; --muted:#6c6c72;
+  --accent:#2c6fc4; --accent-soft:#e8f0fb;
+  --warn:#d97706; --warn-soft:rgba(217,119,6,.10);
+  --bad:#dc2626; --bad-soft:rgba(220,38,38,.08);
+  --ok:#16a34a;
+}
+body{margin:0;background:#333;font:13px/1.55 system-ui,Segoe UI,sans-serif;color:var(--text);padding:22px}
+h2{color:#fff;font-size:14px;margin:26px 0 10px;font-weight:600}
+h2 small{color:#aaa;font-weight:400}
+.wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+
+/* ==== khuôn modal: theo .modal-bg/.modal có sẵn trong index.html ==== */
+.bg{background:rgba(0,0,0,.55);border-radius:10px;padding:26px;display:flex;justify-content:center}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+       padding:16px 18px;width:520px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.modal h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
+.sub{color:var(--muted);font-size:12px;margin:0 0 12px}
+.hr{height:1px;background:var(--line);margin:13px -18px}
+
+/* danh sách miếng hỏng */
+.ds{max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
+.it{display:flex;gap:9px;align-items:baseline;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12px}
+.it:last-child{border-bottom:0}
+.it b{color:var(--bad);font-weight:600;flex:0 0 62px;font-size:11.5px}
+.it .td{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it .ly{color:var(--muted);font-size:11px;flex:0 0 auto}
+.them{padding:6px 10px;color:var(--muted);font-size:11.5px}
+
+/* hộp cảnh báo */
+.hop{display:flex;gap:10px;padding:11px 12px;border-radius:9px;font-size:12.5px;align-items:flex-start}
+.hop.w{background:var(--warn-soft);border:1px solid var(--warn)}
+.hop.b{background:var(--bad-soft);border:1px solid var(--bad)}
+.hop .ic{font-size:15px;line-height:1.1}
+.hop b{display:block;margin-bottom:2px}
+.hop p{margin:0;color:var(--muted)}
+
+/* ô đường dẫn */
+.hang{display:flex;gap:7px;margin-top:7px}
+input[type=text]{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel2);color:var(--text);font-size:12.5px;font-family:ui-monospace,Consolas,monospace}
+.lbl{font-size:12px;color:var(--muted);margin-top:2px}
+.goi{font-size:11.5px;color:var(--muted);margin-top:5px}
+.goi code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;
+  font-family:ui-monospace,Consolas,monospace}
+
+/* nút */
+.ft{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+button{padding:7px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);
+  background:var(--panel2);color:var(--text)}
+button.chinh{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.phu{background:transparent;color:var(--muted)}
+button[disabled]{opacity:.45;cursor:not-allowed}
+.ghim{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:12.5px}
+.note{color:#8fd0a8;font-size:11.5px;margin:8px 0 0;max-width:520px}
+</style>
+
+<h2>a) CÓ miếng hỏng — CHẶN <small>· không cho sang bước sau</small></h2>
+<div class="wrap"><div class="bg"><div class="modal">
+  <h3><span style="color:var(--bad)">⊘</span> Chưa xuất được timeline</h3>
+  <p class="sub">6 miếng đang dùng clip đã hỏng hoặc hết hạn — sửa xong mới xuất được.</p>
+  <div class="ds">
+    <div class="it"><b>miếng 3</b><span class="td">Aerial view of a remote mountain trail</span><span class="ly">link chết</span></div>
+    <div class="it"><b>miếng 7</b><span class="td">Woman with child walking near stone house</span><span class="ly">link chết</span></div>
+    <div class="it"><b>miếng 12</b><span class="td">Children on path at sunrise</span><span class="ly">link chết</span></div>
+    <div class="it"><b>miếng 18</b><span class="td">Prayer flags over the valley</span><span class="ly">link chết</span></div>
+    <div class="it"><b>miếng 24</b><span class="td">Farmers carrying baskets uphill</span><span class="ly">link chết</span></div>
+    <div class="them">… và 1 miếng nữa</div>
+  </div>
+  <div class="ft">
+    <button class="phu">Đóng</button>
+    <button class="chinh">⌖ Tới miếng hỏng đầu tiên</button>
+  </div>
+</div></div>
+
+<div class="bg"><div class="modal">
+  <h3><span style="color:var(--warn)">⚠</span> Chưa xuất được timeline</h3>
+  <p class="sub">4 miếng chưa có bản sạch Envato — xuất ra sẽ <b>dính watermark</b>.</p>
+  <div class="ds">
+    <div class="it"><b>miếng 5</b><span class="td">Mountain range with buildings</span><span class="ly">watermark</span></div>
+    <div class="it"><b>miếng 9</b><span class="td">Crowd on hillside</span><span class="ly">watermark</span></div>
+    <div class="it"><b>miếng 21</b><span class="td">Flooded area after monsoon</span><span class="ly">watermark</span></div>
+    <div class="it"><b>miếng 30</b><span class="td">Man with bags at the market</span><span class="ly">watermark</span></div>
+  </div>
+  <div class="hop w" style="margin-top:11px">
+    <span class="ic">⚑</span>
+    <div><b>Không cần thay clip</b>
+    <p>Vào <b>Cài đặt → đăng nhập lại Envato</b>, rồi bấm Export lại. Tool sẽ tự tải bản sạch.</p></div>
+  </div>
+  <div class="ft">
+    <button class="chinh">Đóng</button>
+  </div>
+</div></div></div>
+<p class="note">Khác bản hiện tại: đang là <code style="color:#ffb4b4">alert()</code> chữ trần — không bấm được vào miếng, không mở được Cài đặt.</p>
+
+<h2>b + c) SẠCH — xác nhận tắt CapCut + chọn nơi xuất <small>· một hộp, hai việc liền nhau</small></h2>
+<div class="wrap"><div class="bg"><div class="modal">
+  <h3>⬇ Xuất timeline — chương C2</h3>
+  <p class="sub">Đã soát 33 miếng, không có clip hỏng.</p>
+
+  <div class="hop b">
+    <span class="ic">⚠</span>
+    <div><b>Tắt CapCut trước khi xuất</b>
+    <p>Tool ghi đè vào đúng thư mục draft của chương này. CapCut đang mở sẽ giữ file và
+       làm draft hỏng, hoặc ghi đè lại phần anh vừa sửa tay.</p></div>
+  </div>
+
+  <div class="lbl" style="margin-top:13px">Nơi xuất draft</div>
+  <div class="hang">
+    <input type="text" value="F:\OutlierY Nas 2\Tool Edit\Capcut Draft\CapCut Drafts">
+  </div>
+  <div class="goi">Sẽ ghi vào <code>…\CapCut Drafts\OFF_LI106_C2</code> · bỏ trống = nơi tập đã nhớ</div>
+
+  <label class="ghim"><input type="checkbox"> <span>Tôi đã tắt CapCut</span></label>
+
+  <div class="ft">
+    <button class="phu">Huỷ</button>
+    <button class="chinh" disabled>⬇ Xuất timeline</button>
+  </div>
+</div></div>
+
+<div class="bg"><div class="modal">
+  <h3>⬇ Xuất timeline — chương C2</h3>
+  <p class="sub">Đã soát 33 miếng, không có clip hỏng.</p>
+  <div class="hop b">
+    <span class="ic">⚠</span>
+    <div><b>Tắt CapCut trước khi xuất</b>
+    <p>Tool ghi đè vào đúng thư mục draft của chương này. CapCut đang mở sẽ giữ file và
+       làm draft hỏng, hoặc ghi đè lại phần anh vừa sửa tay.</p></div>
+  </div>
+  <div class="lbl" style="margin-top:13px">Nơi xuất draft</div>
+  <div class="hang">
+    <input type="text" value="F:\OutlierY Nas 2\Tool Edit\Capcut Draft\CapCut Drafts">
+  </div>
+  <div class="goi">Sẽ ghi vào <code>…\CapCut Drafts\OFF_LI106_C2</code> · bỏ trống = nơi tập đã nhớ</div>
+  <label class="ghim"><input type="checkbox" checked> <span>Tôi đã tắt CapCut</span></label>
+  <div class="ft">
+    <button class="phu">Huỷ</button>
+    <button class="chinh">⬇ Xuất timeline</button>
+  </div>
+</div></div></div>
+<p class="note">Nút Xuất <b>khoá</b> tới khi tích ô xác nhận — trạng thái nói thật, không để bấm rồi mới từ chối.</p>

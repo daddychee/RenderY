@@ -1444,3 +1444,53 @@ rồi nạp vào miếng. Không nhận file mới từ máy team.
 **BH23 — "đã gộp vào việc khác" phải kiểm bằng mã, không đọc lướt sổ.**
 Một dòng sổ nói "không làm PA1" và một dòng nói "PA B xong" nằm gần nhau thì rất
 dễ đọc thành "việc đó xong rồi". Trạng thái XONG chỉ được ghi khi `grep` ra mã thật.
+
+---
+
+## VIỆC 1 (11/09/2026) — popup Export timeline
+
+User chốt sau khi duyệt mockup `scratchpad/ui_popup_export.html`:
+(a) có clip không lấy được link → **CHẶN**, hiện danh sách · (b) sạch → báo
+**tắt CapCut**, xác nhận mới xuất · (c) nơi xuất **chỉ dán tay**.
+Watermark **chỉ hiện thông báo**, KHÔNG nút "Mở Cài đặt" (trang đó không tồn tại).
+
+### Kiểm trước khi code
+* `soat_truoc_pha` (thay_mau.py:89) ĐÃ trả `[{mieng,id,tieu_de,ly_do}]`;
+  `server.py:1245` đã raise 409 `{ghi_chu,hong}` phân biệt watermark.
+  → **thuần frontend, không đụng backend.**
+* `modal()`/`.modal-bg` (index.html:524, 1074) đã có → không dựng khuôn thứ hai.
+* **Nút "Chọn thư mục" KHÔNG làm được**: trình duyệt không trả đường dẫn thật
+  (`showDirectoryPicker` chỉ cho handle, `webkitdirectory` không cho đường dẫn
+  tuyệt đối), backend không có route duyệt ổ đĩa và không mở. → user chốt bỏ.
+
+### Đã làm
+`index.html`: CSS `#of-xk*` · hộp `#of-xk` · `ofXkHong()` (a) · `ofXkHoi()` (b+c)
+· `ofToiHong()` · tách `ofXuatThat()` khỏi `ofDoiPha()` để hộp xác nhận gọi lại.
+Test `tests/test_popup_export.py` **15 test**.
+
+### BH24 — test chuỗi báo XANH trong khi file JS HỎNG HOÀN TOÀN
+12/12 test xanh, nhưng mở bằng Chrome thật: `PAGEERROR Unexpected end of input`
+— thiếu một dấu `}`, **cả file JS không nạp được**, mọi hàm `undefined`. Test
+`assert "function ofXkHong(" in h` không thể thấy điều đó.
+Nguyên nhân sâu hơn: một script vá nhiều chỗ **dừng giữa chừng** ở chỗ thứ 2 mà
+chỗ 1 và 3 đã ghi — file ở trạng thái nửa vời, tôi tưởng cả 3 đã áp dụng.
+**Luật: mỗi lần sửa JS/HTML phải nạp bằng trình duyệt thật và kiểm `typeof` hàm
++ `pageerror`, TRƯỚC khi tin bất kỳ test chuỗi nào.** (nới rộng BH9)
+
+### BH25 — đối chiếu mockup bắt được chi tiết bỏ sót
+Test xanh + 3 ảnh chụp trông "đúng", nhưng so từng dòng với mockup thì thiếu
+dòng `Sẽ ghi vào …\OFF_...`. Đã bổ sung, kèm test khoá. Tên `OFF_<tập>_<chương>`
+là **việc 2 chưa làm** → hiện tên THẬT (`OFF_<project_id>`), không hứa tên chưa có.
+
+### Nghiệm thu Chrome thật (`scratchpad/thu_popup.py`)
+| Đo | Mockup | Thật |
+|---|---|---|
+| cắt danh sách | 5 + "… và N miếng nữa" | 5 + "… và 3 miếng nữa" ✓ |
+| cao danh sách | ≤190px, cuộn được | 190px, cuộn ✓ |
+| link chết | viền `--bad` | `rgb(220,38,38)` ✓ |
+| watermark | viền `--warn`, chỉ nút Đóng | `rgb(217,119,6)`, `['Đóng']` ✓ |
+| nút Xuất | khoá tới khi tích | `disabled=True` → tích → `False` ✓ |
+| đường dẫn | giữ nguyên `\` | `F:\OutlierY Nas 2\...` ✓ |
+| XSS | esc() | `<script>` bị vô hiệu, trang còn sống ✓ |
+
+Ảnh: `scratchpad/popup_{a_linkchet,a_watermark,bc_xacnhan}.png`.

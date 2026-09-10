@@ -530,6 +530,41 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 .modal pre{font:12px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;
   background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
 .err{color:var(--bad);font-size:12.5px}
+/* HỘP XUẤT TIMELINE (việc 1, user duyệt mockup 11/09 — scratchpad/ui_popup_export.html).
+   Dùng lại khuôn .modal/.modal-bg ở trên, chỉ thêm phần ruột. */
+#of-xk .sub{color:var(--muted);font-size:12px;margin:0 0 12px}
+#of-xk-ds{max-height:190px;overflow:auto;border:1px solid var(--line);
+  border-radius:9px;background:var(--panel2)}
+#of-xk-ds .it{display:flex;gap:9px;align-items:baseline;padding:7px 10px;
+  border-bottom:1px solid var(--line);font-size:12px}
+#of-xk-ds .it:last-child{border-bottom:0}
+#of-xk-ds .it b{color:var(--bad);font-weight:600;flex:0 0 62px;font-size:11.5px}
+#of-xk-ds .it .td{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#of-xk-ds .it .ly{color:var(--muted);font-size:11px;flex:0 0 auto}
+#of-xk-ds .them{padding:6px 10px;color:var(--muted);font-size:11.5px}
+#of-xk .hopc{display:flex;gap:10px;padding:11px 12px;border-radius:9px;
+  font-size:12.5px;align-items:flex-start;margin-top:11px}
+#of-xk .hopc.w{background:var(--warn-soft);border:1px solid var(--warn)}
+#of-xk .hopc.b{background:var(--bad-soft);border:1px solid var(--bad)}
+#of-xk .hopc .ic{font-size:15px;line-height:1.1}
+#of-xk .hopc b{display:block;margin-bottom:2px}
+#of-xk .hopc p{margin:0;color:var(--muted)}
+#of-xk .lbl{font-size:12px;color:var(--muted);margin-top:13px}
+#of-xk-noi{width:100%;box-sizing:border-box;padding:7px 10px;margin-top:7px;
+  border:1px solid var(--line);border-radius:8px;background:var(--panel2);
+  color:var(--text);font:12.5px ui-monospace,Consolas,monospace}
+#of-xk .goi{font-size:11.5px;color:var(--muted);margin-top:5px}
+#of-xk .goi code{background:var(--panel2);border:1px solid var(--line);
+  border-radius:4px;padding:1px 5px;font-family:ui-monospace,Consolas,monospace}
+#of-xk .ghim{display:flex;align-items:center;gap:7px;margin-top:11px;font-size:12.5px;
+  cursor:pointer}
+#of-xk .ft{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+#of-xk .ft button{padding:7px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel2);color:var(--text)}
+#of-xk .ft button.chinh{background:var(--accent);border-color:var(--accent);
+  color:#fff;font-weight:600}
+#of-xk .ft button.phu{background:transparent;color:var(--muted)}
+#of-xk .ft button[disabled]{opacity:.45;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -993,6 +1028,13 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 <div id="soi" onclick="this.style.display='none'"><img id="soi-img" alt=""></div>
 <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="modal"><h3 id="modal-tieu"></h3><div id="modal-noi"></div></div>
+</div>
+
+<!-- HỘP XUẤT TIMELINE (việc 1): (a) chặn khi có miếng hỏng · (b) tắt CapCut ·
+     (c) nơi xuất DÁN TAY (user chốt 11/09: bỏ nút chọn thư mục). -->
+<div class="modal-bg" id="of-xk" onclick="if(event.target===this)ofXkDong()">
+  <div class="modal" style="max-width:560px"><h3 id="of-xk-tieu"></h3>
+    <div id="of-xk-noidung"></div></div>
 </div>
 
 <script>
@@ -1514,6 +1556,7 @@ function nicheDoi() {
 
 /* ── OFFLINE (Đợt 4): màn 2 pha — dữ liệu từ /api/offline, voice WAV chuẩn mẫu ── */
 let OF_PID = '', OF_HD = null, OF_PHA = 1, OF_CHON = 0, OF_HCHON = 0, OF_PXS = 14
+let OF_XK_CHAY = null      // việc 1: callback xuất, hộp xác nhận giữ tạm
 // Miếng đang dùng clip hỏng — server soát lúc bấm Export, trả về để tô đỏ.
 // Xoá khi người dựng đổi clip: chỉ dấu của LẦN SOÁT ĐÓ, không phải trạng thái bền.
 let OF_HONG = new Set()
@@ -2555,13 +2598,25 @@ async function ofDoiPha() {
     // không bao giờ thấy gì: màn hình im lặng, nhân sự bấm lại rồi nhận hộp
     // thoại mở đầu bằng "Lỗi" (báo 09/09). Nay đọc `tt_online` và KHOÁ NÚT
     // trong lúc chạy, thay vì để bấm rồi mới từ chối.
+    // VIỆC 1 (11/09): HỎI TRƯỚC KHI XUẤT — tắt CapCut + xác nhận nơi xuất.
+    // Soát miếng hỏng vẫn do SERVER làm (nhánh 409 trong ofXuatThat): chỉ server
+    // đọc được trạng thái clip trong Sổ Tra.
+    const _o = document.getElementById('of-noi-xuat')
+    ofXkHoi((OF_HD && OF_HD.hinh ? OF_HD.hinh.length : 0),
+            (OF_HD && OF_HD.ma_tap) || '', _o ? _o.value.trim() : '',
+            noi => ofXuatThat(noi))
+  }
+}
+
+/* Gọi API xuất THẬT — tách khỏi ofDoiPha để hộp xác nhận gọi lại được. */
+async function ofXuatThat(noi) {
     const nut = document.getElementById('of-nut-pha')
     try {
       nut.disabled = true
       // NƠI XUẤT (user chốt 09/09): dán đường dẫn, nhớ THEO TẬP. Bỏ trống thì
       // dùng lại nơi tập đã nhớ; vẫn trống thì kho draft mặc định của máy.
       const o = document.getElementById('of-noi-xuat')
-      const noi = o ? o.value.trim() : ''
+      if (o && noi) o.value = noi          // nhớ lại chỗ vừa dán
       const r = await api('/api/offline/' + OF_PID + '/thay-mau',
                           {method: 'POST', body: JSON.stringify({noi_xuat: noi})})
       OF_HONG = new Set()              // soát sạch -> gỡ mọi dấu đỏ lần trước
@@ -2583,24 +2638,85 @@ async function ofDoiPha() {
         OF_HONG = new Set(hong.map(x => x.mieng))
         OF_HCHON = hong[0].mieng
         ofVeAll()
-        // HAI lý do -> HAI cách xử lý (10/09). Clip hỏng thì phải THAY; Envato
-        // thiếu bản sạch thì đăng nhập rồi bấm Online, KHÔNG phải thay gì.
-        const wm = hong.some(x => (x.ly_do || '').toLowerCase().includes('watermark'))
-        alert((wm ? `${hong.length} miếng chưa có bản sạch Envato — Export ra sẽ DÍNH WATERMARK:\n\n`
-                  : `${hong.length} miếng đang dùng clip đã hỏng hoặc hết hạn:\n\n`)
-          + hong.slice(0, 8).map(x =>
-              `  • miếng ${x.mieng + 1}: ${x.tieu_de}${x.ly_do ? ` (${x.ly_do})` : ''}`).join('\n')
-          + (hong.length > 8 ? `\n  … và ${hong.length - 8} miếng nữa` : '')
-          + (wm ? '\n\nVào Cài đặt → đăng nhập lại Envato, rồi Export lại. Không cần thay clip.'
-                : '\n\nCác miếng đó đã tô đỏ trên timeline. Thay clip khác rồi Export lại.'))
+        ofXkHong(hong)          // (a) CHẶN — hộp thoại thay alert() chữ trần
         return
       }
       // 409 = ĐANG CHẠY, không phải hỏng — đừng dán chữ "Lỗi" lên nó
       const dang = String(e.message).includes('Đang làm bản Online')
       if (dang) toastOf('⏳ ' + e.message); else alert('Lỗi: ' + e.message)
     }
-  }
 }
+/* ══ HỘP XUẤT TIMELINE (việc 1, user duyệt mockup 11/09) ══════════════════
+   Thay `alert()` chữ trần: alert không bấm được vào miếng hỏng, không cuộn
+   nổi danh sách dài, không phân biệt màu. Mockup: scratchpad/ui_popup_export.html */
+function ofXkDong() { document.getElementById('of-xk').classList.remove('show') }
+
+/* Nhảy tới miếng hỏng đầu tiên. `ofVeAll()` ở nhánh 409 đã tô đỏ + đặt
+   OF_HCHON; ở đây chỉ cuộn tới, dùng đúng khuôn scrollIntoView của ofZoom. */
+function ofToiHong() {
+  const el = document.querySelectorAll('.of-mieng')[OF_HCHON]
+  if (el) el.scrollIntoView({block: 'nearest', inline: 'center'})
+}
+
+function _ofXkMo(tieu, html) {
+  document.getElementById('of-xk-tieu').innerHTML = tieu
+  document.getElementById('of-xk-noidung').innerHTML = html
+  document.getElementById('of-xk').classList.add('show')
+}
+
+/* (a) CÓ miếng hỏng -> CHẶN. Hai lý do hai lối xử lý (10/09): clip chết thì
+   phải THAY; Envato thiếu bản sạch thì đăng nhập rồi Export lại, không thay gì.
+   User chốt 11/09: watermark CHỈ hiện thông báo, không nút "Mở Cài đặt". */
+function ofXkHong(hong) {
+  const wm = hong.some(x => (x.ly_do || '').toLowerCase().includes('watermark'))
+  const dong = hong.slice(0, 5).map(x =>
+    `<div class="it"><b>miếng ${x.mieng + 1}</b>` +
+    `<span class="td">${esc(x.tieu_de || '(không tên)')}</span>` +
+    `<span class="ly">${esc(x.ly_do || '')}</span></div>`).join('')
+  const con = hong.length > 5
+    ? `<div class="them">… và ${hong.length - 5} miếng nữa</div>` : ''
+  // màu có nghĩa cố định: watermark = var(--warn) · clip chết = var(--bad)
+  const nhac = wm
+    ? `<div class="hopc w"><span class="ic">⚑</span><div><b>Không cần thay clip</b>
+         <p>Vào Cài đặt → đăng nhập lại Envato, rồi bấm Export lại.
+            Tool sẽ tự tải bản sạch.</p></div></div>`
+    : `<div class="hopc b"><span class="ic">⊘</span><div><b>Thay clip khác rồi Export lại</b>
+         <p>Các miếng đó đã tô đỏ trên timeline.</p></div></div>`
+  // link chết: nhảy tới miếng đầu tiên để sửa ngay. watermark: không có gì để nhảy tới.
+  const nut = wm
+    ? `<button class="chinh" onclick="ofXkDong()">Đóng</button>`
+    : `<button class="phu" onclick="ofXkDong()">Đóng</button>
+       <button class="chinh" onclick="ofXkDong();ofToiHong()">⌖ Tới miếng hỏng đầu tiên</button>`
+  _ofXkMo(
+    `<span style="color:var(--${wm ? 'warn' : 'bad'})">${wm ? '⚠' : '⊘'}</span> Chưa xuất được timeline`,
+    `<p class="sub">${hong.length} miếng ` +
+      (wm ? 'chưa có bản sạch Envato — xuất ra sẽ <b>dính watermark</b>.'
+          : 'đang dùng clip đã hỏng hoặc hết hạn — sửa xong mới xuất được.') +
+    `</p><div id="of-xk-ds">${dong}${con}</div>${nhac}<div class="ft">${nut}</div>`)
+}
+
+/* (b)+(c) SẠCH -> hỏi xác nhận. Nút Xuất KHOÁ tới khi tích ô: trạng thái nói
+   thật, không để bấm rồi mới từ chối. */
+function ofXkHoi(so_mieng, ten_draft, noi_cu, chay) {
+  OF_XK_CHAY = chay
+  _ofXkMo(`⬇ Xuất timeline${ten_draft ? ' — ' + esc(ten_draft) : ''}`,
+    `<p class="sub">Đã soát ${so_mieng} miếng, không có clip hỏng.</p>
+     <div class="hopc b"><span class="ic">⚠</span><div><b>Tắt CapCut trước khi xuất</b>
+       <p>Tool ghi đè vào đúng thư mục draft của chương này. CapCut đang mở sẽ giữ
+          file và làm draft hỏng, hoặc ghi đè lại phần vừa sửa tay.</p></div></div>
+     <div class="lbl">Nơi xuất draft</div>
+     <input type="text" id="of-xk-noi" value="${esc(noi_cu || '')}"
+            placeholder="dán đường dẫn — vd F:\OutlierY Nas 2\...">
+     <div class="goi">Sẽ ghi vào <code>…\\OFF_${esc(OF_PID)}</code> · bỏ trống = nơi tập đã nhớ</div>
+     <label class="ghim"><input type="checkbox" id="of-xk-tat"
+       onchange="document.getElementById('of-xk-di').disabled = !this.checked">
+       <span>Tôi đã tắt CapCut</span></label>
+     <div class="ft"><button class="phu" onclick="ofXkDong()">Huỷ</button>
+       <button class="chinh" id="of-xk-di" disabled
+         onclick="ofXkDong();OF_XK_CHAY(document.getElementById('of-xk-noi').value.trim())">
+         ⬇ Xuất timeline</button></div>`)
+}
+
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0

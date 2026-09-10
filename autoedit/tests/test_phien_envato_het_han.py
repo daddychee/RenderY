@@ -177,9 +177,11 @@ def test_UI_hien_LY_DO_cua_tung_mieng():
     from pathlib import Path
 
     h = Path("autoedit/web/static/index.html").read_text(encoding="utf-8")
-    i = h.find("OF_HONG = new Set(hong.map")
-    assert i > 0, "không tìm thấy nhánh xử lý miếng hỏng trong index.html"
-    khoi = h[i:i + 1200]
+    # 11/09: `alert()` chữ trần đã thay bằng hộp thoại `ofXkHong` (việc 1) —
+    # `ly_do` giờ in trong đó. Luật không đổi: phải IN ly_do, không dán cứng.
+    i = h.find("function ofXkHong(")
+    assert i > 0, "không tìm thấy hộp thoại miếng hỏng trong index.html"
+    khoi = h[i:i + 2600]
     assert "ly_do" in khoi, (
         "hộp thoại không in ly_do — người dựng đọc 'clip đã hỏng' rồi đi thay "
         "clip, trong khi thứ cần làm là đăng nhập Envato")
