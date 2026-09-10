@@ -931,3 +931,125 @@ Thư mục draft `OFF_e-20260908-115102/` có đủ:
 
 Chương E trước đó **chặn hẳn** người dùng (bấm Phân tích 15 lần vô ích) — nay
 chạy trọn tới draft + XML.
+
+---
+
+## VÒNG 11 (10/09/2026) — XUẤT TIMELINE VẪN DÍNH WATERMARK
+
+hieuvn + haint báo: *"xuất timeline vẫn dính hd preview"*.
+
+### Nguyên nhân gốc — Playwright LỒNG NHAU, không phải lỗi vận hành
+
+Log production `prod.log.old:1535-1551`:
+
+```
+online: phiên Envato HẾT HẠN — thử tự đăng nhập lại...
+online: deb9c66d LỖI (Sync API inside the asyncio loop) — giữ preview
+online: 1171e0c1 LỖI (Target page... has been closed) — giữ preview
+online: 46ca7aab LỖI (...closed) — giữ preview
+online: 7ec1b963 LỖI (...closed) — giữ preview
+```
+
+`tai_nhieu` mở `sync_playwright()` (`tai_sach.py:138`), rồi khi thấy phiên hết
+hạn lại gọi `phien.dang_nhap()` — hàm đó **mở `sync_playwright()` lần nữa**
+(`phien.py:111`). Playwright CẤM lồng. **Không dính dáng FastAPI** — tái hiện
+bằng 3 dòng Python thuần, ra đúng cả hai dòng lỗi trên.
+
+Chuỗi hỏng: phiên hết hạn → `dang_nhap` trong khối `with` → ném lỗi →
+`ctx.close()` đã gọi trước đó nên context chết → `break` → **mọi clip còn lại
+giữ preview watermark**.
+
+Tức là **phiên hết hạn ĐÚNG MỘT LẦN là cả chương dính**. Và tool báo *"phiên
+sống rồi bấm Online lại là sạch"* — người dựng bấm lại vẫn hỏng y hệt, vì lỗi
+ở mã chứ không ở phiên.
+
+### Đo thật 10/09
+
+| | |
+|---|---|
+| Chương gần nhất dính | **5/15**, 17 miếng (đọc `thay_mau.json`) |
+| Toàn bộ hợp đồng | **10/41 chương (24%)** sẽ dính |
+| Tỉ lệ miếng | **42/1187 (3.5%)** |
+| Phiên Envato hiện tại | **CHẾT** — kiểm bằng Chrome thật, trang hiện nút Sign in |
+| Tài khoản trong két | có đủ email + mật khẩu |
+
+### Đã vá
+
+| # | Thay đổi | File |
+|---|---|---|
+| 1 | Bỏ `dang_nhap` khỏi trong khối `sync_playwright`; chỉ báo `het_phien` ra ngoài | `sourcer/tai_sach.py` |
+| 2 | `tai_nhieu_tu_cuu()` — đóng phiên hẳn rồi mới đăng nhập, chạy lại **một** lượt | `sourcer/tai_sach.py` |
+| 3 | `tai_nhieu(..., bao_het_phien=list)` — giữ nguyên KIỂU TRẢ (nhiều nơi gọi) | `sourcer/tai_sach.py` |
+| 4 | Hai caller đổi sang bản tự cứu | `offline/thay_mau.py`, `web/server.py` |
+| 5 | `se_dinh_watermark()` + `soat_truoc_pha` **chặn hẳn** (user chốt) | `offline/thay_mau.py` |
+| 6 | Mỗi miếng bị chặn kèm `ly_do`; server + UI in **hai lời khác nhau** | `web/server.py`, `index.html` |
+
+**KHÔNG gộp watermark vào `clip_hong`**: watermark không phải clip hỏng — clip
+vẫn sống, chỉ chưa tải bản sạch. Gộp thì khay gợi ý tự loại nó, mà đó là clip
+dùng được ngay sau khi phiên Envato sống lại.
+
+**Hai lý do = hai cách xử lý:**
+
+| Lý do | Người dựng phải làm |
+|---|---|
+| clip hỏng / hết hạn | **THAY** clip khác |
+| Envato chưa có bản sạch | **đăng nhập Envato** rồi Export lại — không cần thay gì |
+
+Gộp một câu là bắt người dựng thay 42 miếng lành trong khi chỉ cần đăng nhập
+một lần. Đúng BH15 rút ra sáng nay.
+
+### Suite bắt được 2 test cũ (đúng việc của nó)
+
+`test_chan_export.py` và `test_dung_som_va_tai_muon.py` dựng clip envato
+**không có `path_local`** — theo luật mới đó chính là watermark, nên miếng 0
+bị bắt trước khi tới miếng chết thật. Sửa helper cho clip envato mặc định CÓ
+bản sạch (trạng thái bình thường), giữ đúng ý định gốc của hai file đó là kiểm
+đường link chết.
+
+### CÒN LẠI — việc chỉ user làm được
+
+Phiên Envato đang chết. Đăng nhập lại cần **bấm captcha trên desktop server**
+(`dang_nhap` mở `headless=False`), không tự động được. Sau khi user đăng nhập:
+chạy `tai_nhieu_tu_cuu` tải bản sạch cho 42 miếng, rồi 10 chương kia Export lại
+là sạch.
+
+### PHÁT HIỆN THỨ BA — chỉ báo phiên trên giao diện BÁO XANH DỐI
+
+Trong lúc vá, kiểm `/api/phien` trên production:
+
+```
+{"envato":{"co_tai_khoan":true,"co_phien":true}, ...}
+```
+
+**Xanh** — trong khi mở Chrome thật thì Envato hiện nút Sign in, tức phiên
+**CHẾT**. `co_phien()` chỉ kiểm cookie CÓ MẶT, không kiểm CÒN HẠN — chính
+docstring của nó viết: *"Kiểm thật sự (còn hạn hay không) diễn ra lúc mở
+trang"*.
+
+Đây mới là lý do **không ai đi đăng nhập lại suốt 3 ngày**: chấm trên thanh
+Sequence vẫn xanh, nhìn vào tưởng ổn.
+
+Bằng chứng phiên từng sống nằm sẵn trong DB — sổ `giay_phep` ghi mỗi lần tải
+bản sạch thành công:
+
+```
+lan cuoi tai ban sach: 2026-09-07 15:07:46 | tong 94 giay phep
+```
+
+**3 ngày trước**, khớp đúng lúc hieuvn/haint bắt đầu thấy watermark.
+
+Vá: `phien.lan_cuoi_tai()` đọc `max(ngay)` của `giay_phep`, `trang_thai()` trả
+kèm. Giao diện đổi **⚠ vàng** khi ≥2 ngày chưa tải được bản sạch, tooltip ghi
+rõ *"N ngày chưa tải được bản sạch, phiên có thể đã chết: bấm để đăng nhập
+lại"*. Đo được mà không tốn một lượt mở trình duyệt.
+
+### BH16 — Chỉ báo trạng thái phải dựa trên BẰNG CHỨNG, không dựa trên sự có mặt
+
+`co_phien` trả True vì file cookie còn nằm đó — đúng nghĩa đen "đã từng đăng
+nhập", nhưng người dùng đọc chấm xanh là "dùng được bây giờ". Khoảng cách giữa
+hai nghĩa đó nuốt mất 3 ngày và 10 chương.
+
+Luật: chỉ báo sống/chết phải neo vào **lần cuối làm được việc thật** (ở đây là
+tải được bản sạch), không neo vào việc file cấu hình có tồn tại. Nếu chỉ có dữ
+liệu "có mặt" thì phải nói đúng chừng đó — "có phiên" chứ không phải "phiên
+sống".

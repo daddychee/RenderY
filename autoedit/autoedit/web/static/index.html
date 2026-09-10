@@ -1620,8 +1620,23 @@ async function ofVePhien() {
   try {
     const d = await api('/api/phien')
     const dot = x => x.co_phien ? '●' : (x.co_tai_khoan ? '◐' : '○')
-    document.getElementById('of-phien').innerHTML =
-      `<span style="color:${d.envato.co_phien ? 'var(--ok,#5cb98a)' : 'var(--muted)'}">${dot(d.envato)} Envato</span> ` +
+    // `co_phien` chỉ kiểm cookie CÓ MẶT, không kiểm CÒN HẠN -> chấm xanh DỐI
+    // (10/09: API báo xanh trong khi Envato hiện nút Sign in, mọi lần Export
+    // dính watermark mà không ai biết phải đăng nhập lại).
+    // `lan_cuoi_tai` = lần cuối TẢI ĐƯỢC bản sạch — bằng chứng phiên từng sống.
+    const ngay = d.envato.lan_cuoi_tai
+      ? Math.floor((Date.now() - new Date(d.envato.lan_cuoi_tai.replace(' ', 'T')).getTime()) / 864e5)
+      : -1
+    const cu_qua = d.envato.co_phien && (ngay < 0 || ngay >= 2)
+    const mau_e = !d.envato.co_phien ? 'var(--muted)'
+                : cu_qua ? 'var(--warn,#d9a441)' : 'var(--ok,#5cb98a)'
+    const nhac = cu_qua
+      ? ` — ${ngay < 0 ? 'chưa tải bản sạch lần nào' : ngay + ' ngày chưa tải được bản sạch'}, phiên có thể đã chết: bấm để đăng nhập lại`
+      : ''
+    const el = document.getElementById('of-phien')
+    el.title = 'phiên tải bản sạch — click để máy đăng nhập lại (manager)' + nhac
+    el.innerHTML =
+      `<span style="color:${mau_e}">${cu_qua ? '⚠' : dot(d.envato)} Envato</span> ` +
       `<span style="color:${d.epidemic.co_phien ? 'var(--ok,#5cb98a)' : 'var(--muted)'}">${dot(d.epidemic)} Epidemic</span>`
   } catch (e) { }
 }
@@ -2376,10 +2391,16 @@ async function ofDoiPha() {
         OF_HONG = new Set(hong.map(x => x.mieng))
         OF_HCHON = hong[0].mieng
         ofVeAll()
-        alert(`${hong.length} miếng đang dùng clip đã hỏng hoặc hết hạn:\n\n`
-          + hong.slice(0, 8).map(x => `  • miếng ${x.mieng + 1}: ${x.tieu_de}`).join('\n')
+        // HAI lý do -> HAI cách xử lý (10/09). Clip hỏng thì phải THAY; Envato
+        // thiếu bản sạch thì đăng nhập rồi bấm Online, KHÔNG phải thay gì.
+        const wm = hong.some(x => (x.ly_do || '').toLowerCase().includes('watermark'))
+        alert((wm ? `${hong.length} miếng chưa có bản sạch Envato — Export ra sẽ DÍNH WATERMARK:\n\n`
+                  : `${hong.length} miếng đang dùng clip đã hỏng hoặc hết hạn:\n\n`)
+          + hong.slice(0, 8).map(x =>
+              `  • miếng ${x.mieng + 1}: ${x.tieu_de}${x.ly_do ? ` (${x.ly_do})` : ''}`).join('\n')
           + (hong.length > 8 ? `\n  … và ${hong.length - 8} miếng nữa` : '')
-          + '\n\nCác miếng đó đã tô đỏ trên timeline. Thay clip khác rồi Export lại.')
+          + (wm ? '\n\nVào Cài đặt → đăng nhập lại Envato, rồi Export lại. Không cần thay clip.'
+                : '\n\nCác miếng đó đã tô đỏ trên timeline. Thay clip khác rồi Export lại.'))
         return
       }
       // 409 = ĐANG CHẠY, không phải hỏng — đừng dán chữ "Lỗi" lên nó

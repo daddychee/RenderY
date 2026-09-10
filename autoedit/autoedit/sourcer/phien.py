@@ -169,10 +169,37 @@ def giu_am(log=None) -> dict:
     return ra
 
 
+def lan_cuoi_tai(nha: str = "envato") -> str:
+    """Lần cuối TẢI ĐƯỢC bản sạch (sổ `giay_phep`) — bằng chứng phiên còn sống.
+
+    `co_phien` chỉ kiểm cookie CÓ MẶT, không kiểm CÒN HẠN (docstring của nó
+    nói rõ). Đo 10/09: API trả `co_phien: true` trong khi mở Chrome thật thì
+    Envato hiện nút Sign in — chấm xanh DỐI, người dựng không biết phải đăng
+    nhập lại nên mọi lần Export đều dính watermark (hieuvn/haint báo).
+
+    Lần tải cuối là thứ DUY NHẤT chứng minh phiên từng sống, đo được mà không
+    tốn một lượt mở trình duyệt.
+    """
+    if nha != "envato":
+        return ""
+    try:
+        from autoedit.sotra import db as sdb
+
+        c = sdb.mo()
+        try:
+            r = c.execute("SELECT max(ngay) FROM giay_phep").fetchone()
+            return (r[0] or "") if r else ""
+        finally:
+            c.close()
+    except Exception:  # noqa: BLE001 — chỉ báo hỏng KHÔNG được giết trang
+        return ""
+
+
 def trang_thai() -> dict:
-    """Cho UI: mỗi nhà {co_tai_khoan, co_phien}."""
+    """Cho UI: mỗi nhà {co_tai_khoan, co_phien, lan_cuoi_tai}."""
     ra = {}
     for nha in NHA:
         email, _ = doc_tai_khoan(nha)
-        ra[nha] = {"co_tai_khoan": bool(email), "co_phien": co_phien(nha)}
+        ra[nha] = {"co_tai_khoan": bool(email), "co_phien": co_phien(nha),
+                   "lan_cuoi_tai": lan_cuoi_tai(nha)}
     return ra

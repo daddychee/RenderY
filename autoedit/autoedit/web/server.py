@@ -1214,9 +1214,17 @@ def api_offline_thay_mau(project_id: str, request: Request,
         finally:
             _c.close()
         if hong:
+            # HAI lý do, HAI cách xử lý khác hẳn (10/09): clip hỏng thì phải
+            # THAY; Envato thiếu bản sạch thì đăng nhập rồi bấm Online, KHÔNG
+            # cần thay gì. Gộp một câu là đẩy người dựng đi thay 42 miếng lành.
+            wm = any("watermark" in (x.get("ly_do") or "").lower() for x in hong)
             raise HTTPException(409, {
-                "ghi_chu": f"{len(hong)} miếng đang dùng clip đã hỏng/hết hạn — "
-                           "thay clip khác rồi Export lại",
+                "ghi_chu": (
+                    f"{len(hong)} miếng chưa có bản sạch Envato — sẽ dính "
+                    "WATERMARK. Vào Cài đặt đăng nhập lại Envato rồi Export lại."
+                    if wm else
+                    f"{len(hong)} miếng đang dùng clip đã hỏng/hết hạn — "
+                    "thay clip khác rồi Export lại"),
                 "hong": hong})
 
     khoa = f"{project_id}:thaymau"
@@ -1945,8 +1953,9 @@ def _xep_tai_ban_sach(hd: dict) -> None:
                             return
                     conn = _sdb.mo()
                     try:
-                        tai_sach.tai_nhieu(conn, lo,
-                                           log=lambda m: print("[tai-nen]", m, flush=True))
+                        tai_sach.tai_nhieu_tu_cuu(
+                            conn, lo,
+                            log=lambda m: print("[tai-nen]", m, flush=True))
                     finally:
                         conn.close()
                     with _tai_nen_lock:

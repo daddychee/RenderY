@@ -61,6 +61,31 @@ def la_nguon_chet(exc: BaseException) -> bool:
     return any(c in str(exc) for c in _CAU_CHET)
 
 
+def se_dinh_watermark(conn, u: dict) -> bool:
+    """Mục này Export ra sẽ dính preview WATERMARK không?
+
+    Clip envato chưa tải bản sạch (`path_local` rỗng) thì `relocate` rơi về
+    nhánh preview — video CÓ chạy nhưng in chữ Envato Elements đè lên hình,
+    KHÔNG giao khách được. hieuvn + haint báo 10/09 chỉ phát hiện khi mở
+    timeline ra xem, tức là sau khi đã chờ dựng xong.
+
+    Đo 10/09 trên 41 chương production: **10 chương (24%) sẽ dính**, nhưng chỉ
+    **42/1187 miếng (3.5%)**. User chốt CHẶN HẲN như link chết.
+
+    KHÔNG gộp vào `clip_hong`: watermark không phải clip hỏng — clip vẫn sống,
+    chỉ là chưa tải bản sạch. Gộp lại thì khay gợi ý cũng tự loại nó, mà đó là
+    clip dùng được sau khi phiên Envato sống lại.
+    """
+    if u.get("nguon") != "envato":
+        return False
+    r = conn.execute("SELECT path_local FROM clip WHERE id=?",
+                     (u.get("id"),)).fetchone()
+    if r is None:
+        return False                      # không rõ thì thôi, đừng chặn oan
+    p = r[0] or ""
+    return not (p and Path(p).is_file())
+
+
 def soat_truoc_pha(conn, hd: dict) -> list[dict]:
     """Miếng nào ĐANG CHỌN clip đã chết? Trả [{mieng, id, tieu_de}] để UI tô đỏ.
 
@@ -97,7 +122,12 @@ def soat_truoc_pha(conn, hd: dict) -> list[dict]:
                 # 46 miếng chỉ tốn thời gian. Vẫn trả miếng tìm được để UI tô
                 # đỏ và nhảy tới đúng chỗ.
                 return [{"mieng": i, "id": u.get("id", ""),
-                         "tieu_de": (u.get("tieu_de") or "")[:80]}]
+                         "tieu_de": (u.get("tieu_de") or "")[:80],
+                         "ly_do": "clip đã hỏng hoặc hết hạn"}]
+            if se_dinh_watermark(conn, u):
+                return [{"mieng": i, "id": u.get("id", ""),
+                         "tieu_de": (u.get("tieu_de") or "")[:80],
+                         "ly_do": "Envato chưa có bản sạch — sẽ dính WATERMARK"}]
         return xau
     except Exception as exc:  # noqa: BLE001 — soát hỏng KHÔNG được giết Export
         # In ra: fail-open câm là bẫy gỡ rối (mất 20 phút truy 09/09 vì lỗi
@@ -667,7 +697,7 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
             if can:
                 ghi(f"online: {len(set(tai_sach._uuid_goc(x) for x in can))} clip "
                     "Envato cần bản sạch — tải 1 luồng giãn 2-5s")
-                tai_sach.tai_nhieu(c, can, log=ghi)
+                tai_sach.tai_nhieu_tu_cuu(c, can, log=ghi)
         except Exception as exc:  # noqa: BLE001
             ghi(f"online: tải bản sạch LỖI ({str(exc)[:80]}) — dùng preview")
         video, dung_id, warns = relocate(project_dir, hd, c, ghi, ark=ark)

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -57,10 +58,24 @@ def _kho(f: Path | None = None):
     return conn
 
 
-def _them(conn, cid, nguon="envato", trang_thai="song"):
+def _them(conn, cid, nguon="envato", trang_thai="song", sach=True, tmp=None):
+    """`sach=True`: clip envato ĐÃ có bản sạch — trạng thái bình thường.
+
+    Từ 10/09, `soat_truoc_pha` chặn cả clip envato chưa tải bản sạch (sẽ dính
+    preview WATERMARK — user chốt chặn hẳn như link chết). Các test ở file này
+    kiểm đường LINK CHẾT, nên clip của chúng phải sạch để không lẫn hai lý do.
+    """
+    f = ""
+    if sach and nguon == "envato":
+        d = Path(tmp) if tmp else Path(tempfile.mkdtemp())
+        d.mkdir(parents=True, exist_ok=True)
+        g = d / f"{cid.replace(':', '_')}.mp4"
+        g.write_bytes(bytes(200_000))
+        f = str(g)
     conn.execute(
-        "INSERT INTO clip(id, nguon, tieu_de, trang_thai) VALUES(?,?,?,?)",
-        (cid, nguon, f"clip {cid}", trang_thai))
+        "INSERT INTO clip(id, nguon, tieu_de, trang_thai, path_local) "
+        "VALUES(?,?,?,?,?)",
+        (cid, nguon, f"clip {cid}", trang_thai, f))
     conn.commit()
 
 

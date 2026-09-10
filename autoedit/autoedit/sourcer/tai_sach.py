@@ -105,14 +105,21 @@ def tim_url_item(conn, uuid: str, tu_khoa: str, tieu_de: str = "",
     return ""
 
 
-def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
+def tai_nhieu(conn, clip_ids: list[str], log=None,
+              bao_het_phien: list | None = None) -> dict[str, Path]:
     """Tải bản sạch cho các clip envato — MỘT phiên trình duyệt, tuần tự, giãn.
 
     Trả {uuid: path}. Clip đã có bản sạch thì trả ngay không tải lại.
+
+    `bao_het_phien`: caller đưa list vào để nhận tín hiệu "phiên Envato hết
+    hạn" (append True). Không đổi KIỂU TRẢ vì nhiều nơi đang gọi hàm này —
+    đổi chữ ký trả là phải sửa hết, đúng thứ Karpathy #3 dặn tránh.
     """
     def ghi(m):
         if log:
             log(m)
+
+    het_phien = False
 
     can: dict[str, str] = {}                          # uuid -> clip_id gốc
     ra: dict[str, Path] = {}
@@ -187,17 +194,20 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                     except Exception:  # noqa: BLE001
                         pass
                     if pg.locator('a:has-text("Sign in")').count():
-                        # TỰ CỨU (go-live 07/09): phiên chết -> đóng lượt, thử
-                        # đăng nhập lại bằng mật khẩu trong két (1 lần); captcha
-                        # cần người thì cửa sổ hiện trên desktop server như luật.
-                        ghi("online: phiên Envato HẾT HẠN — thử tự đăng nhập lại...")
-                        try:
-                            ctx.close()
-                        except Exception:  # noqa: BLE001
-                            pass
-                        from autoedit.sourcer.phien import dang_nhap
-                        kq_dn = dang_nhap("envato", cho_captcha_s=120, log=log)
-                        ghi(f"online: đăng nhập lại -> {kq_dn.get('ghi_chu', '')[:70]}")
+                        # Phiên chết -> BÁO RA NGOÀI, không tự đăng nhập TẠI ĐÂY.
+                        #
+                        # Bản cũ gọi `phien.dang_nhap()` ngay trong khối này —
+                        # mà hàm đó mở `sync_playwright()` lần nữa. Playwright
+                        # CẤM lồng: ném "Sync API inside the asyncio loop", rồi
+                        # `ctx.close()` phía trên làm mọi clip sau đó chết theo
+                        # với "Target page... has been closed" -> CẢ CHƯƠNG rơi
+                        # về preview watermark (hieuvn/haint báo 10/09; đo 5/15
+                        # chương, 17 miếng).
+                        #
+                        # Đăng nhập lại là việc của `tai_nhieu_tu_cuu` — NGOÀI
+                        # khối này, sau khi phiên trình duyệt đã đóng hẳn.
+                        ghi("online: phiên Envato HẾT HẠN — dừng lượt tải")
+                        het_phien = True
                         break
                     with pg.expect_download(timeout=300_000) as dl:
                         pg.locator('button:has-text("Download")').first.click()
@@ -236,4 +246,46 @@ def tai_nhieu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
                 pass
         finally:
             ctx.close()
+    if het_phien and bao_het_phien is not None:
+        bao_het_phien.append(True)
+    return ra
+
+
+def tai_nhieu_tu_cuu(conn, clip_ids: list[str], log=None) -> dict[str, Path]:
+    """`tai_nhieu` + tự đăng nhập lại MỘT lần nếu phiên Envato hết hạn.
+
+    Vì sao tách hàm: `phien.dang_nhap()` mở `sync_playwright()` của riêng nó,
+    mà Playwright CẤM lồng hai phiên sync. Bản cũ gọi dang_nhap ngay trong
+    khối `with sync_playwright()` của `tai_nhieu` -> ném "Sync API inside the
+    asyncio loop", context chết, MỌI clip còn lại rơi về preview watermark
+    (hieuvn/haint báo 10/09: 5/15 chương, 17 miếng).
+
+    Ở đây `tai_nhieu` đã đóng phiên hẳn trước khi ta đăng nhập, nên không lồng.
+    """
+    def ghi(m):
+        if log:
+            log(m)
+
+    bao: list = []
+    ra = tai_nhieu(conn, clip_ids, log=log, bao_het_phien=bao)
+    if not bao:
+        return ra
+
+    # còn clip nào chưa có bản sạch mới đáng đăng nhập lại
+    con = [c for c in clip_ids if _uuid_goc(c) not in ra]
+    if not con:
+        return ra
+    ghi(f"online: phiên hết hạn — thử đăng nhập lại rồi tải nốt {len(con)} clip")
+    try:
+        from autoedit.sourcer.phien import dang_nhap
+
+        kq = dang_nhap("envato", cho_captcha_s=120, log=log)
+        ghi(f"online: đăng nhập lại -> {str(kq.get('ghi_chu', ''))[:70]}")
+        if not kq.get("ok"):
+            return ra
+    except Exception as exc:  # noqa: BLE001 — đăng nhập hỏng thì giữ preview
+        ghi(f"online: đăng nhập lại LỖI ({str(exc)[:70]}) — giữ preview")
+        return ra
+    # CHỈ một lượt nữa: không có `bao_het_phien` nên không lặp vô hạn
+    ra.update(tai_nhieu(conn, con, log=log))
     return ra
