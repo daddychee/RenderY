@@ -31,6 +31,14 @@ DIEM_UU_TIEN_NGUON = 6.0
 # thêm — vì 10/31 khay có stock thì stock là TOÀN BỘ nhóm cham, không có gì
 # để so. Đó là trần tự nhiên, đừng nâng mức phạt để đuổi theo nó.
 PHAT_NGUON = {"pexels": 3.0, "pixabay": 4.0}
+# VẤN ĐỀ 3 (user duyệt 10/09): clip đã LÊN FINAL ở chương khác CÙNG TẬP thì đẩy
+# xuống, mỗi chương −20, trần 5 chương. Đo mô phỏng `chon_mac_dinh` qua 14/11/7
+# chương thật (than=4.73): phạt 6 -> trùng còn 12%/15%/7%; phạt 20 -> 0.6%/0%/0%,
+# điểm gốc clip được chọn −4% (30.8 -> 29.7), ref vẫn 100% final (không trôi
+# sang stock). `chon_mac_dinh` chỉ nhớ 60s TRONG một chương — đây là bộ nhớ
+# GIỮA các chương. Caller đếm từ `offline.json` chương anh em (dung.py).
+PHAT_DA_DUNG = 20.0
+TRAN_DA_DUNG = 5
 # LỚP NGHĨA (đợt 3, 06/09) — topic của beat khớp lớp L1/L2 của khối voice.
 # Nặng hơn lớp Hình vì đây mới là "video này NÓI VỀ gì", còn pixel chỉ tả vật.
 DIEM_NGHIA_L1 = 12.0
@@ -47,11 +55,13 @@ def _tokens(cum) -> set:
 
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         can_neo: bool = True, suat_ref: int = 2, seed: int = 0,
-        geo_tap: str = "", tap: str = "") -> list[dict]:
+        geo_tap: str = "", tap: str = "",
+        da_dung: dict[str, int] | None = None) -> list[dict]:
     """lop = {"L0": [...], "L1": [...], "L2": [...], "L3": [...]} -> ứng viên xếp
     hạng, mỗi cái kèm `lop` (tầng trúng) + `diem`. Khay chia nhóm theo `lop`.
 
-    suat_ref: REF luôn được GIỮ CHỖ (bài học V5: điểm chữ Envato đè chết ref)."""
+    suat_ref: REF luôn được GIỮ CHỖ (bài học V5: điểm chữ Envato đè chết ref).
+    da_dung: {clip_id: số CHƯƠNG khác trong tập đã lên final} -> trừ PHAT_DA_DUNG."""
     l0, l1 = _tokens(lop.get("L0")), _tokens(lop.get("L1"))
     l2, l3 = _tokens(lop.get("L2")), _tokens(lop.get("L3"))
     # kéo ứng viên qua FTS bằng TOÀN BỘ từ của các lớp (OR) — rẻ hơn quét cả bảng
@@ -71,10 +81,17 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     # 1.995 cảnh ref của LI103 (1.768 khớp từ khoá) không bao giờ được xét; rồi
     # rào "ref tập khác không sang tập này" loại nốt LI100 -> KHAY REF RỖNG.
     # Suất giữ chỗ chỉ đúng khi kho có MỘT tập; có tập thứ hai là hỏng.
+    #
+    # KHÔNG CÒN `LIMIT` khi đã lọc tập (user duyệt 10/09). `LIMIT 600` không
+    # ORDER BY = 600 dòng ĐẦU theo rowid, chạy bao nhiêu lần cũng đúng 600 dòng
+    # đó: LI106 có 2.123 ref mà 1.523 (72%) chưa từng được xét, 100% ref lên
+    # final nằm trong 600 dòng đó -> chính là "kho nhiều mà không dùng". Đo bỏ
+    # LIMIT: điểm khớp +12%, +4..22s/tập chạy nền. Không đặt trần mới: LI103 đã
+    # 2.401, kho nạp +4.498/ngày — trần nào rồi cũng thành `LIMIT 600` thứ hai.
     da_co = {r["id"] for r in rows}
     if tap:
         cau, tham = ("SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' "
-                     "AND tap=? LIMIT 600", (tap,))
+                     "AND tap=?", (tap,))
     else:
         cau, tham = ("SELECT * FROM clip WHERE nguon='ref' AND trang_thai='song' "
                      "LIMIT 600", ())
@@ -147,6 +164,8 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
             c["an_du"] = int(an_du)
         d += DIEM_NEO if co_neo else 0
         d -= PHAT_NGUON.get(c["nguon"], 0.0)     # việc F: đẩy xuống, KHÔNG loại
+        if da_dung:                               # vấn đề 3: đã lên final chương khác
+            d -= PHAT_DA_DUNG * min(da_dung.get(c["id"], 0), TRAN_DA_DUNG)
         if uu_tien_nguon and c["nguon"] == uu_tien_nguon:
             d += DIEM_UU_TIEN_NGUON
         # 3. kho b-roll của TẬP KHÁC mà không rõ geo: đè xuống đáy khay —

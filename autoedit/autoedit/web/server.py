@@ -1474,8 +1474,10 @@ def api_offline_do_lai_khay(project_id: str, request: Request):
     _gac_quyen_sua(request, hd)
     conn = _sdb.mo()
     may_doi: list = []
+    # VẤN ĐỀ 3: clip đã lên final ở chương khác cùng tập -> đẩy xuống
+    da_dung = _dung.clip_da_dung_trong_tap(d.parent, hd.get("ma_tap") or "", tru=d.name)
     try:
-        n = _dung.do_lai_khay(hd, conn, may_doi=may_doi)
+        n = _dung.do_lai_khay(hd, conn, may_doi=may_doi, da_dung=da_dung)
     finally:
         conn.close()
     orun.luu(d, hd)

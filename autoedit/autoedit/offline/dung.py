@@ -11,6 +11,8 @@ Chọn mặc định theo bộ luật nghiệm thu ở prototype V5:
 
 from __future__ import annotations
 
+import json
+
 CUA_SO_LAP_S = 60.0
 CHOT_NEO_S = 30.0
 
@@ -46,9 +48,46 @@ def clip_hong(conn, u: dict, tha_giu_cu: bool = True) -> bool:
     return r is None or r[0] != "song"
 
 
+def clip_da_dung_trong_tap(projects_dir, ma_tap: str, tru: str) -> dict[str, int]:
+    """{clip_id: số CHƯƠNG khác cùng tập đã chọn nó} — bộ nhớ GIỮA các chương.
+
+    Đọc `hinh[].uv[chon]` của mọi `offline.json` cùng `ma_tap`, TRỪ chương đang
+    dựng (`tru` = tên thư mục). Đếm CHƯƠNG, không đếm miếng.
+
+    Vì sao đọc offline.json chứ không `su_kien len_final` (đo LI106 10/09):
+    len_final chỉ ghi lúc XUẤT draft — chương `h` chưa xuất bao giờ (0 sự kiện),
+    c2/c3 xuất hôm sau, c1 có 210 sự kiện vì xuất lại nhiều lần. Đếm sự kiện
+    thì vừa mù chương chưa xuất vừa phạt oan chương xuất lại.
+    Lựa chọn của NGƯỜI cũng tính: người đã dùng ở c2 thì máy đừng đề xuất lại ở c5.
+    Fail-soft: file hỏng / thiếu trường thì bỏ qua, không giết khay."""
+    from pathlib import Path
+
+    dem: dict[str, int] = {}
+    if not ma_tap:
+        return dem
+    for f in sorted(Path(projects_dir).glob("*/offline.json")):
+        if f.parent.name == tru:
+            continue
+        try:
+            hd = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — một hợp đồng hỏng không chặn cả tập
+            continue
+        if not isinstance(hd, dict) or hd.get("ma_tap") != ma_tap:
+            continue
+        chon_o_chuong: set[str] = set()
+        for h in hd.get("hinh") or []:
+            c, uv = h.get("chon"), h.get("uv") or []
+            if isinstance(c, int) and 0 <= c < len(uv) and uv[c].get("id"):
+                chon_o_chuong.add(uv[c]["id"])
+        for cid in chon_o_chuong:
+            dem[cid] = dem.get(cid, 0) + 1
+    return dem
+
+
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                 uu_tien_nguon: str = "", so_moi_khoi: int = 12,
-                bo_nguon: tuple = (), geo_tap: str = "", tap: str = "") -> list[list[dict]]:
+                bo_nguon: tuple = (), geo_tap: str = "", tap: str = "",
+                da_dung: dict[str, int] | None = None) -> list[list[dict]]:
     """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library.
 
     bo_nguon (user chốt 06/09): chương AUTO sau mốc AVD ít người xem tới —
@@ -63,7 +102,7 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                         "L2": o.ngu_canh, "L3": o.khong_khi},
                  so=so_moi_khoi + (6 if bo_nguon else 0),
                  uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i,
-                 geo_tap=geo_tap, tap=tap)
+                 geo_tap=geo_tap, tap=tap, da_dung=da_dung)
         if bo_nguon:
             uv = [c for c in uv if c["nguon"] not in bo_nguon]
         # LUẬT "clip ngắn hơn phần nói thì loại" (06/09) — USER ĐẬP BỎ 07/09:
@@ -195,7 +234,8 @@ def kiem_lap(khoi: list, ung_vien: list[list[dict]], chon: list[int]) -> list[in
 
 
 def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
-                may_doi: list | None = None) -> int:
+                may_doi: list | None = None,
+                da_dung: dict[str, int] | None = None) -> int:
     """Tra lại Library cho MỌI khối, bổ sung khay — GIỮ NGUYÊN lựa chọn của người.
 
     Vì sao cần (07/09 khuya): hợp đồng sinh TRƯỚC một bản vá nguồn (vd bản vá
@@ -252,7 +292,8 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
                              "L3": k.get("L3") or []},
                       so=so_moi_khoi, uu_tien_nguon=hd.get("uu_tien_nguon") or "",
                       can_neo=bool(k.get("neo")), seed=i,
-                      geo_tap=hd.get("dia_danh") or "", tap=hd.get("ma_tap") or "")
+                      geo_tap=hd.get("dia_danh") or "", tap=hd.get("ma_tap") or "",
+                      da_dung=da_dung)
         except Exception:  # noqa: BLE001 — một khối hỏng không giết cả chương
             continue
         if not moi:

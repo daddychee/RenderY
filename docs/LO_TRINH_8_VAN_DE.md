@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 1 | Video Envato hỏng/không tải được | cơ chế CÓ, thủng 3 lỗ | **đang làm** |
 | 2 | 17 chương → gộp 1 timeline | `merge-drafts` CÓ, thiếu nút web | — |
-| 3 | Trùng clip xuyên chương | **chưa từng viết** | — |
+| 3 | Trùng clip xuyên chương | bỏ `LIMIT 600` + phạt 20/chương đã dùng — c9 thật 55% → 0% | **đã code 10/09**, chờ deploy |
 | 4 | Nhạc mỗi chương 1 bài, ghép thế nào | 17 lần fade, chưa xử lý mối nối | — |
 | 5 | Khối 5s / source 4s → tự chia | chưa có; preview loop gây hiểu nhầm | — |
 | 6 | Voice trùm hơn 1 khối | voice KHÔNG trùm; khối thiếu trần dài | — |
@@ -1323,3 +1323,88 @@ xoá · `ofTimVe` không ai gọi. Cùng một hình dạng — **mã đúng nh�
 
 Luật: mỗi hàm giao diện mới viết xong phải `grep` tên nó xem có lời gọi chưa,
 rồi mở trình duyệt xác nhận nó CHẠY THẬT.
+
+---
+
+## VẤN ĐỀ 3 (10/09/2026) — trùng clip GIỮA CÁC CHƯƠNG trong một tập
+
+User chốt: phạm vi **một tập**; "đo 5 vid rồi tính logic"; "ref nguồn có giá trị
+với từng quốc gia"; lo "B có trần sẽ làm giảm số lượng hình — chứa nhiều source
+nhưng không dùng, lúc dùng thì lại bị chặn".
+
+### Đo thật (4 tập, `su_kien len_final`)
+
+| Tập | Chương | Miếng | Trùng | Theo nguồn |
+|---|---|---|---|---|
+| LI106 | 14 | 347 | 30.5% | ref 62, envato 4, pexels 1 |
+| LI102 | 11 | 332 | 22.9% | ref 55 |
+| LI089 | 6 | 220 | 14.2% | ref 21 |
+| LI103 | 6 | 200 | 11.2% | ref 17, kho 2 |
+
+Trùng **155/162 là ref**. Kho ref thừa 6.8× (LI106: 2.123 trong kho, 565 vào khay).
+
+### Hai gốc rễ (đều đo được, không đoán)
+
+1. **`tra.py` quét ref bằng `LIMIT 600` không `ORDER BY`** → 600 dòng ĐẦU theo rowid,
+   chạy bao nhiêu lần cũng đúng 600 dòng đó. LI106: 1.523/2.123 (72%) chưa từng
+   được máy nhìn; **100% ref lên final nằm trong 600 dòng đó**. 600 dòng đầu lệch
+   nội dung (village 13 vs 65, thiếu hẳn mountain/prayer flags). Đây chính là
+   "1/4 kho" user hỏi. Bỏ LIMIT: **điểm khớp +12%**, +4..22s/tập chạy nền.
+   KHÔNG đặt trần mới (LI103 đã 2.401, kho nạp +4.498/ngày 08/09).
+2. **`chon_mac_dinh` chỉ nhớ 60s TRONG một chương** (`dung_luc` tạo mới mỗi lần
+   gọi) — sang chương sau quên sạch. Cần bộ nhớ GIỮA chương.
+
+### Các phương án đã đo và LOẠI
+
+| | Kết quả | Vì sao loại |
+|---|---|---|
+| Mở FTS `LIMIT 800` | chậm +45s, đa dạng GIẢM | stock tràn vào đè ref (bài học V5) |
+| D: rải 600 theo id | lặp 103→95 | vẫn một rổ cố định, vấn đề là KÍCH THƯỚC rổ |
+| C: xoay cửa sổ 600 | lặp 103→15 nhưng điểm khớp −13%, vô dụng kho nhỏ | đổi cửa sổ = rơi vào đoạn nghèo clip |
+| Trần 6/tầng | C=D=E y hệt nhau | chỉ áp cho stock, ref đi đường riêng → vô hiệu |
+| Khay 24 | điểm khớp = khay 12 | chỉ thêm thẻ để lướt; ô tra cứu (việc E) đã lục cả kho |
+| Vision trước khi nạp | nhãn rác chỉ **0.6%** (47/8.270) | tôi suy rộng từ 3 dòng `LIMIT 3` — SAI; kho đã dán nhãn tốt |
+| `su_kien len_final` làm bộ nhớ | chỉ ghi lúc XUẤT draft | `h` LI106 chưa xuất (0 sự kiện), c2/c3 xuất hôm sau, c1 có 210 sự kiện (xuất lại) → mù + phạt oan |
+
+### Chốt (user duyệt 10/09): bỏ `LIMIT` + phạt 20/chương đã dùng
+
+Mô phỏng **final** qua `chon_mac_dinh` (than=4.73 thật), chỉ phạt từ chương TRƯỚC,
+đếm CHƯƠNG không đếm sự kiện, `diem_goc` lưu riêng (lần đầu tôi đọc lại điểm
+bằng công thức lỗi — cột "138 điểm" — phải sửa):
+
+| Phạt | Trùng LI106 / LI102 / LI089 | Điểm gốc | Ref trong final |
+|---|---|---|---|
+| 0 | 34% / 33% / 22% | 30.8 | 100% |
+| 6 | 12% / 15% / 7% | 30.4 | 100% |
+| 12 | 8% / 1% / 4% | 30.2 | 100% |
+| **20** | **0.6% / 0% / 0%** | **29.7 (−4%)** | **100%** |
+
+Đánh đổi nói thẳng: **−4% điểm khớp lấy 0% trùng**. Không trôi sang stock.
+
+**Code** (`tests/test_phat_da_dung_tap.py`, 12 test):
+- `sotra/tra.py`: bỏ `LIMIT 600` nhánh có tập · `PHAT_DA_DUNG=20`, `TRAN_DA_DUNG=5` ·
+  tham số `da_dung={clip_id: số chương}`.
+- `offline/dung.py`: `clip_da_dung_trong_tap(projects_dir, ma_tap, tru)` đọc
+  `hinh[].uv[chon]` của `offline.json` chương anh em (tính cả lựa chọn NGƯỜI,
+  bỏ file hỏng) · luồn `da_dung` qua `do_ung_vien` / `do_lai_khay` / `_chon_lai_ho_may`.
+- `offline/runner.py` (2 chỗ gọi) + `web/server.py` (`do-lai-khay`): tính `da_dung`.
+
+**Chạy 1 chương thật** (bản chép c9 LI106 trong scratchpad, kho production đọc-only):
+16/29 miếng trùng chương anh em (55%) → chỉ bỏ LIMIT: 8 (30%) → **có phạt: 0**. 6.1s.
+
+### Phát hiện ngoài phạm vi — KHÔNG sửa, ghi để không quên
+`do_lai_khay` ("Đổ lại khay") làm **miếng đầu chương mất clip**. Gốc: trong
+`_chon_lai_ho_may`, điều kiện `not (0 <= (i or -1) < len(ds_khoi))` với
+`i = khoi_goc == 0` → `(0 or -1) = -1` → miếng của khối 0 bị `continue`, không
+được đội lại lựa chọn máy sau khi bước 1 đã xoá `chon`. Chạy code gốc HEAD ra y
+hệt → có sẵn, không do hôm nay. 14/14 chương LI106 có miếng `khoi_goc == 0`.
+(Lúc đầu tôi báo "mất 2 miếng" — sai một nửa: miếng 1 là chảy tiếp, thay_mau
+cắt tiếp file miếng trước không đọc `chon`, 4 miếng chảy tiếp khác vốn đã −1.)
+Sửa = `(i if i is not None else -1)` + 1 test. Chờ user quyết.
+
+### BH22 — "Chỗ này chúng ta đã sai rất nhiều": phản biện lần cuối tìm ra 3 lỗi
+User yêu cầu tự phản biện trước khi chốt. Tìm ra: (1) công thức đọc lại điểm gốc
+sai; (2) mô phỏng phạt cả TRONG chương trong khi thật chỉ đọc chương trước;
+(3) định dùng `su_kien` — sẽ mù chương chưa xuất + phạt oan chương xuất lại.
+Ba lỗi đều làm kết quả **đẹp hơn thật**. Luật: kết luận nào chưa qua một vòng
+"cái gì có thể làm số này đẹp giả" thì chưa được đưa cho user.

@@ -275,12 +275,15 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             # phải xong TRƯỚC do_ung_vien, nếu không khay ref rỗng ở lần đầu.
             nap_ref_cua_tap(c, project_dir, ma_tap=_ma_tap(project_dir),
                             dia_danh=dia_danh, log=log)
+            # VẤN ĐỀ 3: clip đã lên final ở chương khác CÙNG TẬP -> đẩy xuống
+            da_dung = dung.clip_da_dung_trong_tap(
+                Path(project_dir).parent, _ma_tap(project_dir), tru=Path(project_dir).name)
             ung_vien = dung.do_ung_vien(
                 c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
                 # chương AUTO: không đốt license Envato (user chốt 06/09)
                 bo_nguon=() if dong_kiem else ("envato",),
                 # rào cứng theo tập (06/09): geo lệch/ref tập khác không chảy vào
-                geo_tap=dia_danh, tap=_ma_tap(project_dir))
+                geo_tap=dia_danh, tap=_ma_tap(project_dir), da_dung=da_dung)
             # CHẢY TIẾP theo chuẩn kênh (3b): khối ngắn hơn `than` thì dùng
             # tiếp clip của khối trước thay vì đổi hình mỗi hơi thở.
             # CỔNG AUTO (QĐ7): chương tự chạy mà khay quá mỏng thì KHÔNG dựng
@@ -298,7 +301,8 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 # người chọn trong đúng cái rổ vừa bị kết luận là quá mỏng.
                 ung_vien = dung.do_ung_vien(
                     c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
-                    bo_nguon=(), geo_tap=dia_danh, tap=_ma_tap(project_dir))
+                    bo_nguon=(), geo_tap=dia_danh, tap=_ma_tap(project_dir),
+                    da_dung=da_dung)
             noi_tiep = []
             chon = dung.chon_mac_dinh(ds_khoi, ung_vien,
                                       than=float(fr.get("than") or 0),
