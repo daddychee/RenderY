@@ -84,13 +84,20 @@ def test_server_dung_ham_chung():
 
 
 def test_chi_mot_noi_dinh_nghia_tien_to_OFF():
-    """Một khái niệm một hàm (BH4) — không rải `OFF_` khắp nơi."""
-    import subprocess
+    """Một khái niệm một hàm (BH4) — không rải `OFF_` khắp nơi.
 
-    ra = subprocess.run(["git", "grep", "-n", 'OFF_{', "--", "autoedit/"],
-                        capture_output=True, text=True, cwd="..")
-    dong = [d for d in ra.stdout.splitlines() if "duong_dan.py" not in d]
-    assert not dong, f"còn nơi tự ghép tên OFF_: {dong}"
+    Quét file .py trong gói thay vì `git grep`: test phải chạy đúng ở CẢ dev lẫn
+    production (cwd khác nhau, prod từng fail vì lý do đó chứ không phải vì mã).
+    """
+    goc = Path(__file__).resolve().parents[1] / "autoedit"
+    bo_sot = []
+    for f in goc.rglob("*.py"):
+        if f.name == "duong_dan.py":          # nơi ĐỊNH NGHĨA duy nhất
+            continue
+        if 'OFF_{' in f.read_text(encoding="utf-8"):
+            bo_sot.append(str(f.relative_to(goc)))
+    assert not bo_sot, f"còn nơi tự ghép tên OFF_: {bo_sot}"
+
 
 def test_dung_ma_tap_CHUAN_khong_lay_thu_muc_cha():
     r"""Do 11/09: `ma_tap_tu_script` lech `ma_tap_tu_duong_dan` 44/90 project.
