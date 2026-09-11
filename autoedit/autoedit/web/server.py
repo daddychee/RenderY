@@ -1482,8 +1482,11 @@ def api_offline_do_lai_khay(project_id: str, request: Request):
     may_doi: list = []
     # VẤN ĐỀ 3: clip đã lên final ở chương khác cùng tập -> đẩy xuống
     da_dung = _dung.clip_da_dung_trong_tap(d.parent, hd.get("ma_tap") or "", tru=d.name)
+    # "Hải B" (user chốt 11/09): chương đã KHOÁ SỔ -> chỉ bổ sung khay, giữ hình
+    giu = hd.get("trang_thai") == "khoa"
     try:
-        n = _dung.do_lai_khay(hd, conn, may_doi=may_doi, da_dung=da_dung)
+        n = _dung.do_lai_khay(hd, conn, may_doi=may_doi, da_dung=da_dung,
+                              giu_chon=giu)
     finally:
         conn.close()
     orun.luu(d, hd)

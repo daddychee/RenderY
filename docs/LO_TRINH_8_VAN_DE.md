@@ -1546,3 +1546,63 @@ không; dữ liệu hiện tại không phủ hết ca biên.**
   (tên dấu cách cũng qua được cửa ASCII).
 * Project không suy được mã tập (`_test_fern_hook`) → lùi về `OFF_<project_id>`,
   đúng hành vi cũ, không ném lỗi giữa lúc người dựng bấm Export.
+
+---
+
+## LỖI VẬN HÀNH 11/09/2026 — LI103 (Thành) + LI106 (Hải)
+
+### Thành không sửa được LI103
+* Tool **không đọc** quyền tập bên CRM — luật là "ai tạo sequence mới được sửa"
+  (`_gac_quyen_sua`). c6/c7 có `nguoi_tao='bot'` (job 22: user nộp lại tập).
+  Thành level 2 → vai `viewer`: app `rendery` khai `vao/nop_viec/quan_tri`, và
+  `nop_viec` cố ý né chữ `sua/tao/them` nên MỌI editor ra `viewer`. Bảng
+  `phan_cong` của CRM không có dòng nào cho rendery.
+* User chốt **A**: đổi `nguoi_tao` c6/c7 → `thanhdn`. Đã ghi (sao lưu
+  `offline.json.truoc-buoc1-1109.bak`). Server xác nhận: thanhdn `duoc_sua=True`
+  ở c2/c6/c7; haint `False` (đối chứng).
+* c2-LI103: hợp đồng **rớt** `dia_danh`/`uu_tien_nguon` (hồ sơ chương có
+  `Afghanistan`/`ref`) — di chứng job nộp cả tập trước SEQUENCE PH1. Khay ~2
+  thẻ/khối (bản `refs[:2]` cũ). Bấm Đổ lại khay khi thiếu địa danh → **264 clip
+  Ecuador** vào tập Afghanistan. Đã chép 2 trường từ hồ sơ; mô phỏng sau: 10,6
+  thẻ/khối, 0 Ecuador.
+
+### Hải: LI106 chỉ cắt ref 1, 2
+* ref 3/4/5 nạp vào kho 12:14–12:57 ngày 08/09; 14 chương phân tích 11:22–11:29
+  → khay chưa từng có chúng (kho có 1.448 khúc). Chỉ c5 đã bấm Đổ lại khay →
+  log ngay sau đó bật ref 3/4/5.
+* Giả thuyết "khay đóng băng" từng bị chính mtime bác (mọi `offline.json` sửa
+  11/09) — mtime đó do cắt shot/xuất, không phải làm lại khay. `lam_tuoi_ref`
+  bị loại vì chạy thật trả `False`.
+
+### Nút Đổ lại khay làm MẤT HÌNH — 31 miếng / 14 chương LI106
+| Miếng | Vì sao |
+|---|---|
+| 10 | khối đầu: `(i or -1)` = -1 khi `khoi_goc == 0` |
+| 10 | miếng chảy tiếp: bị xoá lựa chọn, `_chon_lai_ho_may` bỏ qua |
+| 11 | miếng anh em trong khối người sửa: bị xoá theo |
+
+User chốt **Hải B**: chương KHOÁ SỔ → chỉ bổ sung khay, giữ nguyên hình (máy chọn
+lại 10–32 khối/chương là phá công đã duyệt). Chương chưa khoá → QĐ6 như cũ.
+
+### Đã làm
+`dung.do_lai_khay(..., giu_chon)` + lưới an toàn "miếng đang có hình thì bấm
+xong vẫn có hình" + sửa `(i or -1)`; `server` truyền `giu_chon = trang_thai ==
+'khoa'`. Test `tests/test_do_lai_khay_khong_mat_hinh.py` **8 test**, đỏ đúng lý
+do trước khi code (2 test server đỏ SAI lý do lần đầu — dữ liệu test thiếu
+`t0/dur` — sửa dữ liệu test rồi mới tính).
+
+### Nghiệm thu (code dev, dữ liệu thật 22 chương, không ghi file)
+**0 miếng mất** · **0 hình đổi ở 21 chương khoá** · ref 3/4/5 có trong khay
+76–307 thẻ/chương · c2-LI103 máy chọn lại 22 khối, 0 miếng mất.
+
+### BH27 — đo "code mới" mà Python nạp code CŨ
+`python -c` chạy từ `F:\RenderY\autoedit` với `PYTHONPATH=F:/RenderY_v2/autoedit`:
+`sys.path[0] = ''` (thư mục hiện tại) đứng TRƯỚC `PYTHONPATH` → nạp code
+production. Dòng `assert 'RenderY_v2' in D.__file__` chặn được trước khi ra số.
+**Luật: đo code dev trên dữ liệu prod → đứng ở thư mục dev, đường dẫn dữ liệu
+tuyệt đối, assert `__file__`.**
+
+### Còn lại
+* c4, h LI106 khay sập (1 thẻ/khối, 100% `giu_cu`) — bấm nút là hồi (đo 9–12 thẻ/khối).
+* c7-LI089 khay 0 thẻ — chưa đo.
+* Tooltip nút vẫn ghi "làm mới các khối MÁY chọn"; ở chương khoá toast báo "làm mới 0 khối".

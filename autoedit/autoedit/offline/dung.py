@@ -235,7 +235,8 @@ def kiem_lap(khoi: list, ung_vien: list[list[dict]], chon: list[int]) -> list[in
 
 def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
                 may_doi: list | None = None,
-                da_dung: dict[str, int] | None = None) -> int:
+                da_dung: dict[str, int] | None = None,
+                giu_chon: bool = False) -> int:
     """Tra lại Library cho MỌI khối, bổ sung khay — GIỮ NGUYÊN lựa chọn của người.
 
     Vì sao cần (07/09 khuya): hợp đồng sinh TRƯỚC một bản vá nguồn (vd bản vá
@@ -265,6 +266,10 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
     `may_doi` (nếu truyền) nhận chỉ số các khối MÁY đã bị chọn lại — UI phải
     nói ra con số này, đổi ngầm dưới tay người dùng là đúng họ nhà lỗi BH5.
 
+    `giu_chon` (user chốt "Hải B" 11/09): chương đã KHOÁ SỔ là chương người đã
+    duyệt -> chỉ bổ sung khay, KHÔNG chọn lại khối nào (máy chọn lại 10–32
+    khối/chương LI106 là phá công đã duyệt). Ref nạp muộn vẫn hiện trong khay.
+
     Trả số khối được bổ sung.
     """
     from autoedit.sotra.tra import tra
@@ -277,11 +282,14 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
     # khoi 0/14 cờ, hinh 6/15). Xét cờ ở khối thì mọi khối đều thành "máy".
     nguoi_o_mieng = {h.get("khoi_goc") for h in (hd.get("hinh") or [])
                      if h.get("nguoi_sua")}
+    cu_mieng = [(h.get("uv") or [])[h["chon"]]
+                if 0 <= h.get("chon", -1) < len(h.get("uv") or []) else None
+                for h in (hd.get("hinh") or [])]
     for i, k in enumerate(ds_khoi):
         cu = list(k.get("uv") or [])
         c = k.get("chon", -1)
         co_chon = 0 <= c < len(cu)
-        cua_nguoi = bool(k.get("nguoi_sua")) or i in nguoi_o_mieng
+        cua_nguoi = giu_chon or bool(k.get("nguoi_sua")) or i in nguoi_o_mieng
         may_da_chon[i] = co_chon and not cua_nguoi
         if may_da_chon[i]:
             id_may_cu[i] = cu[c]["id"]
@@ -321,8 +329,8 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
                 continue
             c_h = h.get("chon", -1)
             uv_h = h.get("uv") or []
-            chon_h = (uv_h[c_h] if (0 <= c_h < len(uv_h) and h.get("nguoi_sua"))
-                      else None)
+            giu_h = giu_chon or h.get("nguoi_sua")
+            chon_h = uv_h[c_h] if (0 <= c_h < len(uv_h) and giu_h) else None
             moi_h = list(gon)
             if chon_h is not None:
                 vi = next((j for j, u in enumerate(moi_h)
@@ -337,6 +345,17 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
 
     if any(may_da_chon):
         _chon_lai_ho_may(hd, ds_khoi, may_da_chon, id_may_cu, may_doi)
+    # LƯỚI AN TOÀN (user duyệt 11/09): miếng đang có hình thì bấm xong vẫn phải
+    # có hình. Đo 14 chương LI106: 31 miếng thành trống — miếng chảy tiếp và
+    # miếng anh em trong khối người sửa bị xoá lựa chọn mà không ai chọn lại.
+    for h, cu_h in zip(hd.get("hinh") or [], cu_mieng):
+        uv_h = h.get("uv") or []
+        if cu_h is None or 0 <= h.get("chon", -1) < len(uv_h):
+            continue
+        vi = next((j for j, u in enumerate(uv_h) if u["id"] == cu_h["id"]), None)
+        if vi is None:
+            h["uv"], vi = [cu_h] + list(uv_h), 0
+        h["chon"] = vi
     return doi
 
 
@@ -367,7 +386,8 @@ def _chon_lai_ho_may(hd: dict, ds_khoi: list, may_da_chon: list,
 
     for h in hd.get("hinh") or []:
         i = h.get("khoi_goc")
-        if h.get("nguoi_sua") or h.get("noi_tiep") or not (0 <= (i or -1) < len(ds_khoi)):
+        if h.get("nguoi_sua") or h.get("noi_tiep") or not (
+                isinstance(i, int) and 0 <= i < len(ds_khoi)):
             continue                     # người chọn / miếng chảy tiếp: không đụng
         if not may_da_chon[i]:
             continue
