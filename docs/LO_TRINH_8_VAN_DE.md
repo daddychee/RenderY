@@ -1494,3 +1494,55 @@ là **việc 2 chưa làm** → hiện tên THẬT (`OFF_<project_id>`), không 
 | XSS | esc() | `<script>` bị vô hiệu, trang còn sống ✓ |
 
 Ảnh: `scratchpad/popup_{a_linkchet,a_watermark,bc_xacnhan}.png`.
+
+---
+
+## VIỆC 2 (11/09/2026) — tên draft theo MÃ TẬP + CHƯƠNG
+
+User 11/09: *"NAS đang khống chế cho nhân sự chỉ cop chứ không ghi đè, cho nên
+mỗi lần xuất lại timeline của 1 chương là một lần tạo thêm bản mới, rất khó kiểm
+soát."* Chốt: draft cũ **để lại dọn sau**, chỉ áp cho lần xuất mới.
+
+### Kiểm trước khi code — 3 phát hiện
+
+**1. Gốc KHÔNG phải "xuất lại".** `thay_mau` gọi `package_draft(overwrite=True)`
+nên xuất lại **đè** đúng chỗ. Tên cũ `OFF_<project_id>` mang dấu thời gian, nên
+thứ đẻ bản mới là **phân tích lại chương** (project mới = tên mới).
+Đo NAS 11/09: 33 draft / 10.6 GB · 9 chương có bản trùng (LI096_Hai H **6 bản**,
+LI103 C2 **4**, LI105 H **4**, LI103 C12 **3**).
+
+**2. Lỗi chặn đường — 2 tập sẽ làm Export CHẾT.** `package_draft` chặn tên không
+khớp `^[A-Za-z0-9_-]+$` (packager.py:28), mà mã tập THẬT có dấu cách:
+`OFF_LI104 TOOL_C9`, `OFF_LI093_Test tool_H` → `PackageError`. Chuẩn hoá thành
+`_` là **bắt buộc**, không phải làm đẹp (user từng nói "bàn sau" khi tưởng là
+chuyện thẩm mỹ).
+
+**3. Hai hàm suy mã tập LỆCH 44/90 project.** `duong_dan.ma_tap_tu_script` lấy
+thư mục CHA của `RenderY` → `LI106_Hai` (còn hậu tố), và `Tool` khi đường dẫn là
+`...\LI102\Tool\RenderY\C1\C1.txt`. `sotra.db.ma_tap_tu_duong_dan` bắt regex mã
+tập + cắt hậu tố → `LI106`, `LI102`. **Phải dùng cái sau** — lấy nhầm thì hai
+chương cùng tập ra hai tên draft khác nhau, đúng thứ việc này đi chữa.
+
+### Đã làm
+`duong_dan.ten_draft_chuong(ma_tap, nhan_chuong, lui)` — MỘT nơi định nghĩa
+(BH4). Hai chỗ dùng sửa CÙNG LÚC: `offline/thay_mau.py` (nơi xuất, kèm helper
+`_goc_script`/`_ma_tap_cua`/`_nhan_chuong_cua`) và `web/server.py:379` (cột
+"✓draft" đi tìm). Test `tests/test_ten_draft_theo_tap.py` **13 test**.
+
+### BH26 — BH5 ca biên: hai nơi "khớp" trên dữ liệu thật vẫn có thể lệch
+Đối chiếu 90 project: **0 lệch** — nhưng đọc kỹ thì `server` có
+`nhan = nhan_chuong_tu_script(goc) or d.name` (cho NHÃN HIỂN THỊ). Nếu lấy luôn
+`nhan` đó đặt tên draft thì ca **thiếu nhãn** cho ra:
+`server → OFF_LI106_c9-2026...` vs `thay_mau → OFF_c9-2026...` → cột "✓draft"
+báo sai âm thầm. Dữ liệu hôm nay không có ca đó nên phép đo **không bắt được**.
+Đã vá (server truyền `nhan_chuong_tu_script(goc)` trực tiếp) + 2 test khoá.
+**Luật: "đo thấy khớp" chưa đủ — phải đọc xem hai bên có dùng CÙNG MỘT biểu thức
+không; dữ liệu hiện tại không phủ hết ca biên.**
+
+### Nghiệm thu
+* 90 project → **74 tên** (gộp 7 chương có bản trùng); 32 draft đang tồn tại →
+  **32 tên, 0 cái đè cái nào**.
+* `package_draft` 2 lần cùng tên `OFF_LI104_TOOL_C9` → **1 thư mục duy nhất**
+  (tên dấu cách cũng qua được cửa ASCII).
+* Project không suy được mã tập (`_test_fern_hook`) → lùi về `OFF_<project_id>`,
+  đúng hành vi cũ, không ném lỗi giữa lúc người dựng bấm Export.

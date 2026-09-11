@@ -677,6 +677,33 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
     return draft
 
 
+from autoedit.duong_dan import ten_draft_chuong
+
+
+def _goc_script(project_dir: Path) -> str:
+    """Đường dẫn kịch bản gốc trên NAS — nguồn để suy tập/chương. Fail-soft."""
+    try:
+        p = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))
+        return (p.get("inputs") or {}).get("original_script_path") or ""
+    except Exception:  # noqa: BLE001 — thiếu file thì lùi về project_id
+        return ""
+
+
+def _ma_tap_cua(project_dir: Path) -> str:
+    """MÃ TẬP chuẩn. Dùng `ma_tap_tu_duong_dan` chứ KHÔNG `ma_tap_tu_script`:
+    đo 11/09 hai hàm lệch 44/90 project (`LI106_Hai`/`Tool` vs `LI106`/`LI102`).
+    Lấy nhầm thì hai chương cùng tập ra hai tên draft khác nhau."""
+    from autoedit.sotra.db import ma_tap_tu_duong_dan
+
+    return ma_tap_tu_duong_dan(_goc_script(project_dir))
+
+
+def _nhan_chuong_cua(project_dir: Path) -> str:
+    from autoedit.duong_dan import nhan_chuong_tu_script
+
+    return nhan_chuong_tu_script(_goc_script(project_dir))
+
+
 def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
              noi_xuat: str = "") -> dict:
     """Chạy trọn: relocate -> cắt voice -> draft CapCut. Chỉ chương KHÓA SỔ."""
@@ -762,7 +789,12 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
         # nhân đôi dung lượng và đẻ ra hai bản lệch nhau.
         profile = profile.model_copy(update={"draft_out_root": str(noi_xuat)})
         log(f"thay-mau: nơi xuất theo tập -> {noi_xuat}")
-    ten = f"OFF_{project_dir.name}"
+    # VIỆC 2 (user chốt 11/09): tên theo MÃ TẬP + CHƯƠNG, không theo project_id.
+    # project_id mang dấu thời gian -> phân tích lại chương = draft MỚI; NAS chỉ
+    # cho copy nên nhân sự không dọn được (đo 11/09: 33 draft/10.6 GB, LI096_Hai
+    # H có 6 bản). Tên theo chương thì xuất lại ĐÈ đúng chỗ cũ.
+    ten = ten_draft_chuong(_ma_tap_cua(project_dir), _nhan_chuong_cua(project_dir),
+                           lui=project_dir.name)
     draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi,
                        dung_id=dung_id)
     from autoedit.offline import hinh as _mh

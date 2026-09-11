@@ -376,7 +376,13 @@ def api_offline_tap_list(request: Request):
         else:
             tt = hd.get("trang_thai") or "pha1"
             he = "dong_kiem" if hd.get("dong_kiem", True) else "auto"
-        draft = _noi_xuat_draft(d) / f"OFF_{d.name}"
+        # BH5: nơi ĐI TÌM phải khớp nơi XUẤT (thay_mau) — lệch là cột "✓draft"
+        # báo sai âm thầm. Cả hai gọi chung `ten_draft_chuong`.
+        from autoedit.duong_dan import ten_draft_chuong as _tdc
+        from autoedit.sotra.db import ma_tap_tu_duong_dan as _mtd
+
+        draft = _noi_xuat_draft(d) / _tdc(
+            _mtd(goc), nhan_chuong_tu_script(goc), lui=d.name)
         tap.setdefault(ma, []).append({
             "project_id": d.name, "nhan": nhan, "trang_thai": tt, "he": he,
             "co_draft": draft.is_dir(),
