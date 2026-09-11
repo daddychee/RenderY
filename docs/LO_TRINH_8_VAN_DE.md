@@ -1606,3 +1606,11 @@ tuyệt đối, assert `__file__`.**
 * c4, h LI106 khay sập (1 thẻ/khối, 100% `giu_cu`) — bấm nút là hồi (đo 9–12 thẻ/khối).
 * c7-LI089 khay 0 thẻ — chưa đo.
 * Tooltip nút vẫn ghi "làm mới các khối MÁY chọn"; ở chương khoá toast báo "làm mới 0 khối".
+
+### Lên production 11/09 18:17
+Commit `e968efe`. Test venv prod **1767 pass**. Chờ máy yên (lượt AUTO LI089 c14/E
+và LI103 c8/C9 do nhân sự chạy nốt) rồi mới tắt 9118 — chốt số dòng pipeline trong
+log trước khi tắt. PID mới `43656`, `/health` 200. GitHub `4757f5d..e968efe`.
+**Hải:** mở từng chương LI106 → "⟳ Đổ lại khay" (chương khoá: giữ hình, khay có
+ref 3/4/5) → thay chỗ muốn → Export lại. **Thành:** c2 LI103 bấm "⟳ Đổ lại khay"
+(chưa khoá: máy chọn lại khối máy) → duyệt → khoá → Export.
