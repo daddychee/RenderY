@@ -1727,3 +1727,102 @@ Patch chèn `'\n\n'` vào chuỗi JS; qua heredoc nó thành hai dòng trống G
 (`scratchpad/thu_phan_tich_lai.py`). **Luật: sửa JS/HTML xong phải mở Chrome
 thật kiểm `typeof` + `pageerror`; và tránh ký tự thoát trong chuỗi JS khi patch
 bằng heredoc.**
+
+---
+
+# QĐ15 (13/09/2026) — NHÂN VẬT CỦA NGÁCH + CHỌN 3 TẦNG
+
+User: *"Tôi thấy anh đang làm mọi thứ vô cùng phức tạp. Tôi sẽ mô phỏng lại flow
+của một editor"* — và mô hình của user đơn giản hơn hẳn mọi thứ tôi đề xuất:
+
+1. **AI** — ngách quyết định người trong khung (Senior Health: già 60+, Mỹ hoặc
+   da trắng). Hằng số của ngách, không đổi theo câu.
+2. **OBJECT** — vật thể nhắc trong câu (cốc nước, bệnh tim, mất ngủ).
+3. **CẢNH CẬN** — câu nào không tả được bằng 1+2 thì dùng cảnh cận
+   (*"lấy tùy ý nhưng ưu tiên người già"*).
+
+Ba tầng này dịch thẳng sang ba cột kho ĐÃ CÓ: `people` · `vat_the` · `shot`.
+
+## Vì sao BỎ mọi đề xuất trước đó — 3 cách chỉnh điểm đều đo và đều thất bại
+
+| Cách | Kết quả đo (SH010) |
+|---|---|
+| IDF (từ phổ biến ít điểm) | `glass` 0,5% kho → trọng số **0,99**; `nepal` 13% → 0,38. Dìm Life In, không cứu Senior Health |
+| Chủ thể tập vào điểm | stock lệch chủ đề 31% → 22% rồi đứng. Nhìn tổng "hết lệch" là ẢO: đổi 103/116 miếng sang ref |
+| Đọc hình rồi vẫn đếm từ | khối h5 **TỆ HƠN**: `L1` có chữ `desk`, clip đếm tiền cũng có `desk` |
+| Cửa kiểm LLM đọc kịch bản | bắt 9/11 miếng sai, bắt oan 0/1 — nhưng **không cần nữa**: kiến thức nằm trong kho (đọc 1 lần/clip) thay vì gọi LLM mỗi lượt dựng |
+
+**Đếm từ trùng là cơ chế sai** — `drink glass table` (ly nước trên bàn) và
+`glass table` (bàn mặt kính) không phân biệt được bằng chữ, đổi chữ bên nào vào
+cũng sai.
+
+## Đo trước khi làm
+
+* Kho 17.039 clip, **8.524 clip stock CHƯA BAO GIỜ được đọc hình** — `subject`
+  của chúng chỉ là tiêu đề người bán xé chữ. ref thì có mắt (7.322 cảnh) → đúng
+  lý do Life In chạy được mà Senior Health thì không.
+* Đọc hình 551 clip khay SH010 (8 phút, 3 luồng, 3 lỗi): `older` 90 · `white` 146
+  · `close` 94. Cửa nhân vật (già+trắng) chỉ **64/548** — ref 31/95 · envato
+  28/372 · pexels 5/62 · **pixabay 0/16**.
+* 116 miếng ĐANG CHẠY: chỉ **8** có người già da trắng, 77 KHÔNG CÓ NGƯỜI, 29 sai tuổi.
+* Vision đọc tuổi tin được: 5/5 clip "Senior" → `older`, 5/5 clip "Family" →
+  `young`/`mixed`, không cái nào nhầm.
+
+## Kết quả sau khi làm (đo bằng chính code mới, bản sao kho)
+
+| | Đang chạy | Ba tầng |
+|---|---|---|
+| Người già da trắng trong khung | **8** (7%) | **79** (68%) |
+| Sai tuổi | 29 | **0** |
+| Không có người | 77 | 28 (đều cảnh cận) |
+| Để trống | 0 | 3 |
+
+Tầng: A 29 · B 50 · C 34 · trống 3. Nguồn: ref 11→70, envato 88→31, pexels 15→12.
+**LI106: đổi 0/340 miếng** — ngách gắn địa lý không khai nhân vật nên khay không
+bị đụng (đúng thiết kế, và là rào chống hồi quy cho Life In).
+
+## Đã làm
+
+* `ngach.py` — `NHAN_VAT_MAC_DINH` (chỉ `N-SENIOR-HEALTH`), `nhan_vat()`,
+  `da_khai_nhan_vat()`, env `RENDERY_NGACH_NHAN_VAT` (JSON) đè theo từng mã.
+  Ngách gắn địa lý coi như ĐÃ KHAI — nhân vật của chúng là cửa geo (BH4: một
+  khái niệm một chỗ). Sổ CRM hỏng → mở, không chặn.
+* **Cổng nộp tập**: ngách chưa khai nhân vật → 422. Đây là *"khoá logic từng
+  niche trước khi bắt tay vào dựng"*.
+* `sotra/doc_hinh.py` — đọc hình → tuổi · chủng tộc · vật thể · cỡ cảnh.
+  Một clip đọc MỘT LẦN (`doc_nguoi`); lỗi 1 clip không giết lô và để `doc_nguoi=0`
+  cho lần sau; giá trị lạ để TRỐNG chứ không bịa; **không ghi đè `vat_the` của
+  ref**; đọc xong đánh lại FTS (`sdb.lam_moi_fts`) nếu không thì đọc để đấy.
+* `db.py` — 3 cột `tuoi`/`chung_toc`/`doc_nguoi`, **CỐ Ý không nằm trong `cot` của
+  `them_clip`**: lượt hút sau không mang ba trường này mà `them_clip` UPDATE cả
+  dải cột → hút lại là xoá sạch công đọc hình.
+* `offline/dung.py` — `TU_DO_DAC` (48% điểm L1 đến từ nhóm này), `dat_nhan_vat`,
+  `nap_nhan_vat`, `xep_3_tang`. Thẻ không đạt **VẪN NẰM TRONG KHAY** (mờ) —
+  kho còn nghèo, bịt mắt người dựng là hỏng việc.
+* `runner.phan_tich(ngach=...)` — đọc hình khay rồi xếp tầng; máy chỉ chọn trong
+  phần dùng được; **cổng Auto đếm theo `so_dung`** chứ không theo độ dài khay;
+  lưu `ngach`+`nhan_vat` vào hợp đồng như `framing`.
+* `do_lai_khay` cũng xếp tầng — không thì bấm nút đó là tự tay gỡ luật ra khỏi chương.
+* `sotra/don_hang.py` + CLI `hut-theo-ref`, `doc-hinh` — mỗi cảnh ref sinh câu
+  tìm `older adult + vật thể`; **tỉ lệ 1:1:1 là mục tiêu CÓ BÁO CÁO, không phải
+  hạn mức**: Pixabay đo thật bỏ qua hẳn chữ `elderly` (`elderly hands coffee cup`
+  → "pie fruit pie dessert", "mount fuji morning clouds"), ép một suất pixabay là
+  ép một clip sai vào khay. Chủng tộc KHÔNG vào câu tìm (kho stock không đánh
+  chỉ mục việc đó) — nó là cửa lúc đọc hình.
+* Giao diện: option ngách ghi "⚠ chưa khai nhân vật", dòng giải thích trong form,
+  nhãn tầng A/B/C/– trên thẻ. Mockup `scratchpad/ui_nhan_vat.html` (mục 2 ghi rõ
+  phần CHƯA làm và vì sao). Kiểm Chrome thật: mọi hàm sống, 3/3 trường hợp đúng,
+  `pageerror` không có.
+
+## Khoảng trống PHÁT HIỆN được, không tự mở rộng phạm vi để chữa
+
+Panel Offline **không hiện `hd.canh_bao`** ở đâu cả — mọi cảnh báo chương
+(Framing không tới nơi, AVD chưa khai, cổng Auto chuyển đồng kiểm, và "Ngách
+không tới nơi" mới thêm) chỉ nằm trong log job + lệnh `kiem-hop-dong`. Có TRƯỚC
+việc này. Đã báo user, chờ quyết.
+
+## Còn lại
+
+* `hut-theo-ref` **chưa chạy lần nào** — đây là thứ kéo tỉ trọng ref (70/116) xuống.
+* Ngách khác Senior Health chưa khai nhân vật → nộp tập sẽ bị 422 (hiện chỉ LI+SH
+  đang chạy nên không ai bị chặn oan).

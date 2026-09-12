@@ -174,7 +174,7 @@ def tinh_dong_kiem(kieu_chay: str, avd_s: float, mo_dau_tap_s: float) -> bool:
 
 def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
               kenh_ref: str = "", uu_tien_nguon: str = "", dia_danh: str = "",
-              nguoi_tao: str = "", kieu_chay: str = "",
+              nguoi_tao: str = "", kieu_chay: str = "", ngach: str = "",
               llm=None, conn=None, log=None) -> dict:
     """Sinh offline.json. `avd_s`: mốc AVD của TẬP; `mo_dau_tap_s`: chương này
     bắt đầu ở giây bao nhiêu của tập (đồng kiểm nếu chương CHẠM mốc AVD).
@@ -262,6 +262,24 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
     # đồng kiểm theo AVD: chương thuộc đồng kiểm nếu BẮT ĐẦU trước mốc AVD
     dong_kiem = tinh_dong_kiem(kieu_chay, avd_s, mo_dau_tap_s)
 
+    # NHÂN VẬT CỦA NGÁCH (QĐ15) — ngách quyết định ai được có trong khung.
+    # {} = ngách gắn địa lý (cửa geo lo việc đó) hoặc ngách chưa khai -> khay giữ
+    # nguyên cách cũ, KHÔNG lọc.
+    try:
+        from autoedit import ngach as _ngach
+
+        nhan_vat = _ngach.nhan_vat(ngach)
+    except Exception as exc:  # noqa: BLE001
+        ghi(f"offline: đọc nhân vật ngách LỖI ({str(exc)[:70]}) — khay không lọc người")
+        nhan_vat = {}
+    if not (ngach or "").strip():
+        # Cùng lý lẽ BH1+BH2 với Framing/AVD: tham số không tới nơi thì NÓI RA,
+        # đừng dựng im rồi để người xem phát hiện hộ.
+        _thieu.append("Ngách KHÔNG tới nơi — khay không lọc theo nhân vật của "
+                      "ngách. Kiểm ô Niche lúc nộp tập rồi Phân tích lại.")
+    elif nhan_vat:
+        ghi(f"offline: nhân vật ngách «{ngach}» = {nhan_vat}")
+
     # ứng viên Library — fail-open
     ung_vien: list[list[dict]] = [[] for _ in ds_khoi]
     chon = [-1] * len(ds_khoi)
@@ -284,12 +302,39 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 bo_nguon=() if dong_kiem else ("envato",),
                 # rào cứng theo tập (06/09): geo lệch/ref tập khác không chảy vào
                 geo_tap=dia_danh, tap=_ma_tap(project_dir), da_dung=da_dung)
+            # BA TẦNG CỦA EDITOR (QĐ15, user chốt 12/09) — đọc hình những clip
+            # chưa có nhân vật, rồi xếp khay A/B/C. `so_dung` là số thẻ MÁY được
+            # phép lấy; thẻ còn lại vẫn nằm trong khay cho người tự chọn.
+            #
+            # Đo trên SH010 trước/sau: miếng có người già da trắng 8/116 -> 79/116.
+            # Fail-open cả tầng: đọc hình hỏng (hết tiền, 403 ảnh cover) thì
+            # `nhan_vat` không có dữ liệu để soi -> khay về đúng cách cũ.
+            doi_tuong = [list(o.truc_chi or []) for o in lop_ds]
+
+            def _ba_tang(uv):
+                if not nhan_vat:
+                    return [len(x) for x in uv]
+                try:
+                    from autoedit.sotra import doc_hinh
+
+                    doc_hinh.bo_sung(c, [t["id"] for x in uv for t in x], log=log)
+                    dung.nap_nhan_vat(c, uv)
+                except Exception as exc:  # noqa: BLE001
+                    ghi(f"offline: đọc hình LỖI ({str(exc)[:80]}) — xếp tầng bằng "
+                        "dữ liệu đã có")
+                return dung.xep_3_tang(uv, doi_tuong, nhan_vat)
+
+            so_dung = _ba_tang(ung_vien)
             # CHẢY TIẾP theo chuẩn kênh (3b): khối ngắn hơn `than` thì dùng
             # tiếp clip của khối trước thay vì đổi hình mỗi hơi thở.
             # CỔNG AUTO (QĐ7): chương tự chạy mà khay quá mỏng thì KHÔNG dựng
             # bừa — chuyển sang Đồng kiểm cho người đắp, và nói rõ vì sao.
-            if not dong_kiem and not du_khay_cho_auto(ung_vien):
-                co, tong = sum(1 for x in ung_vien if x), len(ung_vien) or 1
+            # Đếm theo `so_dung`, không theo độ dài khay: khay đầy thẻ tầng "-"
+            # thì `chon_mac_dinh` vẫn trả -1, mà cổng lại tưởng khay dày.
+            if not dong_kiem and not du_khay_cho_auto(
+                    [x[:n] for x, n in zip(ung_vien, so_dung)]):
+                co = sum(1 for n in so_dung if n)
+                tong = len(ung_vien) or 1
                 dong_kiem = True
                 _thieu.append(
                     f"Khay chỉ phủ {co}/{tong} khối ({co / tong:.0%}) — dưới ngưỡng "
@@ -303,8 +348,13 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                     c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
                     bo_nguon=(), geo_tap=dia_danh, tap=_ma_tap(project_dir),
                     da_dung=da_dung)
+                so_dung = _ba_tang(ung_vien)
             noi_tiep = []
-            chon = dung.chon_mac_dinh(ds_khoi, ung_vien,
+            # MÁY chỉ được chọn trong phần DÙNG ĐƯỢC. Vì phần đó là ĐOẠN ĐẦU của
+            # khay đã xếp, chỉ số trả về dùng chung được cho cả khay — không phải
+            # dịch lại gì.
+            chon = dung.chon_mac_dinh(ds_khoi,
+                                      [x[:n] for x, n in zip(ung_vien, so_dung)],
                                       than=float(fr.get("than") or 0),
                                       noi_tiep=noi_tiep)
         finally:
@@ -319,6 +369,9 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         "ngay": datetime.now(timezone.utc).isoformat(),
         "ma_tap": _ma_tap(project_dir),
         "dia_danh": dia_danh,
+        # LƯU DẤU LUẬT NGÁCH (user chốt 12/09): đổi luật về sau thì vẫn biết
+        # chương cũ được dựng bằng luật nào — y khuôn `framing`.
+        "ngach": ngach, "nhan_vat": nhan_vat,
         "nguoi_tao": nguoi_tao,          # AI TẠO sequence -> người đó mới được sửa
         "ngay_tao": datetime.now(timezone.utc).isoformat(),
         "offset": offset, "tong_voice": round(het - offset, 2),

@@ -29,6 +29,7 @@ Afghanistan".
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -37,6 +38,24 @@ DUONG_MAC_DINH = r"D:\AI AGENT OUTLIERY\data\nen\danh_ba.db"
 
 # QĐ14. Ghi bằng MÃ (bất biến) — tên chuẩn đổi được, mã thì không.
 CAN_DIA_DANH_MAC_DINH = ("N-LIFE-IN", "N-LIVING-IN", "N-TRAVEL-DOCUMENTA")
+
+# QĐ15 (user chốt 12/09) — NHÂN VẬT CỦA NGÁCH: ai được phép có trong khung.
+#
+# Vì sao: đo trên SH010 (Senior Health, 116 khối) — đọc hình 116 miếng tool đang
+# chọn thì chỉ 8 miếng có người già da trắng, 77 miếng KHÔNG CÓ NGƯỜI NÀO, 29
+# miếng người trẻ. Không chỗ nào trong tool biết "ngách này quay ai".
+#
+# Đặt Ở ĐÂY, không ghi vào danh bạ nền — y lý lẽ QĐ13: danh bạ là sổ của CRM.
+# Khai thêm ngách KHÔNG phải sửa code: `RENDERY_NGACH_NHAN_VAT` là JSON
+# {"MÃ": {"tuoi": [...], "chung_toc": [...]}}, đè lên mặc định theo từng mã.
+#
+# Ngách gắn địa lý KHÔNG có mặt ở đây: nhân vật của chúng là "người dân địa danh
+# đó", mà cửa geo trong `tra()` đã làm đúng việc ấy — khai thêm là hai luật cho
+# một khái niệm (BH4).
+NHAN_VAT_MAC_DINH: dict[str, dict] = {
+    # "Senior là người già 60+, Mỹ hoặc da trắng" — user 12/09
+    "N-SENIOR-HEALTH": {"tuoi": ["older"], "chung_toc": ["white"]},
+}
 
 
 def duong_danh_ba() -> Path:
@@ -75,8 +94,58 @@ def _bo_can_geo() -> set[str]:
     return {x.strip().upper() for x in nguon if x.strip()}
 
 
+def _bo_nhan_vat() -> dict[str, dict]:
+    """Bảng nhân vật theo MÃ. `.env` gõ sai -> quay về mặc định, KHÔNG nổ: nổ ở
+    đây là cả team không nộp được tập."""
+    ra = dict(NHAN_VAT_MAC_DINH)
+    raw = os.getenv("RENDERY_NGACH_NHAN_VAT", "").strip()
+    if not raw:
+        return ra
+    try:
+        them = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return ra
+    if not isinstance(them, dict):
+        return ra
+    for k, v in them.items():
+        if isinstance(v, dict):
+            ra[str(k).strip().upper()] = {
+                kk: [str(x).strip().lower() for x in vv]
+                for kk, vv in v.items() if isinstance(vv, (list, tuple))}
+    return ra
+
+
+def nhan_vat(x: str) -> dict:
+    """Ngách này quay AI — {"tuoi": [...], "chung_toc": [...]}. Chưa khai -> {}.
+
+    {} nghĩa là KHÔNG lọc (ngách gắn địa lý, hoặc chưa khai): `xep_3_tang` giữ
+    nguyên thứ tự cũ, không vô tình đổi cách Life In đang chạy.
+    """
+    n = _tim(x)
+    bo = _bo_nhan_vat()
+    if n is not None:
+        return dict(bo.get((n["ma"] or "").upper())
+                    or bo.get((n["ten"] or "").upper()) or {})
+    return dict(bo.get((x or "").strip().upper()) or {})
+
+
+def da_khai_nhan_vat(x: str) -> bool:
+    """Đã khai chưa — cổng nộp tập chặn khi chưa (user chốt 12/09: "cần khoá
+    logic của từng niche trước khi bắt tay vào dựng").
+
+    Ngách gắn địa lý coi như ĐÃ KHAI (cửa geo là nhân vật của chúng). Sổ hỏng ->
+    True: không có cơ sở để bác, mà chặn thì cả team đứng việc (y `hop_le`).
+    """
+    if not doc_duoc():
+        return True
+    if bool(nhan_vat(x)):
+        return True
+    n = _tim(x)
+    return bool(n and n["can_dia_danh"])
+
+
 def liet_ke() -> list[dict]:
-    """13 ngách + cờ `can_dia_danh`. Sổ hỏng/mất -> [] (fail-open)."""
+    """13 ngách + cờ `can_dia_danh` + `da_khai_nhan_vat`. Sổ hỏng -> [] (fail-open)."""
     try:
         conn = _mo()
     except Exception:  # noqa: BLE001
@@ -89,11 +158,18 @@ def liet_ke() -> list[dict]:
     finally:
         conn.close()
     bo = _bo_can_geo()
-    return [{"ma": r["ma"], "ten": r["ten_chuan"],
-             "trang_thai": r["trang_thai"] or "",
-             "can_dia_danh": bool({(r["ma"] or "").upper(),
-                                   (r["ten_chuan"] or "").upper()} & bo)}
-            for r in rows]
+    # tính TẠI ĐÂY, không gọi `da_khai_nhan_vat` — hàm đó gọi `_tim` -> `liet_ke`
+    # thì thành đệ quy vô tận.
+    nv = _bo_nhan_vat()
+    ra = []
+    for r in rows:
+        khoa = {(r["ma"] or "").upper(), (r["ten_chuan"] or "").upper()}
+        geo = bool(khoa & bo)
+        ra.append({"ma": r["ma"], "ten": r["ten_chuan"],
+                   "trang_thai": r["trang_thai"] or "",
+                   "can_dia_danh": geo,
+                   "da_khai_nhan_vat": geo or any(bool(nv.get(k)) for k in khoa)})
+    return ra
 
 
 def _tim(x: str) -> dict | None:

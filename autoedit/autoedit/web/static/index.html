@@ -219,6 +219,17 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 .of-uv .dangn{position:absolute; left:0; right:0; top:0; background:var(--accent);
               color:#fff; font-size:9.5px; font-weight:700; letter-spacing:.05em;
               padding:2px 4px; text-align:center}
+/* NHÃN TẦNG (QĐ15, 12/09): A đúng người + đúng vật · B đúng người · C cảnh cận ·
+   – máy không lấy. Nhãn ở góc TRÊN-TRÁI, không chạm "+N bản" (dưới-phải) và
+   không chạm "● đang dùng" (dải ngang trên cùng) -> để top 14px. */
+.of-uv .tang{position:absolute; left:3px; top:14px; z-index:3; font-size:9px;
+             font-weight:700; line-height:1; padding:2px 4px; border-radius:3px;
+             color:#fff; background:#6b7280}
+.of-uv .tA{background:#1b7f3b}
+.of-uv .tB{background:#1f6feb}
+.of-uv .tC{background:#b26a00}
+.of-uv.mo{opacity:.45}
+.of-uv.mo:hover{opacity:1}
 .of-uv .lap{position:absolute; inset:0; background:rgba(224,108,108,.26);
             display:grid; place-items:center; font-size:10px; color:#fff; font-weight:600; z-index:2}
 /* "+N bản": clip cùng nguồn cùng tiêu đề đã gộp về một thẻ (user chốt 09/09).
@@ -638,6 +649,9 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
             ⚠ Bỏ trống niche: SFX + tiếng nền sẽ TẮT HẲN (kho tiếng tra theo niche) và
             nhịp dùng hồ sơ mặc định thay vì hồ sơ kênh — bài LI103 (04/09) dính đúng
             lỗi này, 0 tiếng động nào vào draft.</div>
+          <!-- QĐ15 (12/09): ngách chưa khai NHÂN VẬT thì không cho nộp. Nói ở
+               đây để người dùng biết TRƯỚC khi bấm, không phải ăn 422 rồi mới hiểu. -->
+          <div class="note" id="ns-nhan-vat" hidden></div>
         </div></div>
       <div class="formrow"><label>Kiểu chạy</label>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -1512,8 +1526,25 @@ function ofKieuChay() {
 }
 
 function canhBaoNiche() {
-  const trong = !document.getElementById('ns-niche').value.trim()
-  document.getElementById('ns-niche-canh-bao').hidden = !trong
+  const ten = (document.getElementById('ns-niche').value || '').trim()
+  document.getElementById('ns-niche-canh-bao').hidden = !!ten
+  // QĐ15: NHÂN VẬT của ngách. Máy chủ vẫn là nơi CHẶN (422) — chỗ này chỉ nói
+  // trước cho người dùng, không tự quyết thay.
+  const o = document.getElementById('ns-nhan-vat')
+  if (!o) return
+  const n = NGACH_DS.find(x => (x.ten || '').toUpperCase() === ten.toUpperCase())
+  if (!ten || !n) { o.hidden = true; return }
+  o.hidden = false
+  if (n.da_khai_nhan_vat) {
+    o.style.color = ''
+    o.textContent = n.can_dia_danh
+      ? '👤 Nhân vật của ngách này là người dân ở địa danh đã khai — cửa địa danh lo việc đó.'
+      : '👤 Ngách này đã khai nhân vật — khay chỉ lấy hình đúng người, câu nào không có thì để trống cho bạn đắp.'
+  } else {
+    o.style.color = 'var(--bad)'
+    o.textContent = '⚠ Ngách «' + ten + '» chưa khai NHÂN VẬT (ai được có trong khung)'
+      + ' — khai ở trang Cài đặt (RENDERY_NGACH_NHAN_VAT) rồi nộp lại.'
+  }
 }
 
 /* NGÁCH lấy từ danh bạ nền của CRM (user chốt 08/09) — chọn, không gõ.
@@ -1536,7 +1567,8 @@ async function napNgach() {
     }
     o.innerHTML = '<option value="">— chọn ngách —</option>'
       + NGACH_DS.map(n => `<option value="${esc(n.ten)}">${esc(n.ten)}`
-          + `${n.can_dia_danh ? ' · cần địa danh' : ''}</option>`).join('')
+          + `${n.can_dia_danh ? ' · cần địa danh' : ''}`
+          + `${n.da_khai_nhan_vat ? '' : ' · ⚠ chưa khai nhân vật'}</option>`).join('')
   } catch (e) { o.innerHTML = '<option value="">— lỗi nạp ngách —</option>' }
   nicheDoi()
 }
@@ -2509,11 +2541,15 @@ function ofVeKhay() {
       const lap = ofUvLap(u.id)
       const d = document.createElement('div')
       const la_dang = OF_TIM_KQ === null && j === k.chon
-      d.className = 'of-uv' + (la_dang ? ' dang' : '')
+      // tầng "-" = máy không lấy (sai người, không phải cảnh cận). Làm mờ để
+      // mắt bỏ qua nhanh, nhưng VẪN BẤM ĐƯỢC — kho còn nghèo (64/548 clip khay
+      // SH010 đạt cửa người, đo 12/09) nên không được bịt mắt người dựng.
+      d.className = 'of-uv' + (la_dang ? ' dang' : '') + (u.tang === '-' ? ' mo' : '')
       if (la_dang) d.dataset.dang = '1'
       d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
         <video muted loop playsinline preload="none"></video>
         ${la_dang ? '<div class="dangn">● đang dùng</div>' : ''}
+        ${u.tang ? `<div class="tang t${u.tang === '-' ? 'X' : u.tang}">${u.tang === '-' ? '–' : u.tang}</div>` : ''}
         ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}
         ${u.so_ban > 1 ? `<div class="ban">+${u.so_ban - 1} bản</div>` : ''}</div>
         <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`

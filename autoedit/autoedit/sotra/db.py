@@ -153,7 +153,15 @@ def mo(path: Path | None = None) -> sqlite3.Connection:
                         # HÀNG TẠM của một tập (08/09): preview hút trong lúc
                         # dựng tập nào thì mang dấu tập đó, đóng job là dọn.
                         # Rỗng = hàng thường trực, không ai dọn.
-                        ("tam_tap", "TEXT DEFAULT ''")):
+                        ("tam_tap", "TEXT DEFAULT ''"),
+                        # NHÂN VẬT (QĐ15, 12/09) — đọc từ HÌNH, không từ tiêu đề.
+                        # CỐ Ý không nằm trong `cot` của `them_clip`: lượt hút
+                        # sau không mang ba trường này, mà `them_clip` UPDATE cả
+                        # dải cột -> hút lại là xoá sạch công đọc hình. Chỉ
+                        # `doc_hinh` được ghi, bằng UPDATE riêng.
+                        ("tuoi", "TEXT DEFAULT ''"),
+                        ("chung_toc", "TEXT DEFAULT ''"),
+                        ("doc_nguoi", "INTEGER DEFAULT 0")):
         try:
             conn.execute(f"ALTER TABLE clip ADD COLUMN {_cot} {_kieu}")
         except sqlite3.OperationalError:
@@ -260,6 +268,20 @@ def them_clip(conn: sqlite3.Connection, r: dict) -> bool:
     conn.execute("DELETE FROM clip_fts WHERE id=?", (d["id"],))
     conn.execute("INSERT INTO clip_fts(id, chu) VALUES(?,?)", (d["id"], _chu_fts(d)))
     return moi
+
+
+def lam_moi_fts(conn: sqlite3.Connection, clip_id: str) -> None:
+    """Đánh lại chỉ mục FTS cho MỘT clip sau khi sửa trực tiếp bằng UPDATE.
+
+    Cần vì `doc_hinh` ghi `vat_the`/`people` ngoài đường `them_clip` — không đánh
+    lại thì vật thể vừa đọc được không tra ra, tức đọc hình để đấy.
+    """
+    r = conn.execute("SELECT * FROM clip WHERE id=?", (clip_id,)).fetchone()
+    if r is None:
+        return
+    conn.execute("DELETE FROM clip_fts WHERE id=?", (clip_id,))
+    conn.execute("INSERT INTO clip_fts(id, chu) VALUES(?,?)",
+                 (clip_id, _chu_fts(dict(r))))
 
 
 def ghi_su_kien(conn, clip_id: str, loai: str, tap: str = "",

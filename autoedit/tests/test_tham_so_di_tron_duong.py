@@ -98,8 +98,10 @@ def test_khong_khai_gi_thi_KHONG_bia_so_mac_dinh(tmp_path, monkeypatch):
     d = _du_an(tmp_path)
     monkeypatch.setattr(q, "db_path", lambda root=None: tmp_path / "jobs.db")
     t = tham_so_dung(d, d.name)
+    # `ngach` thêm 12/09 (QĐ15 — nhân vật của ngách). Vẫn đúng ý test: không khai
+    # gì thì trả RỖNG, không bịa.
     assert t == {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": "",
-                 "kieu_chay": ""}
+                 "kieu_chay": "", "ngach": ""}
 
 
 # ------------------------------------------------- thiếu thì hợp đồng phải KÊU

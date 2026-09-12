@@ -750,6 +750,7 @@ class OfflineRequest(BaseModel):
     uu_tien_nguon: str = ""        # "" | ref | envato
     dia_danh: str = ""
     kieu_chay: str = ""            # "" | manual | avd | auto (SEQUENCE QĐ1)
+    ngach: str = ""                # QĐ15: nhân vật của ngách (rỗng -> đọc hồ sơ)
     xoa_chinh_tay: bool = False    # phân tích LẠI: đồng ý mất phần chỉnh tay
 
 
@@ -849,7 +850,7 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
     sẽ ghi cảnh báo đỏ vào hợp đồng thay vì chạy im (BH1).
     """
     ra = {"avd_s": 0.0, "kenh_ref": "", "uu_tien_nguon": "", "dia_danh": "",
-          "kieu_chay": ""}
+          "kieu_chay": "", "ngach": ""}
     try:
         inp = (json.loads((Path(pdir) / "project.json").read_text(encoding="utf-8"))
                .get("inputs") or {})
@@ -859,7 +860,10 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
         ra["avd_s"] = float(inp["avd_phut"]) * 60
     for k in ("kenh_ref", "uu_tien_nguon", "dia_danh", "kieu_chay"):
         ra[k] = inp.get(k) or ""
-    if ra["avd_s"] or ra["kenh_ref"] or ra["kieu_chay"]:
+    # NGÁCH nằm ở `inputs.channel` (form nộp tập ghi `niche` vào đó) — QĐ15 cần
+    # nó để biết nhân vật của ngách.
+    ra["ngach"] = inp.get("channel") or inp.get("niche") or ""
+    if ra["avd_s"] or ra["kenh_ref"] or ra["kieu_chay"] or ra["ngach"]:
         return ra
     try:                                  # lưới đỡ: project cũ, tham số ở jobs
         from autoedit.web import queue as _q
@@ -875,6 +879,7 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
                 ra["avd_s"] = float(o["avd_phut"]) * 60
             for k in ("kenh_ref", "uu_tien_nguon", "dia_danh", "kieu_chay"):
                 ra[k] = ra[k] or (o.get(k) or "")
+            ra["ngach"] = ra["ngach"] or (o.get("niche") or "")
     except Exception:  # noqa: BLE001
         pass
     return ra
@@ -960,13 +965,17 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
                     break
         return 0.0                             # không thấy chương -> coi như đầu tập
 
+    t = tham_so_dung(d, project_id)
     if not req.avd_s and not req.kenh_ref:
-        t = tham_so_dung(d, project_id)
         req.avd_s = req.avd_s or t["avd_s"]
         req.kenh_ref = req.kenh_ref or t["kenh_ref"]
         req.uu_tien_nguon = req.uu_tien_nguon or t["uu_tien_nguon"]
         req.dia_danh = req.dia_danh or t["dia_danh"]
         req.kieu_chay = req.kieu_chay or t["kieu_chay"]
+    # NGÁCH phải tới nơi MỌI TRƯỜNG HỢP (QĐ15). Nằm trong `if` trên thì ai gửi
+    # `avd_s` tường minh là ngách rớt im lặng — đúng lớp lỗi BH2 đã gặp với
+    # Framing ở LI103 (17 chương dựng với framing rỗng, không ai biết).
+    req.ngach = req.ngach or t["ngach"]
     # mốc bắt đầu chương tính MỌI TRƯỜNG HỢP (kể cả avd_s gửi tường minh) —
     # nằm trong if trên là gửi avd_s tay thì mốc lại về 0, mọi chương đồng kiểm
     # Mốc bắt đầu chương CHỈ có nghĩa với kiểu avd — manual/auto không dùng tới,
@@ -995,7 +1004,7 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
             hd = orun.phan_tich(d, avd_s=req.avd_s, mo_dau_tap_s=req.mo_dau_tap_s,
                                 kenh_ref=req.kenh_ref, uu_tien_nguon=req.uu_tien_nguon,
                                 dia_danh=req.dia_danh, nguoi_tao=nguoi_tao,
-                                kieu_chay=req.kieu_chay,
+                                kieu_chay=req.kieu_chay, ngach=req.ngach,
                                 log=lambda m: print("[offline]", m, flush=True))
             # CHƯƠNG AUTO (sau mốc AVD — user chốt: "chia 2 hệ đồng kiểm và
             # auto", đóng nốt 06/09 trước go-live): máy tự dùng lựa chọn mặc
@@ -2735,6 +2744,14 @@ def api_add_job(req: JobRequest, request: Request):
     if _ng.can_dia_danh(req.niche) and not (req.dia_danh or "").strip():
         raise HTTPException(422, f"Ngách «{req.niche}» cần ĐỊA DANH của tập — "
                                  "không khai thì khay ứng viên không lọc được theo vùng")
+    # QĐ15 (user chốt 12/09): "cần khoá logic của từng niche trước khi bắt tay
+    # vào dựng". Đo trên SH010 trước khi có luật này: 116 miếng chỉ 8 miếng có
+    # người già da trắng, 77 miếng KHÔNG CÓ NGƯỜI NÀO — vì không chỗ nào biết
+    # ngách quay ai. Chặn ở đây, đừng để dựng xong 24 phút mới thấy sai người.
+    if not _ng.da_khai_nhan_vat(req.niche):
+        raise HTTPException(422, f"Ngách «{req.niche}» chưa khai NHÂN VẬT (ai được "
+                                 "có trong khung) — khai ở trang Cài đặt "
+                                 "(RENDERY_NGACH_NHAN_VAT) rồi nộp lại")
 
     # Chặn ở đây thay vì để worker chạy 24 phút rồi mới báo
     chuong, loi = doc_chuong(folder)

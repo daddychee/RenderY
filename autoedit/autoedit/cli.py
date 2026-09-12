@@ -3166,5 +3166,80 @@ def main() -> None:
     app()
 
 
+@app.command(name="hut-theo-ref")
+def hut_theo_ref_cmd(
+    tap: str = typer.Argument(..., help="Mã tập, ví dụ SH010."),
+    ngach: str = typer.Option(..., "--ngach", help="Ngách của tập (lấy nhân vật)."),
+    so_vat: int = typer.Option(3, "--so-vat", help="Số vật thể mỗi câu tìm."),
+    tran: int = typer.Option(40, "--tran", help="Trần số câu tìm mỗi lần chạy."),
+    tam: bool = typer.Option(False, "--tam", help="Đánh dấu hàng TẠM của tập này."),
+) -> None:
+    """ĐƠN HÀNG HÚT TỪ REF — mỗi cảnh ref sinh câu tìm cho envato/pexels/pixabay.
+
+    "Lấy ref làm gốc" (user chốt 12/09): cảnh ref đã được đọc hình nên nó tự cho
+    ra câu tìm chính xác (từ tuổi của ngách + vật thể của cảnh).
+
+    Tỉ lệ 1:1:1 là MỤC TIÊU CÓ BÁO CÁO, không phải hạn mức: nguồn nào không giao
+    được thì in ra là THIẾU, không lấp bừa (Pixabay đo 12/09 bỏ qua hẳn chữ
+    `elderly` — ép một suất pixabay là ép một clip sai vào khay).
+    """
+    from autoedit import ngach as _ngach
+    from autoedit.sotra import db as sdb, don_hang
+
+    nv = _ngach.nhan_vat(ngach)
+    if not nv:
+        typer.secho(f"Ngách «{ngach}» chưa khai nhân vật — câu tìm sẽ không có từ "
+                    "tuổi. Khai RENDERY_NGACH_NHAN_VAT trước.", fg=typer.colors.YELLOW)
+    conn = sdb.mo()
+    try:
+        bc = don_hang.chay_don(conn, tap, nv, so_vat=so_vat, tran=tran,
+                               tam_tap=tam, log=lambda m: typer.echo("  " + m))
+    finally:
+        conn.close()
+    typer.echo(f"\n{bc['so_cau']} câu tìm từ cảnh ref của {tap}")
+    for n, v in bc["theo_nguon"].items():
+        typer.echo(f"  {n:8} clip mới: {v}")
+    if bc["thieu"]:
+        typer.secho(f"\nTHIẾU {len(bc['thieu'])} chỗ (ghi sổ, không lấp):",
+                    fg=typer.colors.YELLOW)
+        for x in bc["thieu"][:20]:
+            typer.echo("  · " + x)
+        if len(bc["thieu"]) > 20:
+            typer.echo(f"  … còn {len(bc['thieu']) - 20} dòng")
+
+
+@app.command(name="doc-hinh")
+def doc_hinh_cmd(
+    tap: str = typer.Option("", "--tap", help="Chỉ đọc clip ref/kho của tập này."),
+    nguon: str = typer.Option("", "--nguon", help="Chỉ một nguồn: envato/pexels/..."),
+    so: int = typer.Option(200, "--so", help="Trần số clip mỗi lần chạy."),
+    luong: int = typer.Option(3, "--luong", help="Số luồng (>3 bigmodel cắt kết nối)."),
+) -> None:
+    """ĐỌC HÌNH bổ sung nhân vật cho clip chưa có (tuổi · chủng tộc · vật thể · cỡ cảnh).
+
+    Đo 12/09: 1,1s/clip ở 3 luồng, lưu vĩnh viễn. Đường dựng đã tự đọc clip vào
+    khay; lệnh này để đọc trước cả kho cho đỡ chờ lúc dựng.
+    """
+    from autoedit.sotra import db as sdb, doc_hinh
+
+    conn = sdb.mo()
+    try:
+        dk, th = ["COALESCE(doc_nguoi,0)=0", "trang_thai='song'"], []
+        if tap:
+            dk.append("tap=?")
+            th.append(tap)
+        if nguon:
+            dk.append("nguon=?")
+            th.append(nguon)
+        ids = [r[0] for r in conn.execute(
+            f"SELECT id FROM clip WHERE {' AND '.join(dk)} LIMIT {int(so)}", th)]
+        typer.echo(f"{len(ids)} clip chưa đọc hình")
+        n = doc_hinh.bo_sung(conn, ids, luong=luong,
+                             log=lambda m: typer.echo("  " + m))
+    finally:
+        conn.close()
+    typer.echo(f"đọc được {n}/{len(ids)}")
+
+
 if __name__ == "__main__":
     main()

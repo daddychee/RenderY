@@ -12,6 +12,7 @@ Chọn mặc định theo bộ luật nghiệm thu ở prototype V5:
 from __future__ import annotations
 
 import json
+import re
 
 CUA_SO_LAP_S = 60.0
 CHOT_NEO_S = 30.0
@@ -121,6 +122,10 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                     "lop": c["lop"], "diem": c["diem"],
                     "url_anh": c.get("url_anh", ""), "url_video": c.get("url_video", ""),
                     "geo": c.get("geo", ""), "dai_s": c.get("dai_s", 0),
+                    # NHÂN VẬT (QĐ15, 12/09) — `xep_3_tang` đọc đúng bốn trường
+                    # này. Thiếu thì thẻ rơi xuống đáy khay, không nổ.
+                    "tuoi": c.get("tuoi", ""), "chung_toc": c.get("chung_toc", ""),
+                    "shot": c.get("shot", ""), "vat_the": c.get("vat_the", ""),
                     # t0/t1 để UI gắn #t= — không có thì hover ref tải cả file 1GB
                     "t0": c.get("t0", 0), "t1": c.get("t1", 0),
                     # `so_ban` từ `tra()` đã gộp bản trùng tiêu đề (09/09). Danh
@@ -129,6 +134,108 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                     # nó chứa cả bản dự phòng, nhét vào hợp đồng là phình file.
                     **({"so_ban": c["so_ban"]} if c.get("so_ban", 1) > 1 else {})}
                    for c in uv])
+    return ra
+
+
+# TỪ ĐỒ ĐẠC — có ở mọi thể loại video nên không phân biệt được gì. Đo 12/09:
+# 48% điểm lớp L1 của các miếng đang chọn đến từ đúng nhóm này, và chính nó làm
+# clip "Man Counts Money at Glass Table" thắng clip nước cam cho câu "ly nước
+# đặt cạnh bạn" (`drink glass table` khớp `glass`+`table`, 2 điểm ăn 1).
+# Người thì đã có CỬA NHÂN VẬT lo, nên `woman`/`man`/`family` cũng vào đây.
+TU_DO_DAC = frozenset("""table glass hand hands person people morning light room
+indoor indoors closeup close scene view shot home house window counter desk paper
+papers background modern bright dark soft warm front adult woman man young family
+thing stuff area wall floor chair shirt setting""".split())
+
+
+def _tu_vat(x) -> set[str]:
+    """Từ ≥4 chữ, bỏ nhóm đồ đạc. Dùng CHO CẢ hai bên để so cùng một thước."""
+    if isinstance(x, str):
+        x = [x]
+    return {w for c in (x or [])
+            for w in re.findall(r"[a-z]{4,}", str(c).lower())} - TU_DO_DAC
+
+
+def dat_nhan_vat(the: dict, nhan_vat: dict) -> bool:
+    """Thẻ này có đúng người của ngách không. Trường nào ngách KHÔNG khai thì
+    không soi — ngách khai một nửa (chỉ tuổi) thì chỉ soi tuổi."""
+    for truong, gia_tri in (nhan_vat or {}).items():
+        if str(the.get(truong) or "").strip().lower() not in gia_tri:
+            return False
+    return True
+
+
+def nap_nhan_vat(conn, ung_vien: list[list[dict]]) -> None:
+    """Nạp lại 4 trường nhân vật lên các thẻ trong khay từ kho.
+
+    Cần vì `do_ung_vien` dựng thẻ TRƯỚC khi `doc_hinh` đọc hình — không nạp lại
+    thì thẻ vừa đọc xong vẫn rỗng tuổi, và cả khay rơi xuống tầng "-".
+    """
+    ids = [t["id"] for uv in ung_vien for t in uv]
+    if not ids:
+        return
+    kho: dict[str, dict] = {}
+    for i in range(0, len(ids), 400):          # SQLite trần 999 tham số
+        lo = ids[i:i + 400]
+        dau = ",".join("?" * len(lo))
+        for r in conn.execute(
+                f"SELECT id, tuoi, chung_toc, shot, vat_the FROM clip "
+                f"WHERE id IN ({dau})", lo):
+            kho[r["id"]] = dict(r)
+    for uv in ung_vien:
+        for t in uv:
+            r = kho.get(t["id"])
+            if r:
+                t.update({k: r.get(k) or "" for k in
+                          ("tuoi", "chung_toc", "shot", "vat_the")})
+
+
+def xep_3_tang(ung_vien: list[list[dict]], doi_tuong: list, nhan_vat: dict) -> list[int]:
+    """Xếp khay theo 3 TẦNG của editor (user chốt 12/09) — sửa `ung_vien` TẠI CHỖ,
+    trả về SỐ THẺ DÙNG ĐƯỢC mỗi khối.
+
+      A  đúng nhân vật + đúng object của câu
+      B  đúng nhân vật, object chung
+      C  cảnh CẬN (ai cũng được, ƯU TIÊN người già)
+      -  còn lại: VẪN NẰM TRONG KHAY cho người tự chọn, nhưng máy không lấy
+
+    Vì sao không cộng điểm chữ nữa: đo 12/09, ba cách chỉnh điểm đều thất bại
+    (IDF · chủ thể tập vào điểm · đọc hình rồi vẫn đếm từ) — đếm từ trùng không
+    phân biệt được "ly nước trên bàn" với "bàn mặt kính". Ba tầng chỉ dùng chữ
+    để xếp TRONG một tầng, không dùng để quyết định tầng.
+
+    `nhan_vat` rỗng (ngách gắn địa lý, hoặc chưa khai) -> KHÔNG ĐỤNG GÌ: giữ
+    nguyên thứ tự cũ để không vô tình đổi cách Life In đang chạy.
+
+    Đo khi áp lên SH010: miếng có người già da trắng 8/116 -> 79/116; khối phải
+    để trống 3/116.
+    """
+    if not nhan_vat:
+        return [len(uv) for uv in ung_vien]
+    uu_tuoi = list(nhan_vat.get("tuoi") or ["older"])
+    ra: list[int] = []
+    for i, uv in enumerate(ung_vien):
+        obj = _tu_vat(doi_tuong[i] if i < len(doi_tuong) else [])
+        A, B, C, con = [], [], [], []
+        for the in uv:
+            trung = len(_tu_vat(the.get("vat_the")) & obj)
+            the["trung_vat"] = trung
+            if dat_nhan_vat(the, nhan_vat):
+                the["tang"] = "A" if trung else "B"
+                (A if trung else B).append(the)
+            elif str(the.get("shot") or "").strip().lower() == "close":
+                the["tang"] = "C"
+                C.append(the)
+            else:
+                the["tang"] = "-"
+                con.append(the)
+        A.sort(key=lambda t: (-t["trung_vat"], -float(t.get("diem") or 0)))
+        B.sort(key=lambda t: -float(t.get("diem") or 0))
+        # "cảnh cận có thể lấy tùy ý nhưng ưu tiên là người già" — user 12/09
+        C.sort(key=lambda t: (str(t.get("tuoi") or "").lower() not in uu_tuoi,
+                              -t["trung_vat"], -float(t.get("diem") or 0)))
+        uv[:] = A + B + C + con
+        ra.append(len(A) + len(B) + len(C))
     return ra
 
 
@@ -276,6 +383,15 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
 
     doi = 0
     ds_khoi = hd.get("khoi") or []
+    # BA TẦNG (QĐ15) phải áp CẢ Ở ĐÂY. Không áp thì bấm "Đổ lại khay" là máy
+    # chọn lại theo điểm chữ — tức tự tay gỡ luật nhân vật ra khỏi chương.
+    try:
+        from autoedit import ngach as _ngach
+
+        nhan_vat = _ngach.nhan_vat(hd.get("ngach") or "")
+    except Exception:  # noqa: BLE001
+        nhan_vat = {}
+    so_dung: list[int] = [0] * len(ds_khoi)
     may_da_chon = [False] * len(ds_khoi)      # khối MÁY đã chọn -> chọn lại
     id_may_cu: list = [None] * len(ds_khoi)   # để biết khối nào THẬT SỰ đổi
     # Người dựng sửa ở MIẾNG HÌNH; khối không mang cờ nào (đo chương H 08/09:
@@ -310,7 +426,22 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
                 "lop": c2["lop"], "diem": c2["diem"],
                 "url_anh": c2.get("url_anh", ""), "url_video": c2.get("url_video", ""),
                 "geo": c2.get("geo", ""), "dai_s": c2.get("dai_s", 0),
-                "t0": c2.get("t0", 0), "t1": c2.get("t1", 0)} for c2 in moi]
+                "t0": c2.get("t0", 0), "t1": c2.get("t1", 0),
+                "tuoi": c2.get("tuoi", ""), "chung_toc": c2.get("chung_toc", ""),
+                "shot": c2.get("shot", ""), "vat_the": c2.get("vat_the", "")}
+               for c2 in moi]
+        # XẾP TẦNG cho riêng khối này. Đọc hình clip mới (ref vừa nạp, stock vừa
+        # hút) — clip đã đọc thì bỏ qua, nên lần bấm thứ hai gần như không tốn gì.
+        so_dung[i] = len(gon)
+        if nhan_vat:
+            try:
+                from autoedit.sotra import doc_hinh
+
+                doc_hinh.bo_sung(conn, [g["id"] for g in gon])
+                nap_nhan_vat(conn, [gon])
+                so_dung[i] = xep_3_tang([gon], [k.get("L1") or []], nhan_vat)[0]
+            except Exception:  # noqa: BLE001 — hỏng thì giữ khay, đừng mất khối
+                so_dung[i] = len(gon)
         if dang_chon is not None:
             vi = next((j for j, u in enumerate(gon)
                        if u["id"] == dang_chon["id"]), None)
@@ -344,7 +475,8 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
             h["uv"] = moi_h
 
     if any(may_da_chon):
-        _chon_lai_ho_may(hd, ds_khoi, may_da_chon, id_may_cu, may_doi)
+        _chon_lai_ho_may(hd, ds_khoi, may_da_chon, id_may_cu, may_doi,
+                         so_dung=so_dung if nhan_vat else None)
     # LƯỚI AN TOÀN (user duyệt 11/09): miếng đang có hình thì bấm xong vẫn phải
     # có hình. Đo 14 chương LI106: 31 miếng thành trống — miếng chảy tiếp và
     # miếng anh em trong khối người sửa bị xoá lựa chọn mà không ai chọn lại.
@@ -360,7 +492,8 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
 
 
 def _chon_lai_ho_may(hd: dict, ds_khoi: list, may_da_chon: list,
-                     id_may_cu: list, may_doi: list | None = None) -> None:
+                     id_may_cu: list, may_doi: list | None = None,
+                     so_dung: list | None = None) -> None:
     """Đặt lại lựa chọn cho các khối MÁY đã chọn, rồi dội xuống dải hình."""
     from types import SimpleNamespace
 
@@ -372,7 +505,12 @@ def _chon_lai_ho_may(hd: dict, ds_khoi: list, may_da_chon: list,
     # (chảy tiếp) nên mọi chỉ số cũ đều có thể lệch; ghim lại theo ID sau.
     giu = {i: k["uv"][k["chon"]]["id"] for i, k in enumerate(ds_khoi)
            if 0 <= k.get("chon", -1) < len(k.get("uv") or [])}
-    moi = chon_mac_dinh(ns, [k.get("uv") or [] for k in ds_khoi],
+    # MÁY chỉ chọn trong phần DÙNG ĐƯỢC (đoạn đầu khay đã xếp tầng) — chỉ số
+    # trả về vẫn đúng cho cả khay vì đó là tiền tố.
+    khay = [k.get("uv") or [] for k in ds_khoi]
+    if so_dung is not None:
+        khay = [x[:n] for x, n in zip(khay, list(so_dung) + [0] * len(khay))]
+    moi = chon_mac_dinh(ns, khay,
                         than=float((hd.get("framing") or {}).get("than") or 0))
     for i, k in enumerate(ds_khoi):
         if may_da_chon[i] and moi[i] >= 0:

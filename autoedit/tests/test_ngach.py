@@ -192,8 +192,15 @@ def test_nop_tap_ngach_LIFE_IN_thieu_dia_danh_bi_chan(may_chu):
     assert r.status_code == 422 and "địa danh" in r.json()["detail"].lower()
 
 
-def test_nop_tap_ngach_COOKING_KHONG_can_dia_danh(may_chu):
-    """Đây là điều user muốn: ngách không gắn địa điểm thì khỏi khai."""
+def test_nop_tap_ngach_COOKING_KHONG_can_dia_danh(may_chu, monkeypatch):
+    """Đây là điều user muốn: ngách không gắn địa điểm thì khỏi khai ĐỊA DANH.
+
+    Từ 12/09 có thêm cổng NHÂN VẬT (QĐ15) — đây là cổng KHÁC, nên test này khai
+    nhân vật cho COOKING để cổng đó không che mất điều đang cần kiểm. Việc
+    "chưa khai nhân vật thì bị chặn" nằm ở `test_nhan_vat_ngach.py`.
+    """
+    monkeypatch.setenv("RENDERY_NGACH_NHAN_VAT",
+                       '{"N-COOKING": {"tuoi": ["young", "middle"]}}')
     tc, folder = may_chu
     r = tc.post("/api/jobs", json={"folder": folder, "niche": "COOKING",
                                    "dia_danh": ""})
