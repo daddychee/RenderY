@@ -3183,6 +3183,16 @@ def hut_theo_ref_cmd(
     được thì in ra là THIẾU, không lấp bừa (Pixabay đo 12/09 bỏ qua hẳn chữ
     `elderly` — ép một suất pixabay là ép một clip sai vào khay).
     """
+    # KHOÁ nằm ở KÉT V3 của CRM, không ở `.env` (khối General — owner đổi/thu hồi
+    # là lượt sau ăn ngay). Chạy thật 13/09 mới lộ: lệnh này nạp 150 clip envato
+    # mà pexels/pixabay chết sạch 16/16 vì thiếu khoá — envato không cần khoá nên
+    # hỏng một nửa mà vẫn trông như chạy được. Fail-open: két hỏng thì rơi về `.env`.
+    try:
+        from autoedit.web.ket_v3 import nap_env as _nap_env
+
+        _nap_env()
+    except Exception:  # noqa: BLE001
+        pass
     from autoedit import ngach as _ngach
     from autoedit.sotra import db as sdb, don_hang
 
@@ -3220,6 +3230,16 @@ def doc_hinh_cmd(
     Đo 12/09: 1,1s/clip ở 3 luồng, lưu vĩnh viễn. Đường dựng đã tự đọc clip vào
     khay; lệnh này để đọc trước cả kho cho đỡ chờ lúc dựng.
     """
+    # KHOÁ nằm ở KÉT V3 của CRM, không ở `.env` (khối General — owner đổi/thu hồi
+    # là lượt sau ăn ngay). Chạy thật 13/09 mới lộ: lệnh này nạp 150 clip envato
+    # mà pexels/pixabay chết sạch 16/16 vì thiếu khoá — envato không cần khoá nên
+    # hỏng một nửa mà vẫn trông như chạy được. Fail-open: két hỏng thì rơi về `.env`.
+    try:
+        from autoedit.web.ket_v3 import nap_env as _nap_env
+
+        _nap_env()
+    except Exception:  # noqa: BLE001
+        pass
     from autoedit.sotra import db as sdb, doc_hinh
 
     conn = sdb.mo()

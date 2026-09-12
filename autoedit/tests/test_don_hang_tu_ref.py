@@ -157,3 +157,23 @@ def test_clip_hut_ve_mang_dau_TAP(kho):
     don_hang.chay_don(kho, "SH010", NV, tim=_tim_gia({"pexels": 1}), tam_tap=True)
     r = kho.execute("SELECT tam_tap FROM clip WHERE nguon='pexels'").fetchone()
     assert r[0] == "SH010"
+
+
+# ------------------------------------------------- khoá phải tới nơi (13/09)
+# Chạy thật lần đầu: `hut-theo-ref` nạp được 150 clip envato nhưng pexels/pixabay
+# chết sạch 16/16 — "thiếu PEXELS_API_KEY". Khoá của tổ chức nằm trong KÉT V3 và
+# chỉ `web/server.py` nạp; lệnh CLI không nạp gì. Envato không lộ ra vì nó là
+# trang công khai, không cần khoá — đúng kiểu lỗi im lặng một nửa.
+
+def test_hai_lenh_moi_nap_khoa_tu_ket():
+    from pathlib import Path
+
+    import autoedit.cli as c
+
+    s = Path(c.__file__).read_text(encoding="utf-8")
+    for ten in ("hut-theo-ref", "doc-hinh"):
+        i = s.index(f'@app.command(name="{ten}")')
+        # tới lệnh kế tiếp (hoặc hết file)
+        j = s.find("@app.command(", i + 10)
+        doan = s[i:j if j > 0 else len(s)]
+        assert "nap_env" in doan, f"lệnh {ten} chưa nạp khoá từ két V3"
