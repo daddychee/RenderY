@@ -28,7 +28,19 @@ class LopOut(BaseModel):
     khoi: list[LopKhoi]
 
 
-_SYS = """Bạn là đạo diễn phim tài liệu du lịch về {DIA_DANH}. Với MỖI khối lời,
+# HAI NHÁNH THEO NGÁCH (user chốt 12/09: "prompt sai là sai hết"). Nhánh chọn
+# bằng ĐÚNG biến đã có — tập có khai địa danh hay không (QĐ14: chỉ LIFE IN,
+# LIVING IN, TRAVEL DOCUMENTARY bắt buộc khai) — KHÔNG đẻ thêm khái niệm.
+# A/B thật trên SH010: chương h 41% -> 18% clip du lịch trong khay, chương c1
+# 52% -> 28%; từ khoá hai bên tương đương. Nhánh CÓ địa danh giữ nguyên từng
+# chữ: ref của Life In đang gánh cả tập.
+_MO_DAU_GEO = "Bạn là đạo diễn phim tài liệu du lịch về {DIA_DANH}."
+_MO_DAU = "Bạn là đạo diễn phim tài liệu."
+_NEO_GEO = "neo=true trừ khi câu nói rõ về nơi khác."
+_NEO_KHONG = ("neo=true CHỈ khi câu gắn với một NƠI CHỐN cụ thể; "
+              "video không gắn địa lý thì neo=false.")
+
+_SYS = """{MO_DAU} Với MỖI khối lời,
 sinh 4 LỚP hình ảnh để tra footage — các TẬP HỢP GIAO NHAU, không phải 1 object:
 
 truc_chi  — 1-2 vật thể/cảnh nói THẲNG trong câu, QUAY ĐƯỢC (phép thử: máy quay
@@ -39,9 +51,24 @@ ngu_canh  — 2-3 cảnh cùng TRƯỜNG NGHĨA, không nói thẳng ("grocery s
 khong_khi — 2-3 cảnh NỀN thuộc thế giới video, hợp mood — ĐƯỜNG THOÁT khi
             truc_chi/ngu_canh nghèo, luôn phải có.
 
-Mỗi mục 2-4 từ TIẾNG ANH. neo=true trừ khi câu nói rõ về nơi khác.
+Mỗi mục 2-4 từ TIẾNG ANH. {LUAT_NEO}
 mood: 1 từ (calm/tense/warm/grand/busy...). truu_tuong=true khi câu không có
 vật thể nào quay được (cho phép ẩn dụ)."""
+
+
+def cau_lenh(dia_danh: str = "") -> str:
+    """Câu lệnh 4 lớp theo nhóm ngách — địa danh rỗng = ngách không gắn địa lý.
+
+    Vì sao phải tách: câu cũ luôn mở đầu "đạo diễn phim tài liệu DU LỊCH về
+    {DIA_DANH}" và địa danh rỗng thì thay bằng "địa danh trong lời", cộng luật
+    `neo=true` mặc định -> đo trên SH010: neo bật 26/26 và 19/20 khối, cửa L0
+    mở cho mọi clip CÓ nhãn geo (+2 điểm neo) nên kho du lịch tràn vào ngách
+    sức khoẻ.
+    """
+    dd = (dia_danh or "").strip()
+    mo_dau = _MO_DAU_GEO.replace("{DIA_DANH}", dd) if dd else _MO_DAU
+    return (_SYS.replace("{MO_DAU}", mo_dau)
+            .replace("{LUAT_NEO}", _NEO_GEO if dd else _NEO_KHONG))
 
 
 def gan_lop(khoi_loi: list[str], dia_danh: str = "", llm=None) -> LopOut:
@@ -51,8 +78,7 @@ def gan_lop(khoi_loi: list[str], dia_danh: str = "", llm=None) -> LopOut:
 
         llm = GLMDirectorClient()
     body = "\n".join(f"[{i}] {loi}" for i, loi in enumerate(khoi_loi))
-    kq, _ = llm.complete(_SYS.replace("{DIA_DANH}", dia_danh or "địa danh trong lời"),
-                         body, LopOut)
+    kq, _ = llm.complete(cau_lenh(dia_danh), body, LopOut)
     # khối LLM bỏ sót -> khối trừu tượng (fail-soft, không giết pha 1)
     co = {o.khoi for o in kq.khoi}
     for i in range(len(khoi_loi)):

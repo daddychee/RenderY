@@ -257,6 +257,21 @@ def loc_file_ref(thu_muc_tap: Path) -> tuple[list[Path], int]:
     return ds, loai
 
 
+def geo_ref(quoc_gia: str, geo_doc: str) -> str:
+    """Nhãn geo của một cảnh ref: tên nước cấp TẬP + chi tiết GLM đọc được.
+
+    KHÔNG có quốc gia (ngách không gắn địa lý — QĐ14) thì BỎ luôn nhãn GLM đọc:
+    prompt đọc hình bảo lấy "chữ trên biển hiệu", nên với video sức khoẻ nó nhặt
+    chữ chạy trên màn hình. Đo trên SH010: 26/119 cảnh ref mang nhãn rác kiểu
+    `cardiac specialist`, `university of galway`, `diet soda & zero sugar drinks`
+    — mà clip CÓ nhãn geo còn được +2 điểm neo trong `tra()`.
+    """
+    qg = (quoc_gia or "").lower().strip()
+    if not qg:
+        return ""
+    return ">".join(x for x in (qg, (geo_doc or "").lower().strip()) if x)
+
+
 def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
                 doc_hinh: bool = True, log=None) -> int:
     """Quét *.mp4 trong thư mục tập -> mỗi CẢNH QUAY là một khúc ref.
@@ -342,8 +357,7 @@ def nap_ref_tap(conn, thu_muc_tap: Path, tap: str = "", quoc_gia: str = "",
         for c, cid, anh, loi in ho_so:
             d = docs.get(cid)
             # geo: tên nước gắn cứng cấp tập + chi tiết GLM đọc được (nếu có)
-            geo = ">".join(x for x in (quoc_gia.lower().strip(),
-                                       (d.geo.lower() if d else "")) if x)
+            geo = geo_ref(quoc_gia, d.geo if d else "")
             r = {"id": cid, "nguon": "ref",
                  "tieu_de": (d.subject if d and d.subject else loi[:120]) or vid.stem,
                  "path_local": str(vid), "t0": float(c.t0), "t1": float(c.t1),

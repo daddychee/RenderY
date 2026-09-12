@@ -1614,3 +1614,51 @@ log trước khi tắt. PID mới `43656`, `/health` 200. GitHub `4757f5d..e968e
 **Hải:** mở từng chương LI106 → "⟳ Đổ lại khay" (chương khoá: giữ hình, khay có
 ref 3/4/5) → thay chỗ muốn → Export lại. **Thành:** c2 LI103 bấm "⟳ Đổ lại khay"
 (chưa khoá: máy chọn lại khối máy) → duyệt → khoá → Export.
+
+---
+
+## VIỆC 3 (12/09/2026) — câu lệnh LLM theo NHÓM NGÁCH
+
+User: *"prompt LLM sai là sai hết"*. Và trước đó: *"anh đang vi phạm logic đã có"*
+— đúng: quy ước ngách↔địa danh ĐÃ chốt (QĐ12–QĐ14, `tests/test_ngach.py` 20 test),
+**địa danh chính là biến mang ngách vào luồng**, comment `server.py:2716` ghi rõ
+"Bỏ trống → `tra()` tự tắt cửa geo". Hai đề xuất "lưu ngách vào hợp đồng" và
+"tắt cửa neo theo ngách" của tôi là đẻ thêm khái niệm — đã rút.
+
+### Hai chỗ còn chèn địa lý vào ngách KHÔNG gắn địa lý
+1. `lop4._SYS`: "đạo diễn phim tài liệu **du lịch** về {DIA_DANH}", địa danh rỗng
+   thì thay bằng "địa danh trong lời"; luật `neo=true` mặc định → đo thật:
+   **neo bật 26/26 (chương h) và 19/20 (c1)** của SH010. Cửa neo bật thì clip CÓ
+   nhãn geo được +2 điểm và qua thẳng cửa L0 → kho du lịch tràn vào ngách sức khoẻ.
+2. `nap_ref_tap`: tập không khai quốc gia vẫn lấy `geo` GLM đọc từ chữ trên màn
+   hình → **26/119 ref SH010** mang nhãn rác (`cardiac specialist`,
+   `university of galway`, `diet soda & zero sugar drinks`).
+
+### A/B THẬT trước khi code (2 lượt GLM mỗi nhánh, cùng lời thoại)
+| Chương | Prompt cũ | Prompt trung tính |
+|---|---|---|
+| h (26 khối) | neo 26/26 · **41%** clip du lịch | neo 0/26 · **18%** |
+| c1 (20 khối) | neo 19/20 · **52%** | neo 1/20 · **28%** |
+
+Từ khoá hai bên tương đương. **Số thẻ ref/khối KHÔNG đổi (1,9–2,2)** — prompt
+chữa nhiễu du lịch, KHÔNG chữa ref mỏng (đó là luật cắt khay, việc 1).
+
+### Đã làm
+* `lop4.cau_lenh(dia_danh)` — hai nhánh, chọn bằng biến đã có. Nhánh CÓ địa danh
+  so với bản cũ: **giống hệt từng ký tự** (kiểm bằng `git show` + diff).
+* `hut.geo_ref(quoc_gia, geo_doc)` — không có quốc gia thì BỎ nhãn GLM đọc.
+* Test `tests/test_prompt_theo_ngach.py` **10 test**, đỏ đúng lý do trước khi code.
+
+### Nghiệm thu (code mới, chương thật, không ghi file)
+| Chương | Trước | Sau |
+|---|---|---|
+| h | neo 26/26 · 41% | **neo 0/26 · 22%** |
+| c1 | neo 19/20 · 52% | **neo 1/20 · 17%** |
+
+### Còn lại
+* Việc 1 — luật cắt khay: SH010 có 97/116 khối đủ hàng trong kho nhưng khay chỉ
+  cho 2 khối đạt "≥3 ref + 2 nguồn stock".
+* Việc 2 — chưa có hồ sơ kênh ref cho Senior Health (máy chỉ có `fern`,
+  `godoc-travel-doc`, `happy-99`, `tokdiscovery`), nên SH010/SH019 đang mượn
+  chuẩn nhịp của kênh du lịch.
+* Ref cũ đã nạp giữ nguyên nhãn geo rác — nạp lại mới sạch; chưa làm.
