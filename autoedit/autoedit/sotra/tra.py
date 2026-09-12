@@ -243,7 +243,17 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         t = next((c for c in cham if c["nguon"] == ng and c["id"] not in da), None)
         if t is not None:
             _nhan(t)
-    # phần còn lại theo điểm — vẫn cân nhóm 6/tầng để khay đủ 4 tầng lựa chọn
+    # phần còn lại theo điểm — vẫn cân nhóm 6/tầng để khay đủ 4 tầng lựa chọn.
+    #
+    # NGÁCH ĐÃ KHAI NHÂN VẬT: thẻ ĐÚNG NGƯỜI đi trước hết, thẻ sai người chỉ LẤP
+    # CHỖ CÒN TRỐNG. Vì sao không để chúng tranh suất theo điểm (đo 13/09): sàn 4
+    # suất một mình chỉ đưa khay lên 25% đúng người, 75% còn lại là thẻ mà
+    # `xep_3_tang` chấm "-" — máy không bao giờ lấy, tức chúng ngồi chiếm chỗ vô
+    # ích của đúng 25 thẻ đạt cửa đang chờ mỗi khối (trung vị đo được).
+    # Vẫn GIỮ chúng trong khay (ở cuối): kho có lúc mỏng, và người dựng phải còn
+    # đường tự chọn.
+    if nhan_vat:
+        cham = sorted(cham, key=lambda c: (not dat_nhan_vat(c, nhan_vat), -c["diem"]))
     gio = {"L1": 0, "L2": 0, "L3": 0}
     for c in cham:
         if len(ra) >= so:

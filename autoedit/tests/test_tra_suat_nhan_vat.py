@@ -164,3 +164,36 @@ def test_REF_dat_cua_KHONG_an_suat_nguoi_cua_stock(kho):
                  and c["tuoi"] == "older" and c["chung_toc"] == "white"]
     assert len(gia_stock) >= SAN_NHAN_VAT, (
         f"chỉ {len(gia_stock)} thẻ stock đúng người vào khay — ref đã ăn mất suất")
+
+
+def test_the_SAI_NGUOI_chi_lap_cho_TRONG_khong_tranh_suat(kho):
+    """Đo 13/09 sau khi đếm riêng stock: khay mới 25% đúng người — vẫn 75% sai.
+    Vì suất giữ chỗ chỉ là SÀN 4, phần còn lại vẫn xếp theo điểm chữ nên thẻ sai
+    người tiếp tục chiếm suất. Mà `xep_3_tang` chấm chúng là "-" (máy không lấy)
+    -> chúng ngồi chiếm chỗ vô ích.
+
+    Luật đúng: ngách ĐÃ KHAI nhân vật thì thẻ stock đúng người đi TRƯỚC hết, thẻ
+    sai người chỉ lấp chỗ còn trống."""
+    from autoedit.sotra.tra import tra
+
+    for i in range(12):                    # sai người, điểm CAO (trúng 2 lớp)
+        _clip(kho, f"envato:sai{i}", f"water glass kitchen scene {i}",
+              tuoi="young", ct="asian")
+    for i in range(8):                     # đúng người, điểm thấp (trúng 1 lớp)
+        _clip(kho, f"envato:gia{i}", f"water glass {i}", tuoi="older", ct="white")
+    ra = tra(kho, LOP, so=12, nhan_vat=NV, can_neo=False)
+    dat = sum(1 for c in ra if c["tuoi"] == "older" and c["chung_toc"] == "white")
+    assert dat >= 8, f"chỉ {dat}/12 suất là đúng người — thẻ sai người vẫn tranh suất"
+
+
+def test_chua_khai_nhan_vat_thi_VAN_xep_theo_diem(kho):
+    """Rào chống hồi quy cho Life In: không khai thì thứ tự phải y như cũ."""
+    from autoedit.sotra.tra import tra
+
+    for i in range(6):
+        _clip(kho, f"envato:cao{i}", f"water glass kitchen scene {i}",
+              tuoi="young", ct="asian")
+    for i in range(6):
+        _clip(kho, f"envato:thap{i}", f"water glass {i}", tuoi="older", ct="white")
+    ra = [c["id"] for c in tra(kho, LOP, so=12, can_neo=False)]
+    assert ra[0].startswith("envato:cao"), "không khai nhân vật thì điểm cao đứng đầu"
