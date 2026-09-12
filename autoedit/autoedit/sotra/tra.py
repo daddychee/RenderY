@@ -229,8 +229,13 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     if nhan_vat:
         from autoedit.offline.dung import dat_nhan_vat
 
+        # ĐẾM RIÊNG STOCK. Đo 13/09: đếm cả ref thì suất này gần như vô hiệu —
+        # ref của SH010 là video người già nên 3 thẻ ref sàn đã lấp 3/4 suất,
+        # stock chỉ còn 1 chỗ (khay 20% -> 22%). Mà thứ user báo sai chính là
+        # STOCK. Ref đã có sàn riêng `SAN_REF`, không cần suất này.
         for c in cham:                               # `cham` đã xếp theo điểm
-            if sum(1 for x in ra if dat_nhan_vat(x, nhan_vat)) >= SAN_NHAN_VAT:
+            if sum(1 for x in ra
+                   if x["nguon"] != "ref" and dat_nhan_vat(x, nhan_vat)) >= SAN_NHAN_VAT:
                 break
             if dat_nhan_vat(c, nhan_vat):
                 _nhan(c)

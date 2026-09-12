@@ -139,3 +139,28 @@ def test_do_ung_vien_chuyen_nhan_vat_xuong_tra(kho):
                         khong_khi=["calm mood"], neo=False)]
     uv = dung.do_ung_vien(kho, khoi, lop, [], nhan_vat=NV)
     assert "envato:dung" in [t["id"] for t in uv[0]]
+
+
+def test_REF_dat_cua_KHONG_an_suat_nguoi_cua_stock(kho):
+    """Đo 13/09: suất giữ chỗ chỉ nhích khay 20% -> 22% vì ref của SH010 là video
+    người già — 3 thẻ ref sàn đã lấp gần hết 4 suất, stock chỉ còn 1 chỗ. Mà vấn
+    đề user báo chính là STOCK sai người. Ref đã có sàn riêng (`SAN_REF`), nên
+    suất này phải đếm RIÊNG stock."""
+    from autoedit.sotra.tra import SAN_NHAN_VAT, tra
+
+    # ref đúng người, tiêu đề khác nhau -> lấp sàn ref
+    for i, t in enumerate(("senior hand", "older couple", "doctor and patient")):
+        _clip(kho, f"ref:v:{i}", t, nguon="ref", tap="SH010", url_video="",
+              tuoi="older", ct="white")
+    # stock sai người nhưng điểm cao
+    for i in range(12):
+        _clip(kho, f"envato:sai{i}", f"water glass kitchen scene {i}",
+              tuoi="young", ct="asian")
+    # stock ĐÚNG người, điểm thấp hơn
+    for i in range(6):
+        _clip(kho, f"envato:gia{i}", f"water glass {i}", tuoi="older", ct="white")
+    ra = tra(kho, LOP, so=12, nhan_vat=NV, can_neo=False, tap="SH010")
+    gia_stock = [c for c in ra if c["nguon"] != "ref"
+                 and c["tuoi"] == "older" and c["chung_toc"] == "white"]
+    assert len(gia_stock) >= SAN_NHAN_VAT, (
+        f"chỉ {len(gia_stock)} thẻ stock đúng người vào khay — ref đã ăn mất suất")
