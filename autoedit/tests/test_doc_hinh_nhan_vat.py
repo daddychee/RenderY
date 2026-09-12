@@ -149,3 +149,30 @@ def test_vat_the_moi_vao_FTS(kho):
     hit = kho.execute("SELECT id FROM clip_fts WHERE clip_fts MATCH "
                       "'sphygmomanometer'").fetchall()
     assert [r[0] for r in hit] == ["envato:a"]
+
+
+# ------------------------------------------------- tải ảnh phải có User-Agent
+# Chạy thật 13/09: đọc 692 clip vừa hút -> envato 322/322 ĐƯỢC, pexels 0/191 và
+# pixabay 0/179 ăn **403 Forbidden**. CDN của hai trang đó chặn urllib trần;
+# `hut.py` từ đầu đã gửi UA giả trình duyệt (`_get`), còn `doc_hinh` thì không.
+# Envato không chặn nên hỏng CHỈ MỘT PHẦN — kiểu lỗi dễ tưởng là "xong rồi".
+
+def test_tai_anh_gui_User_Agent():
+    from autoedit.sotra import doc_hinh
+
+    da_goi = {}
+
+    def mo_gia(req, timeout=None):
+        da_goi["ua"] = req.get_header("User-agent")
+        raise RuntimeError("dừng ở đây — chỉ cần biết header")
+
+    import urllib.request
+    that = urllib.request.urlopen
+    urllib.request.urlopen = mo_gia
+    try:
+        with pytest.raises(RuntimeError):
+            doc_hinh.anh_cua({"url_anh": "https://images.pexels.com/x.jpeg"})
+    finally:
+        urllib.request.urlopen = that
+    assert da_goi.get("ua"), "thiếu User-Agent -> pexels/pixabay trả 403"
+    assert "Mozilla" in da_goi["ua"]

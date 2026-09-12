@@ -88,7 +88,8 @@ def clip_da_dung_trong_tap(projects_dir, ma_tap: str, tru: str) -> dict[str, int
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                 uu_tien_nguon: str = "", so_moi_khoi: int = 12,
                 bo_nguon: tuple = (), geo_tap: str = "", tap: str = "",
-                da_dung: dict[str, int] | None = None) -> list[list[dict]]:
+                da_dung: dict[str, int] | None = None,
+                nhan_vat: dict | None = None) -> list[list[dict]]:
     """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library.
 
     bo_nguon (user chốt 06/09): chương AUTO sau mốc AVD ít người xem tới —
@@ -103,7 +104,10 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                         "L2": o.ngu_canh, "L3": o.khong_khi},
                  so=so_moi_khoi + (6 if bo_nguon else 0),
                  uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i,
-                 geo_tap=geo_tap, tap=tap, da_dung=da_dung)
+                 geo_tap=geo_tap, tap=tap, da_dung=da_dung,
+                 # QĐ15b: giữ chỗ khay cho thẻ ĐÚNG NGƯỜI, không thì `xep_3_tang`
+                 # chỉ được xếp lại một khay đã 85% người sai.
+                 nhan_vat=nhan_vat)
         if bo_nguon:
             uv = [c for c in uv if c["nguon"] not in bo_nguon]
         # LUẬT "clip ngắn hơn phần nói thì loại" (06/09) — USER ĐẬP BỎ 07/09:

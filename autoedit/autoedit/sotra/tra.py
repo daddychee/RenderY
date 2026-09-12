@@ -46,6 +46,13 @@ TRAN_DA_DUNG = 5
 # pexels/pixabay, vì suất cũ gắn với `PHAT_NGUON`).
 SAN_REF = 3
 NGUON_STOCK = ("envato", "pexels", "pixabay")
+# SUẤT GIỮ CHỖ CHO ĐÚNG NGƯỜI (QĐ15b, user chốt 13/09). Đo hai chương SH010 vừa
+# chạy bằng QĐ15: khay chương h có 54/279 thẻ đạt cửa nhân vật (19%), chương e
+# 12/168 (7%) -> `xep_3_tang` chỉ còn cách lấy ref, tụt tầng C (cảnh cận) hoặc để
+# trống. Đặt luật nhân vật ở bước CHỌN mà không đặt ở bước TRA là làm nửa việc:
+# ai được vào 12 suất khay thì vẫn do đếm chữ cũ quyết.
+# 4 suất: khay 12 = 3 ref + 4 đúng người + 3 mỗi nguồn stock 1 ô + 2 theo điểm.
+SAN_NHAN_VAT = 4
 # LỚP NGHĨA (đợt 3, 06/09) — topic của beat khớp lớp L1/L2 của khối voice.
 # Nặng hơn lớp Hình vì đây mới là "video này NÓI VỀ gì", còn pixel chỉ tả vật.
 DIEM_NGHIA_L1 = 12.0
@@ -63,12 +70,16 @@ def _tokens(cum) -> set:
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         can_neo: bool = True, suat_ref: int = 2, seed: int = 0,
         geo_tap: str = "", tap: str = "",
-        da_dung: dict[str, int] | None = None) -> list[dict]:
+        da_dung: dict[str, int] | None = None,
+        nhan_vat: dict | None = None) -> list[dict]:
     """lop = {"L0": [...], "L1": [...], "L2": [...], "L3": [...]} -> ứng viên xếp
     hạng, mỗi cái kèm `lop` (tầng trúng) + `diem`. Khay chia nhóm theo `lop`.
 
     suat_ref: REF luôn được GIỮ CHỖ (bài học V5: điểm chữ Envato đè chết ref).
-    da_dung: {clip_id: số CHƯƠNG khác trong tập đã lên final} -> trừ PHAT_DA_DUNG."""
+    da_dung: {clip_id: số CHƯƠNG khác trong tập đã lên final} -> trừ PHAT_DA_DUNG.
+    nhan_vat: {"tuoi": [...], "chung_toc": [...]} của ngách -> giữ chỗ
+        `SAN_NHAN_VAT` suất cho thẻ ĐÚNG NGƯỜI. Rỗng = không ưu ai (khay y như
+        trước — Life In không được phép lệch một thẻ)."""
     l0, l1 = _tokens(lop.get("L0")), _tokens(lop.get("L1"))
     l2, l3 = _tokens(lop.get("L2")), _tokens(lop.get("L3"))
     # kéo ứng viên qua FTS bằng TOÀN BỘ từ của các lớp (OR) — rẻ hơn quét cả bảng
@@ -212,6 +223,17 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
             continue
         ten_da.add(t or c["id"])
         _nhan(c)
+    # SUẤT ĐÚNG NGƯỜI — ngay sau sàn ref, TRƯỚC vòng theo điểm. Chỉ cứu được clip
+    # ĐÃ ĐỌC HÌNH (`tuoi` rỗng = chưa đọc, không qua cửa): kho đọc 6% thì suất này
+    # cũng chỉ có 6% kho để chọn — đó là việc đọc hình cả kho, không phải việc này.
+    if nhan_vat:
+        from autoedit.offline.dung import dat_nhan_vat
+
+        for c in cham:                               # `cham` đã xếp theo điểm
+            if sum(1 for x in ra if dat_nhan_vat(x, nhan_vat)) >= SAN_NHAN_VAT:
+                break
+            if dat_nhan_vat(c, nhan_vat):
+                _nhan(c)
     for ng in NGUON_STOCK:                          # mỗi nguồn stock 1 ô
         t = next((c for c in cham if c["nguon"] == ng and c["id"] not in da), None)
         if t is not None:

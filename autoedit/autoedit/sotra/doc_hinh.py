@@ -95,7 +95,16 @@ def anh_cua(r: dict, ffmpeg: str = "ffmpeg") -> bytes | None:
     from autoedit.library.vision import shrink_for_api
 
     if r.get("url_anh"):
-        with urllib.request.urlopen(r["url_anh"], timeout=30) as f:
+        # UA GIẢ TRÌNH DUYỆT — dùng chung `hut.UA` (BH4: một khái niệm một chỗ).
+        # Chạy thật 13/09: urllib trần đọc được envato 322/322 nhưng pexels 0/191
+        # và pixabay 0/179 ăn 403 Forbidden. `hut.py` gửi UA từ đầu, file này thì
+        # không -> hỏng CHỈ MỘT PHẦN, dễ tưởng là xong.
+        from autoedit.sotra.hut import UA
+
+        req = urllib.request.Request(
+            r["url_anh"], headers={"User-Agent": UA,
+                                   "Accept-Language": "en-US,en;q=0.9"})
+        with urllib.request.urlopen(req, timeout=30) as f:
             return shrink_for_api(f.read())
     p = str(r.get("path_local") or "")
     if not p or not Path(p).is_file():
