@@ -750,6 +750,7 @@ class OfflineRequest(BaseModel):
     uu_tien_nguon: str = ""        # "" | ref | envato
     dia_danh: str = ""
     kieu_chay: str = ""            # "" | manual | avd | auto (SEQUENCE QĐ1)
+    xoa_chinh_tay: bool = False    # phân tích LẠI: đồng ý mất phần chỉnh tay
 
 
 def _gac_quyen_sua(request: Request, hd: dict) -> None:
@@ -884,6 +885,23 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
     """Chạy phân tích Offline nền (cắt khối + 4 lớp + ứng viên Library)."""
     _require_auth(request)
     d = _pdir_offline(project_id)
+    # PHÂN TÍCH LẠI (user duyệt 12/09): chương ĐÃ có hợp đồng thì đây là GHI ĐÈ.
+    # Cần vì câu lệnh 4 lớp theo ngách chỉ chạy lúc phân tích — `Đổ lại khay`
+    # dùng lớp đã lưu, không gọi LLM. Nhưng ghi đè là mất phần chỉnh tay pha 2:
+    # đo 12/09 SH010 c1–c5/e 0 chỗ, SH010/h 4 miếng, SH019/h 10 khối + 13 miếng.
+    from autoedit.offline import runner as _orun0
+
+    cu_hd = _orun0.doc(d)
+    if cu_hd is not None:
+        _gac_quyen_sua(request, cu_hd)          # cùng luật với mọi đường sửa khác
+        if not req.xoa_chinh_tay:
+            nk = sum(1 for k in (cu_hd.get("khoi") or []) if k.get("nguoi_sua"))
+            nm = sum(1 for h in (cu_hd.get("hinh") or []) if h.get("nguoi_sua"))
+            if nk or nm:
+                raise HTTPException(
+                    409, f"Chương này đã chỉnh tay {nk} khối · {nm} miếng hình — "
+                         "phân tích lại là ghi đè, mất hết phần đó. "
+                         "Xác nhận rồi bấm lại.")
     # CHỦ SEQUENCE = NGƯỜI NỘP TẬP, không phải người bấm Phân tích (user chốt
     # 07/09: "ai nộp tập thì mới được làm"). Trước đây lấy người bấm nút -> owner
     # bấm giúp một cái là thành chủ, editor thật mất quyền sửa.

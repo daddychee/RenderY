@@ -913,6 +913,8 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
               title="cắt shot TẠI VẠCH đang đứng — hai mảnh dùng chung clip, chạy liên tục (phím e)">✂ Add Shot</button>
       <button class="btn ghost small" onclick="ofDoLaiKhay()"
               title="tra lại Library cho mọi khối: làm mới các khối MÁY chọn, giữ nguyên khối bạn tự chọn">⟳ Đổ lại khay</button>
+      <button class="btn ghost small" onclick="ofPhanTichLai()"
+              title="sinh LẠI lớp từ khoá bằng LLM theo ngách rồi tra lại kho — khác «Đổ lại khay» (tra bằng lớp CŨ)">⟳ Phân tích lại</button>
       <button class="btn ghost small" onclick="ofDoiHinh(OF_HCHON)"
               title="pull: kéo phương án footage kế cho shot đang chọn (phím d)">⟳ Pull</button>
       <span style="flex:1"></span>
@@ -2218,6 +2220,25 @@ async function ofDoLaiKhay() {
             + ` — lựa chọn của bạn giữ nguyên`)
   } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
   ofVeAll()
+}
+
+async function ofPhanTichLai() {
+  // KHÁC `ofDoLaiKhay`: nút kia tra kho bằng lớp từ khoá CŨ (không gọi LLM),
+  // nút này sinh LẠI lớp theo ngách (bản sửa 12/09). Máy chủ ĐẾM số chỗ chỉnh
+  // tay rồi trả 409 — JS không tự đếm, để không có hai nguồn sự thật.
+  if (!OF_PID) return
+  if (OF_KHOA_SUA) return ofBaoChiXem()
+  const goi = (xoa) => api('/api/offline/' + OF_PID + '/phan-tich',
+    {method: 'POST', body: JSON.stringify(xoa ? {xoa_chinh_tay: true} : {})})
+  try {
+    await goi(false)
+  } catch (e) {
+    if (e.status !== 409) { toastOf('Lỗi: ' + e.message); return }
+    if (!confirm(e.message + ' — Vẫn phân tích lại?')) return
+    try { await goi(true) } catch (e2) { toastOf('Lỗi: ' + e2.message); return }
+  }
+  toastOf('⟳ Đang phân tích lại — lớp từ khoá sinh lại theo ngách…')
+  setTimeout(ofNap, 4000)
 }
 
 async function ofThemMieng() {

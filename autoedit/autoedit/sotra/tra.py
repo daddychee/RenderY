@@ -39,6 +39,13 @@ PHAT_NGUON = {"pexels": 3.0, "pixabay": 4.0}
 # GIỮA các chương. Caller đếm từ `offline.json` chương anh em (dung.py).
 PHAT_DA_DUNG = 20.0
 TRAN_DA_DUNG = 5
+# SÀN REF + MỖI NGUỒN STOCK MỘT Ô (user chốt 12/09: "mỗi chương phải có đủ ref,
+# và 2 nguồn stock"). Đo SH010 trước khi sửa: 116 khối thì kho có sẵn hàng cho
+# 97 khối, mà khay chỉ cho 2 khối đạt — 95 khối mất vì luật cắt khay, không
+# phải vì thiếu dữ liệu. Envato trước đây không có suất giữ chỗ nào (chỉ
+# pexels/pixabay, vì suất cũ gắn với `PHAT_NGUON`).
+SAN_REF = 3
+NGUON_STOCK = ("envato", "pexels", "pixabay")
 # LỚP NGHĨA (đợt 3, 06/09) — topic của beat khớp lớp L1/L2 của khối voice.
 # Nặng hơn lớp Hình vì đây mới là "video này NÓI VỀ gì", còn pixel chỉ tả vật.
 DIEM_NGHIA_L1 = 12.0
@@ -179,41 +186,52 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     # ref đồng điểm: RẢI theo seed (mỗi khối một seed) — không thì cả tập bị
     # đề xuất đúng 2 cảnh đầu bảng cho mọi câu (triệu chứng user thấy 06/09)
     refs.sort(key=lambda c: (-c["diem"], hash((c["id"], seed)) % 9973))
-    # cân nhóm: tối đa 6 mỗi tầng để khay luôn đủ 4 tầng lựa chọn
-    gio = {"L1": 0, "L2": 0, "L3": 0}
-    ra = []
-    for c in cham:
-        if gio[c["lop"]] >= 6:
+
+    # GIỮ CHỖ TRƯỚC, XẾP ĐIỂM SAU. Bản cũ xếp điểm trước rồi mới vá suất giữ
+    # chỗ, nên nguồn điểm thấp bị vòng giỏ tầng (tối đa 6/tầng) cắt mất trước
+    # khi tới lượt vá — đúng chỗ 95/116 khối SH010 rơi.
+    ra: list[dict] = []
+    da: set = set()
+
+    def _nhan(c) -> None:
+        if len(ra) < so and c["id"] not in da:
+            da.add(c["id"])
+            ra.append(c)
+
+    # Sàn ref đếm theo THẺ HIỂN THỊ: `gop_ban_trung` gộp cùng nguồn + cùng tiêu
+    # đề về MỘT thẻ, mà ref cắt theo cảnh nên tên lặp nhiều ("woman speaking"
+    # ×3). Đo SH010 sau khi thêm sàn: 22 khối vẫn thiếu ref, **22/22 rơi vì gộp**
+    # chứ không phải kho thiếu. Giữ chỗ theo tiêu đề KHÁC NHAU; hết tên khác thì
+    # thôi, không bịa.
+    can, ten_da = max(suat_ref, SAN_REF), set()
+    for c in refs:
+        if len(ten_da) >= can:
+            break
+        t = (c.get("tieu_de") or "").strip().lower()
+        if t and t in ten_da:
             continue
-        gio[c["lop"]] += 1
-        ra.append(c)
+        ten_da.add(t or c["id"])
+        _nhan(c)
+    for ng in NGUON_STOCK:                          # mỗi nguồn stock 1 ô
+        t = next((c for c in cham if c["nguon"] == ng and c["id"] not in da), None)
+        if t is not None:
+            _nhan(t)
+    # phần còn lại theo điểm — vẫn cân nhóm 6/tầng để khay đủ 4 tầng lựa chọn
+    gio = {"L1": 0, "L2": 0, "L3": 0}
+    for c in cham:
         if len(ra) >= so:
             break
-    # SUẤT GIỮ CHỖ cho nguồn bị phạt — user chốt "ĐẨY XUỐNG, KHÔNG LOẠI".
-    # Bắt thật lúc nghiệm thu 10/09 trên kho production: từ khoá `market vendor`
-    # trước phạt là `ppRRRRRRE`, sau phạt thành `RRRRREEEEEE` — MẤT SẠCH pexels.
-    # Cả khay cùng tầng L1, pexels tụt 22.0 -> 19.0 nên rơi dưới 6 envato 20.0
-    # điểm và bị vòng giỏ trên cắt. Phạt điểm mà không giữ chỗ = xoá nguồn.
-    # Cùng cơ chế `suat_ref` bên dưới, 1 suất/nguồn (đủ để người dựng thấy nó
-    # còn tồn tại; muốn nhiều hơn thì lọc nguồn ở khay tra cứu — việc E).
-    for ng in PHAT_NGUON:
-        if any(c["nguon"] == ng for c in ra):
+        if c["id"] in da or gio[c["lop"]] >= 6:
             continue
-        tot = next((c for c in cham if c["nguon"] == ng), None)
-        if tot is not None:
-            ra.append(tot)
+        gio[c["lop"]] += 1
+        _nhan(c)
     # `suat_ref` là SÀN chứ không phải TRẦN (user chốt 07/09: "cái gì nhiều hơn
-    # thì ưu tiên đổ vào"). Trước đây `refs[:2]` chốt cứng: mỗi khối có tới 618
-    # cảnh ref đủ điều kiện mà khay chỉ nhận 2 — đúng câu hỏi của user "5 video
-    # ref thời lượng lớn mà không đủ hình để ghép".
-    # Ref xếp CÙNG BÀN với stock theo điểm; sàn chỉ để cứu khi điểm chữ của
-    # Envato đè chết ref (bài học V5).
-    gio_ref = 0
+    # thì ưu tiên đổ vào"): stock cạn thì ref đổ tiếp cho đầy khay. Life In sống
+    # bằng ref chính là nhánh này — cửa geo đã loại sạch stock từ trước.
     for c in refs:
-        if len(ra) >= so and gio_ref >= suat_ref:
+        if len(ra) >= so:
             break
-        ra.append(c)
-        gio_ref += 1
+        _nhan(c)
     ra.sort(key=lambda c: -c["diem"])
     # GỘP BẢN TRÙNG (user chốt 09/09): cùng nguồn + cùng tiêu đề về một thẻ,
     # bản còn lại nằm ở `ban_khac` nên vẫn chọn được. Đo 64% khay production có

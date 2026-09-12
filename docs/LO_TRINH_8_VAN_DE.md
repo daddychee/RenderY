@@ -1662,3 +1662,68 @@ chữa nhiễu du lịch, KHÔNG chữa ref mỏng (đó là luật cắt khay, 
   `godoc-travel-doc`, `happy-99`, `tokdiscovery`), nên SH010/SH019 đang mượn
   chuẩn nhịp của kênh du lịch.
 * Ref cũ đã nạp giữ nguyên nhãn geo rác — nạp lại mới sạch; chưa làm.
+
+---
+
+## VIỆC 1 (12/09/2026) — luật xếp khay: đủ ref + đủ nguồn stock
+
+User: *"trong mỗi chương phải có đủ ref, và 2 nguồn stock"*.
+
+### Đo trước khi code — SH010, 116 khối
+| | Khối |
+|---|---|
+| đạt "≥3 ref + ≥2 nguồn stock" ở khay | **2** |
+| kho CÓ SẴN hàng để đạt | **97** |
+| kho thiếu thật | 19 (11 ở chương c2) |
+
+95/116 khối mất vì **luật cắt khay**, không vì thiếu dữ liệu: khay 12 ô · mỗi
+tầng tối đa 6 · ref sàn 2 · pexels/pixabay giữ chỗ 1 ô — **envato không có suất
+nào** (suất cũ gắn với `PHAT_NGUON`, mà envato không bị phạt).
+
+### Đã làm — `tra()`: GIỮ CHỖ TRƯỚC, XẾP ĐIỂM SAU
+`SAN_REF = 3` + mỗi nguồn trong `NGUON_STOCK` một ô, rồi mới xếp theo điểm
+(vẫn cân 6/tầng), cuối cùng đổ ref cho đầy khay (giữ luật 07/09 "ref là SÀN
+chứ không phải TRẦN" — Life In sống bằng nhánh này).
+
+**Bẫy bắt được khi đo:** sửa xong vẫn chỉ đạt 80/97. Soi ra **22/22 khối thiếu
+ref là do `gop_ban_trung`** — ref cắt theo cảnh nên tên lặp (`woman speaking`
+×3) gộp về MỘT thẻ; kho không thiếu cảnh nào. Sửa: giữ chỗ ref theo **tiêu đề
+KHÁC NHAU**. Test tái hiện phải có đủ hai điều kiện (ref trùng tên điểm cao +
+khay ĐẦY stock) — hai bản test đầu của tôi xanh sẵn vì thiếu điều kiện thứ hai.
+
+### Nghiệm thu (code mới, dữ liệu thật)
+| Tập | Đạt chuẩn | ref≥3 | ref tb/khay | nhiễu du lịch |
+|---|---|---|---|---|
+| SH010 (116 khối) | 0 → **97** | → **116/116** | 2,5 → 3,5 | 40% → 32% |
+| LI106 (85 khối) | 4 → 5 | 85/85 | 8,2 → 8,3 | 77% → 78% |
+
+Life In gần như không đổi — đúng ý đồ: cửa geo đã loại sạch stock từ trước nên
+suất giữ chỗ stock không có gì để nhét.
+
+---
+
+## VIỆC 2 (12/09/2026) — nút "⟳ Phân tích lại" có cửa chặn
+
+Vì sao cần: prompt theo ngách (việc 3) chỉ chạy lúc PHÂN TÍCH; `⟳ Đổ lại khay`
+dùng lớp đã lưu, không gọi LLM. Mà nút "Phân tích chương này" chỉ hiện khi
+chương CHƯA có hợp đồng → SH010/SH019 không có đường hưởng bản sửa.
+
+Vì sao phải chặn: ghi đè hợp đồng là mất phần chỉnh tay pha 2. Đo 12/09:
+SH010 c1–c5/e **0 chỗ**, SH010/h **4 miếng**, SH019/h **10 khối + 13 miếng**.
+
+### Đã làm
+* `OfflineRequest.xoa_chinh_tay`; endpoint `phan-tich` gặp hợp đồng cũ thì gác
+  quyền sửa (cùng luật mọi đường sửa khác) và trả **409 kèm số khối/miếng** nếu
+  có chỉnh tay mà chưa xác nhận.
+* Nút "⟳ Phân tích lại" cạnh "⟳ Đổ lại khay"; JS bắt 409 rồi `confirm()` bằng
+  NGUYÊN VĂN câu của máy chủ — số chỗ chỉnh tay do máy chủ đếm, JS không đếm.
+* Mockup `scratchpad/ui_phan_tich_lai.html` (đã chỉnh mục 3 cho khớp code: dùng
+  `confirm()` sẵn có thay hộp thoại riêng — cùng khuôn nút "Đo lại «…»").
+
+### BH28 — BH24 lặp lại: `\n` trong heredoc thành XUỐNG DÒNG THẬT
+Patch chèn `'\n\n'` vào chuỗi JS; qua heredoc nó thành hai dòng trống GIỮA chuỗi
+`'...'` → `Invalid or unexpected token`, **toàn bộ JS chết**, mọi hàm `undefined`
+— mà 7/7 test chuỗi vẫn XANH. Chrome thật bắt được ngay
+(`scratchpad/thu_phan_tich_lai.py`). **Luật: sửa JS/HTML xong phải mở Chrome
+thật kiểm `typeof` + `pageerror`; và tránh ký tự thoát trong chuỗi JS khi patch
+bằng heredoc.**

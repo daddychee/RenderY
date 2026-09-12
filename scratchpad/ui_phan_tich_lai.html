@@ -1,0 +1,57 @@
+<!doctype html><meta charset="utf-8">
+<title>Mockup — nút Phân tích lại chương</title>
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--line:#2a2f3a;--text:#e6e8ee;--muted:#8b93a7;
+      --accent:#2c6fc4;--warn:#d97706;--bad:#dc2626}
+body{margin:0;background:#0b0d11;color:var(--text);font:13px/1.55 system-ui,Segoe UI,sans-serif;padding:22px}
+h2{font-size:14px;margin:22px 0 8px;font-weight:600}
+h2 small{color:var(--muted);font-weight:400}
+.tb{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;max-width:900px}
+.tc{font:700 21px ui-monospace,Consolas,monospace;letter-spacing:.04em;min-width:104px}
+button{padding:5px 11px;border-radius:7px;font-size:12.5px;cursor:pointer;
+       border:1px solid var(--line);background:#1e222b;color:var(--text)}
+button.moi{border-color:var(--accent);color:#cfe0f7}
+.note{color:var(--muted);font-size:11.5px;margin:8px 0 0;max-width:900px}
+.hop{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+     padding:14px 16px;max-width:620px}
+.hop b{display:block;margin-bottom:6px}
+.hop p{margin:0 0 10px;color:var(--muted)}
+.ft{display:flex;gap:8px;justify-content:flex-end}
+.ft .ok{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}
+code{background:#11141a;border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+</style>
+
+<h2>1) Thanh công cụ timeline <small>· thêm ĐÚNG MỘT nút, cạnh «Đổ lại khay»</small></h2>
+<div class="tb">
+  <span class="tc">00:25.9</span>
+  <button>✂ Add Shot</button>
+  <button>⟳ Đổ lại khay</button>
+  <button class="moi">⟳ Phân tích lại</button>
+  <button>⟳ Pull</button>
+</div>
+<p class="note">«Đổ lại khay» = tra lại kho bằng lớp từ khoá CŨ. «Phân tích lại» = sinh lại
+lớp từ khoá bằng LLM theo ngách (bản sửa 12/09), rồi tra lại. Hai việc khác nhau nên là hai nút.</p>
+
+<h2>2) Chương CHƯA chỉnh tay <small>· chạy luôn, không hỏi</small></h2>
+<div class="hop">
+  <b>⟳ Đang phân tích lại…</b>
+  <p>Không có gì để mất: chương này chưa ai chỉnh tay.</p>
+</div>
+
+<h2>3) Chương ĐÃ chỉnh tay <small>· hỏi, và nói rõ mất bao nhiêu</small></h2>
+<div class="hop" style="font-family:system-ui">
+  <b>Hộp xác nhận SẴN CÓ của trình duyệt</b>
+  <p style="color:var(--text);background:#11141a;border:1px solid var(--line);
+            border-radius:6px;padding:10px 12px">Chương này đã chỉnh tay 2 khối ·
+     3 miếng hình — phân tích lại là ghi đè, mất hết phần đó. Xác nhận rồi bấm
+     lại. — Vẫn phân tích lại?</p>
+  <div class="ft"><button>Cancel</button><button class="ok">OK</button></div>
+</div>
+<p class="note">ĐÃ SỬA MOCKUP CHO KHỚP CODE (12/09): bản vẽ đầu dùng hộp thoại
+riêng có nút đỏ. Code dùng <code>confirm()</code> sẵn có — cùng khuôn với nút
+«Đo lại «…»» đang chạy, và câu chữ lấy NGUYÊN VĂN từ máy chủ nên không có hai
+nơi cùng mô tả một việc. Popup riêng chỉ đáng làm khi cần nhiều nút/ô nhập,
+như popup Export.</p>
+<p class="note">Số khối/miếng do <b>máy chủ đếm</b> rồi trả về (409), không đếm ở JS —
+một nguồn sự thật, và JS không thể đếm sai rồi xoá nhầm công người dựng.</p>
