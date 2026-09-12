@@ -32,7 +32,7 @@ def _hd(nguoi_sua_khoi=0, nguoi_sua_mieng=0, nguoi_tao="bot"):
 
 
 @pytest.fixture()
-def may_chu(tmp_path, monkeypatch):
+def may_chu(tmp_path, monkeypatch, request):
     from fastapi.testclient import TestClient
 
     from autoedit.offline import runner as orun
@@ -44,7 +44,13 @@ def may_chu(tmp_path, monkeypatch):
     # KHÔNG chạy phân tích thật trong test (tốn LLM + ffmpeg)
     monkeypatch.setattr(orun, "phan_tich",
                         lambda d, **k: {"dong_kiem": True, "khoi": [], "hinh": []})
-    d = tmp_path / "projects" / "c9-test"
+    # Mỗi test một MÃ CHƯƠNG riêng + dọn sổ "đang chạy": `_offline_dang` là biến
+    # toàn cục của server, luồng nền của test trước chưa kịp xoá cờ thì test sau
+    # ăn 409 "Đang phân tích dở". Bắt được 12/09: xanh ở dev, ĐỎ trên venv
+    # production — cùng bộ test, khác nhịp máy.
+    with server._offline_lock:
+        server._offline_dang.clear()
+    d = tmp_path / "projects" / f"c9-{abs(hash(request.node.name)) % 10**6}"
     d.mkdir(parents=True)
     monkeypatch.setattr(server, "PROJECTS_DIR", d.parent)
     return TestClient(server.app, client=("127.0.0.1", 51000)), d
