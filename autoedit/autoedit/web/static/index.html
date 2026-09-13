@@ -75,10 +75,10 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
    REF · ENVATO · STOCK xếp bên phải */
 /* 4 KHỐI NẰM NGANG (user 08/09): PREVIEW to nhất | REF | ENVATO | STOCK */
 #of-than{display:grid; gap:12px; flex:1 1 0; min-height:0;
-         grid-template-columns:minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+         grid-template-columns:minmax(0, 2fr) minmax(0, 3fr);
          grid-template-rows:minmax(0, 1fr)}
 #of-trai{min-height:0; display:flex; flex-direction:column}
-#of-phai{display:contents}          /* 3 khối nguồn thành ô ngang của lưới cha */
+#of-phai{display:contents}          /* khay thành ô phải của lưới cha */
 
 /* 2 MÀN 50/50 (user 08/09): trên review+trim footage, dưới preview timeline */
 .of-man{flex:1 1 100%; min-height:0; display:flex; flex-direction:column;
@@ -194,10 +194,23 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-hd{flex:1; display:grid; place-items:center; color:var(--muted);
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
 #of-khay{display:contents}
-#of-hd{grid-column:2 / span 3; display:grid; place-items:center; color:var(--muted);
+#of-hd{grid-column:2 / -1; display:grid; place-items:center; color:var(--muted);
        border:1px dashed var(--line); border-radius:12px; text-align:center; line-height:1.9}
-/* 3 KHỐI (user 08/09): REF | ENVATO hàng trên · STOCK gộp hàng dưới */
-#of-khu{display:contents}
+/* MỘT POOL (user chốt 13/09): "tách 3 phần ref/envato/PP không có ý nghĩa vì
+   sâu bên trong cũng có nút sorting rồi. Gộp chung 1 pool, video phù hợp đưa lên
+   trước, không phù hợp cho ra sau." Thứ tự do `xep_3_tang` (A+C+B+còn) quyết —
+   JS KHÔNG sắp lại. Số đo lấy từ mockup `scratchpad/ui_mot_pool.html`. */
+#of-khay-1{grid-column:2 / -1}
+#of-pool{flex:1 1 0; min-height:0; display:grid; gap:8px; overflow-y:auto;
+         overflow-x:hidden; align-content:start;
+         grid-template-columns:repeat(auto-fill, minmax(132px, 1fr))}
+#of-tally{font-size:9.5px; color:var(--muted); display:flex; gap:5px; flex-wrap:wrap;
+          align-items:center; margin:0 0 6px}
+#of-tally b{color:var(--text)}
+#of-tally .sep{width:1px; height:11px; background:var(--line)}
+/* vạch ranh: dưới vạch là hàng MÁY KHÔNG TỰ LẤY (tầng B để trống, chốt 13/09) */
+#of-pool .moc{grid-column:1 / -1; font-size:9.5px; color:var(--muted); margin-top:2px;
+              border-top:1px dashed var(--line); padding-top:5px}
 
 .of-khu{display:flex; flex-direction:column; min-height:0; background:var(--panel);
         border:1px solid var(--line); border-radius:10px; padding:6px 9px}
@@ -222,6 +235,11 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 /* NHÃN TẦNG (QĐ15, 12/09): A đúng người + đúng vật · B đúng người · C cảnh cận ·
    – máy không lấy. Nhãn ở góc TRÊN-TRÁI, không chạm "+N bản" (dưới-phải) và
    không chạm "● đang dùng" (dải ngang trên cùng) -> để top 14px. */
+/* CHIP NGUỒN: gộp cột rồi thì thẻ phải TỰ nói nó từ kho nào. Góc dưới-trái —
+   góc trên là dải "● đang dùng", dưới-phải là "+N bản". */
+.of-uv .ng{position:absolute; left:4px; bottom:4px; z-index:3; font-size:8.5px;
+           font-weight:700; line-height:1; padding:2px 5px; border-radius:3px;
+           color:#08121f; pointer-events:none}
 .of-uv .tang{position:absolute; left:3px; top:14px; z-index:3; font-size:9px;
              font-weight:700; line-height:1; padding:2px 4px; border-radius:3px;
              color:#fff; background:#6b7280}
@@ -913,11 +931,11 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         xong bấm <b style="color:var(--warn)">Duyệt khối → Đổ video</b></div>
       <div id="of-khay">
 
-        <div id="of-khu">
-          <div class="of-khu"><h4 style="color:#a98ee0">★ REF CỦA TEAM <span id="of-n-ref"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-ref"></div></div>
-          <div class="of-khu"><h4 style="color:#e08c5a">★ ENVATO <span id="of-n-envato"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-envato"></div></div>
-          <div class="of-khu phu"><h4 style="color:#7bc96f">PEXELS · PIXABAY <span id="of-n-stock"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-stock"></div></div>
-          <div class="of-khu phu"><h4 style="color:#6fb7c9">REC · AI <span id="of-n-rec"></span><span class="g"></span></h4><div class="of-cuon" id="of-dai-rec"></div></div>
+        <div class="of-khu" id="of-khay-1">
+          <h4>KHAY ỨNG VIÊN <span id="of-pool-n"></span><span class="g"></span>
+            <span style="text-transform:none; letter-spacing:0; font-weight:400">phù hợp trước</span></h4>
+          <div id="of-tally"></div>
+          <div id="of-pool"></div>
         </div>
       </div>
     </div>
@@ -2509,6 +2527,12 @@ async function ofTimHut() {
   } catch (e) { toastOf('Lỗi: ' + e.message) }
   setTimeout(() => { n.disabled = false; n.textContent = '⛏ Hút thêm (~12s)' }, 13000)
 }
+// MÀU NGUỒN trên chip thẻ — lấy nguyên màu 4 panel cũ để mắt không phải học lại
+// ĐỦ 7 nguồn của `sdb.NGUON_HOP_LE` — thiếu tên nào thì chip nguồn đó ra xám
+// chung, mà "footage tự quay" (rec) là kho user chốt 07/09 phải phân biệt được.
+const OF_MAU_NG = {ref: '#a98ee0', envato: '#e08c5a', pexels: '#7bc96f',
+                   pixabay: '#c9a3e0', rec: '#6fb7c9', aigen: '#c9a3e0',
+                   kho: '#9aa6b2'}
 function ofVeKhay() {
   if (OF_PHA !== 2) return
   const k = ofHinh()[OF_HCHON] || ofK()[OF_CHON] || {}
@@ -2516,77 +2540,94 @@ function ofVeKhay() {
   // KHÔNG đụng `#of-tim-nhan`: ô đó nằm TRONG popup, do `ofTimVe` vẽ. Hai hàm
   // tranh nhau một ô -> nhãn popup vừa vẽ xong bị khay ngoài đè (user chụp
   // được 10/09: popup hiện "ứng viên của miếng hình 31" của khay ngoài).
-  // 3 KHỐI: ref · envato · stock (pexels+pixabay+kho+AI gộp) — user 08/09
-  // Panel = TÊN KHO THẬT (user chốt 07/09): tải từ trang nào thì kho tên trang
-  // đó. Pexels + Pixabay chung một panel (user cho phép). `kho` là clip cũ chưa
-  // tra được nguồn — để cùng REC/AI chứ không trộn vào panel hai trang stock.
-  const KHU = {ref: 'ref', envato: 'envato', pexels: 'stock', pixabay: 'stock',
-               rec: 'rec', aigen: 'rec', kho: 'rec'}
-  const nhom = {ref: [], envato: [], stock: [], rec: []}
-  ds.forEach((u, j) => nhom[KHU[u.nguon] || 'rec'].push([u, j]))
-  // clip ĐANG DÙNG của miếng đứng ĐẦU khu của nó (user 06/09): bấm footage nào
-  // trên timeline thì thấy ngay nguồn của nó, không phải lục cả dải
-  if (OF_TIM_KQ === null && Number.isInteger(k.chon)) {
-    for (const ng of ['ref', 'envato', 'stock', 'rec']) {
-      const i = nhom[ng].findIndex(([, j]) => j === k.chon)
-      if (i > 0) nhom[ng].unshift(nhom[ng].splice(i, 1)[0])
-    }
+  //
+  // MỘT POOL (user chốt 13/09) — thứ tự là thứ tự `xep_3_tang` trả về:
+  // A đúng người + đúng vật · C cảnh cận đúng vật · B đúng người vật chung ·
+  // "–" máy không lấy. JS KHÔNG sắp lại: sắp ở đây là đặt luật lần thứ hai ở
+  // chỗ không đo được, và khay sẽ khác thứ tự máy dựng draft.
+  const pool = document.getElementById('of-pool')
+  if (!pool) return
+  pool.innerHTML = ''
+  const dem = {}, dem_ng = {}
+  ds.forEach(u => {
+    dem[u.tang || '?'] = (dem[u.tang || '?'] || 0) + 1
+    dem_ng[u.nguon] = (dem_ng[u.nguon] || 0) + 1
+  })
+  const tl = document.getElementById('of-tally')
+  const pn = document.getElementById('of-pool-n')
+  if (pn) pn.textContent = ds.length ? ds.length + ' thẻ' : ''
+  if (tl) {
+    const t = ['A', 'C', 'B', '-'].filter(x => dem[x])
+      .map(x => `<b>${x === '-' ? '–' : x} ${dem[x]}</b>`)
+    const g = Object.keys(dem_ng).sort().map(n => `${n} ${dem_ng[n]}`).join(' · ')
+    tl.innerHTML = ds.length
+      ? t.join('<span class="sep"></span>') + (g ? '<span class="sep"></span>' + esc(g) : '')
+      : ''
   }
-  for (const ng of ['ref', 'envato', 'stock', 'rec']) {
-    const dai = document.getElementById('of-dai-' + ng); dai.innerHTML = ''
-    document.getElementById('of-n-' + ng).textContent = nhom[ng].length || ''
-    const khu = dai.parentElement
-    khu.classList.toggle('rong', !nhom[ng].length)
-    if (!nhom[ng].length) {
-      dai.innerHTML = '<span class="note" style="margin:0">' +
-        (ng === 'stock' ? 'chưa hút Pexels/Pixabay cho từ khóa này' : '—') + '</span>'
-      continue
-    }
-    for (const [u, j] of nhom[ng]) {
-      const lap = ofUvLap(u.id)
-      const d = document.createElement('div')
-      const la_dang = OF_TIM_KQ === null && j === k.chon
-      // tầng "-" = máy không lấy (sai người, không phải cảnh cận). Làm mờ để
-      // mắt bỏ qua nhanh, nhưng VẪN BẤM ĐƯỢC — kho còn nghèo (64/548 clip khay
-      // SH010 đạt cửa người, đo 12/09) nên không được bịt mắt người dựng.
-      d.className = 'of-uv' + (la_dang ? ' dang' : '') + (u.tang === '-' ? ' mo' : '')
-      if (la_dang) d.dataset.dang = '1'
-      d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
-        <video muted loop playsinline preload="none"></video>
-        ${la_dang ? '<div class="dangn">● đang dùng</div>' : ''}
-        ${u.tang ? `<div class="tang t${u.tang === '-' ? 'X' : u.tang}">${u.tang === '-' ? '–' : u.tang}</div>` : ''}
-        ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}
-        ${u.so_ban > 1 ? `<div class="ban">+${u.so_ban - 1} bản</div>` : ''}</div>
-        <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
-      const v = d.querySelector('video')
-      const vsrc = ofVid(u)
-      // gắn src KHI HOVER: trăm thẻ cùng có src là trăm kết nối CDN -> đơ
-      d.onmouseenter = () => { if (!v) return
-        if (!v.src && vsrc) v.src = vsrc
-        v.play().catch(() => {}) }
-      d.onmouseleave = () => { if (v) v.pause() }
-      d.ondblclick = () => ofReview(u)       // double-click = mở CỬA SỔ trim
-      d.onclick = () => {                      // 1 click = dùng cả clip
-        // CHẶN NGAY, không cho đổi rồi mới mất: sequence của người khác thì
-        // autosave sẽ ăn 403 và F5 là về như cũ (user báo 08/09)
-        if (OF_KHOA_SUA) return ofBaoChiXem()
-        ofChup()
-        if (OF_TIM_KQ !== null) {
-          k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
-          k.chon = 0
-        } else k.chon = j
-        k.nguoi_sua = true
-        OF_HONG.delete(OF_HCHON)       // đã thay clip -> gỡ dấu đỏ của miếng này
-        toastOf(`Miếng ${OF_HCHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
-        OF_TIM_KQ = null
-        const _ot2 = document.getElementById('of-tim'); if (_ot2) _ot2.value = ''
-        ofLuu(); ofVeAll()
-      }
-      dai.appendChild(d)
-    }
-    const dg = dai.querySelector('[data-dang]')
-    if (dg) dai.scrollTo({left: 0, top: 0})     // khu có clip đang dùng: về đầu dải
+  if (!ds.length) {
+    pool.innerHTML = '<span class="note" style="margin:0; grid-column:1/-1">' +
+      'khay trống — gõ từ khoá rồi ⛏ Hút thêm</span>'
+    return
   }
+  let da_moc = false
+  ds.forEach((u, j) => {
+    // VẠCH RANH trước thẻ B/– đầu tiên: tầng B để trống (user chốt 13/09) nên
+    // dưới vạch là hàng người dựng tự chọn, không phải hàng máy đã chọn.
+    if (!da_moc && (u.tang === 'B' || u.tang === '-')) {
+      da_moc = true
+      const v = document.createElement('div')
+      v.className = 'moc'
+      v.textContent = '↓ máy không tự lấy — tự chọn hoặc ⛏ hút thêm'
+      pool.appendChild(v)
+    }
+    const lap = ofUvLap(u.id)
+    const d = document.createElement('div')
+    const la_dang = OF_TIM_KQ === null && j === k.chon
+    // tầng "-" = máy không lấy (sai người, không phải cảnh cận). Làm mờ để
+    // mắt bỏ qua nhanh, nhưng VẪN BẤM ĐƯỢC — kho còn nghèo (64/548 clip khay
+    // SH010 đạt cửa người, đo 12/09) nên không được bịt mắt người dựng.
+    d.className = 'of-uv' + (la_dang ? ' dang' : '') + (u.tang === '-' ? ' mo' : '')
+    if (la_dang) d.dataset.dang = '1'
+    const mng = OF_MAU_NG[u.nguon] || '#9aa6b2'
+    d.innerHTML = `<div class="cap"><img src="${esc(ofAnh(u))}" loading="lazy">
+      <video muted loop playsinline preload="none"></video>
+      ${la_dang ? '<div class="dangn">● đang dùng</div>' : ''}
+      ${u.tang ? `<div class="tang t${u.tang === '-' ? 'X' : u.tang}">${u.tang === '-' ? '–' : u.tang}</div>` : ''}
+      ${u.nguon ? `<div class="ng" style="background:${esc(mng)}">${esc(u.nguon)}</div>` : ''}
+      ${lap ? '<div class="lap">⚠ trùng &lt;60s</div>' : ''}
+      ${u.so_ban > 1 ? `<div class="ban">+${u.so_ban - 1} bản</div>` : ''}</div>
+      <div class="n">${esc(u.tieu_de || u.nhan || '')}</div>`
+    const v = d.querySelector('video')
+    const vsrc = ofVid(u)
+    // gắn src KHI HOVER: trăm thẻ cùng có src là trăm kết nối CDN -> đơ
+    d.onmouseenter = () => { if (!v) return
+      if (!v.src && vsrc) v.src = vsrc
+      v.play().catch(() => {}) }
+    d.onmouseleave = () => { if (v) v.pause() }
+    d.ondblclick = () => ofReview(u)       // double-click = mở CỬA SỔ trim
+    d.onclick = () => {                      // 1 click = dùng cả clip
+      // CHẶN NGAY, không cho đổi rồi mới mất: sequence của người khác thì
+      // autosave sẽ ăn 403 và F5 là về như cũ (user báo 08/09)
+      if (OF_KHOA_SUA) return ofBaoChiXem()
+      ofChup()
+      if (OF_TIM_KQ !== null) {
+        k.uv = [{...u, lop: 'L2', diem: 0}, ...(k.uv || [])]
+        k.chon = 0
+      } else k.chon = j
+      k.nguoi_sua = true
+      OF_HONG.delete(OF_HCHON)       // đã thay clip -> gỡ dấu đỏ của miếng này
+      toastOf(`Miếng ${OF_HCHON + 1}: «${esc((u.tieu_de || '').slice(0, 44))}»`)
+      OF_TIM_KQ = null
+      const _ot2 = document.getElementById('of-tim'); if (_ot2) _ot2.value = ''
+      ofLuu(); ofVeAll()
+    }
+    pool.appendChild(d)
+  })
+  // clip ĐANG DÙNG: bản 4 cột nhấc nó lên đầu khu (06/09 — "bấm footage nào
+  // trên timeline thì thấy ngay nguồn của nó"). Pool KHÔNG nhấc — nhấc là phá
+  // thứ tự phù hợp. CUỘN TỚI nó: vẫn thấy ngay, thứ tự còn nguyên.
+  const dg = pool.querySelector('[data-dang]')
+  if (dg) dg.scrollIntoView({block: 'nearest'})
 }
 async function ofGen() {
   const k = ofK()[OF_CHON]; if (!k || OF_PHA !== 2) return

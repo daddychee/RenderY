@@ -1136,11 +1136,23 @@ def test_nhan_rec_la_nguon_hop_le():
 
 
 def test_giao_dien_tach_kho_dung_ten():
+    """ĐỔI 13/09: khay gộp về MỘT pool (user chốt) nên 4 panel nguồn không còn.
+
+    Luật cũ KHÔNG đổi — nguồn vẫn phải gọi ĐÚNG TÊN KHO THẬT, không gộp bừa vào
+    nhãn "KHO". Chỗ thể hiện chuyển từ tiêu đề panel sang CHIP trên từng thẻ:
+    chữ trên chip là `u.nguon` nguyên văn, màu tra ở `OF_MAU_NG` — nên phép thử
+    đúng bây giờ là bảng màu phủ ĐỦ `sdb.NGUON_HOP_LE`. Xem test_khay_mot_pool.py.
+    """
+    import re
+
+    from autoedit.sotra import db as sdb
+
     h = _html()
-    assert "PEXELS · PIXABAY" in h          # 2 trang chung 1 panel (user chốt)
-    assert "★ REF CỦA TEAM" in h and "★ ENVATO" in h
+    m = re.search(r"const OF_MAU_NG = \{(.*?)\}", h, re.S)
+    assert m, "thiếu bảng màu nguồn"
+    for ng in sdb.NGUON_HOP_LE:
+        assert f"{ng}:" in m.group(1), f"chip nguồn thiếu «{ng}» -> ra xám chung"
     assert "· KHO ·" not in h               # nhãn gộp sai đã bỏ
-    assert "REC" in h
 
 
 def test_ten_nguon_nhan_ca_refvid_lan_refvideo():

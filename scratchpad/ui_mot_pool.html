@@ -1,0 +1,117 @@
+<!doctype html><meta charset="utf-8"><title>Mockup — GỘP 1 POOL</title>
+<style>
+:root{color-scheme:light;--bg:#f5f5f5;--panel:#fff;--line:#e6e6e6;--text:#16181c;
+ --muted:#6c6c72;--accent:#2c6fc4;--warn:#d97706}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 system-ui,Segoe UI,sans-serif;padding:14px}
+h2{font-size:14px;margin:18px 0 6px}
+.note{color:var(--muted);font-size:11.5px;margin:2px 0 10px}
+.than{display:grid;gap:12px;grid-template-columns:minmax(0,2fr) minmax(0,3fr);height:430px}
+.prev{background:#000;border-radius:10px;display:grid;place-items:center;color:#888;font-size:12px}
+
+/* ── KHAY 1 POOL ── */
+.khay{display:flex;flex-direction:column;min-height:0;background:var(--panel);
+      border:1px solid var(--line);border-radius:10px;padding:6px 9px}
+.khay h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+         display:flex;gap:7px;align-items:center;margin:0 0 5px;color:var(--muted)}
+.khay h4 .g{flex:1;height:1px;background:var(--line)}
+.tally{font-size:9.5px;color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;
+       margin:0 0 6px;align-items:center}
+.tally b{font-weight:700;color:var(--text)}
+.tally .sep{width:1px;height:11px;background:var(--line)}
+.pool{flex:1 1 0;min-height:0;display:grid;gap:8px;overflow-y:auto;
+      grid-template-columns:repeat(auto-fill,minmax(132px,1fr));align-content:start}
+.uv{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;
+    cursor:pointer;background:#000}
+.uv .cap{position:relative;aspect-ratio:16/9;background:#1b2433}
+.uv .n{font-size:9.5px;padding:3px 6px;color:var(--muted);white-space:nowrap;
+       overflow:hidden;text-overflow:ellipsis;background:var(--panel)}
+.uv.dang{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn) inset}
+.uv .dangn{position:absolute;left:0;right:0;top:0;background:var(--accent);color:#fff;
+           font-size:9.5px;font-weight:700;padding:2px 4px;text-align:center}
+.uv .tang{position:absolute;left:3px;top:14px;z-index:3;font-size:9px;font-weight:700;
+          line-height:1;padding:2px 4px;border-radius:3px;color:#fff;background:#6b7280}
+.tA{background:#1b7f3b!important}.tB{background:#1f6feb!important}.tC{background:#b26a00!important}
+/* MỚI: chip nguồn — gộp pool thì mỗi thẻ phải tự nói nó từ kho nào */
+.uv .ng{position:absolute;right:3px;top:3px;z-index:3;font-size:8.5px;font-weight:700;
+        line-height:1;padding:2px 4px;border-radius:3px;color:#08121f}
+.uv.mo{opacity:.45}.uv.mo:hover{opacity:1}
+.uv .ban{position:absolute;right:4px;bottom:4px;font-size:9px;z-index:2;
+         background:rgba(0,0,0,.74);color:#ccc;padding:1px 6px;border-radius:4px}
+.moc{grid-column:1/-1;font-size:9.5px;color:var(--muted);border-top:1px dashed var(--line);
+     padding-top:5px;margin-top:2px;display:flex;gap:6px;align-items:center}
+
+/* ── BẢN CŨ để đối chiếu ── */
+.cu{display:grid;gap:12px;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));height:260px}
+.cot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 9px;
+     display:flex;flex-direction:column;min-height:0}
+.cot h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;margin:0 0 5px;
+        display:flex;gap:7px;align-items:center}
+.cot .cuon{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.cot .uv{flex:0 0 auto}
+</style>
+
+<h2>SAU — MỘT POOL, phù hợp trước</h2>
+<p class="note">Thứ tự do máy chấm: <b>A</b> đúng người + đúng vật · <b>C</b> cảnh cận đúng vật ·
+<b>B</b> đúng người, vật chung · <b>–</b> máy không lấy (mờ, vẫn bấm được).
+Nguồn thành <b>chip trên thẻ</b> thay vì thành cột riêng.</p>
+<div class="than">
+  <div class="prev">PREVIEW (không đổi)</div>
+  <div class="khay">
+    <h4>KHAY ỨNG VIÊN — MIẾNG 12 <span class="g"></span><span>181 thẻ</span></h4>
+    <div class="tally">
+      <b>A 6</b><span class="sep"></span><b>C 3</b><span class="sep"></span><b>B 50</b>
+      <span class="sep"></span><b>– 122</b><span class="sep"></span>
+      <span>ref 70 · envato 31 · pexels 12 · pixabay 61 · rec 7</span>
+    </div>
+    <div class="pool" id="pool"></div>
+  </div>
+</div>
+
+<h2>TRƯỚC — 4 cột nguồn</h2>
+<p class="note">Bốn dải dọc hẹp: mắt phải quét 4 chỗ, và thẻ tốt nhất của miếng có thể nằm
+ở cột thứ tư. Nguồn đã có nút lọc trong popup review nên chia cột là chia hai lần.</p>
+<div class="cu">
+  <div class="prev">PREVIEW</div>
+  <div class="cot"><h4 style="color:#a98ee0">★ REF 70<span class="g"></span></h4><div class="cuon" id="c1"></div></div>
+  <div class="cot"><h4 style="color:#e08c5a">★ ENVATO 31<span class="g"></span></h4><div class="cuon" id="c2"></div></div>
+  <div class="cot"><h4 style="color:#7bc96f">PEXELS · PIXABAY 73<span class="g"></span></h4><div class="cuon" id="c3"></div></div>
+</div>
+
+<script>
+const MAU = {ref:'#a98ee0', envato:'#e08c5a', pexels:'#7bc96f', pixabay:'#c9a3e0', kho:'#9aa6b2'}
+const D = [
+ ['A','envato','Senior Woman Sleeping in Bed with Sleep Mask',1],
+ ['A','ref','elderly couple settling to sleep',0],
+ ['A','pexels','elderly couple sleeping in bed',0],
+ ['A','envato','Older Couple Sleeping Peacefully Together',0],
+ ['A','envato','Mature Man Sleeping in Bed at Night',0],
+ ['A','pixabay','senior sleeping bedroom night',0],
+ ['C','envato','Close Up of Wrinkled Hands on Blanket',0],
+ ['C','pexels','close up hands holding pillow',0],
+ ['C','ref','close shot alarm clock at night',0],
+ ['B','pexels','woman sleeping with a sleep mask',0],
+ ['B','pixabay','bed bedroom sleep pillow white',0],
+ ['B','ref','family settling to sleep inside the house',0],
+ ['-','pixabay','cat sleep cute animal pet home',0],
+ ['-','pixabay','dog resting pet sleep animal deck',0],
+]
+const pool = document.getElementById('pool')
+D.forEach(([t,ng,ten,dang],i) => {
+  if (i === 9) pool.insertAdjacentHTML('beforeend',
+    '<div class="moc">↓ từ đây là hàng máy KHÔNG tự lấy — tự chọn hoặc ⛏ hút thêm</div>')
+  pool.insertAdjacentHTML('beforeend', `<div class="uv${t==='-'?' mo':''}${dang?' dang':''}">
+    <div class="cap">${dang?'<div class="dangn">● đang dùng</div>':''}
+      <div class="tang t${t==='-'?'X':t}">${t==='-'?'–':t}</div>
+      <div class="ng" style="background:${MAU[ng]}">${ng}</div>
+      ${i===3?'<div class="ban">+2 bản</div>':''}</div>
+    <div class="n">${ten}</div></div>`)
+})
+;[['c1','ref'],['c2','envato'],['c3','pexels']].forEach(([id,ng]) => {
+  const el = document.getElementById(id)
+  D.filter(d => d[1]===ng || (ng==='pexels'&&d[1]==='pixabay')).forEach(([t,n2,ten,dang]) =>
+    el.insertAdjacentHTML('beforeend', `<div class="uv${t==='-'?' mo':''}${dang?' dang':''}">
+      <div class="cap">${dang?'<div class="dangn">● đang dùng</div>':''}
+      <div class="tang t${t==='-'?'X':t}">${t==='-'?'–':t}</div></div>
+      <div class="n">${ten}</div></div>`))
+})
+</script>
