@@ -45,17 +45,23 @@ def test_tang_A_thang_tang_B_du_diem_thap_hon():
     so = xep_3_tang(uv, [["water glass"]], NV)
     assert [x["id"] for x in uv[0]] == ["A_diem_thap", "B_diem_cao"]
     assert uv[0][0]["tang"] == "A" and uv[0][1]["tang"] == "B"
-    assert so == [2]
+    # ĐỔI 13/09: `so` chỉ đếm hình MÁY dùng được = A + C. B nằm trong khay cho
+    # người tự chọn nhưng máy không lấy (user: "tầng B để trống user tự hút").
+    assert so == [1]
 
 
-def test_tang_B_thang_tang_C():
+def test_tang_C_dung_TRUOC_tang_B():
+    """ĐỔI 13/09 (user chốt "tầng B để trống"): B không còn là hình máy tự lấy,
+    nên C — hình máy DÙNG ĐƯỢC — phải đứng trước B trong khay, dù B "đúng người"
+    hơn. `chon_mac_dinh` nhận TIỀN TỐ khay nên thứ tự này là bắt buộc."""
     from autoedit.offline.dung import xep_3_tang
 
-    uv = [[the("C_can", shot="close", vat_the="pill bottle", diem=99),
-           the("B_nguoi_gia", tuoi="older", ct="white", diem=1)]]
-    xep_3_tang(uv, [["pill bottle"]], NV)
-    assert [x["id"] for x in uv[0]] == ["B_nguoi_gia", "C_can"]
-    assert uv[0][1]["tang"] == "C"
+    uv = [[the("C_can", shot="close", vat_the="pill bottle", diem=1),
+           the("B_nguoi_gia", tuoi="older", ct="white", diem=99)]]
+    so = xep_3_tang(uv, [["pill bottle"]], NV)
+    assert [x["id"] for x in uv[0]] == ["C_can", "B_nguoi_gia"]
+    assert uv[0][0]["tang"] == "C" and uv[0][1]["tang"] == "B"
+    assert so == [1]
 
 
 def test_tang_C_CHI_nhan_canh_can():
@@ -113,8 +119,9 @@ def test_the_khong_dat_VAN_NAM_TRONG_khay():
     from autoedit.offline.dung import xep_3_tang
 
     uv = [[the("loai", tuoi="young", ct="asian", shot="wide"),
-           the("dat", tuoi="older", ct="white")]]
-    so = xep_3_tang(uv, [["x"]], NV)
+           the("dat", tuoi="older", ct="white", vat_the="pill bottle",
+               shot="close")]]
+    so = xep_3_tang(uv, [["pill bottle"]], NV)
     assert so == [1]
     assert len(uv[0]) == 2 and uv[0][1]["id"] == "loai"
 
@@ -139,7 +146,8 @@ def test_chi_khai_tuoi_thi_KHONG_doi_chung_toc():
 
     uv = [[the("gia_da_den", tuoi="older", ct="black", diem=5)]]
     so = xep_3_tang(uv, [["x"]], {"tuoi": ["older"]})
-    assert so == [1] and uv[0][0]["tang"] == "B"
+    # đúng NGƯỜI (chỉ soi tuổi) nhưng không khớp vật -> tầng B -> máy không lấy
+    assert so == [0] and uv[0][0]["tang"] == "B"
 
 
 # --------------------------------------------------------------- object khớp
@@ -165,8 +173,10 @@ def test_nhieu_khoi_moi_khoi_object_rieng():
     b = the("thuoc", tuoi="older", ct="white", vat_the="pill bottle")
     uv = [[dict(a), dict(b)], [dict(a), dict(b)]]
     so = xep_3_tang(uv, [["water glass"], ["pill bottle"]], NV)
-    assert so == [2, 2]
+    # mỗi khối: 1 thẻ khớp vật (A, máy dùng được) + 1 thẻ không khớp (B)
+    assert so == [1, 1]
     assert uv[0][0]["id"] == "nuoc" and uv[1][0]["id"] == "thuoc"
+    assert uv[0][0]["tang"] == "A" and uv[0][1]["tang"] == "B"
 
 
 def test_the_thieu_truong_doc_hinh_KHONG_no():
@@ -175,8 +185,8 @@ def test_the_thieu_truong_doc_hinh_KHONG_no():
     from autoedit.offline.dung import xep_3_tang
 
     uv = [[{"id": "cu", "nguon": "envato", "tieu_de": "cu", "diem": 50.0},
-           the("moi", tuoi="older", ct="white")]]
-    so = xep_3_tang(uv, [["x"]], NV)
+           the("moi", tuoi="older", ct="white", vat_the="pill bottle")]]
+    so = xep_3_tang(uv, [["pill bottle"]], NV)
     assert so == [1] and uv[0][0]["id"] == "moi"
 
 
@@ -247,3 +257,39 @@ def test_tu_GIAO_DIEN_khong_phai_vat_quay_duoc():
     uv[0][0]["tieu_de"] = "Animated Check Signing Flat Design Icon"
     xep_3_tang(uv, [["subscribe button screen", "notification bell icon"]], NV)
     assert uv[0][0]["tang"] == "B", "chữ giao diện không được tính là khớp vật"
+
+
+# ------------------------------------------------- tầng B: ĐỂ TRỐNG (user 13/09)
+# "Tầng B để trống user tự hút" — tầng B là "đúng người nhưng vật chung", ví dụ
+# câu outro "share it with someone you love" nhận `man drinking`. Đó là hình
+# KHÔNG nói đúng câu, nên máy KHÔNG được tự lấy: để trống cho người đắp tay hoặc
+# hút thêm. Thẻ B vẫn nằm trong khay (có nhãn B) để người tự chọn nếu muốn.
+
+def test_tang_B_MAY_KHONG_TU_LAY():
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("B_dung_nguoi", tuoi="older", ct="white", diem=99)]]
+    so = xep_3_tang(uv, [["pill bottle"]], NV)
+    assert so == [0], "tầng B không còn là hình máy tự lấy"
+    assert uv[0][0]["tang"] == "B", "vẫn phải mang nhãn B để người biết vì sao"
+
+
+def test_thu_tu_khay_A_roi_C_roi_B():
+    """Phần MÁY dùng được là ĐOẠN ĐẦU khay (A+C) — `chon_mac_dinh` nhận tiền tố
+    nên B phải nằm sau C, dù B "đúng người" hơn."""
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("B", tuoi="older", ct="white", diem=99),
+           the("C", shot="close", vat_the="pill bottle", diem=50),
+           the("A", tuoi="older", ct="white", vat_the="pill bottle", diem=1)]]
+    so = xep_3_tang(uv, [["pill bottle"]], NV)
+    assert [x["id"] for x in uv[0]] == ["A", "C", "B"]
+    assert so == [2]
+
+
+def test_tang_B_khong_khai_nhan_vat_thi_KHONG_anh_huong():
+    """Life In: không khai nhân vật -> không có tầng nào, khay dùng được đủ."""
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("mot", diem=5), the("hai", diem=1)]]
+    assert xep_3_tang(uv, [["x"]], {}) == [2]

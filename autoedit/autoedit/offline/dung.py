@@ -263,8 +263,13 @@ def xep_3_tang(ung_vien: list[list[dict]], doi_tuong: list, nhan_vat: dict) -> l
         # "cảnh cận có thể lấy tùy ý nhưng ưu tiên là người già" — user 12/09
         C.sort(key=lambda t: (str(t.get("tuoi") or "").lower() not in uu_tuoi,
                               -t["trung_vat"], -float(t.get("diem") or 0)))
-        uv[:] = A + B + C + con
-        ra.append(len(A) + len(B) + len(C))
+        # TẦNG B KHÔNG PHẢI HÌNH MÁY TỰ LẤY (user chốt 13/09: "tầng B để trống
+        # user tự hút"). B là "đúng người, vật chung" — câu outro "share it with
+        # someone you love" nhận `man drinking` thì hình đó không nói đúng câu.
+        # Thẻ B VẪN nằm trong khay kèm nhãn B để người tự chọn; chỉ máy không lấy.
+        # Vì `chon_mac_dinh` nhận TIỀN TỐ của khay, B phải xếp SAU C.
+        uv[:] = A + C + B + con
+        ra.append(len(A) + len(C))
     return ra
 
 
