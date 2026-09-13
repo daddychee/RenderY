@@ -34,6 +34,51 @@ GIAN_NHIP = (2.0, 4.0)
 SPEED = 0.9
 SPEED_MIN = 0.8
 
+# CHẺ MIẾNG KHI CLIP NGẮN HƠN MIẾNG (user chốt 13/09) — thay cho freeze.
+#
+# Đo 53 draft đã xuất, 1.916 segment: 256 ô FREEZE (13,4%), trung vị 1,99s,
+# p90 4,96s, DÀI NHẤT 8,88s hình bất động. Tốc độ KHÔNG phải nguyên nhân — sàn
+# `SPEED_MIN` chặn rồi, chỉ 6/1.916 segment dưới 0,8x.
+#
+# User đã nói cách chữa từ 07/09: "tạo một khối nhỏ trong khối lớn vừa với
+# source bằng cách add shot". Tool nhận clip ngắn (đúng ý) nhưng phần thiếu thì
+# đông cứng.
+#
+# LUẬT "KHÔNG PHÁ KHỐI" LẤY TỪ FRAMING INSIGHT, không tự đặt số: `kenh/mo_ta.py`
+# định nghĩa `ty_le_nhanh` = tỉ lệ shot ≤2s của kênh. 2s là ranh giới chính kênh
+# coi là "cắt nhanh" -> không chẻ ra miếng ngắn hơn thế. Kênh godoc-travel-doc
+# đo thật: thân 4,73s, chỉ 6% shot ≤2s, 38% shot ≥5s.
+NGUONG_NHANH_S = 2.0
+
+
+def nguong_chia(framing: dict | None) -> float:
+    """Miếng chẻ ra không được ngắn hơn ngưỡng này.
+
+    Ranh giới "cắt nhanh" của phép đo là 2s, NHƯNG kênh thân ngắn thì 2s đã gần
+    cả thân — chẻ 2s + 1s ở kênh thân 3s là phá nhịp. Lấy min(2s, nửa thân): cả
+    hai số đều từ Framing Insight, không tự đặt.
+    """
+    than = float((framing or {}).get("than") or 0)
+    return min(NGUONG_NHANH_S, than / 2) if than > 0 else NGUONG_NHANH_S
+
+
+def chia_mieng(dai_mieng: float, dai_clip: float, speed: float = SPEED,
+               nguong: float = NGUONG_NHANH_S) -> tuple[float, float] | None:
+    """(giây clip phủ được, giây còn lại) — hay None nếu KHÔNG nên chẻ.
+
+    Phát ở `speed` (0.9x) thì clip dài `dai_clip` phủ `dai_clip/speed` giây
+    timeline. CẢ HAI phần phải ≥ `nguong`, không thì thà giữ freeze: freeze ngắn
+    gần như không ai thấy, còn shot nháy thì phá nhịp kênh.
+    """
+    if dai_clip <= 0 or dai_mieng <= 0 or speed <= 0:
+        return None
+    phu = dai_clip / speed
+    du = dai_mieng - phu
+    if phu < nguong or du < nguong:
+        return None
+    return round(phu, 3), round(du, 3)
+
+
 # Nguồn ĐÃ MẤT HẲN — đánh `link_chet` để khay không trồi nó lên nữa.
 _MA_CHET = (404, 410)
 # Hết lượt / nhà cung cấp trục trặc — clip VẪN SỐNG, đánh dấu là giết oan.
