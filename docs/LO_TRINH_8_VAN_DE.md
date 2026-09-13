@@ -1903,3 +1903,53 @@ trả về đã không còn `loop` · đẩy GitHub `14fe8cf..27b3aa7`.
   đếm lại số ô freeze mới dám nói con số 13,4% đã hạ.
 * Hai việc tiếp hàng cho kho, chờ user chọn: **A** đọc hình phần kho còn lại
   (~5h nền, dự kiến +700 clip qua cửa) · **B** chạy 32 câu `hut-theo-ref` còn lại.
+
+# ĐO KHO SOURCE (13/09/2026) — user lo Pexels/Pixabay hút bản 4K
+
+User: *"kiểm tra dung lượng thực tế kho source, tôi đang lo với video pexel và pixabay
+thì bị hút video chất lượng cao thay vì preview"*.
+
+## Không xảy ra — Pexels/Pixabay toàn 1080p
+
+| Nguồn | File | Tổng | TB/file | To nhất | Độ phân giải (ffprobe mẫu 60) |
+|---|---|---|---|---|---|
+| pexels | 2.721 | 51,4 GB | 19 MB | 447 MB | 49×1080p · 8×2048x1080 · 2×720p |
+| pixabay | 427 | 6,4 GB | 15 MB | 248 MB | 55×1080p · 2×720p |
+
+Lúc **hút vào kho KHÔNG tải file nào** — chỉ lưu link: `hut.py` lấy bản nhỏ nhất ≥360p
+(Pexels) và `small`/`tiny` (Pixabay) cho hover-play. Chỉ clip **được chọn** mới tải, ở
+mức ≤1440p (`_pexels_goc`) / `large` (`_pixabay_goc`). File 447 MB kia vẫn 1080p — clip
+dài bitrate cao, không phải 4K.
+
+## Thứ ngốn thật: Envato 4K
+
+149 file = **74,8 GB**, TB 514 MB, đo được **3840x2160** và **4096x2304**, file to nhất
+**3,2 GB**. `tai_sach.py` bấm `button:has-text("Download")` **đầu tiên** trên trang item
+— item 4K thì ra 4K. CHƯA kiểm trang Envato có nút HD/1080 song song hay không.
+
+Video mẫu ref: **8.968 file = 9,4 TB** trên F (LI102 4,4 TB · LI106 2,0 TB · LI103 1,5 TB).
+File stock nằm trong `projects/<id>/assets/` — 4.082 file rải 15 project, cùng một clip
+dùng ở hai tập là tải hai lần.
+
+## Việc GẤP phát hiện kèm: ổ C còn 2,67 GB (1,1% của 237 GB)
+
+Kho `~/AutoEdit` (78 GB) nằm trên C vì `machine.json.data_root` để **trống**. Đã dời sang
+`F:\AutoEdit` (user duyệt):
+
+* robocopy 14.205 file / **78,11 GB**, 0 FAILED, khớp tuyệt đối hai bên.
+* Vá **2 cột đường dẫn tuyệt đối** trong bản copy: `clip.path_local` (149 dòng) +
+  `clip.frame_dau` (8.590 dòng). Bản gốc trên C KHÔNG đụng — giữ làm đường lui.
+* `set-data-root F:\AutoEdit` + `set-library-root F:\AutoEdit\library` — phải set **cả hai**:
+  `library_root` giải riêng, không theo `data_root` (`ambient/` thì suy ra từ library.parent).
+* Cảnh báo `music/`+`sfx/` khi set là **có sẵn** — hai thư mục chưa từng tồn tại trên C.
+* Kiểm sau khi dời: **20.920/20.920** đường dẫn trong sổ có file thật, 0 dòng trỏ C ·
+  robocopy /L đối chiếu lại: 19 file lệch **đều là bản C CŨ HƠN** · 9118 xanh, hàng đợi
+  nguyên vẹn · **bộ test venv production 1884 pass / 0 fail** (y hệt trước khi dời).
+
+**Bản cũ trên C chưa xoá** — `Remove-Item -Recurse -Force` bị cửa an toàn Claude Code chặn,
+user tự chạy. Xoá xong ổ C về ~81 GB trống.
+
+## Còn lại
+
+* Kiểm trang item Envato bằng phiên đăng nhập: có nút HD/1080 song song 4K không (user chốt
+  kiểm trước, chưa sửa code).
