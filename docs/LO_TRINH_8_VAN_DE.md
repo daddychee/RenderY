@@ -1826,3 +1826,80 @@ việc này. Đã báo user, chờ quyết.
 * `hut-theo-ref` **chưa chạy lần nào** — đây là thứ kéo tỉ trọng ref (70/116) xuống.
 * Ngách khác Senior Health chưa khai nhân vật → nộp tập sẽ bị 422 (hiện chỉ LI+SH
   đang chạy nên không ai bị chặn oan).
+
+# QĐ16 (13/09/2026) — TẦNG B ĐỂ TRỐNG · TẦNG C SIẾT LUẬT · CLIP NGẮN ĐẮP MIẾNG THỨ HAI
+
+User nghiệm thu QĐ15 trên chương E của SH010: *"stock vẫn không đúng nghĩa từng câu"*,
+rồi chốt ba việc: *"Tầng C sửa luật. Tầng B để trống user tự hút"* · *"video ngắn hơn
+khối thì bị slow quá nhiều và loop lại"* · *"Việc C khối nào trống thì đắp tay, hút
+thêm / Clip ngắn thì đắp thêm miếng thứ 2. Nhưng cần có logic để không phá khối.
+**Luật lấy từ framing insight**."*
+
+## Hai lỗi tìm ra khi mổ chương E (đo, không đoán)
+
+| Lỗi | Ví dụ thật | Chữa |
+|---|---|---|
+| Tầng C nhận MỌI cảnh cận | câu "hands holding glass" → *"Man Hands Weaving Carpet in Uzbekistan"* | C nới điều kiện **NGƯỜI**, không nới **VẬT** |
+| Khớp vật thể bỏ qua tiêu đề | *"Mature Woman Drinking Juice"* bị tụt xuống B dù đúng cả người cả vật | `_tu_the()` đọc cả `vat_the` lẫn `tieu_de` |
+
+Chữa xong lại lòi ra khớp giả mới: *"Animated Check Signing Flat Design Icon"* khớp
+câu "notification bell icon" — chữ giao diện (`icon`, `screen`, `button`, `overlay`,
+`flat`, `design`…) không phải vật quay được, đã đưa vào `TU_DO_DAC`.
+
+Chương E sau khi chữa: tầng A 3→**6** · C 7→**3** · trống 0→2 (2 ô trống là thật —
+kho không có hàng, user tự hút, đúng ý *"khối nào trống thì đắp tay"*).
+
+## Tầng B không còn là hình máy tự lấy
+
+`uv[:] = A + C + B + còn` giữ nguyên (thẻ B **vẫn trong khay**, user vẫn bấm được),
+nhưng `so_dung = len(A) + len(C)`. Máy chỉ tự lấy trong phần đúng người + đúng vật,
+hoặc cảnh cận đúng vật. "Đúng người, vật chung chung" là thứ chỉ người dựng mới
+quyết được — để trống để user tự hút, không lấp bằng hàng gần đúng.
+
+## Clip ngắn hơn khối: đắp miếng thứ hai, không đông cứng
+
+**Đo trên 53 draft đã xuất, 1.916 segment:**
+
+| | |
+|---|---|
+| ô FREEZE (clip ngắn hơn khối) | **256 = 13,4%** mọi segment |
+| freeze ≥ 2s · ≥ 4s | 127 · 50 |
+| trung vị · p90 · DÀI NHẤT | 1,99s · 4,96s · **8,88s** |
+| segment dưới sàn 0,8x | **6/1.916** |
+
+→ Tốc độ **không** phải nguyên nhân, sàn `SPEED_MIN` chặn rồi. Nguyên nhân là tool
+nhận clip ngắn rồi đông cứng khung cuối. User đã nói cách chữa từ 07/09: *"TẠO MỘT
+KHỐI NHỎ TRONG KHỐI LỚN vừa với source bằng cách add shot"*.
+
+**Ngưỡng không tự đặt** — `kenh/mo_ta.py:52` định nghĩa `ty_le_nhanh` = tỉ lệ shot
+**≤2s** của kênh, nên 2s chính là ranh giới kênh tự coi là "cắt nhanh"; kênh thân
+ngắn thì hạ xuống nửa thân (`nguong_chia`). **CẢ HAI** phần phải ≥ ngưỡng, không thì
+giữ freeze: freeze 0,4s gần như không ai thấy, còn shot nháy 0,4s thì phá nhịp.
+Kênh `godoc-travel-doc` đo thật: thân 4,73s, chỉ 6% shot ≤2s, 38% shot ≥5s.
+
+**Ba cửa KHÔNG bị lách** — `lay_du()` cố ý tách riêng khỏi resolver chính và chỉ nhận
+file local / Pexels / Pixabay. Envato chưa có bản sạch thì **bỏ qua**, đi tìm ứng viên
+khác: miếng đắp thêm không được đẻ lượt tải mới (phanh 1 luồng giãn 2–5s) cũng không
+lọt cửa chặn cứng *"chưa có bản sạch thì DỪNG export"*. Giải không được file → vẫn
+freeze như cũ, draft không hỏng.
+
+## Preview thôi loop
+
+Hai trình phát timeline có `loop` cứng trong HTML: clip ngắn thì web **phát lại từ
+đầu** còn CapCut **đứng yên** hoặc sang miếng đắp thêm — xem preview một đằng, draft
+một nẻo (đúng thứ user báo: *"bị slow quá nhiều và loop lại"*). Thẻ trong **khay** vẫn
+loop: đó là xem trước *clip*, không phải xem trước *timeline*.
+
+## Đã lên production
+
+`7731866` tầng B · `3d2b76a` luật chẻ miếng · `27b3aa7` nối vào đường ráp + preview.
+Dev 1883 pass · **venv production 1884 pass / 14 skip / 0 fail** (khớp trọn 1.898 test
+thu được) · restart 9118 lúc 15:26 13/09, `/health` + `/api/suc-khoe` xanh, HTML server
+trả về đã không còn `loop` · đẩy GitHub `14fe8cf..27b3aa7`.
+
+## Còn lại
+
+* Chưa chạy chương thật sau khi nối miếng đắp thêm — phải dựng lại một chương rồi
+  đếm lại số ô freeze mới dám nói con số 13,4% đã hạ.
+* Hai việc tiếp hàng cho kho, chờ user chọn: **A** đọc hình phần kho còn lại
+  (~5h nền, dự kiến +700 clip qua cửa) · **B** chạy 32 câu `hut-theo-ref` còn lại.
