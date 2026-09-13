@@ -86,3 +86,76 @@ def test_khong_bao_gio_tra_phan_am():
     for dm, dc in ((2.0, 0.1), (0.5, 0.4), (6.0, 0.0), (1.0, 5.0)):
         kq = chia_mieng(dai_mieng=dm, dai_clip=dc)
         assert kq is None or (kq[0] > 0 and kq[1] > 0)
+
+
+# ------------------------------------------------- giải file cho miếng đắp thêm
+
+def test_lay_du_KHONG_tai_envato_moi(tmp_path, monkeypatch):
+    """Tải Envato bị phanh 1 luồng giãn 2-5s VÀ có cửa chặn cứng "chưa có bản
+    sạch thì DỪNG export". Miếng đắp thêm không được đẻ lượt tải mới: envato
+    chưa có `path_local` thì BỎ QUA, đi tìm ứng viên khác."""
+    from autoedit.offline import thay_mau as tm
+
+    goi = []
+    monkeypatch.setattr(tm, "_clip_db", lambda conn, cid: {"path_local": ""})
+    monkeypatch.setattr(tm, "_tai", lambda *a, **k: goi.append(a))
+    f = tm.lay_du(None, tmp_path, 0, [{"id": "envato:x", "tieu_de": "t"}], 3.0,
+                  lambda m: None)
+    assert f is None and goi == [], "không được gọi tải cho envato thiếu bản sạch"
+
+
+def test_lay_du_dung_ref_LOCAL(tmp_path, monkeypatch):
+    from autoedit.offline import thay_mau as tm
+
+    goc = tmp_path / "goc.mp4"
+    goc.write_bytes(b"x" * 10_000)
+    monkeypatch.setattr(tm, "_clip_db", lambda conn, cid: {
+        "path_local": str(goc), "t0": 2.0, "t1": 5.0})
+
+    def cat(src, t0, dai, dich):
+        dich.write_bytes(b"y" * 10_000)
+
+    monkeypatch.setattr("autoedit.sourcer.refvideo.cat_clip", cat)
+    f = tm.lay_du(None, tmp_path, 3, [{"id": "ref:v:1", "tieu_de": "canh"}], 2.5,
+                  lambda m: None)
+    assert f is not None and f.is_file() and "du" in f.name
+
+
+def test_lay_du_bo_qua_ung_vien_LOI_roi_thu_tiep(tmp_path, monkeypatch):
+    from autoedit.offline import thay_mau as tm
+
+    monkeypatch.setattr(tm, "_clip_db", lambda conn, cid: {"path_local": ""})
+    monkeypatch.setattr(tm, "_pexels_goc", lambda cid: "http://x/a.mp4")
+    lan = {"n": 0}
+
+    def tai(url, dich):
+        lan["n"] += 1
+        if lan["n"] == 1:
+            raise RuntimeError("404")
+        dich.write_bytes(b"z" * 10_000)
+
+    monkeypatch.setattr(tm, "_tai", tai)
+    monkeypatch.setattr(tm.time, "sleep", lambda *a: None)
+    f = tm.lay_du(None, tmp_path, 1,
+                  [{"id": "pexels:1", "tieu_de": "a"}, {"id": "pexels:2", "tieu_de": "b"}],
+                  2.5, lambda m: None)
+    assert f is not None and lan["n"] == 2
+
+
+# ------------------------------------------------- preview phải nói THẬT
+# User: "video ngắn hơn khối thì bị slow quá nhiều và loop lại". Hai trình phát
+# timeline có `loop` cứng trong HTML nên clip ngắn phát lại từ đầu, còn CapCut thì
+# đứng yên (freeze) hoặc sang miếng đắp thêm. Xem preview một đằng, draft một nẻo.
+
+def test_preview_timeline_KHONG_loop():
+    from pathlib import Path
+
+    import autoedit.web.server as sv
+
+    s = (Path(sv.__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    for vid in ("of-video", "of-video2"):
+        i = s.index(f'id="{vid}"')
+        the = s[i:s.index(">", i)]
+        assert "loop" not in the, f"{vid} còn loop — preview khác draft"
+    # thẻ trong KHAY vẫn loop: đó là xem trước clip, không phải xem trước timeline
+    assert '<video muted loop playsinline preload="none"></video>' in s

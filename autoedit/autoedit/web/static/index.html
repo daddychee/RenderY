@@ -891,8 +891,13 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       <div class="of-man" id="of-man-timeline">
         <div class="dau">PREVIEW <span class="ten" id="of-nhan"></span></div>
         <div class="of-khung-v" id="of-khung">
-          <video id="of-video" muted loop playsinline hidden></video>
-          <video id="of-video2" muted loop playsinline hidden></video>
+          <!-- KHÔNG `loop` (sửa 13/09): clip ngắn hơn miếng thì preview phát lại
+               từ đầu, còn CapCut thì ĐỨNG YÊN (freeze) hoặc sang miếng đắp thêm.
+               Người dựng xem preview thấy MỘT ĐẰNG, draft ra MỘT NẺO — user báo
+               "video ngắn hơn khối thì bị slow quá nhiều và loop lại". Bỏ loop để
+               preview nói thật: hết nguồn thì dừng ở khung cuối, y như draft. -->
+          <video id="of-video" muted playsinline hidden></video>
+          <video id="of-video2" muted playsinline hidden></video>
           <img id="of-anh" alt="" hidden>
           <div class="rong" id="of-rong">PHA 1 — duyệt cấu trúc khối<br>chưa đổ hình</div>
         </div>

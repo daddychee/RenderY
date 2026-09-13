@@ -213,7 +213,8 @@ def test_relocate_GHI_LINK_cua_clip_dang_chon(tmp_path):
                     "uv": [{"id": "envato:V1", "nguon": "envato",
                             "tieu_de": "Rome dawn"}]}]}
     (tmp_path / "proj").mkdir()
-    video, _dung_id, warns = tm.relocate(tmp_path / "proj", hd, c, lambda m: None)
+    video, _dung_id, warns, _du = tm.relocate(
+        tmp_path / "proj", hd, c, lambda m: None)
     c.close()
 
     assert 0 not in video, "clip không có file mà vẫn coi là tải được"
@@ -245,7 +246,7 @@ def test_LINK_di_TU_relocate_TOI_anh_tren_draft(tmp_path, profile):
                             "tieu_de": "Rome dawn"}]}]}
     proj = tmp_path / "proj"
     proj.mkdir()
-    video, _ids, _w = tm.relocate(proj, hd, c, lambda m: None)
+    video, _ids, _w, _du = tm.relocate(proj, hd, c, lambda m: None)
     c.close()
 
     ghi: list[tuple] = []

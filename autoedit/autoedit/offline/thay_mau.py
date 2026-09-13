@@ -79,6 +79,60 @@ def chia_mieng(dai_mieng: float, dai_clip: float, speed: float = SPEED,
     return round(phu, 3), round(du, 3)
 
 
+def lay_du(conn, assets: Path, i: int, ung_vien: list, can_s: float, log) -> Path | None:
+    """File cho MIẾNG ĐẮP THÊM (phần dư sau clip ngắn). None nếu không lấy được.
+
+    CỐ Ý là hàm RIÊNG, không dùng lại vòng giải file trong `relocate`: vòng đó
+    mang cửa chặn cứng "Envato chưa có bản sạch thì DỪNG export" (user họp team
+    10/09 — *"FIX TRIỆT ĐỂ"*), sửa vào đó để dùng chung là đặt cửa ấy vào thế
+    rủi ro. Ở đây chỉ nhận NGUỒN AN TOÀN:
+
+      ref/kho/envato ĐÃ CÓ `path_local`  -> cắt tại chỗ, không tải gì
+      pexels · pixabay                   -> tải bản gốc (API công khai, có giãn nhịp)
+      envato CHƯA có bản sạch            -> BỎ QUA, không đẻ lượt tải mới (phanh
+                                            1 luồng giãn 2-5s + cửa watermark)
+
+    Hệ quả: miếng đắp thêm KHÔNG BAO GIỜ làm export dừng hay ra watermark — hết
+    ứng viên an toàn thì trả None và caller giữ freeze như cũ.
+    """
+    from autoedit.sourcer.refvideo import cat_clip
+    from autoedit.sotra import db as sdb
+
+    for u in ung_vien:
+        cid = str(u.get("id") or "")
+        nguon = cid.split(":")[0]
+        c = _clip_db(conn, cid) or {}
+        dich = assets / f"h{i:02d}_du_{sdb.slug(u.get('tieu_de', ''), 20)}.mp4"
+        try:
+            local = str(c.get("path_local") or "")
+            if local and Path(local).is_file():
+                t0s = float(c.get("t0") or 0)
+                t1s = float(c.get("t1") or 0)
+                dai = (t1s - t0s) if t1s > t0s else can_s + 2.0
+                cat_clip(Path(local), max(0.0, t0s), min(dai + 0.3, can_s + 2.0), dich)
+            elif nguon == "pexels":
+                url = _pexels_goc(cid)
+                if not url:
+                    raise RuntimeError("API không trả file gốc")
+                _tai(url, dich)
+                time.sleep(random.uniform(*GIAN_NHIP))
+            elif nguon == "pixabay":
+                url = _pixabay_goc(cid)
+                if not url:
+                    raise RuntimeError("API không trả file gốc")
+                _tai(url, dich)
+                time.sleep(random.uniform(*GIAN_NHIP))
+            else:
+                continue           # envato thiếu bản sạch / aigen / nguồn lạ
+            if dich.is_file() and dich.stat().st_size > 5_000:
+                return dich
+            raise RuntimeError("file rỗng")
+        except Exception as exc:  # noqa: BLE001 — thử ứng viên kế, đắp là thứ đi kèm
+            log(f"thay-mau: miếng {i + 1} đắp thêm «{cid[:34]}» {str(exc)[:50]} — thử kế")
+            continue
+    return None
+
+
 # Nguồn ĐÃ MẤT HẲN — đánh `link_chet` để khay không trồi nó lên nữa.
 _MA_CHET = (404, 410)
 # Hết lượt / nhà cung cấp trục trặc — clip VẪN SỐNG, đánh dấu là giết oan.
@@ -226,15 +280,24 @@ def _i2v(client, anh: Path, prompt: str, dich: Path, log) -> Path | None:
         return None
 
 
-def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, list[str]]:
-    """Mỗi khối -> file thật trong assets_offline/. Trả (map khối->path, warnings)."""
+def relocate(project_dir: Path, hd: dict, conn, log, ark=None,
+             framing: dict | None = None) -> tuple[dict, dict, list[str], dict]:
+    """Mỗi khối -> file thật trong assets_offline/.
+
+    Trả (map miếng->path, clip thật đã dùng, warnings, map miếng->file ĐẮP THÊM).
+
+    `framing`: hồ sơ kênh — luật CHẺ MIẾNG lấy ngưỡng từ đó (`nguong_chia`). Miếng
+    nào clip ngắn hơn miếng thì giải thêm MỘT file đắp phần dư, thay cho freeze.
+    """
     from autoedit.sotra import db as sdb
     from autoedit.sourcer.refvideo import cat_clip
 
     assets = project_dir / "assets_offline"
     assets.mkdir(exist_ok=True)
     ra: dict[int, Path] = {}
-    dung_id: dict[int, str] = {}          # clip THẬT được dùng (dự bị tính là nó)
+    du: dict[int, Path] = {}              # file ĐẮP THÊM cho miếng có clip ngắn
+    nguong = nguong_chia(framing)
+    dung_id: dict[int, str] = {}        # clip THẬT được dùng (dự bị tính là nó)
     warns: list[str] = []
     # relocate theo DẢI HÌNH (08/09): mỗi MIẾNG hình một file — khoảng thở có
     # thể chứa nhiều miếng, miếng có thể trải qua nhiều khối voice
@@ -360,8 +423,23 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None) -> tuple[dict, li
             ra[i] = dat
             truoc_file, truoc_dung = dat, k["dur"] * SPEED
             truoc_id = dung_id.get(i)
+            # CLIP NGẮN HƠN MIẾNG -> giải thêm MỘT file đắp phần dư (user 13/09),
+            # thay cho freeze. Chỉ khi luật Framing cho chẻ; hết ứng viên an toàn
+            # thì thôi và `dung_draft` giữ freeze như cũ.
+            # Fail-open: đắp là thứ đi kèm, hỏng KHÔNG được giết draft.
+            try:
+                chia = chia_mieng(float(k["dur"]), _dai_video(dat), nguong=nguong)
+                if chia is not None:
+                    con = [u for u in thu_tu if u["id"] != dung_id.get(i)]
+                    f_du = lay_du(conn, assets, i, con, chia[1], log)
+                    if f_du is not None:
+                        du[i] = f_du
+                        log(f"thay-mau: miếng {i + 1} clip ngắn — đắp thêm "
+                            f"{chia[1]:.1f}s «{f_du.name[:30]}» thay vì freeze")
+            except Exception as exc:  # noqa: BLE001
+                log(f"thay-mau: miếng {i + 1} bỏ qua đắp thêm ({str(exc)[:50]})")
         log(f"thay-mau: miếng {i + 1}/{len(mhinh.dam_bao(hd))} -> {dat.name if dat else 'HỞ'}")
-    return ra, dung_id, warns
+    return ra, dung_id, warns, du
 
 
 def xuat_xml_canh_draft(draft: Path, log=None) -> list[str]:
@@ -547,14 +625,21 @@ def _tai_nhac(project_dir: Path, hd: dict, log) -> Path | None:
 
 
 def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
-               ten_draft: str, profile, log, dung_id: dict | None = None) -> Path:
-    """Ráp draft CapCut: video sàn 0.8 + freeze; voice đặt gap = tho_them dương."""
+               ten_draft: str, profile, log, dung_id: dict | None = None,
+               dup: dict | None = None) -> Path:
+    """Ráp draft CapCut: video sàn 0.8 + ĐẮP MIẾNG THỨ HAI (hết mới freeze);
+    voice đặt gap = tho_them dương.
+
+    `dup`: {miếng -> file đắp thêm} do `relocate` giải sẵn. Rỗng = quay về freeze
+    y như trước, nên đường cũ không đổi hành vi."""
     from pycapcut import (AudioMaterial, AudioSegment, ScriptFile, Timerange,
                           TrackType, VideoMaterial, VideoSegment)
 
     from autoedit.packager.assembler import SAFETY_US, _freeze_frame
     from autoedit.packager.packager import package_draft
     from autoedit.project import ffprobe_duration
+
+    dup = dup or {}
 
     script = ScriptFile(1920, 1080, fps=30)
     script.add_track(TrackType.video, "video_l1")
@@ -602,6 +687,21 @@ def dung_draft(project_dir: Path, hd: dict, video: dict, voice: dict,
                 dv = round(avail / SPEED)              # sàn 0.8: 0.9x + freeze
                 script.add_segment(VideoSegment(m, Timerange(t0_us, dv), speed=SPEED),
                                    "video_l1")
+                # ĐẮP MIẾNG THỨ HAI thay vì đông cứng (user chốt 13/09). Đo 53
+                # draft: 256 ô freeze, dài nhất 8,88s hình bất động. Luật chẻ lấy
+                # từ Framing Insight (`chia_mieng`/`nguong_chia`): dư < ngưỡng
+                # "cắt nhanh" của kênh thì vẫn freeze — freeze ngắn không ai thấy.
+                du = dup.get(i)
+                if du is not None:
+                    d2 = VideoMaterial(str(du))
+                    av2 = d2.duration - SAFETY_US
+                    con = dai_us - dv
+                    t2 = min(1.0, max(SPEED_MIN, av2 / con)) if con > 0 else SPEED
+                    script.add_segment(VideoSegment(
+                        d2, Timerange(t0_us + dv, con),
+                        source_timerange=Timerange(0, min(av2, round(con * t2))),
+                        speed=t2), "video_l1")
+                    continue
                 fz = _freeze_frame(f, f.parent)
                 if fz is not None:
                     script.add_segment(VideoSegment(
@@ -807,7 +907,8 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
                 f"Export ra sẽ dính WATERMARK. {ten}"
                 + (f" … và {len(thieu) - 5} miếng nữa" if len(thieu) > 5 else "")
                 + ". Đăng nhập lại Envato (chấm ● cạnh nút Export) rồi Export lại.")
-        video, dung_id, warns = relocate(project_dir, hd, c, ghi, ark=ark)
+        video, dung_id, warns, du_map = relocate(
+            project_dir, hd, c, ghi, ark=ark, framing=hd.get("framing"))
         # phản biện: ghi sổ theo clip THẬT được dùng (dự bị tính là dự bị —
         # test 07/09 bắt bug ghi nhầm theo clip 'được chọn' đã chết)
         # duyệt theo MIẾNG HÌNH, không theo khối: `relocate` đánh số theo miếng
@@ -840,7 +941,7 @@ def thay_mau(project_dir: Path, profile=None, conn=None, ark=None, log=None,
     # H có 6 bản). Tên theo chương thì xuất lại ĐÈ đúng chỗ cũ.
     ten = ten_draft_chuong(_ma_tap_cua(project_dir), _nhan_chuong_cua(project_dir),
                            lui=project_dir.name)
-    draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi,
+    draft = dung_draft(project_dir, hd, video, voice, ten, profile, ghi, dup=du_map,
                        dung_id=dung_id)
     from autoedit.offline import hinh as _mh
     kq = {"draft": str(draft), "mieng_co_hinh": len(video),

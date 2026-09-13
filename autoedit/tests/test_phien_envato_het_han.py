@@ -296,7 +296,8 @@ def test_TAI_DU_thi_chay_binh_thuong(tmp_path, monkeypatch):
     orun.luu(p, hd)
     da_dung = []
     monkeypatch.setattr(tm, "relocate",
-                        lambda *a, **k: (da_dung.append(1), ({}, {}, []))[1])
+                        # 4 giá trị từ 13/09: thêm map file ĐẮP THÊM
+                        lambda *a, **k: (da_dung.append(1), ({}, {}, [], {}))[1])
     monkeypatch.setattr(tm, "dung_draft", lambda *a, **k: tmp_path / "draft")
     monkeypatch.setattr(tm, "_cat_voice", lambda *a, **k: {})
     monkeypatch.setattr("autoedit.sourcer.tai_sach.tai_nhieu_tu_cuu",
@@ -325,7 +326,8 @@ def test_clip_NON_envato_khong_bi_anh_huong(tmp_path, monkeypatch):
     orun.luu(p, hd)
     da_dung = []
     monkeypatch.setattr(tm, "relocate",
-                        lambda *a, **k: (da_dung.append(1), ({}, {}, []))[1])
+                        # 4 giá trị từ 13/09: thêm map file ĐẮP THÊM
+                        lambda *a, **k: (da_dung.append(1), ({}, {}, [], {}))[1])
     monkeypatch.setattr(tm, "dung_draft", lambda *a, **k: tmp_path / "draft")
     monkeypatch.setattr(tm, "_cat_voice", lambda *a, **k: {})
     tm.thay_mau(p, profile=object(), conn=c, log=lambda m: None)
@@ -358,7 +360,9 @@ def test_relocate_KHONG_TAI_preview_watermark_nua(tmp_path):
     goc = tm._tai
     tm._tai = lambda url, dich, **k: (da_tai.append(url), goc(url, dich, **k))[1]
     try:
-        video, _ids, warns = tm.relocate(p, hd, c, lambda m: None)
+        # `relocate` trả 4 giá trị từ 13/09: thêm map file ĐẮP THÊM cho
+        # miếng có clip ngắn hơn miếng (thay freeze).
+        video, _ids, warns, _du = tm.relocate(p, hd, c, lambda m: None)
     finally:
         tm._tai = goc
     c.close()
