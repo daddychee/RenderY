@@ -233,3 +233,17 @@ def test_khop_vat_doc_ca_TIEU_DE():
             "vat_the": "glass, sweater, shirt"}]]
     xep_3_tang(uv, [["fruit juice glass"]], NV)
     assert uv[0][0]["tang"] == "A"
+
+
+def test_tu_GIAO_DIEN_khong_phai_vat_quay_duoc():
+    """Đo chương E sau khi cho khớp cả tiêu đề: câu outro "subscribe button
+    screen / notification bell icon" nhận "Animated Check Signing Flat Design
+    ICON" — khớp nhờ chữ `icon`. Câu kêu gọi đăng ký không có vật nào quay được;
+    để nó rơi xuống tầng B (đúng người, hình chung) mới đúng."""
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("icon_lech", tuoi="older", ct="white",
+               vat_the="check, pen, dollar sign", diem=50)]]
+    uv[0][0]["tieu_de"] = "Animated Check Signing Flat Design Icon"
+    xep_3_tang(uv, [["subscribe button screen", "notification bell icon"]], NV)
+    assert uv[0][0]["tang"] == "B", "chữ giao diện không được tính là khớp vật"

@@ -149,7 +149,13 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
 TU_DO_DAC = frozenset("""table glass hand hands person people morning light room
 indoor indoors closeup close scene view shot home house window counter desk paper
 papers background modern bright dark soft warm front adult woman man young family
-thing stuff area wall floor chair shirt setting""".split())
+thing stuff area wall floor chair shirt setting
+icon icons screen button logo text label labels graphic graphics animated
+animation flat design overlay""".split())
+# Nhóm dòng cuối là TỪ GIAO DIỆN, thêm 13/09 sau khi cho khớp cả tiêu đề: câu
+# outro "subscribe button screen / notification bell icon" nhận
+# "Animated Check Signing Flat Design ICON" — khớp nhờ đúng chữ `icon`. Câu kêu
+# gọi đăng ký không có vật nào quay được, để nó rơi tầng B mới đúng.
 
 
 def _tu_vat(x) -> set[str]:
