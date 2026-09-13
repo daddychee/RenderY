@@ -51,7 +51,7 @@ def test_tang_A_thang_tang_B_du_diem_thap_hon():
 def test_tang_B_thang_tang_C():
     from autoedit.offline.dung import xep_3_tang
 
-    uv = [[the("C_can", shot="close", diem=99),
+    uv = [[the("C_can", shot="close", vat_the="pill bottle", diem=99),
            the("B_nguoi_gia", tuoi="older", ct="white", diem=1)]]
     xep_3_tang(uv, [["pill bottle"]], NV)
     assert [x["id"] for x in uv[0]] == ["B_nguoi_gia", "C_can"]
@@ -63,9 +63,10 @@ def test_tang_C_CHI_nhan_canh_can():
     đường thoát — đó là núi Andes trong tập sức khoẻ."""
     from autoedit.offline.dung import xep_3_tang
 
-    uv = [[the("rong_nguoi_tre", tuoi="young", ct="asian", shot="wide", diem=99),
-           the("can", shot="close", diem=1)]]
-    so = xep_3_tang(uv, [["x"]], NV)
+    uv = [[the("rong_nguoi_tre", tuoi="young", ct="asian", shot="wide",
+               vat_the="water glass", diem=99),
+           the("can", shot="close", vat_the="water glass", diem=1)]]
+    so = xep_3_tang(uv, [["water glass"]], NV)
     assert so == [1], "chỉ cảnh cận được dùng"
     assert uv[0][0]["id"] == "can" and uv[0][0]["tang"] == "C"
     assert uv[0][1]["tang"] == "-"
@@ -75,9 +76,11 @@ def test_tang_C_uu_tien_nguoi_gia():
     """User chốt: "cảnh cận có thể lấy tùy ý nhưng ưu tiên là người già"."""
     from autoedit.offline.dung import xep_3_tang
 
-    uv = [[the("can_tre", tuoi="young", ct="asian", shot="close", diem=99),
-           the("can_gia", tuoi="older", ct="black", shot="close", diem=1)]]
-    xep_3_tang(uv, [["x"]], NV)
+    uv = [[the("can_tre", tuoi="young", ct="asian", shot="close",
+               vat_the="water pitcher", diem=99),
+           the("can_gia", tuoi="older", ct="black", shot="close",
+               vat_the="water glass", diem=1)]]
+    xep_3_tang(uv, [["water glass pitcher"]], NV)
     assert uv[0][0]["id"] == "can_gia"
 
 
@@ -175,3 +178,58 @@ def test_the_thieu_truong_doc_hinh_KHONG_no():
            the("moi", tuoi="older", ct="white")]]
     so = xep_3_tang(uv, [["x"]], NV)
     assert so == [1] and uv[0][0]["id"] == "moi"
+
+
+# --------------------------------------------- tầng C: nới NGƯỜI, không nới VẬT
+# Đo chương E của SH010 (user thử 13/09): tầng C nhận BẤT KỲ cảnh cận, không cần
+# liên quan vật gì —
+#     câu "hands holding glass"      -> "Man Hands Weaving Carpet in Uzbekistan"
+#     câu "pouring water into glass" -> "Hands Count and Place Money Into Envelope"
+# Luật user: "câu nào không tả được bằng 1+2 thì tìm các cảnh cận". Nới ở đây là
+# nới điều kiện NGƯỜI (cận bàn tay thì không thấy tuổi), KHÔNG phải nới điều kiện
+# VẬT. Cận bàn tay đếm tiền cho câu "rót nước" thì thà để trống.
+
+def test_tang_C_van_phai_LIEN_QUAN_VAT(the=the):
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("can_lech", shot="close", vat_the="loom, threads, fabric", diem=99),
+           the("can_dung", shot="close", vat_the="water glass, pitcher", diem=1)]]
+    so = xep_3_tang(uv, [["pouring water into glass"]], NV)
+    assert uv[0][0]["id"] == "can_dung"
+    assert so == [1], "cảnh cận không liên quan vật thì KHÔNG được dùng"
+
+
+def test_tang_C_khong_co_gi_lien_quan_thi_DE_TRONG():
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("can_tien", shot="close", vat_the="money, envelope, papers"),
+           the("can_det", shot="close", vat_the="loom, threads")]]
+    assert xep_3_tang(uv, [["pouring water into glass"]], NV) == [0]
+
+
+def test_tang_C_uu_tien_nguoi_gia_TRONG_SO_lien_quan():
+    """Ưu tiên người già vẫn giữ — nhưng chỉ xét trong nhóm đã liên quan vật."""
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[the("can_tre_dung_vat", tuoi="young", ct="asian", shot="close",
+               vat_the="water glass", diem=99),
+           the("can_gia_dung_vat", tuoi="older", ct="white", shot="close",
+               vat_the="water pitcher", diem=1)]]
+    xep_3_tang(uv, [["pouring water into glass"]], NV)
+    assert uv[0][0]["id"] == "can_gia_dung_vat"
+
+
+# ------------------------------------- khớp vật phải đọc CẢ TIÊU ĐỀ, không chỉ vat_the
+
+def test_khop_vat_doc_ca_TIEU_DE():
+    """Chương E: câu cần `fruit juice glass`, clip "Mature Woman Drinking Juice"
+    bị hạ xuống tầng B vì `vat_the` vision ghi "glass, sweater, shirt" — chữ
+    `juice` nằm ở TIÊU ĐỀ. Clip đúng mà mất hạng."""
+    from autoedit.offline.dung import xep_3_tang
+
+    uv = [[{"id": "juice", "nguon": "envato", "diem": 10,
+            "tieu_de": "Mature Woman Drinking Juice and Talking at Table",
+            "tuoi": "older", "chung_toc": "white", "shot": "medium",
+            "vat_the": "glass, sweater, shirt"}]]
+    xep_3_tang(uv, [["fruit juice glass"]], NV)
+    assert uv[0][0]["tang"] == "A"

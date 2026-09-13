@@ -160,6 +160,19 @@ def _tu_vat(x) -> set[str]:
             for w in re.findall(r"[a-z]{4,}", str(c).lower())} - TU_DO_DAC
 
 
+def _tu_the(the: dict) -> set[str]:
+    """Từ vật thể của MỘT thẻ — `vat_the` (vision đọc) + `tieu_de` (người bán gõ).
+
+    Vì sao phải có tiêu đề (đo chương E SH010 13/09): câu cần `fruit juice glass`,
+    clip "Mature Woman Drinking Juice and Talking at Table" bị hạ xuống tầng B vì
+    `vat_the` vision ghi "glass, sweater, shirt" — vision kể VẬT THẤY ĐƯỢC, còn
+    chữ `juice` chỉ có trong tiêu đề. Clip đúng mà mất hạng.
+    Nguy cơ chữ marketing quay lại đã có hai lớp chắn: `TU_DO_DAC` cắt từ đồ đạc,
+    và CỬA NHÂN VẬT giữ đúng thế giới.
+    """
+    return _tu_vat([the.get("vat_the"), the.get("tieu_de")])
+
+
 def dat_nhan_vat(the: dict, nhan_vat: dict) -> bool:
     """Thẻ này có đúng người của ngách không. Trường nào ngách KHÔNG khai thì
     không soi — ngách khai một nửa (chỉ tuổi) thì chỉ soi tuổi."""
@@ -222,12 +235,18 @@ def xep_3_tang(ung_vien: list[list[dict]], doi_tuong: list, nhan_vat: dict) -> l
         obj = _tu_vat(doi_tuong[i] if i < len(doi_tuong) else [])
         A, B, C, con = [], [], [], []
         for the in uv:
-            trung = len(_tu_vat(the.get("vat_the")) & obj)
+            trung = len(_tu_the(the) & obj)
             the["trung_vat"] = trung
             if dat_nhan_vat(the, nhan_vat):
                 the["tang"] = "A" if trung else "B"
                 (A if trung else B).append(the)
-            elif str(the.get("shot") or "").strip().lower() == "close":
+            # TẦNG C nới lỏng NGƯỜI, KHÔNG nới lỏng VẬT (user thử chương E 13/09):
+            # bản đầu nhận mọi cảnh cận nên câu "hands holding glass" nhận "Man
+            # Hands Weaving Carpet in Uzbekistan", câu "pouring water into glass"
+            # nhận "Hands Count and Place Money Into Envelope". Cận bàn tay thì
+            # không thấy tuổi — đó là lý do nới NGƯỜI; nhưng vật vẫn phải liên
+            # quan, không thì thà để trống.
+            elif trung and str(the.get("shot") or "").strip().lower() == "close":
                 the["tang"] = "C"
                 C.append(the)
             else:
