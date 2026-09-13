@@ -212,8 +212,16 @@ def ten_frame(clip_id: str, tieu_de: str, vai: str) -> str:
 def _chu_fts(r: dict) -> str:
     # vat_the PHẢI có trong FTS: đó là lý do thêm trục này (tra "bananas" phải
     # ra được thùng Burberry giấu ma túy). Bỏ sót = trục thành vô dụng.
+    #
+    # tu_khoa_hut cũng PHẢI có (user báo 13/09): lượt hút «sleep senior» vào sổ
+    # 123 clip nhưng ô tìm chỉ ra 77 — 46 clip biến mất vì tiêu đề ghi
+    # "Older Couple Sleeping" / "Mature Man Sleeping" mà unicode61 không có thân
+    # từ (sleeping != sleep) và alias không có đồng nghĩa tuổi (older != senior).
+    # Envato/Pexels hiểu senior là elderly/older/mature, sổ ta thì không. Đưa từ
+    # khoá đã hút vào chỉ mục = hút cái gì tìm ra đúng cái đó (đo: 123/123).
     return " ".join(str(r.get(k) or "")
-                    for k in ("tieu_de", "vat_the") + TRUC).replace(">", " ")
+                    for k in ("tieu_de", "vat_the", "tu_khoa_hut") + TRUC
+                    ).replace(">", " ")
 
 
 def them_clip(conn: sqlite3.Connection, r: dict) -> bool:

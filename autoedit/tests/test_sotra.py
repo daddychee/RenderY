@@ -382,3 +382,51 @@ def test_lam_tuoi_ref_uv_doi_cu(conn, tmp_path):
     assert ids_hinh[0] == "ref:LI100-ref-1:2-6" and "ref:LI100-ref-1:10.00-14.00" in ids_hinh
     # chạy lại lần 2: không còn gì để đổi
     assert lam_tuoi_ref(hd, conn) is False
+
+
+# ------------------------------------------------------------ TỪ KHOÁ ĐÃ HÚT
+# User báo 13/09: *"Vừa hút được xong nhưng sau vài clip thì lại không xuất hiện"*.
+# Đo thật lượt hút «sleep senior» của user: vào sổ 123 clip (envato 43 · pexels 40 ·
+# pixabay 40, tất cả `trang_thai='song'`) nhưng ô tìm chỉ ra **77/123** — 46 clip
+# biến mất NGAY khi tìm bằng chính từ khoá vừa hút, và đó là 46 clip ĐÚNG NHẤT:
+#
+#   "Elderly Woman with Gray Hair Sleeping Peacefully"   sleeping != sleep
+#   "Older Couple Sleeping in Bed Together"              older    != senior
+#   "Mature Man Sleeping Peacefully in Bed"              mature   != senior
+#
+# `tokenize='unicode61'` không có thân từ, bảng `alias` không có đồng nghĩa tuổi.
+# Envato/Pexels hiểu "senior" là elderly/older/mature, sổ ta thì không.
+#
+# Đo 3 cách trên chính 123 clip đó (13/09):
+#   A. khớp tiền tố `sleep*`                     96/123 · cả kho 295 -> 372
+#   B. alias senior->elderly/older/mature       102/123 · cả kho 295 -> 1007  NHIỄU
+#   C. đưa `tu_khoa_hut` vào chỉ mục            123/123 · cả kho 295 -> 407
+# User chốt C: hút cái gì thì tìm ra đúng cái đó, nhiễu thấp hơn B 2,5 lần.
+
+def test_tu_khoa_hut_vao_chi_muc_hut_gi_tim_ra_do(conn):
+    """Tiêu đề KHÔNG chứa chữ nào của từ khoá — vẫn phải tìm ra."""
+    sdb.them_clip(conn, _clip(1, "Older Couple Relaxing in Bed Together",
+                              tu_khoa_hut="sleep senior"))
+    conn.commit()
+    kq = sdb.tim(conn, q="sleep senior")
+    assert len(kq) == 1, "clip vừa hút phải tìm ra bằng chính từ khoá đã hút"
+
+
+def test_tu_khoa_hut_khong_lam_clip_khac_lot_vao(conn):
+    sdb.them_clip(conn, _clip(1, "Mature Man Sleeping", tu_khoa_hut="sleep senior"))
+    sdb.them_clip(conn, _clip(2, "Aerial View of Quito Market", tu_khoa_hut="market"))
+    conn.commit()
+    kq = sdb.tim(conn, q="sleep senior")
+    assert [k["tieu_de"] for k in kq] == ["Mature Man Sleeping"]
+
+
+def test_lam_moi_fts_cung_mang_tu_khoa_hut(conn):
+    """Đánh lại chỉ mục (dùng cho cả 18.550 clip cũ) phải ra cùng kết quả."""
+    sdb.them_clip(conn, _clip(1, "Elderly Woman Waking Up"))
+    conn.execute("UPDATE clip SET tu_khoa_hut='sleep senior' WHERE id=?",
+                 (sdb.lam_id("envato", "1"),))
+    conn.commit()
+    assert sdb.tim(conn, q="sleep senior") == []      # chưa đánh lại thì chưa thấy
+    sdb.lam_moi_fts(conn, sdb.lam_id("envato", "1"))
+    conn.commit()
+    assert len(sdb.tim(conn, q="sleep senior")) == 1
