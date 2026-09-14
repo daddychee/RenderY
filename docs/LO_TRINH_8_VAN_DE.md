@@ -1953,3 +1953,79 @@ user tự chạy. Xoá xong ổ C về ~81 GB trống.
 
 * Kiểm trang item Envato bằng phiên đăng nhập: có nút HD/1080 song song 4K không (user chốt
   kiểm trước, chưa sửa code).
+
+# 14/09/2026 — ADD SHOT CẮT NHẦM KHỐI (hai trục thời gian)
+
+User: *"thêm miếng ở khối này lại bị nhảy sang khối khác thêm miếng"*.
+
+Timeline có **hai trục**: trục VOICE (`OF_AUDIO.currentTime`, giây trong file voice)
+và trục TIMELINE (`hinh[].t0`, bị đẩy về sau mỗi lần thêm hình thở `tho_them`).
+`ofDoiTruoc(i)` = tổng hình thở của các khối ĐỨNG TRƯỚC khối i.
+
+`ofAddShot` (phím **E**) gửi thẳng giây trục VOICE lên `/che-tai`, mà `hinh.che_tai()`
+so với `hinh[].t0` — trục TIMELINE. Lệch đúng bằng `ofDoiTruoc`.
+
+**Đo trên chính chương user đang làm — SH019 `h-20260911-082055`, 16 khối:**
+
+| | |
+|---|---|
+| khối có `tho_them` | 0 (+5s) · 2 (+1s) · **3 (+9,7s)** · 4 · 6 · 8 · 11 · 12 · 14 |
+| lệch cộng dồn cuối chương | **21,7s** |
+| khối bấm E bị cắt nhầm chỗ | **14/16** |
+| vạch ở khối 4 (38,5s voice) | cắt lệch **15,7s** về trước, rơi ra ngoài khối |
+
+Hai chương khác (`c9-…`, `e-…`) **chưa thêm hình thở lần nào** → lệch 0 → bấm E vẫn
+đúng. Đó là lý do lỗi lúc có lúc không.
+
+**Sửa:** đổi trục trước khi gửi, cùng công thức thanh vạch `of-ph` và ô tra cứu đã
+dùng. Đổi cả dòng tìm miếng vừa cắt và dòng toast — không thì con số báo cho user
+vẫn là số cũ. **Máy chủ không đụng đến**: `che_tai` làm đúng việc của nó.
+
+6 test trong CHROME THẬT. Dev 1902 pass · production 1902 pass / 0 fail.
+
+## Hai chỗ tự bắt mình dừng
+
+* **Suýt xoá code chết.** `ofThemMieng` làm ĐÚNG phép đổi trục nhưng không nút nào,
+  không phím nào gọi. Định xoá cho gọn — luật repo: *"Don't remove pre-existing dead
+  code unless asked"*. Giữ nguyên, thêm test canh cho nó đừng sống dậy mà vẫn mang
+  bản cũ. Xoá hay giữ là quyết định của user.
+* **Test sai trước code.** Lần chạy đầu còn một test đỏ: trang thử khai `const OF_HD`
+  nên dòng gán ném lỗi và bị chính `try/catch` của hàm nuốt. Code sản phẩm không sai.
+
+# 13/09/2026 — CỜ ECUADOR TRONG CHƯƠNG SENIOR HEALTH (đã tìm nguyên nhân, CHƯA sửa)
+
+User gửi ảnh khay miếng 7 của SH019: có "Ecuador Flag Waving in Sky Animation" và
+"snow capped peaks, Mirador de los Condores" nằm cạnh ảnh đo đường huyết.
+
+**1. Chương này chưa bao giờ được lọc.** Hợp đồng `h-20260911-082055` (thanhtran tạo
+11/09) **không có trường `ngach`, không có `nhan_vat`** — hai thứ đó ra đời 12–13/09.
+Đo: **cả 13 ứng viên của miếng 7 đều `tang = None`**. Cửa "đúng người + đúng vật"
+CHƯA TỪNG chạy trên chương này; trên ảnh cũng không thẻ nào có nhãn A/B/C.
+
+**2. Một chữ trùng là lọt.** Lớp ngữ nghĩa viết đúng (`sleeping body` ·
+`neck spine alignment` · `blood flow animation` · `dim bedroom slow motion`) nhưng
+FTS nối tokens bằng HOẶC:
+
+| Clip lọt | Chữ kéo vào | Từ lớp |
+|---|---|---|
+| Ecuador Flag Waving in Sky **Animation** | `animation` | L2 "blood flow animation" |
+| eroded cliffs with snow capped peaks | `slow` / `peak` | L3 "dim bedroom slow motion" |
+
+`animation` là chữ KỸ THUẬT — đúng nhóm đã gạt khỏi phép khớp vật thể (`TU_DO_DAC`),
+nhưng phép TÌM TRONG KHO thì chưa gạt.
+
+**3. Kho nghiêng hẳn về Life In:** ref 7.578/8.969 clip (**84%**) có địa danh /
+Ecuador / Nepal / Village; envato 1.170/5.775 (20%). Chương lại đặt
+`uu_tien_nguon = ref`.
+
+**Hai đường sửa, CHỜ USER QUYẾT:** (a) khai ngách cho chương cũ rồi ⟳ Phân tích lại —
+cần đường ghi `ngach` vào chương đã tạo vì `do_lai_khay` đọc `hd["ngach"]`;
+(b) gạt chữ kỹ thuật (`animation`, `overlay`, `illustration`, `slow motion`…) khỏi
+phép tìm trong kho.
+
+## Việc treo khác
+
+* **Restart 9118** — chỉ mục đã đánh lại nhưng server còn chạy Python cũ, clip hút
+  mới vẫn chưa mang `tu_khoa_hut` vào chỉ mục.
+* **Xoá kho cũ ổ C** (78 GB, ổ C còn 2,83 GB) — `Remove-Item -Recurse -Force` bị cửa
+  an toàn Claude Code chặn, user tự chạy.
