@@ -2253,14 +2253,21 @@ async function ofAddShot() {
   // CẮT TẠI VẠCH (user chốt 07/09): trước đây chia khối thành n phần ĐỀU nhau —
   // nay vạch chạy đến đâu thì cắt đúng chỗ đó. Việc cắt nằm ở MÁY CHỦ (máy
   // không có Node.js nên logic trong JS không test được).
+  // HAI TRỤC (lỗi user báo 14/09: "thêm miếng ở khối này lại nhảy sang khối
+  // khác"): `currentTime` là giây trục VOICE, còn `che_tai` ở máy chủ so với
+  // `hinh[].t0` — trục TIMELINE, vốn bị đẩy về sau đúng bằng tổng hình thở của
+  // các khối ĐỨNG TRƯỚC. Đo trên SH019: lệch cộng dồn 21,7s, 14/16 khối cắt
+  // nhầm chỗ, vạch ở khối 4 rơi lệch 15,7s. Đổi trục y như `of-ph` và ô tra cứu.
   const t = OF_AUDIO ? Math.max(0, OF_AUDIO.currentTime - (OF_HD.offset || 0)) : 0
+  let iK = ofK().findLastIndex(k => k.v0 <= t + 0.01); if (iK < 0) iK = 0
+  const tl = t + ofDoiTruoc(iK)                    // giây trên trục TIMELINE
   ofChup()
   try {
     const r = await api('/api/offline/' + OF_PID + '/che-tai',
-                        {method: 'POST', body: JSON.stringify({tai: t})})
+                        {method: 'POST', body: JSON.stringify({tai: tl})})
     if (r.hop_dong) OF_HD = r.hop_dong
-    OF_HCHON = OF_HD.hinh.findIndex(x => Math.abs(x.t0 - t) < 0.02)
-    toastOf(`✂ Cắt tại ${t.toFixed(2)}s — hai mảnh dùng chung clip, chạy liên tục`)
+    OF_HCHON = OF_HD.hinh.findIndex(x => Math.abs(x.t0 - tl) < 0.02)
+    toastOf(`✂ Cắt tại ${tl.toFixed(2)}s — hai mảnh dùng chung clip, chạy liên tục`)
   } catch (e) { OF_UNDO.pop(); toastOf('Lỗi: ' + e.message) }
   ofVeAll()
 }
