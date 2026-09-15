@@ -210,7 +210,11 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",
                             f.read_text(encoding="utf-8"), re.M):
-            if not m.startswith(("autoedit.kichban", "autoedit.web.chapters")):
+            # `web.ket_v3` — MỘT CỬA KHOÁ của cụm (docs/APPS.md bước 5): app không
+            # được giữ sổ khoá riêng. Module đó chỉ gọi HTTP tới gateway, không
+            # kéo theo tầng dựng nào.
+            if not m.startswith(("autoedit.kichban", "autoedit.web.chapters",
+                                 "autoedit.web.ket_v3")):
                 xau.append(f"{f.name}: {m}")
     assert not xau, f"kichban đang import vào tầng dựng: {xau}"
 
@@ -304,3 +308,33 @@ def test_header_crm_thang_ten_tu_khai(bo):
     khach.post("/api/toi", json={"nguoi": "muon-ten"})
     khach.headers.update({"X-Remote-User": "haint"})
     assert khach.get("/api/toi").json()["nguoi"] == "haint"
+
+
+# ------------------------------- khoá LLM -----------------------------------
+def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
+    """MỘT CỬA KHOÁ (luật cụm, docs/APPS.md bước 5): khoá do Owner nhập ở
+    General › API Keys, app hỏi két qua loopback — app KHÔNG giữ sổ khoá riêng,
+    KHÔNG đọc .env. Bàn kịch bản dùng lại đúng cấp phát của RenderY (`cham_footage`,
+    nhà glm) vì nó LÀ công cụ của RenderY; chép khoá sang chỗ khác là đẻ sổ thứ hai.
+
+    Két tắt/chưa cấp phát -> rơi về biến môi trường (chạy tay trên máy dev).
+    """
+    from autoedit.kichban import dich as mdich
+
+    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-KET", "glm-5.3"))
+    monkeypatch.setenv("GLM_API_KEY", "KHOA-ENV")
+    assert mdich.DichGLM().key == "KHOA-KET", "có két thì dùng két"
+
+    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("", ""))
+    assert mdich.DichGLM().key == "KHOA-ENV", "két câm thì rơi về env"
+
+
+def test_ket_hong_khong_giet_ban_kich_ban(monkeypatch):
+    """Gateway chết / không có mạng: vẫn mở được bàn kịch bản, chỉ nút Dịch lại
+    báo lỗi. Cột tiếng Anh mới là thứ phải sống."""
+    from autoedit.kichban import dich as mdich
+
+    def _no(): raise RuntimeError("gateway chết")
+    monkeypatch.setattr(mdich, "_khoa_tu_ket", _no)
+    monkeypatch.delenv("GLM_API_KEY", raising=False)
+    assert mdich.DichGLM().key == ""

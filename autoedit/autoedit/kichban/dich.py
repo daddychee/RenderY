@@ -27,6 +27,25 @@ class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
 
+def _khoa_tu_ket() -> tuple[str, str]:
+    """(khoá, model) GLM từ két OUTLIERY — MỘT CỬA KHOÁ của cụm.
+
+    Luật `docs/APPS.md` bước 5: khoá do Owner nhập ở **General › API Keys**, app
+    hỏi qua loopback; app KHÔNG giữ sổ khoá riêng, KHÔNG đọc `.env`. Bàn kịch bản
+    dùng lại đúng cấp phát của RenderY (việc `cham_footage`, nhà glm) vì nó LÀ
+    công cụ của RenderY — chép khoá sang chỗ khác là đẻ ra sổ thứ hai, đổi khoá
+    một nơi thì nơi kia chết lặng.
+
+    Đây là ngoại lệ DUY NHẤT của luật cách ly (test `test_khong_dinh_gi_toi_day
+    _chuyen_dung`): `web/ket_v3` chỉ gọi HTTP, không kéo theo tầng dựng nào.
+    """
+    # Import ĐÚNG module con (không `from autoedit.web import ket_v3`) để test
+    # cách ly còn soi được tên đầy đủ — nó chặn theo tiền tố chuỗi.
+    from autoedit.web.ket_v3 import khoa_cua_viec
+
+    return khoa_cua_viec("cham_footage")
+
+
 class DichGLM:
     """Bộ dịch thật (GLM). Tiêm được nên test không chạm mạng.
 
@@ -35,12 +54,18 @@ class DichGLM:
     """
 
     def __init__(self, url: str | None = None, key: str | None = None,
-                 model: str = "glm-5.3") -> None:
+                 model: str = "") -> None:
         import os
+
+        khoa_ket, model_ket = "", ""
+        try:
+            khoa_ket, model_ket = _khoa_tu_ket()
+        except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
+            pass
         self.url = url or os.getenv("GLM_API_URL",
                                     "https://api.z.ai/api/paas/v4/chat/completions")
-        self.key = key or os.getenv("GLM_API_KEY", "")
-        self.model = model
+        self.key = key or khoa_ket or os.getenv("GLM_API_KEY", "")
+        self.model = model or model_ket or "glm-5.3"
 
     def dich(self, cau: list[str]) -> list[str]:
         import urllib.error
