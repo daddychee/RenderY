@@ -220,3 +220,28 @@ def test_api_toi_tra_ve_nguoi_dang_dang_nhap(bo):
     c, _, _ = bo
     assert c.get("/api/toi").json()["nguoi"] == "haint"
     assert TestClient(c.app).get("/api/toi").json()["nguoi"] == ""
+
+
+# --------------------------- tin header hay không ---------------------------
+def test_chi_tin_header_khi_co_co_va_loopback(tmp_path, monkeypatch):
+    """Luật bảo mật của cụm OUTLIERY (docs/bao-mat-internet.md, GD1): app tin
+    `X-Remote-*` vô điều kiện thì ai cũng curl một cái là thành người khác. Chỉ
+    tin khi CÓ CỜ `KICHBAN_TRUST_PROXY=1` VÀ client là loopback — cổng CRM đã
+    vứt header giả do người ngoài gửi lên.
+
+    Mặc định (không đặt cờ) vẫn tin, để chạy tay trên máy mình không vướng; cờ
+    này để BẬT chế độ nghiêm khi đặt sau proxy.
+    """
+    from autoedit.kichban.app import tao_app as _tao
+
+    kho = Kho(tmp_path / "k.db")
+    c = TestClient(_tao(kho), client=("10.0.0.9", 5000))   # KHÔNG phải loopback
+    c.headers.update({"X-Remote-User": "ke-gia-mao"})
+
+    monkeypatch.setenv("KICHBAN_TRUST_PROXY", "1")
+    assert c.get("/api/toi").json()["nguoi"] == "", "ngoài loopback thì không tin header"
+    r = c.post("/api/tap", json={"ma": "X", "ten": "x"})
+    assert r.status_code == 401
+
+    monkeypatch.delenv("KICHBAN_TRUST_PROXY")
+    assert c.get("/api/toi").json()["nguoi"] == "ke-gia-mao", "chưa bật cờ thì giữ đường cũ"

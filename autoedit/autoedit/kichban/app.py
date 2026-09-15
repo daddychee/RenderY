@@ -27,7 +27,29 @@ from autoedit.kichban.kho import Kho, KhoaBiGiu
 TRANG = Path(__file__).parent / "static" / "kichban.html"
 
 
+def _loopback(request: Request) -> bool:
+    host = (request.client.host if request.client else "") or ""
+    return host in ("127.0.0.1", "::1", "localhost")
+
+
+def _tin_header(request: Request) -> bool:
+    """Có được tin `X-Remote-User` không?
+
+    Luật cụm OUTLIERY (docs/bao-mat-internet.md, GD1 — 4 app từng tin header vô
+    điều kiện, curl một cái là thành Owner): chỉ tin khi BẬT CỜ và client là
+    loopback, vì cổng CRM proxy từ 127.0.0.1 và đã vứt header người ngoài gửi lên.
+
+    Chưa đặt cờ thì giữ đường cũ (tin header) để chạy tay trên máy mình không
+    vướng — bật cờ khi đặt sau proxy thật.
+    """
+    if os.getenv("KICHBAN_TRUST_PROXY", "").strip() != "1":
+        return True
+    return _loopback(request)
+
+
 def _nguoi(request: Request) -> str:
+    if not _tin_header(request):
+        return ""
     return (request.headers.get("x-remote-user") or "").strip()
 
 
