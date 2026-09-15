@@ -1,0 +1,60 @@
+"""Bàn kịch bản — trang phục vụ ở `/` phải là trang THẬT, không phải bản mẫu.
+
+Bản mẫu (scratchpad) mang dữ liệu giả nhúng thẳng trong JS để duyệt giao diện.
+Nếu bản đó lọt lên máy chủ thì team gõ cả buổi rồi mất trắng khi đóng tab — nên
+canh bằng test tĩnh: không còn mảng dữ liệu nhúng, và có gọi API thật.
+
+Hai cơ chế đã đo tận tay ở bản mẫu, canh để không ai vô tình gỡ:
+  - SỐ THỨ TỰ vẽ bằng CSS counter (`.en::before`), không nằm trong văn bản của
+    trang. Đổi sang <span> là số lại dính vào bản copy đem đi ren voice — đúng
+    nỗi khổ trên Google Sheet mà tool này sinh ra để chữa.
+  - Dấu ✅❌🕐 đặt `user-select:none` vì cùng lý do.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+TRANG = (Path(__file__).resolve().parents[1]
+         / "autoedit" / "kichban" / "static" / "kichban.html")
+
+
+@pytest.fixture(scope="module")
+def html() -> str:
+    return TRANG.read_text(encoding="utf-8")
+
+
+def test_khong_con_du_lieu_gia_nhung_trong_trang(html):
+    for dau in ("var TAP = [", "var TAP=[", "Mossavar-Rahmani", "thanhdn đang sửa"):
+        assert dau not in html, f"trang còn dữ liệu bản mẫu: {dau!r}"
+
+
+def test_co_goi_api_that(html):
+    for duong in ("/api/tap", "fetch("):
+        assert duong in html, f"trang chưa gọi API: {duong!r}"
+
+
+def test_co_giu_va_nha_khoa(html):
+    """2-3 người làm cùng lúc: không giữ khoá thì hai người ghi đè nhau."""
+    assert "/giu" in html and "/nha" in html
+
+
+def test_co_tu_luu(html):
+    assert "luuNgay" in html or "tuLuu" in html
+
+
+def test_so_thu_tu_van_ve_bang_css_counter(html):
+    assert "counter(dong)" in html
+    assert "counter-increment:dong" in html.replace(" ", "")
+
+
+def test_dau_hieu_khong_bi_boi_den(html):
+    assert "user-select:none" in html.replace(" ", "")
+
+
+def test_copy_lay_ban_txt_tu_may_chu(html):
+    """Một luật một chỗ: bản copy phải là bản `/txt` do `dong.xuat()` sinh, không
+    ghép lại bằng JS — hai đường ghép là hai kết quả lệch nhau."""
+    assert "/txt" in html
