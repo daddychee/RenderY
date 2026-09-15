@@ -639,6 +639,27 @@ function bao(html, xau){
   t.innerHTML = html; t.className = xau ? "xau" : ""; t.style.display = "block";
   clearTimeout(bao._h); bao._h = setTimeout(function(){ t.style.display = "none"; }, 4500);
 }
+async function aiDay(){
+  try { TOI = (await api("/api/toi")).nguoi || ""; } catch(e){ TOI = ""; }
+  var e = document.getElementById("aiToi");
+  e.textContent = TOI ? "✎ " + TOI : "⚠ chưa khai tên — chỉ xem";
+  e.style.cursor = "pointer";
+  e.title = "Bấm để đổi tên";
+  e.onclick = khaiTen;
+}
+
+async function khaiTen(){
+  // Chua noi vao cong CRM thi khong co danh tinh — hoi thang. Day KHONG phai
+  // dang nhap: no de hai nguoi biet ai dang giu chuong nao, khong phai cua bao mat.
+  var t = prompt("Bạn là ai? (tên ngắn không dấu, vd haint)", TOI || "");
+  if(t === null) return;
+  try { await api("/api/toi", "POST", {nguoi: t}); }
+  catch(e){ return bao(e.message, true); }
+  await aiDay();
+  await doiTap(TAP_MA || (document.getElementById("dsTap").value || ""));
+  bao("Chào <b>" + TOI + "</b>. Chương bạn giữ sẽ mang tên này.");
+}
+
 function doiNen(){
   var d = document.documentElement;
   d.setAttribute("data-theme", d.getAttribute("data-theme") === "dark" ? "light" : "dark");
@@ -649,16 +670,9 @@ window.addEventListener("beforeunload", function(){
 });
 
 (async function khoiDong(){
-  try {
-    var h = await api("/health");
-    document.getElementById("chanKho").textContent = "Kho: " + (h.kho || "");
-  } catch(e){}
-  try {
-    var me = await api("/api/toi");
-    TOI = me.nguoi || "";
-    document.getElementById("aiToi").textContent = TOI ? "✎ " + TOI : "⚠ chưa đăng nhập — chỉ xem";
-  } catch(e){}
+  await aiDay();
   await napTap();
+  if(!TOI) khaiTen();
 })();
 </script>
 </body>

@@ -15,8 +15,10 @@ Chạy:  python -m autoedit.kichban.app --port 9121
 from __future__ import annotations
 
 import os
+import re
+import unicodedata
 from pathlib import Path
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from autoedit.kichban import dong as mdong
@@ -45,10 +47,34 @@ def _tin_header(request: Request) -> bool:
     return _loopback(request)
 
 
+COOKIE_AI = "kichban_ai"
+
+
+def chuan_ten(ten: str) -> str:
+    """Chuẩn hoá tên người dùng — CÙNG KHUÔN với tên CRM gửi xuống
+    ('Nguyễn Văn A' -> 'nguyenvana'): bỏ dấu, hạ chữ, chỉ giữ chữ-số-._-
+
+    Tên này là KHOÁ CHƯƠNG. Không chuẩn hoá thì 'Hải' và 'hai' thành hai người,
+    và dấu '/' lọt vào là hỏng cả đường dẫn lẫn câu SQL của khoá.
+    """
+    t = unicodedata.normalize("NFD", (ten or "").strip().lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn").replace("đ", "d")
+    return re.sub(r"[^a-z0-9._-]", "", t)[:32]
+
+
 def _nguoi(request: Request) -> str:
-    if not _tin_header(request):
-        return ""
-    return (request.headers.get("x-remote-user") or "").strip()
+    """Danh tính, theo thứ tự: CRM (nếu tin được) -> tên tự khai trong cookie.
+
+    Tên tự khai là đường CHƯA NỐI CRM (user chốt 15/09: cho một cổng riêng dùng
+    ngay). Nó ĐỦ để khoá chương khỏi giẫm chân nhau, nhưng KHÔNG phải xác thực —
+    trong mạng nội bộ ai cũng khai được tên bất kỳ. Nối vào cổng CRM thì header
+    thắng, không ai mượn được tên người khác nữa.
+    """
+    if _tin_header(request):
+        ten = (request.headers.get("x-remote-user") or "").strip()
+        if ten:
+            return ten
+    return chuan_ten(request.cookies.get(COOKIE_AI) or "")
 
 
 def _ghi_duoc(request: Request) -> str:
@@ -70,6 +96,17 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
     @app.get("/health")
     def health():
         return {"ok": True, "kho": str(kho.duong)}
+
+    @app.post("/api/toi")
+    def khai_ten(request: Request, response: Response, than: dict = Body(...)):
+        """Tự khai tên khi CHƯA nối cổng CRM. Không mật khẩu: đây là chỗ để hai
+        người biết nhau đang giữ chương nào, không phải cửa bảo mật."""
+        ten = chuan_ten(than.get("nguoi") or "")
+        if not ten:
+            raise HTTPException(400, "Tên trống hoặc chỉ có ký tự lạ.")
+        response.set_cookie(COOKIE_AI, ten, max_age=60 * 60 * 24 * 30,
+                            httponly=False, samesite="lax")
+        return {"nguoi": ten}
 
     @app.get("/api/toi")
     def toi(request: Request):

@@ -258,3 +258,49 @@ def test_co_xuong_may_chu_chay_that(tmp_path, monkeypatch):
     a = mapp.tao_app_mac_dinh()
     assert TestClient(a).get("/health").json()["ok"] is True
     assert (tmp_path / "k.db").exists()
+
+
+# ------------------- danh tinh khi CHUA nap vao cong CRM ---------------------
+def test_chua_khai_ten_thi_chi_xem(bo):
+    """Chạy thẳng trên LAN (chưa qua CRM) thì không có X-Remote-User. Chưa khai
+    tên = chỉ xem — thà chặn còn hơn để hai người ghi đè nhau vô danh."""
+    c, _, _ = bo
+    khach = TestClient(c.app)
+    assert khach.get("/api/toi").json()["nguoi"] == ""
+    assert khach.put("/api/tap/SH011/H", json={"dong": [], "outline": ""}).status_code == 401
+
+
+def test_khai_ten_roi_lam_viec_duoc(bo):
+    c, _, _ = bo
+    khach = TestClient(c.app)
+    assert khach.post("/api/toi", json={"nguoi": "thanhdn"}).json()["nguoi"] == "thanhdn"
+    assert khach.get("/api/toi").json()["nguoi"] == "thanhdn", "tên phải sống qua request sau"
+    assert khach.put("/api/tap/SH011/H",
+                     json={"dong": [{"en": "A", "vi": "", "het": 0}], "outline": ""}
+                     ).status_code == 200
+
+
+def test_ten_khai_duoc_chuan_hoa(bo):
+    """Tên là KHOÁ CHƯƠNG nên phải ổn định: bỏ dấu, hạ chữ, chỉ giữ chữ-số-._- —
+    cùng khuôn tên CRM gửi xuống ('Nguyễn Văn A' -> 'nguyenvana')."""
+    c, _, _ = bo
+    khach = TestClient(c.app)
+    assert khach.post("/api/toi", json={"nguoi": " Hải NT "}).json()["nguoi"] == "haint"
+    # Dấu chấm GIỮ LẠI vì tên thật hay có ('nguyen.van.a'); dấu gạch chéo thì bỏ.
+    # Tên chỉ nằm trong giá trị DB, không ghép vào đường dẫn, nên '..' vô hại.
+    assert khach.post("/api/toi", json={"nguoi": "a b/../c"}).json()["nguoi"] == "ab..c"
+
+
+def test_ten_rong_bi_tu_choi(bo):
+    c, _, _ = bo
+    assert TestClient(c.app).post("/api/toi", json={"nguoi": "  "}).status_code == 400
+
+
+def test_header_crm_thang_ten_tu_khai(bo):
+    """Khi nào nối vào CRM: danh tính thật phải đè tên tự khai, không thì ai cũng
+    mượn được tên người khác mặc dù hệ đã biết họ là ai."""
+    c, _, _ = bo
+    khach = TestClient(c.app)
+    khach.post("/api/toi", json={"nguoi": "muon-ten"})
+    khach.headers.update({"X-Remote-User": "haint"})
+    assert khach.get("/api/toi").json()["nguoi"] == "haint"
