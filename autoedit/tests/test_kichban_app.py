@@ -245,3 +245,16 @@ def test_chi_tin_header_khi_co_co_va_loopback(tmp_path, monkeypatch):
 
     monkeypatch.delenv("KICHBAN_TRUST_PROXY")
     assert c.get("/api/toi").json()["nguoi"] == "ke-gia-mao", "chưa bật cờ thì giữ đường cũ"
+
+
+def test_co_xuong_may_chu_chay_that(tmp_path, monkeypatch):
+    """uvicorn cần một chỗ bám: `start-all.ps1` gọi `app:tao_app_mac_dinh --factory`.
+    Dùng factory chứ không phải biến APP sẵn ở module — biến sẵn nghĩa là chỉ
+    IMPORT thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
+    """
+    from autoedit.kichban import app as mapp
+
+    monkeypatch.setenv("KICHBAN_DB", str(tmp_path / "k.db"))
+    a = mapp.tao_app_mac_dinh()
+    assert TestClient(a).get("/health").json()["ok"] is True
+    assert (tmp_path / "k.db").exists()

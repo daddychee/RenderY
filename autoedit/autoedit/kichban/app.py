@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
-
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
@@ -209,6 +207,26 @@ def _kho_mac_dinh() -> Kho:
     return Kho(goc)
 
 
+def _dich_mac_dinh():
+    """Thiếu GLM_API_KEY thì trả None — bàn kịch bản vẫn mở, chỉ nút Dịch lại báo
+    lỗi rõ ràng. Không được để cả trang chết vì một cột phụ."""
+    try:
+        from autoedit.kichban.dich import DichGLM
+
+        return DichGLM()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def tao_app_mac_dinh() -> FastAPI:
+    """Chỗ bám cho uvicorn: `autoedit.kichban.app:tao_app_mac_dinh --factory`.
+
+    FACTORY chứ không phải biến `APP` sẵn ở module: biến sẵn nghĩa là chỉ IMPORT
+    thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
+    """
+    return tao_app(_kho_mac_dinh(), dich=_dich_mac_dinh())
+
+
 def main() -> None:
     import argparse
 
@@ -221,15 +239,7 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=9121)
     a = ap.parse_args()
 
-    dich: Optional[object] = None
-    try:
-        from autoedit.kichban.dich import DichGLM
-
-        dich = DichGLM()
-    except Exception:  # noqa: BLE001 — thiếu key thì vẫn mở được bàn kịch bản
-        dich = None
-
-    uvicorn.run(tao_app(_kho_mac_dinh(), dich=dich), host=a.host, port=a.port)
+    uvicorn.run(tao_app_mac_dinh(), host=a.host, port=a.port)
 
 
 if __name__ == "__main__":
