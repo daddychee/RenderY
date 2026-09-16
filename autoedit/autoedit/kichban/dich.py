@@ -23,6 +23,22 @@ Luật:
 Trả về JSON: {"dong": ["bản dịch dòng 1", "bản dịch dòng 2", ...]}"""
 
 
+def than_goi(model: str, he: str, than: str) -> dict:
+    """Thân request kiểu OpenAI, kèm tham số RIÊNG của từng nhà.
+
+    `reasoning_effort` là của GLM và với GLM là BẮT BUỘC (không đặt thì nó nuốt
+    trọn max_tokens vào phần suy nghĩ rồi trả JSON cụt — bài học đã ghi trong
+    `director/glm_client.py`). Nhưng gửi sang cổng trung gian chạy grok/gpt thì
+    nhiều cổng trả 400. Nên chỉ gửi khi model là glm.
+    """
+    d = {"model": model,
+         "messages": [{"role": "system", "content": he},
+                      {"role": "user", "content": than}]}
+    if model.lower().startswith("glm"):
+        d["reasoning_effort"] = "low"
+    return d
+
+
 class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
@@ -46,26 +62,54 @@ def _khoa_tu_ket() -> tuple[str, str]:
     return khoa_cua_viec("cham_footage")
 
 
+def dia_chi_chat(url: str) -> str:
+    """Địa chỉ gốc -> endpoint chat kiểu OpenAI.
+
+    User đưa `https://api2.apisuper.cloud` — đó là GỐC. Tự nối đuôi thay vì bắt
+    người dùng nhớ `/v1/chat/completions`; ai dán sẵn đường đầy đủ thì giữ nguyên.
+    """
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if u.endswith("/chat/completions"):
+        return u
+    if u.endswith("/v1") or u.endswith("/v4"):
+        return u + "/chat/completions"
+    return u + "/v1/chat/completions"
+
+
 class DichGLM:
-    """Bộ dịch thật (GLM). Tiêm được nên test không chạm mạng.
+    """Một lượt gọi LLM kiểu OpenAI. Tiêm được nên test không chạm mạng.
 
     Không dùng `director.glm_client` để `kichban` khỏi kéo cả tầng dựng vào —
     đường gọi là một lượt HTTP, chép 20 dòng rẻ hơn là buộc hai tầng vào nhau.
+
+    THỨ TỰ LẤY CẤU HÌNH: cài đặt trong app -> két OUTLIERY -> biến môi trường.
+    Tab cài đặt là đường TẠM (user chốt 16/09, cuối tuần ghép vào két); bỏ trống
+    ô đó là tự rơi về két, không phải sửa code.
     """
 
     def __init__(self, url: str | None = None, key: str | None = None,
-                 model: str = "") -> None:
+                 model: str = "", cai_dat: dict | None = None,
+                 viec: str = "kiem") -> None:
         import os
 
+        cd = cai_dat or {}
         khoa_ket, model_ket = "", ""
-        try:
-            khoa_ket, model_ket = _khoa_tu_ket()
-        except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
-            pass
-        self.url = url or os.getenv("GLM_API_URL",
-                                    "https://api.z.ai/api/paas/v4/chat/completions")
-        self.key = key or khoa_ket or os.getenv("GLM_API_KEY", "")
-        self.model = model or model_ket or "glm-5.3"
+        if not (key or cd.get("llm_key")):
+            try:
+                khoa_ket, model_ket = _khoa_tu_ket()
+            except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
+                pass
+        # Dịch chạy nhiều lần và rẻ; kiểm chứng cần model khoẻ -> hai ô riêng,
+        # để trống ô dịch thì dùng chung model kiểm.
+        model_app = (cd.get("dich_model") if viec == "dich" else "") or cd.get("llm_model")
+
+        self.url = (dia_chi_chat(url or cd.get("llm_url", "")) or
+                    os.getenv("GLM_API_URL",
+                              "https://api.z.ai/api/paas/v4/chat/completions"))
+        self.key = key or cd.get("llm_key") or khoa_ket or os.getenv("GLM_API_KEY", "")
+        self.model = model or model_app or model_ket or "glm-5.3"
 
     def dich(self, cau: list[str]) -> list[str]:
         import urllib.error
@@ -74,12 +118,7 @@ class DichGLM:
         if not self.key:
             raise DichLoi("Thiếu GLM_API_KEY — chưa dịch được.")
         than = "\n".join(f"[{i}] {c}" for i, c in enumerate(cau))
-        goi = json.dumps({
-            "model": self.model,
-            "reasoning_effort": "low",
-            "messages": [{"role": "system", "content": _CAU_LENH},
-                         {"role": "user", "content": than}],
-        }).encode("utf-8")
+        goi = json.dumps(than_goi(self.model, _CAU_LENH, than)).encode("utf-8")
         req = urllib.request.Request(
             self.url, data=goi,
             headers={"Authorization": f"Bearer {self.key}",

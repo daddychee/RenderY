@@ -145,7 +145,7 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   font-weight:700;cursor:pointer;margin-top:9px}
 
 .tabs{display:flex;gap:5px;margin-bottom:11px}
-.tabs button{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+.tabs button{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;
   padding:6px 9px;cursor:pointer;font-weight:700;font-size:12.5px}
 .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .the{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px;
@@ -156,6 +156,7 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   min-height:120px;white-space:pre-wrap;font-size:13px;line-height:1.65}
 .tt:focus{outline:2px solid var(--accent);outline-offset:1px}
 .ghi{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+input.ban-cu{margin-bottom:4px}
 .ban-cu{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;
   padding:6px;margin-top:8px}
 
@@ -213,6 +214,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <div class="tabs">
       <button id="tb-t" class="on" onclick="doiTab('t')">Treatment</button>
       <button id="tb-c" onclick="doiTab('c')">Citation</button>
+      <button id="tb-s" onclick="doiTab('s')" title="Khoá LLM cho phần kiểm chứng">⚙</button>
     </div>
     <div id="pane-t">
       <div class="the">
@@ -229,6 +231,29 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
       </div>
     </div>
     <div id="pane-c" hidden></div>
+    <div id="pane-s" hidden>
+      <div class="the">
+        <p class="nhan">Cài đặt LLM — tạm trong app</p>
+        <div class="ghi" style="margin:6px 0 10px">Khoá để ở đây, <b>chưa dính</b> két
+          khoá của hệ production. Cuối tuần ghép vào két thì bỏ trống ô Khoá là tự
+          dùng khoá của hệ.</div>
+        <label class="nhan">Địa chỉ</label>
+        <input id="s-url" class="ban-cu" placeholder="https://api2.apisuper.cloud">
+        <label class="nhan">Khoá</label>
+        <input id="s-key" class="ban-cu" type="password" placeholder="dán khoá, để trống = giữ nguyên">
+        <label class="nhan">Model — kiểm chứng</label>
+        <input id="s-model" class="ban-cu" list="ds-model" placeholder="grok-4.6">
+        <label class="nhan">Model — dịch (để trống = dùng chung)</label>
+        <input id="s-dich" class="ban-cu" list="ds-model" placeholder="gpt-5.6">
+        <datalist id="ds-model">
+          <option value="grok-4.6"></option><option value="gpt-5.6"></option>
+          <option value="glm-5.3"></option>
+        </datalist>
+        <div class="nut"><button onclick="luuCaiDat()">Lưu</button>
+          <button onclick="thuCaiDat()">⚡ Thử</button></div>
+        <div class="ghi" id="s-tt"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -549,11 +574,47 @@ document.addEventListener("selectionchange", function(){
   n.style.left = Math.max(8, r.left + r.width / 2 - 80) + "px";
 });
 
+async function napCaiDat(){
+  try { var d = await api("/api/cai-dat"); } catch(e){ return; }
+  document.getElementById("s-url").value = d.llm_url || "";
+  document.getElementById("s-model").value = d.llm_model || "";
+  document.getElementById("s-dich").value = d.dich_model || "";
+  document.getElementById("s-key").placeholder =
+    d.llm_key ? ("đang dùng khoá " + d.llm_key) : (d.co_ket ? "đang dùng khoá của hệ (két)" : "chưa có khoá");
+  document.getElementById("s-tt").textContent =
+    d.llm_key ? "Đang dùng khoá đặt trong app này." :
+    d.co_ket ? "Chưa đặt trong app — đang dùng khoá của hệ production." : "Chưa có khoá nào.";
+}
+
+async function luuCaiDat(){
+  var than = {llm_url: document.getElementById("s-url").value.trim(),
+              llm_model: document.getElementById("s-model").value.trim(),
+              dich_model: document.getElementById("s-dich").value.trim()};
+  var k = document.getElementById("s-key").value;
+  if(k !== "") than.llm_key = k.trim();      // để trống = giữ khoá cũ
+  try { await api("/api/cai-dat", "POST", than); }
+  catch(e){ return bao(e.message, true); }
+  document.getElementById("s-key").value = "";
+  await napCaiDat(); bao("Đã lưu cài đặt.");
+}
+
+async function thuCaiDat(){
+  var e = document.getElementById("s-tt");
+  e.textContent = "Đang thử…";
+  try { var d = await api("/api/cai-dat/thu", "POST"); }
+  catch(err){ e.textContent = "✗ " + err.message; return; }
+  e.textContent = d.ok ? ("✓ Gọi được " + d.model + " — trả lời: " + (d.tra_loi || ""))
+                       : ("✗ " + (d.loi || "không rõ"));
+}
+
 function doiTab(x){
   document.getElementById("tb-t").classList.toggle("on", x === "t");
   document.getElementById("tb-c").classList.toggle("on", x === "c");
+  document.getElementById("tb-s").classList.toggle("on", x === "s");
   document.getElementById("pane-t").hidden = (x !== "t");
   document.getElementById("pane-c").hidden = (x !== "c");
+  document.getElementById("pane-s").hidden = (x !== "s");
+  if(x === "s") napCaiDat();
 }
 
 /* ═══════════ tạo tập / chương / nạp ═══════════ */

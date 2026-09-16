@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS citation(
   truy_van TEXT NOT NULL DEFAULT '', nguon TEXT NOT NULL DEFAULT '[]',
   luc REAL NOT NULL, boi TEXT,
   PRIMARY KEY (tap, chuong, chu_ky));
+CREATE TABLE IF NOT EXISTS cai_dat(khoa TEXT PRIMARY KEY, gia_tri TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS khoa(
   tap TEXT NOT NULL, chuong TEXT NOT NULL, nguoi TEXT NOT NULL, den REAL NOT NULL,
   PRIMARY KEY (tap, chuong));
@@ -160,6 +161,31 @@ class Kho:
         if r is None:
             raise ValueError(f"Không có bản lùi id={ban_id}.")
         self.luu(tap, chuong, json.loads(r["dong"]), r["outline"], nguoi)
+
+    # ------------------------------------------------------------- cài đặt
+    # Khoá LLM của phần kiểm chứng để TẠM trong app (user chốt 16/09, cuối tuần
+    # ghép vào két OUTLIERY). Whitelist chặt: ô cài đặt không được biến thành
+    # chỗ ghi gì cũng được.
+    KHOA_CAI_DAT = ("llm_url", "llm_key", "llm_model", "dich_model")
+
+    def luu_cai_dat(self, d: dict) -> None:
+        la = [k for k in d if k not in self.KHOA_CAI_DAT]
+        if la:
+            raise ValueError(f"Khoá cấu hình không hợp lệ: {', '.join(sorted(la))}")
+        for k, v in d.items():
+            self.cn.execute(
+                "INSERT INTO cai_dat(khoa, gia_tri) VALUES(?,?) "
+                "ON CONFLICT(khoa) DO UPDATE SET gia_tri=excluded.gia_tri",
+                (k, str(v or "").strip()))
+        self.cn.commit()
+
+    def doc_cai_dat(self) -> dict:
+        """Giá trị THẬT — chỉ dùng trong máy chủ. API phải che trước khi trả ra."""
+        d = {k: "" for k in self.KHOA_CAI_DAT}
+        for r in self.cn.execute("SELECT khoa, gia_tri FROM cai_dat"):
+            if r["khoa"] in d:
+                d[r["khoa"]] = r["gia_tri"]
+        return d
 
     # ------------------------------------------------------------- citation
     def luu_citation(self, tap: str, chuong: str, kq: dict, nguoi: str) -> None:

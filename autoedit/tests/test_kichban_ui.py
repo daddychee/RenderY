@@ -92,3 +92,11 @@ def test_khong_tro_vao_o_da_xoa(html):
     co = set(_re.findall(r'id="([\w-]+)"', html))
     goi = set(_re.findall(r'getElementById\("([\w-]+)"\)', html))
     assert goi <= co, f"trang gọi id không tồn tại: {sorted(goi - co)}"
+
+
+def test_co_tab_cai_dat(html):
+    """User chốt 16/09: tab cài đặt nằm TRONG app, chưa dính hệ production."""
+    assert "Cài đặt" in html and "/api/cai-dat" in html
+    assert "grok-4.6" in html and "gpt-5.6" in html, "gợi ý sẵn 2 model của nhà cung cấp"
+    assert "api2.apisuper.cloud" in html
+    assert "cai-dat/thu" in html, "phải có nút Thử — lỗi khoá không được lộ giữa chừng"

@@ -205,10 +205,10 @@ Trả về JSON:
 class LlmKiem:
     """GLM đọc trang và kết luận. Cùng khuôn gọi với `dich.DichGLM`."""
 
-    def __init__(self, key: str = "", model: str = "") -> None:
+    def __init__(self, key: str = "", model: str = "", cai_dat: dict | None = None) -> None:
         from autoedit.kichban.dich import DichGLM
 
-        goc = DichGLM(key=key, model=model)      # dùng lại đường lấy khoá + URL
+        goc = DichGLM(key=key, model=model, cai_dat=cai_dat)   # chung đường lấy khoá
         self.key, self.url, self.model = goc.key, goc.url, goc.model
 
     def _goi(self, he: str, than: str) -> dict:
@@ -216,11 +216,9 @@ class LlmKiem:
 
         if not self.key:
             raise DichLoi("Thiếu khoá GLM — chưa kiểm được.")
-        goi = json.dumps({
-            "model": self.model, "reasoning_effort": "low",
-            "messages": [{"role": "system", "content": he},
-                         {"role": "user", "content": than}],
-        }).encode("utf-8")
+        from autoedit.kichban.dich import than_goi
+
+        goi = json.dumps(than_goi(self.model, he, than)).encode("utf-8")
         req = urllib.request.Request(
             self.url, data=goi,
             headers={"Authorization": f"Bearer {self.key}",
