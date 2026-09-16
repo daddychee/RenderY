@@ -212,25 +212,13 @@ class LlmKiem:
         self.key, self.url, self.model = goc.key, goc.url, goc.model
 
     def _goi(self, he: str, than: str) -> dict:
-        from autoedit.kichban.dich import DichLoi
+        """Dùng CHUNG một đường gọi với bộ dịch — một chỗ sửa, không để hai nơi
+        lệch nhau (urllib/requests, tham số riêng từng nhà, câu báo lỗi)."""
+        from autoedit.kichban.dich import DichGLM
 
-        if not self.key:
-            raise DichLoi("Thiếu khoá GLM — chưa kiểm được.")
-        from autoedit.kichban.dich import than_goi
-
-        goi = json.dumps(than_goi(self.model, he, than)).encode("utf-8")
-        req = urllib.request.Request(
-            self.url, data=goi,
-            headers={"Authorization": f"Bearer {self.key}",
-                     "Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=180) as r:
-                kq = json.loads(r.read().decode("utf-8"))
-            noi = kq["choices"][0]["message"]["content"]
-            return json.loads(noi[noi.index("{"):noi.rindex("}") + 1])
-        except (urllib.error.URLError, TimeoutError, KeyError, IndexError,
-                ValueError) as exc:
-            raise DichLoi(f"Gọi GLM hỏng: {exc}") from exc
+        m = DichGLM(key=self.key, model=self.model)
+        m.url = self.url
+        return m.goi(he, than)
 
     def truy_van(self, doan: str) -> list[str]:
         ra = self._goi(_CAU_TRUY_VAN, doan).get("truy_van") or []

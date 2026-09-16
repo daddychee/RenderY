@@ -186,3 +186,39 @@ def test_dat_dia_chi_moi_thi_KHONG_muon_khoa_cua_he(tmp_path, monkeypatch):
     m = mdich.DichGLM(cai_dat=kho.doc_cai_dat())
     assert m.key == "", "không được mượn khoá của hệ cho cổng khác"
     assert m.url.startswith("https://api2.apisuper.cloud")
+
+
+def test_bao_loi_goi_dung_TEN_MODEL_chu_khong_phai_GLM(tmp_path):
+    """User báo 16/09: "đã dán khoá nhưng kiểm hỏng vì vẫn nhận GLM làm chính".
+
+    Đo ra thì nó GỌI ĐÚNG apisuper/grok-4.6 — chỉ là mọi câu lỗi đều viết cứng
+    chữ "GLM" từ hồi chỉ có một nhà cung cấp, nên nhìn tưởng đang chạy GLM.
+    Câu lỗi phải nói đúng model đang gọi.
+    """
+    import requests
+
+    from autoedit.kichban.dich import DichGLM, DichLoi
+
+    m = DichGLM(cai_dat={"llm_url": "https://api2.apisuper.cloud",
+                         "llm_model": "grok-4.6", "llm_key": "sk-gia"})
+
+    class _TraLoi:
+        status_code, text = 402, "het han muc"
+
+    goc = requests.post
+    requests.post = lambda *a, **k: _TraLoi()
+    try:
+        with pytest.raises(DichLoi) as e:
+            m.dich(["x"])
+    finally:
+        requests.post = goc
+    assert "grok-4.6" in str(e.value) and "GLM" not in str(e.value)
+
+
+def test_thieu_khoa_thi_chi_duong_toi_tab_cai_dat():
+    """Câu lỗi phải nói người dùng làm gì tiếp, không chỉ nêu tên biến kỹ thuật."""
+    from autoedit.kichban.dich import DichGLM, DichLoi
+
+    m = DichGLM(cai_dat={"llm_url": "https://api2.apisuper.cloud"})
+    with pytest.raises(DichLoi, match="Cài đặt"):
+        m.dich(["x"])

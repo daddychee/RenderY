@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import json
 
+_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36')
+
 _CAU_LENH = """Bạn dịch kịch bản video sang tiếng Việt cho ĐỘI DỰNG ĐỌC HIỂU.
 
 Luật:
@@ -117,31 +120,38 @@ class DichGLM:
                     ("" if rieng else (khoa_ket or os.getenv("GLM_API_KEY", ""))))
         self.model = model or model_app or model_ket or "glm-5.3"
 
-    def dich(self, cau: list[str]) -> list[str]:
-        import urllib.error
-        import urllib.request
+    def goi(self, he: str, than: str) -> dict:
+        """Một lượt chat, trả JSON đã bóc — dùng cho CẢ dịch lẫn kiểm chứng.
+
+        Đi bằng `requests`, KHÔNG phải urllib. Đo 16/09 trên chính máy này, cùng
+        khoá cùng thân: `requests` -> **200**, urllib -> **403 "error code: 1010"**
+        (Cloudflare trước apisuper chặn User-Agent của urllib). Đây đúng là thứ
+        làm user tưởng "đã dán khoá mà vẫn nhận GLM làm chính".
+        """
+        import requests
 
         if not self.key:
-            raise DichLoi("Thiếu GLM_API_KEY — chưa dịch được.")
-        than = "\n".join(f"[{i}] {c}" for i, c in enumerate(cau))
-        goi = json.dumps(than_goi(self.model, _CAU_LENH, than)).encode("utf-8")
-        req = urllib.request.Request(
-            self.url, data=goi,
-            headers={"Authorization": f"Bearer {self.key}",
-                     "Content-Type": "application/json"})
+            raise DichLoi("Chưa có khoá — dán vào tab ⚙ Cài đặt rồi Lưu.")
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
-                kq = json.loads(r.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-            raise DichLoi(f"Gọi GLM hỏng: {exc}") from exc
-
+            r = requests.post(self.url, timeout=180,
+                              json=than_goi(self.model, he, than),
+                              headers={"Authorization": f"Bearer {self.key}",
+                                       "Content-Type": "application/json",
+                                       "User-Agent": _UA})
+        except Exception as exc:  # noqa: BLE001
+            raise DichLoi(f"Gọi {self.model} hỏng: {exc}") from exc
+        if r.status_code != 200:
+            raise DichLoi(f"Gọi {self.model} hỏng: HTTP {r.status_code} — {r.text[:160]}")
         try:
-            noi = kq["choices"][0]["message"]["content"]
-            ra = json.loads(noi[noi.index("{"):noi.rindex("}") + 1])["dong"]
+            noi = r.json()["choices"][0]["message"]["content"]
+            return json.loads(noi[noi.index("{"):noi.rindex("}") + 1])
         except (KeyError, IndexError, ValueError) as exc:
-            raise DichLoi(f"GLM trả về không đọc được: {exc}") from exc
+            raise DichLoi(f"{self.model} trả về không đọc được: {exc}") from exc
 
+    def dich(self, cau: list[str]) -> list[str]:
+        than = "\n".join(f"[{i}] {c}" for i, c in enumerate(cau))
+        ra = self.goi(_CAU_LENH, than).get("dong") or []
         if len(ra) != len(cau):
-            raise DichLoi(
-                f"GLM trả {len(ra)} dòng trong khi gửi {len(cau)} — hai cột sẽ lệch hàng.")
+            raise DichLoi(f"{self.model} trả {len(ra)} dòng trong khi gửi {len(cau)} "
+                          "— hai cột sẽ lệch hàng.")
         return [str(x) for x in ra]
