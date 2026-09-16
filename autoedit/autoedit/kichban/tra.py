@@ -192,10 +192,13 @@ Luật:
   không dựa vào trí nhớ của bạn.
 - `trich` phải là đoạn COPY NGUYÊN VĂN từ trang đó (10-40 từ). Nó sẽ được máy dò
   lại trong trang; chép sai một chữ là hỏng.
-- `dung: true` chỉ khi trang nguồn THỰC SỰ chống lưng cho ý của đoạn.
-- Đoạn nói NHÂN QUẢ ("gây ra", "làm tăng") mà nguồn chỉ là nghiên cứu quan sát
-  (liên hệ/tương quan) -> `dung: false`, nói rõ trong `ly_do`.
+- `dung: true` khi trang nguồn chống lưng cho NỘI DUNG và CON SỐ của đoạn.
 - Con số trong đoạn lệch con số trong nguồn -> `dung: false`, nêu số đúng.
+- Đoạn chỉ TƯỜNG THUẬT kết quả nghiên cứu ("nghiên cứu thấy nhóm X có nguy cơ cao
+  hơn 23%", "gắn với", "liên quan tới") mà nguồn đúng như vậy -> `dung: true`.
+  Nếu đó là nghiên cứu quan sát thì THÊM MỘT CÂU NHẮC trong `ly_do`, ĐỪNG bác.
+- Chỉ `dung: false` vì nhân quả khi đoạn KHẲNG ĐỊNH nguyên nhân: "gây ra", "làm
+  cho", "dẫn đến", "khiến bạn bị" — trong khi nguồn chỉ là quan sát/tương quan.
 - `ly_do` viết TIẾNG VIỆT, một câu, nói cho người viết kịch bản biết phải làm gì.
 
 Trả về JSON:
