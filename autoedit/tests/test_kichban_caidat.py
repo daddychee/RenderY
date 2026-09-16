@@ -167,3 +167,22 @@ def test_tham_so_rieng_cua_glm_khong_gui_cho_nha_khac(tmp_path):
     assert "reasoning_effort" in than_goi("glm-5.3", "he", "than")
     assert "reasoning_effort" not in than_goi("grok-4.6", "he", "than")
     assert "reasoning_effort" not in than_goi("gpt-5.6", "he", "than")
+
+
+def test_dat_dia_chi_moi_thi_KHONG_muon_khoa_cua_he(tmp_path, monkeypatch):
+    """Đo thật 16/09: khai địa chỉ apisuper nhưng chưa dán khoá -> nó lấy khoá GLM
+    của két gửi sang cổng mới, trả `403 Forbidden` — người dùng tưởng cổng hỏng.
+
+    Địa chỉ và khoá phải đi CÙNG MỘT NGUỒN: đã khai địa chỉ riêng thì khoá cũng
+    phải là khoá riêng, thiếu thì báo thẳng "chưa có khoá".
+    """
+    from autoedit.kichban import dich as mdich
+
+    kho = Kho(tmp_path / "k.db")
+    kho.luu_cai_dat({"llm_url": "https://api2.apisuper.cloud", "llm_model": "grok-4.6"})
+    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-GLM-CUA-HE", "glm-5.3"))
+    monkeypatch.setenv("GLM_API_KEY", "KHOA-ENV")
+
+    m = mdich.DichGLM(cai_dat=kho.doc_cai_dat())
+    assert m.key == "", "không được mượn khoá của hệ cho cổng khác"
+    assert m.url.startswith("https://api2.apisuper.cloud")

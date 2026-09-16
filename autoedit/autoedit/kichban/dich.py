@@ -95,8 +95,13 @@ class DichGLM:
         import os
 
         cd = cai_dat or {}
+        # ĐỊA CHỈ VÀ KHOÁ ĐI CÙNG MỘT NGUỒN. Đo 16/09: khai địa chỉ nhà cung cấp
+        # mới mà chưa dán khoá thì nó mượn khoá GLM của két gửi sang cổng đó ->
+        # `403 Forbidden`, người dùng tưởng cổng hỏng. Đã khai địa chỉ riêng thì
+        # thiếu khoá phải báo thẳng "chưa có khoá".
+        rieng = bool(cd.get("llm_url") or cd.get("llm_key"))
         khoa_ket, model_ket = "", ""
-        if not (key or cd.get("llm_key")):
+        if not (key or cd.get("llm_key") or rieng):
             try:
                 khoa_ket, model_ket = _khoa_tu_ket()
             except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
@@ -108,7 +113,8 @@ class DichGLM:
         self.url = (dia_chi_chat(url or cd.get("llm_url", "")) or
                     os.getenv("GLM_API_URL",
                               "https://api.z.ai/api/paas/v4/chat/completions"))
-        self.key = key or cd.get("llm_key") or khoa_ket or os.getenv("GLM_API_KEY", "")
+        self.key = (key or cd.get("llm_key") or
+                    ("" if rieng else (khoa_ket or os.getenv("GLM_API_KEY", ""))))
         self.model = model or model_app or model_ket or "glm-5.3"
 
     def dich(self, cau: list[str]) -> list[str]:
