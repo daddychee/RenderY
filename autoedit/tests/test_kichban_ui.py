@@ -58,3 +58,37 @@ def test_copy_lay_ban_txt_tu_may_chu(html):
     """Một luật một chỗ: bản copy phải là bản `/txt` do `dong.xuat()` sinh, không
     ghép lại bằng JS — hai đường ghép là hai kết quả lệch nhau."""
     assert "/txt" in html
+
+
+# --------------------------- giai đoạn 2: citation ---------------------------
+def test_co_nut_kiem_doan_boi_den(html):
+    """Bôi đen đoạn -> nút nổi. Citation chạy THEO ĐOẠN người chọn (user chốt),
+    không quét cả bài."""
+    assert "Kiểm đoạn này" in html
+    assert "selectionchange" in html
+
+
+def test_co_goi_api_kiem_va_citation(html):
+    assert "/kiem" in html and "/citation" in html
+
+
+def test_danh_dau_dong_theo_the_citation(html):
+    """Dòng nằm trong đoạn đã kiểm phải mang dấu ✅/❌ — nhìn là biết chương còn
+    chỗ nào chưa kiểm."""
+    for x in ("dau_citation", "✅", "❌", "🕐"):
+        assert x in html, x
+
+
+def test_hien_hang_nguon_va_bang_chung(html):
+    """Thẻ phải nói rõ hạng nguồn và Python đã kiểm được gì — không chỉ ✅ suông."""
+    assert "hang" in html and "link sống" in html
+
+
+def test_khong_tro_vao_o_da_xoa(html):
+    """Đo 16/09 trên Chrome: console nổ 6 lần `Cannot set properties of null` vì
+    `vePhai()` còn trỏ vào #cDoan — ô đó đã bị thay khi dựng thẻ citation thật.
+    Test xanh vẫn không thấy: lỗi này chỉ hiện khi mở trình duyệt."""
+    import re as _re
+    co = set(_re.findall(r'id="([\w-]+)"', html))
+    goi = set(_re.findall(r'getElementById\("([\w-]+)"\)', html))
+    assert goi <= co, f"trang gọi id không tồn tại: {sorted(goi - co)}"

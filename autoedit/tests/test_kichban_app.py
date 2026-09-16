@@ -338,3 +338,80 @@ def test_ket_hong_khong_giet_ban_kich_ban(monkeypatch):
     monkeypatch.setattr(mdich, "_khoa_tu_ket", _no)
     monkeypatch.delenv("GLM_API_KEY", raising=False)
     assert mdich.DichGLM().key == ""
+
+
+# ------------------------------- citation API --------------------------------
+class KiemGia:
+    """Bộ kiểm giả — không mạng, không tốn lượt LLM."""
+
+    def __init__(self, ket="dung"):
+        self.ket, self.da_kiem = ket, []
+
+    def __call__(self, doan, **kw):
+        from autoedit.kichban.kiem import KetQua, Nguon, chu_ky
+
+        self.da_kiem.append(doan)
+        n = Nguon(url="https://www.cdc.gov/x", ten="CDC", trich="y",
+                  song=True, khop=True, luc="16/09/2026 09:00")
+        _ = chu_ky
+        return KetQua(doan=doan, ket=self.ket, ly_do="lý do", nguon=[n],
+                      truy_van="tra gì đó")
+
+
+@pytest.fixture()
+def bo_kiem(tmp_path):
+    kho = Kho(tmp_path / "k.db")
+    kiem = KiemGia()
+    c = TestClient(tao_app(kho, dich=DichGia(), kiem=kiem))
+    c.headers.update({"X-Remote-User": "haint"})
+    c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
+    c.post("/api/tap/SH011/chuong", json={"ma": "H"})
+    c.post("/api/tap/SH011/H/nap", json={"text": "The WHI found a higher risk.\nB.\n"})
+    return c, kho, kiem
+
+
+def test_kiem_mot_doan_roi_doc_lai(bo_kiem):
+    c, _, kiem = bo_kiem
+    r = c.post("/api/tap/SH011/H/kiem", json={"doan": "The WHI found a higher risk."})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["ket"] == "dung" and b["chu_ky"] and b["nguon"][0]["hang"] == 1
+    assert kiem.da_kiem == ["The WHI found a higher risk."]
+    ds = c.get("/api/tap/SH011/H/citation").json()
+    assert len(ds) == 1 and ds[0]["chu_ky"] == b["chu_ky"]
+
+
+def test_kiem_doan_rong_bi_tu_choi(bo_kiem):
+    c, _, _ = bo_kiem
+    assert c.post("/api/tap/SH011/H/kiem", json={"doan": "   "}).status_code == 400
+
+
+def test_chua_khai_ten_thi_khong_duoc_kiem(bo_kiem):
+    """Kiểm là tốn tiền — phải biết ai bấm."""
+    c, _, _ = bo_kiem
+    assert TestClient(c.app).post("/api/tap/SH011/H/kiem",
+                                  json={"doan": "x"}).status_code == 401
+
+
+def test_nguoi_khac_dang_giu_chuong_thi_khong_kiem_duoc(bo_kiem):
+    c, _, _ = bo_kiem
+    c.post("/api/tap/SH011/H/giu")
+    c2 = TestClient(c.app)
+    c2.headers.update({"X-Remote-User": "thanhdn"})
+    assert c2.post("/api/tap/SH011/H/kiem", json={"doan": "x"}).status_code == 409
+
+
+def test_bo_kiem_chua_bat_thi_bao_ro(tmp_path):
+    kho = Kho(tmp_path / "k.db")
+    c = TestClient(tao_app(kho))
+    c.headers.update({"X-Remote-User": "haint"})
+    c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
+    c.post("/api/tap/SH011/chuong", json={"ma": "H"})
+    assert c.post("/api/tap/SH011/H/kiem", json={"doan": "x"}).status_code == 503
+
+
+def test_xoa_the_citation(bo_kiem):
+    c, _, _ = bo_kiem
+    b = c.post("/api/tap/SH011/H/kiem", json={"doan": "The WHI found a higher risk."}).json()
+    assert c.request("DELETE", f"/api/tap/SH011/H/citation/{b['chu_ky']}").status_code == 200
+    assert c.get("/api/tap/SH011/H/citation").json() == []

@@ -146,3 +146,52 @@ def test_kho_mo_lai_van_con_du_lieu(tmp_path):
     k1.tao_tap("SH011", "x"); k1.tao_chuong("SH011", "H")
     k1.luu("SH011", "H", dong=[{"en": "A", "vi": "", "het": 0}], outline="", nguoi="haint")
     assert Kho(duong).doc("SH011", "H")["dong"][0]["en"] == "A"
+
+
+# ------------------------------- citation ------------------------------------
+def _kq(doan="The WHI found a 23 percent higher risk.", ket="dung"):
+    return {"doan": doan, "chu_ky": "ab12", "ket": ket, "ly_do": "2 nguồn hạng 1",
+            "truy_van": "WHI stroke", "nguon": [{"url": "https://www.cdc.gov/x",
+                                                 "trich": "y", "hang": 1}]}
+
+
+def test_luu_va_doc_citation(kho):
+    kho.tao_tap("SH011", "x"); kho.tao_chuong("SH011", "H")
+    kho.luu_citation("SH011", "H", _kq(), nguoi="haint")
+    ds = kho.ds_citation("SH011", "H")
+    assert len(ds) == 1 and ds[0]["ket"] == "dung" and ds[0]["boi"] == "haint"
+    assert ds[0]["nguon"][0]["url"] == "https://www.cdc.gov/x"
+
+
+def test_kiem_lai_cung_doan_thi_DE_LEN_khong_de_ra_hai_the(kho):
+    """Bấm 'Kiểm lại' nhiều lần không được đẻ ra một chồng thẻ cho cùng một đoạn."""
+    kho.tao_tap("SH011", "x"); kho.tao_chuong("SH011", "H")
+    kho.luu_citation("SH011", "H", _kq(ket="sai"), nguoi="haint")
+    kho.luu_citation("SH011", "H", _kq(ket="dung"), nguoi="thanhdn")
+    ds = kho.ds_citation("SH011", "H")
+    assert len(ds) == 1 and ds[0]["ket"] == "dung" and ds[0]["boi"] == "thanhdn"
+
+
+def test_hai_doan_khac_nhau_thi_hai_the(kho):
+    kho.tao_tap("SH011", "x"); kho.tao_chuong("SH011", "H")
+    a = _kq("đoạn một"); a["chu_ky"] = "aa"
+    b = _kq("đoạn hai"); b["chu_ky"] = "bb"
+    kho.luu_citation("SH011", "H", a, nguoi="haint")
+    kho.luu_citation("SH011", "H", b, nguoi="haint")
+    assert len(kho.ds_citation("SH011", "H")) == 2
+
+
+def test_xoa_citation(kho):
+    kho.tao_tap("SH011", "x"); kho.tao_chuong("SH011", "H")
+    kho.luu_citation("SH011", "H", _kq(), nguoi="haint")
+    kho.xoa_citation("SH011", "H", "ab12")
+    assert kho.ds_citation("SH011", "H") == []
+
+
+def test_citation_khong_di_theo_ban_lui(kho):
+    """Bản lùi là của CHỮ, không phải của kết luận kiểm chứng: lùi chữ về bản cũ
+    thì thẻ vẫn nằm đó, và tự rơi về 'cần kiểm lại' nếu chữ đã khác (UI so chữ ký)."""
+    kho.tao_tap("SH011", "x"); kho.tao_chuong("SH011", "H")
+    kho.luu_citation("SH011", "H", _kq(), nguoi="haint")
+    kho.luu("SH011", "H", dong=[{"en": "A", "vi": "", "het": 0}], outline="", nguoi="haint")
+    assert len(kho.ds_citation("SH011", "H")) == 1

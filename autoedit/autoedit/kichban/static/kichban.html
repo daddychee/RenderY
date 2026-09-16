@@ -103,7 +103,33 @@ select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;p
   counter-increment:dong;border-left:3px solid transparent;
   padding:4px 6px 4px 7px;border-radius:0 7px 7px 0}
 .dong:hover{background:var(--panel)}
+.dong.dung{background:var(--good-soft)}
+.dong.sai{background:var(--bad-soft)}
+.dong.cu{background:var(--warn-soft)}
 .dong.chon{background:var(--accent-soft);border-left-color:var(--accent)}
+.dau_citation{user-select:none;-webkit-user-select:none;font-size:12px;margin-left:5px}
+#noi{position:fixed;display:none;z-index:40;background:var(--accent);color:#fff;border:0;
+  border-radius:8px;padding:7px 13px;font-weight:700;cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.ket{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;margin-bottom:5px}
+.ket.d{color:var(--good)} .ket.s{color:var(--bad)} .ket.c{color:var(--warn)}
+.ly{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.ng{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.ng .ten{font-weight:700;font-size:13px;margin-bottom:3px;line-height:1.4}
+.ng .meta{font-size:11.5px;color:var(--muted);margin-bottom:5px;display:flex;gap:7px;
+  flex-wrap:wrap;align-items:center}
+.tier{border-radius:5px;padding:0 5px;font-size:10px;font-weight:800;
+  background:var(--good-soft);color:var(--good);border:1px solid var(--good)}
+.tier.t2{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.tier.t3{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.trich{font-size:12px;background:var(--bg);border-radius:7px;padding:7px 9px;line-height:1.55}
+.song{font-size:11.5px;color:var(--good);margin-top:5px}
+.hong{font-size:11.5px;color:var(--bad);margin-top:5px}
+.nut{display:flex;gap:6px;margin-top:10px}
+.nut button{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:7px;cursor:pointer;font-size:12.5px;font-weight:600}
+.nut button:hover{border-color:var(--accent)}
+.gia{font-size:11px;color:var(--muted);text-align:center;margin-top:7px}
 .en,.vi{position:relative;padding-left:24px}
 .en::before,.vi::before{content:counter(dong);position:absolute;left:0;top:2px;width:18px;
   text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;
@@ -202,14 +228,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
         <button class="chinh" onclick="luiBan()">↶ Lùi về bản này</button>
       </div>
     </div>
-    <div id="pane-c" hidden>
-      <div class="the">
-        <div class="doan" id="cDoan">Bấm một dòng ở cột giữa.</div>
-        <p style="font-weight:800;color:var(--warn);margin:0 0 6px">Chưa bật ở giai đoạn 1</p>
-        <div class="ghi">Fact-check theo đoạn chọn là giai đoạn 2. Giai đoạn 1 lo phần
-          team dùng hằng ngày: nhập, chia dòng theo mạch dựng, dịch, copy .txt cho TTS.</div>
-      </div>
-    </div>
+    <div id="pane-c" hidden></div>
   </div>
 </div>
 
@@ -220,6 +239,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <span id="chanKho"></span>
 </footer>
 
+<button id="noi" onclick="kiemDoan()">🔍 Kiểm đoạn này</button>
 <div id="toast"></div>
 
 <script>
@@ -275,6 +295,7 @@ async function doiMan(m){
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   if(m !== "TONG"){ chonCh = m; chonD = 0; }
   lichSu = []; lamLaiDuoc = [];
+  await napCitation();
   veChuong(); ve(); napBanCu();
 }
 
@@ -305,7 +326,7 @@ function giuBoiNguoiKhac(ma){
 }
 
 /* ═══════════ vẽ ═══════════ */
-function ve(){ dangVe = true; veScript(); veTrai(); vePhai();
+function ve(){ dangVe = true; hienThi().forEach(theMoCoi); veScript(); veTrai(); vePhai();
                setTimeout(function(){ dangVe = false; }, 0); }
 
 function veScript(){
@@ -335,10 +356,15 @@ function veScript(){
     h += '<div class="tap-ch' + (khac ? " ro" : "") + '">';
     cua(ma).dong.forEach(function(d, i){
       var sua = khac ? "" : " contenteditable";
-      h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
+      var t = theCuaDong(ma, d.en);
+      var dau_citation = t ? (t.moi ? '<span class="dau_citation">🕐</span>'
+                            : t.ket === "dung" ? '<span class="dau_citation">✅</span>'
+                            : '<span class="dau_citation">❌</span>') : "";
+      h += '<div class="dong ' + (t ? (t.moi ? "cu" : t.ket === "dung" ? "dung" : "sai") : "") +
+           ' ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
            ' data-ch="' + ma + '" data-i="' + i + '" onclick="chonDong(\'' + ma + '\',' + i + ')">' +
            '<div class="en"><span class="noi" data-ch="' + ma + '" data-i="' + i + '"' + sua + '>' +
-           thoat(d.en) + '</span></div>' +
+           thoat(d.en) + '</span>' + dau_citation + '</div>' +
            '<div class="vi"><span class="noi">' +
            (d.vi ? thoat(d.vi) : '<i style="opacity:.55">(chưa dịch)</i>') + '</span></div></div>' +
            (d.het ? '<div class="cach"></div>' : "");
@@ -381,10 +407,10 @@ function veTrai(){
 }
 
 function vePhai(){
+  veCitation();
   var d = (cua(chonCh).dong || [])[chonD];
   var txt = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("tDoan").textContent = txt;
-  document.getElementById("cDoan").textContent = txt;
   document.getElementById("tOo").textContent = d ? (d.tr || "") : "";
 }
 
@@ -397,6 +423,131 @@ function chonDong(ma, i){
   if(el) el.classList.add("chon");
   vePhai();
 }
+
+/* ═══════════ citation (giai đoạn 2) ═══════════ */
+var THE = {};          // THE[mã chương] = [thẻ citation]
+
+function gon(x){ return String(x || "").replace(/\s+/g, " ").trim().toLowerCase(); }
+
+async function napCitation(){
+  var ds = (MAN === "TONG") ? DS_CHUONG.map(function(c){ return c.ma; }) : (MAN ? [MAN] : []);
+  for(var i = 0; i < ds.length; i++){
+    try { THE[ds[i]] = await api("/api/tap/" + TAP_MA + "/" + ds[i] + "/citation"); }
+    catch(e){ THE[ds[i]] = []; }
+  }
+}
+
+// Thẻ phủ dòng này. Neo theo NỘI DUNG chứ không theo số dòng: chẻ một dòng
+// thành hai thì cả hai nửa vẫn nằm trong đoạn đã kiểm -> kết luận giữ nguyên.
+// Sửa chữ thì không nửa nào khớp nữa -> thẻ thành "mồ côi" = cần kiểm lại.
+function theCuaDong(ma, chu){
+  var ds = THE[ma] || [], g = gon(chu);
+  if(!g) return null;
+  for(var i = 0; i < ds.length; i++){
+    if(gon(ds[i].doan).indexOf(g) >= 0){ ds[i].moi = false; return ds[i]; }
+  }
+  // Khớp MỘT PHẦN = dòng này từng được kiểm rồi bị SỬA CHỮ -> 🕐 cần kiểm lại.
+  // Trước đó dấu ✅ lặng lẽ biến mất (đo trên Chrome 16/09), người viết tưởng
+  // đoạn chưa từng kiểm — đúng kiểu hỏng im lặng tệ nhất.
+  var w = g.split(" ");
+  for(var i = 0; i < ds.length; i++){
+    var d = gon(ds[i].doan);
+    for(var k = 0; k + 6 <= w.length; k++){
+      if(d.indexOf(w.slice(k, k + 6).join(" ")) >= 0){ ds[i].moi = true; return ds[i]; }
+    }
+  }
+  return null;
+}
+
+function theMoCoi(ma){
+  var ds = THE[ma] || [], dong = cua(ma).dong || [], ra = [];
+  for(var i = 0; i < ds.length; i++){
+    var co = false;
+    for(var k = 0; k < dong.length; k++)
+      if(gon(ds[i].doan).indexOf(gon(dong[k].en)) >= 0){ co = true; break; }
+    if(!co){ ds[i].moi = true; ra.push(ds[i]); }
+  }
+  return ra;
+}
+
+function veCitation(){
+  var d = (cua(chonCh).dong || [])[chonD];
+  var t = d ? theCuaDong(chonCh, d.en) : null;
+  var p = document.getElementById("pane-c");
+  if(!d){ p.innerHTML = '<div class="the"><div class="ghi">Bấm một dòng ở cột giữa, hoặc bôi đen một đoạn rồi bấm “Kiểm đoạn này”.</div></div>'; return; }
+  if(!t){
+    p.innerHTML = '<div class="the"><div class="doan">' + thoat(d.en) + '</div>' +
+      '<div class="ly">Đoạn này chưa được kiểm.</div>' +
+      '<div class="nut"><button onclick="kiemDong()">🔍 Kiểm dòng này</button></div>' +
+      '<div class="gia">1 lượt ≈ 1 tra Google + 2 lượt GLM · chỉ chạy khi bạn bấm</div></div>';
+    return;
+  }
+  var ng = (t.nguon || []).map(function(n){
+    var h = n.hang || 0;
+    var bc = n.bang_chung
+      ? '<div class="song">✓ link sống · trích đoạn có thật trong trang · kiểm ' + (n.luc || "") +
+        (n.ban_chup ? ' · đã lưu bản chụp' : '') + '</div>'
+      : '<div class="hong">✗ ' + (!n.song ? 'link chết' : !n.khop ? 'không tìm thấy trích đoạn trong trang'
+                                   : 'hạng nguồn không đủ làm bằng chứng') + '</div>';
+    return '<div class="ng"><div class="ten">' + thoat(n.ten || n.url) + '</div>' +
+      '<div class="meta"><span class="tier' + (h >= 2 ? ' t' + h : '') + '">T' + (h || '?') + '</span>' +
+      '<a href="' + thoat(n.url) + '" target="_blank" rel="noopener" style="color:var(--accent)">⧉ mở</a></div>' +
+      '<div class="trich">' + thoat(n.trich) + '</div>' + bc + '</div>';
+  }).join("");
+  var nhan = t.moi ? '<div class="ket c">🕐 CẦN KIỂM LẠI</div>'
+           : t.ket === "dung" ? '<div class="ket d">✅ ĐÚNG</div>'
+           : '<div class="ket s">❌ SAI / CHƯA KẾT LUẬN ĐƯỢC</div>';
+  p.innerHTML = '<div class="the"><div class="doan">' + thoat(t.doan) + '</div>' + nhan +
+    '<div class="ly">' + thoat(t.ly_do) + '</div>' + ng +
+    '<div class="ghi">Tra bằng: ' + thoat(t.truy_van || "") + '</div>' +
+    '<div class="nut"><button onclick="kiemLai(\'' + t.chu_ky + '\')">↻ Kiểm lại</button>' +
+    '<button onclick="xoaThe(\'' + t.chu_ky + '\')">Xoá thẻ</button></div></div>';
+}
+
+async function chayKiem(doan){
+  if(!doan || !doan.trim()) return bao("Chưa chọn đoạn nào.", true);
+  var ma = (MAN === "TONG") ? chonCh : MAN;
+  if(!ma) return;
+  await luuNgay();
+  if(!(await giuKhoa(ma))) return;
+  tt("Đang kiểm chứng…");
+  bao("Đang tra nguồn cho đoạn đã chọn — mất khoảng 20-40 giây.");
+  try { await api("/api/tap/" + TAP_MA + "/" + ma + "/kiem", "POST", {doan: doan}); }
+  catch(e){ tt("✗ kiểm hỏng", "loi"); return bao(e.message, true); }
+  await napCitation(); ve(); doiTab("c");
+  tt("✓ Đã lưu " + gio(), "xong");
+}
+
+function kiemDoan(){
+  var s = document.getSelection();
+  var t = s ? s.toString() : "";
+  document.getElementById("noi").style.display = "none";
+  chayKiem(t);
+}
+function kiemDong(){
+  var d = (cua(chonCh).dong || [])[chonD];
+  if(d) chayKiem(d.en);
+}
+function kiemLai(ck){
+  var ds = THE[(MAN === "TONG") ? chonCh : MAN] || [];
+  for(var i = 0; i < ds.length; i++) if(ds[i].chu_ky === ck) return chayKiem(ds[i].doan);
+}
+async function xoaThe(ck){
+  var ma = (MAN === "TONG") ? chonCh : MAN;
+  try { await api("/api/tap/" + TAP_MA + "/" + ma + "/citation/" + ck, "DELETE"); }
+  catch(e){ return bao(e.message, true); }
+  await napCitation(); ve(); bao("Đã xoá thẻ.");
+}
+
+document.addEventListener("selectionchange", function(){
+  var s = document.getSelection(), n = document.getElementById("noi");
+  if(!s || s.isCollapsed || !s.toString().trim() ||
+     !document.getElementById("cotScript").contains(s.anchorNode)){ n.style.display = "none"; return; }
+  var r = s.getRangeAt(0).getBoundingClientRect();
+  n.style.display = "block";
+  n.style.top = Math.max(8, r.top - 44) + "px";
+  n.style.left = Math.max(8, r.left + r.width / 2 - 80) + "px";
+});
 
 function doiTab(x){
   document.getElementById("tb-t").classList.toggle("on", x === "t");

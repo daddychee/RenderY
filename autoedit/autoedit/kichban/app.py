@@ -84,8 +84,8 @@ def _ghi_duoc(request: Request) -> str:
     return ai
 
 
-def tao_app(kho: Kho, dich=None) -> FastAPI:
-    """`kho` và `dich` tiêm từ ngoài: test chạy DB tạm + bộ dịch giả, không mạng."""
+def tao_app(kho: Kho, dich=None, kiem=None) -> FastAPI:
+    """`kho`, `dich`, `kiem` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -220,6 +220,42 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
             raise HTTPException(409, str(exc)) from exc
         return {"dich": len(can)}
 
+    # ---------------------------------------------------------- citation
+    @app.post("/api/tap/{tap}/{chuong}/kiem")
+    def kiem_doan_api(tap: str, chuong: str, request: Request, than: dict = Body(...)):
+        """Kiểm chứng ĐOẠN người dùng bôi đen — chỉ chạy khi có người bấm.
+
+        Gác khoá chương như mọi đường ghi: thẻ citation là dữ liệu của chương,
+        người khác đang giữ thì không được chen vào. Và mỗi lượt là tiền thật
+        (1 lượt Serper + 2 lượt GLM) nên phải biết ai bấm.
+        """
+        ai = _ghi_duoc(request)
+        if kiem is None:
+            raise HTTPException(503, "Chưa bật bộ kiểm chứng (thiếu khoá Serper/GLM).")
+        doan = (than.get("doan") or "").strip()
+        if not doan:
+            raise HTTPException(400, "Chưa chọn đoạn nào để kiểm.")
+        dang = kho.ai_giu(tap, chuong)
+        if dang and dang != ai:
+            raise HTTPException(409, f"{dang} đang sửa chương này.")
+        try:
+            kq = kiem(doan)
+        except Exception as exc:  # noqa: BLE001 — chữ của người viết phải còn nguyên
+            raise HTTPException(502, f"Kiểm hỏng: {exc}") from exc
+        d = kq.ra_dict()
+        kho.luu_citation(tap, chuong, d, ai)
+        return d
+
+    @app.get("/api/tap/{tap}/{chuong}/citation")
+    def ds_citation(tap: str, chuong: str):
+        return kho.ds_citation(tap, chuong)
+
+    @app.delete("/api/tap/{tap}/{chuong}/citation/{chu_ky}")
+    def xoa_citation(tap: str, chuong: str, chu_ky: str, request: Request):
+        _ghi_duoc(request)
+        kho.xoa_citation(tap, chuong, chu_ky)
+        return {"ok": True}
+
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")
     def ban_cu(tap: str, chuong: str):
@@ -255,13 +291,33 @@ def _dich_mac_dinh():
         return None
 
 
+def _kiem_mac_dinh(kho: Kho):
+    """Bộ kiểm chứng thật: Serper tra -> Python tải -> GLM đọc -> Python soi lại.
+
+    Bản chụp trang nằm CẠNH kho (`<thư mục db>/bangchung/`) — bằng chứng lúc kiểm,
+    vì link chết sau 6-12 tháng là chuyện thường.
+    """
+    from functools import partial
+
+    from autoedit.kichban.kiem import kiem_doan
+    from autoedit.kichban.tra import LlmKiem, tai_thong_minh, tim_gop
+
+    try:
+        llm = LlmKiem()
+    except Exception:  # noqa: BLE001 — thiếu khoá thì tắt nút, không giết app
+        return None
+    return partial(kiem_doan, tim=tim_gop, tai=tai_thong_minh, llm=llm,
+                   thu_muc_chup=kho.duong.parent / "bangchung")
+
+
 def tao_app_mac_dinh() -> FastAPI:
     """Chỗ bám cho uvicorn: `autoedit.kichban.app:tao_app_mac_dinh --factory`.
 
     FACTORY chứ không phải biến `APP` sẵn ở module: biến sẵn nghĩa là chỉ IMPORT
     thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
-    return tao_app(_kho_mac_dinh(), dich=_dich_mac_dinh())
+    kho = _kho_mac_dinh()
+    return tao_app(kho, dich=_dich_mac_dinh(), kiem=_kiem_mac_dinh(kho))
 
 
 def main() -> None:
