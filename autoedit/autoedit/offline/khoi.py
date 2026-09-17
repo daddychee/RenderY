@@ -81,7 +81,11 @@ def cat_khoi(silences: list[tuple[float, float]], words: list[dict],
     for k in khoi:
         ws = [w for w in words
               if w.get("start", 0.0) >= k.v0 - 0.6 and w.get("end", 0.0) <= k.v1 + 0.3]
-        k.loi = " ".join(w.get("text", w.get("word", "")) for w in ws).strip()[:200]
+        # ĐỦ LỜI, không cắt (user chốt 17/09: "nâng trần để hiển thị toàn bộ
+        # voice"). Trần 200 ký tự cũ cắt giữa chữ — ảnh user 13/09: "…contribute
+        # to a higher r" — và `dich` dịch từ `loi` nên bản dịch cụt theo. `loi`
+        # là thứ được LƯU vào hợp đồng nên mất là mất hẳn, không vẽ lại được.
+        k.loi = " ".join(w.get("text", w.get("word", "")) for w in ws).strip()
         k.ranh_mem = [round(x - dau, 2) for x in mem if k.v0 + 0.8 < x < k.v1 - 0.8]
         k.v0, k.v1 = round(k.v0 - dau, 2), round(k.v1 - dau, 2)
         if than_framing > 0:
