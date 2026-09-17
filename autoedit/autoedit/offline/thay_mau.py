@@ -115,12 +115,14 @@ def lay_du(conn, assets: Path, i: int, ung_vien: list, can_s: float, log) -> Pat
                 if not url:
                     raise RuntimeError("API không trả file gốc")
                 _tai(url, dich)
+                _cat_theo_trim(c, dich)      # miếng đắp thêm cũng phải tôn trọng trim
                 time.sleep(random.uniform(*GIAN_NHIP))
             elif nguon == "pixabay":
                 url = _pixabay_goc(cid)
                 if not url:
                     raise RuntimeError("API không trả file gốc")
                 _tai(url, dich)
+                _cat_theo_trim(c, dich)
                 time.sleep(random.uniform(*GIAN_NHIP))
             else:
                 continue           # envato thiếu bản sạch / aigen / nguồn lạ
@@ -247,10 +249,35 @@ def _clip_db(conn, cid: str) -> dict | None:
     return dict(r) if r else None
 
 
+def _cat_theo_trim(c: dict, f: Path) -> None:
+    """Cắt file vừa lấy về đúng khúc người dựng đã trim (user báo 17/09).
+
+    Trim KHÔNG cắt file, chỉ ghi toạ độ vào clip con `<id mẹ>#<t0>-<t1>`; khúc đó
+    phải được cắt ra lúc dựng. `ref`/`envato` xưa nay cắt bằng `cat_clip`, còn
+    pexels/pixabay tải nguyên file và `kho` chép nguyên file -> `dung_draft` đặt
+    segment không kèm `source_timerange` nên luôn phát từ giây 0: người dựng trim
+    xong, Import xong, mà draft ra đoạn đầu clip gốc (đo 17/09: 65 miếng đang sai).
+
+    Không có t0/t1 thì KHÔNG đụng vào file — clip chưa trim vẫn dùng nguyên.
+    """
+    from autoedit.sourcer.refvideo import cat_clip
+
+    t0 = float(c.get("t0") or 0)
+    t1 = float(c.get("t1") or 0)
+    if t1 <= t0:
+        return
+    tam = f.with_name(f.stem + "_khuc" + f.suffix)
+    cat_clip(f, t0, t1 - t0, tam)
+    if tam.is_file() and tam.stat().st_size > 5_000:
+        tam.replace(f)
+    else:
+        tam.unlink(missing_ok=True)          # cắt hỏng -> giữ file nguyên, không mất hình
+
+
 def _pexels_goc(cid: str) -> str:
     """API Pexels trả link file gốc 1080p+ (không watermark, key sẵn)."""
     key = os.getenv("PEXELS_API_KEY", "").strip()
-    vid = cid.split(":")[1]
+    vid = cid.split(":")[1].split("#")[0]   # bỏ đuôi #t0-t1 của khúc đã trim
     req = urllib.request.Request(f"https://api.pexels.com/videos/videos/{vid}",
                                 headers={"Authorization": key})
     d = json.loads(urllib.request.urlopen(req, timeout=60).read())
@@ -262,7 +289,7 @@ def _pexels_goc(cid: str) -> str:
 
 def _pixabay_goc(cid: str) -> str:
     key = os.getenv("PIXABAY_API_KEY", "").strip()
-    vid = cid.split(":")[1]
+    vid = cid.split(":")[1].split("#")[0]   # bỏ đuôi #t0-t1 của khúc đã trim
     d = json.loads(urllib.request.urlopen(
         f"https://pixabay.com/api/videos/?key={key}&id={vid}", timeout=60).read())
     hits = d.get("hits") or [{}]
@@ -346,6 +373,7 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None,
                 elif nguon == "kho" and c.get("path_local") and Path(c["path_local"]).is_file():
                     import shutil
                     shutil.copy2(c["path_local"], dich)
+                    _cat_theo_trim(c, dich)
                 elif nguon == "aigen" and c.get("path_local"):
                     anh = Path(c["path_local"])
                     if ark is not None:
@@ -361,12 +389,14 @@ def relocate(project_dir: Path, hd: dict, conn, log, ark=None,
                     if not url:
                         raise RuntimeError("API không trả file gốc")
                     _tai(url, dich)
+                    _cat_theo_trim(c, dich)
                     time.sleep(random.uniform(*GIAN_NHIP))
                 elif nguon == "pixabay":
                     url = _pixabay_goc(cid)
                     if not url:
                         raise RuntimeError("API không trả file gốc")
                     _tai(url, dich)
+                    _cat_theo_trim(c, dich)
                     time.sleep(random.uniform(*GIAN_NHIP))
                 elif nguon == "envato":
                     sach = c.get("path_local") or ""
