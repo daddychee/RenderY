@@ -2079,7 +2079,9 @@ function ofVeTL() {
       OF_HCHON = j
       if (h.khoi_goc !== undefined) OF_CHON = Math.min(h.khoi_goc, ofK().length - 1)
       const u = ofUv(h)
-      if (!u) { toastOf('Shot chưa có hình — chọn từ khay trước'); return }
+      // MIẾNG TRỐNG VẪN MỞ (user báo 17/09): popup chính là chỗ có ô tra Library
+      // và nút ⛏ Hút thêm — chặn ở đây là khoá cửa đúng lúc cần hút nhất.
+      if (!u) { ofVeAll(); ofReview(null); return }
       const goc = {...u}
       if (goc.id && goc.id.includes('#')) {   // khúc đã trim -> lùi về clip mẹ
         goc.id = goc.id.split('#')[0]
@@ -2830,6 +2832,11 @@ function ofXkHoi(so_mieng, ten_draft, noi_cu, chay) {
 /* ── MÀN REVIEW + TRIM (user 08/09): xem ứng viên, cắt đúng khúc, chưa đụng
    timeline. Trim ghi SỔ mốc in/out vào Library (không cắt file). ── */
 let OF_RV = null, OF_RV_T0 = 0, OF_RV_T1 = 0, OF_RV_DAI = 0
+// NGƯỜI DỰNG ĐANG TỰ RÊ (lỗi user báo 17/09): chốt lặp khúc bên dưới bắn ở MỌI
+// `timeupdate`, kể cả lúc người dựng kéo thanh — nên vừa rê ra ngoài vùng trim là
+// bị giật về đầu, kể cả khi đang dừng. Lặp khúc là để XEM THỬ đoạn đã chọn, không
+// được cướp quyền khi người dựng chủ động đi xem chỗ khác của clip gốc.
+let OF_RV_TU_DO = false
 function ofRvMeta(u) {
   // Bảng thông tin bên phải — thay chỗ cột "Tương tự" cũ. Nội dung/nhãn/nút
   // lấy NGUYÊN VĂN từ mockup `ui_o_tra_cuu.html` hàm `veB()` (dòng 346-357).
@@ -2883,11 +2890,19 @@ function ofDongTrim() {
 async function ofReview(u) {
   document.getElementById('of-trim-cs').classList.add('mo')
   ofNoiTrim()
-  OF_RV = u
+  OF_RV = u || null
   // tọa độ trim gửi TƯƠNG ĐỐI theo khúc đang xem — SERVER tự cộng mốc gốc
   // (06/09: bản client-cộng dính race/JS cũ -> 12 khúc ghi 0.0-x tuyệt đối)
   const v = document.getElementById('of-rv-video'), a = document.getElementById('of-rv-anh')
-  document.getElementById('of-rv-ten').textContent = u.tieu_de || u.nhan || ''
+  document.getElementById('of-rv-ten').textContent = u ? (u.tieu_de || u.nhan || '') : ''
+  if (!u) {                       // miếng chưa có hình: chỉ mở phần TRA + HÚT
+    v.pause(); v.removeAttribute('src'); v.load()
+    v.hidden = true; a.hidden = true
+    document.getElementById('of-trim').hidden = true
+    ofRvMeta(null)
+    ofTimVe()
+    return
+  }
   const vsrc = ofVid(u)
   if (vsrc) {
     a.hidden = true; v.hidden = false; v.src = vsrc
@@ -2898,11 +2913,17 @@ async function ofReview(u) {
       ofVeTrim()
       ofRvMeta(OF_RV)          // giờ mới biết độ dài thật -> vẽ lại bảng
     }
+    v.onseeking = () => {            // rê RA NGOÀI vùng trim = muốn xem clip gốc
+      if (v.currentTime > OF_RV_T1 + 0.05 || v.currentTime < OF_RV_T0 - 0.05)
+        OF_RV_TU_DO = true
+    }
     v.ontimeupdate = () => {
       const ph = document.getElementById('of-trim-ph')
       if (OF_RV_DAI > 0) ph.style.left = (v.currentTime / OF_RV_DAI * 100) + '%'
-      if (v.currentTime > OF_RV_T1) v.currentTime = OF_RV_T0
+      // chỉ lặp khi video TỰ chạy hết khúc — ▶ Play bật lại chế độ lặp
+      if (!OF_RV_TU_DO && !v.paused && v.currentTime > OF_RV_T1) v.currentTime = OF_RV_T0
     }
+    OF_RV_TU_DO = false
     v.play().catch(() => {})
   } else {
     v.hidden = true; a.hidden = false; a.src = ofAnh(u)
@@ -2940,6 +2961,7 @@ function ofTrimKeo(e, la_a) {
 }
 function ofTrimPhat() {
   const v = document.getElementById('of-rv-video')
+  OF_RV_TU_DO = false                 // xem thử khúc -> lặp trong khúc trở lại
   v.currentTime = OF_RV_T0; v.play().catch(() => {})
 }
 async function ofTrimDung() {
@@ -2972,7 +2994,7 @@ function ofVeXem() {
   if (!co) {
     anh.hidden = v1.hidden = v2.hidden = true; v1.pause(); v2.pause()
     if (OF_PHA === 2)
-      document.getElementById('of-rong').innerHTML = 'Miếng ' + (OF_HCHON + 1) + ' chưa có hình<br>chọn từ 4 khu bên phải'
+      document.getElementById('of-rong').innerHTML = 'Miếng ' + (OF_HCHON + 1) + ' chưa có hình<br>chọn từ khay bên phải<br>hoặc <b>bấm đúp vào miếng</b> để tra &amp; hút'
     ofVeXem._key = ''
     return
   }
