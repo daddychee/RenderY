@@ -200,6 +200,11 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
    sâu bên trong cũng có nút sorting rồi. Gộp chung 1 pool, video phù hợp đưa lên
    trước, không phù hợp cho ra sau." Thứ tự do `xep_3_tang` (A+C+B+còn) quyết —
    JS KHÔNG sắp lại. Số đo lấy từ mockup `scratchpad/ui_mot_pool.html`. */
+#of-canh-bao{grid-column:2 / -1; align-self:start; background:var(--bad-soft);
+             border:1px solid var(--bad); border-radius:8px; padding:7px 10px;
+             font-size:11.5px; line-height:1.55; color:var(--bad)}
+#of-canh-bao b{display:block; text-transform:uppercase; letter-spacing:.06em;
+               font-size:10px; margin-bottom:3px}
 #of-khay-1{grid-column:2 / -1}
 #of-pool{flex:1 1 0; min-height:0; display:grid; gap:8px; overflow-y:auto;
          overflow-x:hidden; align-content:start;
@@ -926,6 +931,11 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
       </div>
     </div>
     <div id="of-phai">
+      <!-- CẢNH BÁO CỦA CHƯƠNG (user chốt 17/09). Trước nay hợp đồng ghi
+           `canh_bao` mà panel không hiện ở đâu — nằm trong log job thì người
+           dựng không bao giờ thấy, và đó là lý do 3 chương mất lời vẫn được
+           dựng tiếp. -->
+      <div id="of-canh-bao" hidden></div>
       <div id="of-hd">PHA 1 · CHỐT KHỐI<br>▶ nghe voice kiểm ranh — khối trắng = hình thở<br>
         +1s/−1s ở panel trái · ⟳ phương án khác<br>
         xong bấm <b style="color:var(--warn)">Duyệt khối → Đổ video</b></div>
@@ -3055,8 +3065,16 @@ function ofVeStat() {
 }
 
 let OF_KHAY_KEY = ''
+function ofVeCanhBao() {
+  const el = document.getElementById('of-canh-bao')
+  if (!el) return
+  const ds = (OF_HD && OF_HD.canh_bao) || []
+  el.hidden = !ds.length
+  el.innerHTML = ds.length
+    ? '<b>⚠ Cảnh báo chương</b>' + ds.map(x => '• ' + esc(x)).join('<br>') : ''
+}
 function ofVeAll(nhe) {
-  ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem()
+  ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem(); ofVeCanhBao()
   // KHAY chỉ vẽ lại khi ĐỔI MIẾNG hoặc đổi kết quả tìm — trước đây vẽ lại
   // hàng trăm thẻ <video> sau MỖI thao tác -> app đơ (user báo 08/09)
   // key gồm cả .chon: đổi clip trong cùng miếng phải vẽ lại để nhãn 'đang dùng' đúng

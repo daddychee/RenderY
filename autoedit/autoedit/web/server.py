@@ -2714,6 +2714,42 @@ class JobRequest(BaseModel):
     retention_tooltip: list[str] = []
 
 
+def _khop_chuong_kem(chuong) -> list[tuple[str, float]]:
+    """Chương nào có script LỆCH HẲN voice — đo NGAY lúc nộp (user chốt 17/09).
+
+    Đọc `.srt` so với script: không whisper, không LLM, vài mili giây. Chương
+    thiếu `.srt` thì BỎ QUA (đo được mới xét, không đoán). Trả [(mã chương, tỉ lệ)]
+    của những chương dưới `KHOP_CHAN`.
+
+    Vì sao phải chặn: chương lệch nặng thì matcher nội suy gần hết rồi dồn từ vào
+    một chỗ — đo trên KIM048 (khớp 9%): 198/218 từ dồn vào 60–80s, 9/13 khối được
+    0 từ nên `loi` rỗng, `dich` rỗng theo. Người dựng thấy "mất kịch bản".
+    """
+    from autoedit.align.runner import KHOP_CHAN, do_khop_srt
+    from autoedit.web.chapters import _SRT_EXTS, _TEXT_EXTS
+
+    kem: list[tuple[str, float]] = []
+    for c in chuong:
+        if not getattr(c, "co_srt", False):
+            continue
+        d = Path(c.path)
+        try:
+            srt = next((f for f in d.iterdir() if f.suffix.lower() in _SRT_EXTS), None)
+            kb = next((f for f in d.iterdir() if f.suffix.lower() in _TEXT_EXTS), None)
+        except OSError:
+            continue
+        if srt is None or kb is None:
+            continue
+        try:
+            chu = kb.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        tl = do_khop_srt(chu, srt)
+        if tl is not None and tl < KHOP_CHAN:
+            kem.append((c.ma, tl))
+    return kem
+
+
 @app.post("/api/jobs")
 def api_add_job(req: JobRequest, request: Request):
     if req.phuong_an == "doi_thu":       # nhãn UI -> tên pipeline hiểu được
@@ -2759,6 +2795,17 @@ def api_add_job(req: JobRequest, request: Request):
         raise HTTPException(422, " · ".join(loi[:4]))
     if not chuong:
         raise HTTPException(422, "Không tìm thấy chương nào (H / C1 / C2 / E)")
+
+    # SCRIPT CÓ KHỚP VOICE KHÔNG — kiểm TRƯỚC KHI CHẠY (user chốt 17/09).
+    # Lệch nặng thì khối không nhận được từ nào, `loi` rỗng và bản dịch rỗng theo:
+    # dựng xong mới thấy thì đã mất cả lượt. Xem `_khop_chuong_kem`.
+    kem = _khop_chuong_kem(chuong)
+    if kem:
+        ds = " · ".join(f"{ma} {tl:.0%}" for ma, tl in kem)
+        raise HTTPException(
+            422, f"Script lệch voice ở: {ds} (cần ≥ 50% từ khớp). Khối sẽ không "
+                 "nhận được lời và bản dịch cũng rỗng theo — kiểm writer có sửa "
+                 "script sau khi gen voice không, rồi nộp lại.")
 
     # RETENTION: đo ảnh NGAY lúc nộp — ảnh hỏng thì báo liền cho người đứng đó,
     # không để 20 phút sau worker mới kêu. Kết quả ghi retention.json ở folder

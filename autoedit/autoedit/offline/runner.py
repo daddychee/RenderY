@@ -119,6 +119,22 @@ def nap_ref_cua_tap(conn, project_dir: Path, ma_tap: str = "",
         return 0
 
 
+def canh_bao_mat_loi(khoi: list) -> list[str]:
+    """Khối nào KHÔNG nhận được lời nào — đếm thiệt hại thật, không đoán theo tỉ lệ.
+
+    Script lệch voice thì matcher nội suy rồi dồn từ vào một chỗ; khối còn lại
+    được 0 từ nên `loi` rỗng và `dich` rỗng theo (đo KIM048 17/09: khớp 9%, khối
+    11 nuốt 198/218 từ, 9/13 khối trắng). Dưới 50% đã bị chặn ở lượt nộp tập;
+    còn lại vẫn chạy nhưng phải NÓI RA, không giấu trong log.
+    """
+    trong = sum(1 for k in khoi if not str((k or {}).get("loi") or "").strip())
+    if not trong:
+        return []
+    return [f"{trong}/{len(khoi)} khối không nhận được lời — script lệch voice. "
+            f"Bản dịch của các khối đó cũng rỗng theo. Kiểm writer có sửa script "
+            f"sau khi gen voice không."]
+
+
 def _canh_bao_phien(dong_kiem: bool) -> list[str]:
     """(4) user chốt 06/09: sequence tạo xong phải BIẾT NGAY phiên Envato sống
     chưa — đừng để dựng 2 tiếng rồi Export mới lộ watermark."""
@@ -389,6 +405,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
             "khoa": False, "nguoi_sua": False,
         } for i, k in enumerate(ds_khoi)],
         "canh_bao": _thieu
+                    + canh_bao_mat_loi([{"loi": k.loi} for k in ds_khoi])
                     + ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
                     + ([f"GÁN NGHĨA HỎNG ({_loi_4lop}) — khay sẽ rỗng. Kiểm khoá "
                         "GLM ở General › API Keys rồi Phân tích lại."]

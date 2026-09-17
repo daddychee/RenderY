@@ -16,6 +16,12 @@ from autoedit.align.matcher import match_script_to_whisper
 from autoedit.project import Project, Stage, StageRecord, StageStatus
 
 MATCH_RATIO_MIN = 0.95   # 0.1: dưới mức này -> cảnh báo đỏ script/voice không khớp
+# CHẶN lúc nộp tập (user chốt 17/09: "nên kiểm trước khi chạy"). Ngưỡng lấy từ số
+# đo 119 chương đang có, KHÔNG tự đặt: 3 chương ở 6,9–11,3% mất 4–9 khối lời mỗi
+# chương; chương kế tiếp là 56% và không mất khối nào. Giữa 11% và 56% không có
+# chương nào -> chặn ở 50% bắt đúng 3 ca thảm hoạ, không chặn oan ai. Đem 0.95 đi
+# chặn thì chặn 44/119 chương (37%) mà phần lớn chỉ mất 0–1 khối.
+KHOP_CHAN = 0.50
 TAIL_SILENCE_MAX = 3.0   # giây lặng cuối file chấp nhận được trước khi nghi thiếu đoạn
 
 
@@ -78,3 +84,31 @@ def run_align(project: Project, aligner: Aligner) -> Project:
         encoding="utf-8",
     )
     return project
+
+
+def do_khop_srt(script_text: str, srt_path) -> float | None:
+    """Tỉ lệ từ script khớp thẳng vào `.srt` — KIỂM TRƯỚC KHI CHẠY.
+
+    Dùng đúng hai thứ đã có: `parse_srt` + `match_script_to_whisper`. Không gọi
+    whisper, không gọi LLM -> đo được ngay lúc người dựng còn đứng đó, thay vì để
+    worker chạy hết rồi mới lộ ra khối mất lời.
+
+    Trả None khi KHÔNG đo được (thiếu file, srt hỏng, script rỗng) — cổng gọi nó
+    phải MỞ, đúng khuôn các cổng khác: không đo được thì đừng chặn người ta.
+    """
+    from pathlib import Path as _P
+
+    from autoedit.align.matcher import match_script_to_whisper
+    from autoedit.align.srt_file import parse_srt, words_from_captions
+
+    f = _P(srt_path)
+    if not (script_text or "").strip() or not f.is_file():
+        return None
+    try:
+        cap = parse_srt(f.read_text(encoding="utf-8", errors="replace"))
+        words = words_from_captions(cap)
+        if not words:
+            return None
+        return round(match_script_to_whisper(script_text, words).match_ratio, 4)
+    except Exception:  # noqa: BLE001 — đo hỏng thì mở cửa, không chặn oan
+        return None
