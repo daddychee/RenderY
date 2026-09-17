@@ -2029,3 +2029,61 @@ phép tìm trong kho.
   mới vẫn chưa mang `tu_khoa_hut` vào chỉ mục.
 * **Xoá kho cũ ổ C** (78 GB, ổ C còn 2,83 GB) — `Remove-Item -Recurse -Force` bị cửa
   an toàn Claude Code chặn, user tự chạy.
+
+# 17/09/2026 — QĐ17: MỘT TIMELINE CHO CẢ TẬP
+
+User: *"Vẫn với cách nhập liệu cũ (H, C, E) nhưng bây giờ tôi muốn hòa chung tất cả
+vào 1 timeline thay vì chia như cũ. Việc chia chỉ thể hiện bằng cách đặt tên khối."*
+
+## Số đo trước khi quyết (projects production, 17/09)
+
+| Đo | Kết quả | Hệ quả |
+|---|---|---|
+| 1 chương = 1 project | LI103 17 project, LI089 16 | gộp = 571 khối · 587 miếng · 31 phút |
+| Thứ tự chương về (11 tập) | 9 đúng H→C→E; **LI103 lệch**: C2 chạy lại 4 lần, C4 về SAU CÙNG | không "nối vào đuôi" được, phải ghép **theo đoạn** |
+| Voice master | đều PCM 48 kHz; 2 file mono / 4 file stereo | nối phải ép cùng số kênh |
+| Khe giữa khối | 0/86 hợp đồng | nối liền mạch, không sinh lỗ |
+| Vẽ 587 miếng trong Chrome | 23 ms | không phải rào cản |
+| Hợp đồng tập | LI089 ≈ 5,3 MB JSON (7.971 ứng viên) | autosave PUT cả file, chấp nhận được trên LAN |
+
+## Bốn quyết định (user chốt qua hộp hỏi)
+
+1. **Hướng A** — gộp thật ở tầng dữ liệu. **Khoá sổ và giao hàng cho cả tập.**
+2. **Chương AUTO** (sau mốc AVD): TẮT tự khoá sổ + tự Export theo chương. AUTO chỉ còn
+   "máy chọn sẵn hình rồi sang pha 2". Lý do: tải bản sạch Envato trước khi tập được
+   duyệt là trái luật 09/09.
+3. **Gộp thêm chương chưa duyệt ranh** vào tập đang pha 2 → tập **lùi về pha 1** (một
+   cú bấm là về pha 2, không mất lựa chọn hình). Tập đã KHOÁ mà gộp thêm → mở lại pha 2.
+4. **Nhãn khối** = mã chương: H, C1, C2…, E. **Khoá phiên bản khi lưu**: làm luôn.
+
+## Thiết kế — tập là MỘT PROJECT BÌNH THƯỜNG
+
+`projects/<mã tập>-tap/`: `media/voice_master.wav` = voice các chương nối lại (mỗi
+chương cắt từ `offset` của nó, ép 48 kHz stereo); `offline.json` = hợp đồng các chương
+nối lại — khối dịch theo trục VOICE, miếng hình dịch theo trục TIMELINE, mỗi khối mang
+`chuong`; `offset = 0`; `chuong_ds[]` ghi từng đoạn (mã, project chương, `dai_voice`,
+số khối). Nhờ vậy **16 endpoint `/api/offline/{project_id}` và panel dùng lại nguyên**:
+voice, PUT, khoá sổ, Export (`_cat_voice` cắt từ master tập), trim, Add Shot, nhạc, ±1s.
+
+Đuôi im lặng thừa cuối chương (cat_khoi bỏ đuôi < 1 s) NHẬP vào thở khối cuối — file
+vẫn có đoạn đó, không nhập thì chương sau lệch hình đúng bấy nhiêu.
+
+**Ghép theo đoạn** (`offline/tap.py`): đoạn đã có trong tập giữ nguyên (chỉnh tay đi
+theo), chương mới chèn đúng chỗ H → C1.. → E, chương `lam_lai` thay đúng đoạn đó.
+`tach_doan` là nghịch đảo của `noi_hop_dong` (test vòng tròn).
+
+Mới: `offline/tap.py` · `POST /api/offline/tap/{ma}/gop` · `tap-list` thêm ô `gop` ·
+chip **TẬP** + nút **⊕ Gộp** · nhãn chương + vạch ranh trên timeline · draft tên
+`OFF_<tập>_TAP`, giấy tờ giao vào `Compose Timeline\TAP`.
+
+**Khoá phiên bản khi lưu:** `runner.luu` tăng `phien_ban` và ghi `tab_cuoi`; panel gửi
+`X-Of-Tab` (sendBeacon gửi `_tab` trong thân). Máy chủ chặn 409 "TẢI LẠI" khi bản gửi
+lên CŨ hơn bản trên đĩa **và** lần ghi cuối là của tab khác. Cùng tab thì mở (các
+endpoint phía máy chủ tự tăng số); máy chủ tự ghi (phân tích, làm tươi ref) thì mở.
+Trước đó `phien_ban` được ghi nhưng không nơi nào đọc.
+
+Sau khi gộp: **chỉ sửa trên TẬP**; hợp đồng chương là đầu vào. `clip_da_dung_trong_tap`
+bỏ qua hợp đồng tập (đếm đôi). Nhạc: một track cho cả tập.
+
+Test: `test_mot_timeline_tap.py` (24, gồm Chrome thật cho nhãn khối, chip TẬP, header
+tab), `test_cong_auto` sửa test AUTO theo quyết định 2. Mockup: `scratchpad/ui_mot_timeline.html`.

@@ -356,13 +356,16 @@ def api_offline_tap_list(request: Request):
     _require_auth(request)
     import re as _re
 
-    from autoedit.offline import runner as orun
+    from autoedit.duong_dan import ten_draft_chuong as _tdc
+    from autoedit.offline import runner as orun, tap as _tap
 
     tap: dict[str, list] = {}
     for d in sorted(PROJECTS_DIR.iterdir(), key=lambda x: x.stat().st_mtime,
                     reverse=True):
         if not (d / "project.json").is_file():
             continue
+        if _tap.la_project_tap(d.name):
+            continue          # project TẬP (QĐ17) hiện ở ô `gop`, không phải chip chương
         try:
             pj = json.loads((d / "project.json").read_text(encoding="utf-8"))
             goc = (pj.get("inputs") or {}).get("original_script_path") or ""
@@ -414,7 +417,19 @@ def api_offline_tap_list(request: Request):
             c.pop("_uu_tien", None)
             c.pop("_moi", None)
         tap[ma] = ds
-    return {"tap": [{"ma": ma, "chuong": cs} for ma, cs in tap.items()]}
+    # MỘT TIMELINE CHO CẢ TẬP (QĐ17, 17/09): tập đã gộp thì kèm ô `gop`
+    ra = []
+    for ma, cs in tap.items():
+        g = None
+        dg = PROJECTS_DIR / _tap.ten_project_tap(ma)
+        hg = orun.doc(dg) if (dg / orun.TEN_HOP_DONG).is_file() else None
+        if hg is not None:
+            g = {"project_id": dg.name, "trang_thai": hg.get("trang_thai") or "pha1",
+                 "chuong": [c["ma"] for c in hg.get("chuong_ds") or []],
+                 "so_khoi": len(hg.get("khoi") or []),
+                 "co_draft": (_noi_xuat_draft(dg) / _tdc(ma, _tap.NHAN_TAP, lui=dg.name)).is_dir()}
+        ra.append({"ma": ma, "chuong": cs, "gop": g})
+    return {"tap": ra}
 
 
 @app.get("/api/project/{project_id}")
@@ -768,6 +783,41 @@ def _gac_quyen_sua(request: Request, hd: dict) -> None:
                                  "(hoặc admin) được sửa")
 
 
+def _tab(request: Request, hd: dict | None = None) -> str:
+    """Mã TAB đang gửi: header `X-Of-Tab` (mọi lượt qua `api()`), hoặc `_tab`
+    trong thân JSON (sendBeacon không đặt được header). `_tab` bị gỡ khỏi thân
+    để không lọt vào hợp đồng."""
+    t = (request.headers.get("x-of-tab") or "").strip()
+    if isinstance(hd, dict):
+        trong = str(hd.pop("_tab", "") or "").strip()
+        t = t or trong
+    return t[:40]
+
+
+def _gac_phien_ban(cu: dict, moi: dict, tab: str) -> None:
+    """KHOÁ PHIÊN BẢN KHI LƯU (user chốt 17/09 cùng QĐ17).
+
+    Hai tab (hay hai người) cùng mở một hợp đồng: tab sau lưu bản CŨ hơn thì
+    chặn, không cho đè lên bản mới. Chỉ chặn khi lần ghi cuối là của TAB KHÁC —
+    các endpoint phía máy chủ (hinh, trim, khoá sổ...) tự tăng phiên bản, tab
+    đó lưu tiếp với số cũ không phải xung đột. Lần ghi cuối không có tab (máy
+    chủ tự ghi) thì mở: phân tích lại đã có cổng 409 riêng, panel nạp lại sau.
+    Client cũ không gửi `phien_ban` -> mở (tương thích ngược).
+    """
+    n_moi = (moi or {}).get("phien_ban")
+    if n_moi is None:
+        return
+    try:
+        n_moi, n_cu = int(n_moi), int((cu or {}).get("phien_ban") or 0)
+    except (TypeError, ValueError):
+        return
+    tab_cuoi = str((cu or {}).get("tab_cuoi") or "")
+    if n_moi < n_cu and tab_cuoi and tab_cuoi != tab:
+        raise HTTPException(
+            409, "Hợp đồng đã được lưu ở tab khác (hoặc người khác) sau khi bạn mở "
+                 "— TẢI LẠI (F5) rồi làm tiếp. Bản đang mở không được đè lên bản mới.")
+
+
 # Suy TẬP/CHƯƠNG từ đường dẫn: gom về `autoedit.duong_dan` (MỘT nơi duy nhất)
 # — cùng gốc "đếm lùi N cấp thư mục" đã nổ ba lần trong hai ngày. Giữ tên cũ
 # ở đây để chỗ gọi và test hiện có không phải sửa theo.
@@ -883,6 +933,81 @@ def tham_so_dung(pdir: Path, project_id: str) -> dict:
     except Exception:  # noqa: BLE001
         pass
     return ra
+
+
+def _du_an_theo_chuong(ma_tap: str) -> dict[str, Path]:
+    """{mã chương: thư mục project ĐÃ PHÂN TÍCH} của một tập, đúng thứ tự
+    H -> C1.. -> E. Một chương có nhiều bản (chạy lại) thì lấy bản mới nhất."""
+    from autoedit.offline import runner as orun, tap as _tap
+
+    tot: dict[str, tuple[float, Path]] = {}
+    for d in PROJECTS_DIR.iterdir():
+        if not d.is_dir() or _tap.la_project_tap(d.name):
+            continue
+        if not (d / "project.json").is_file() or not (d / orun.TEN_HOP_DONG).is_file():
+            continue
+        try:
+            pj = json.loads((d / "project.json").read_text(encoding="utf-8"))
+            goc = (pj.get("inputs") or {}).get("original_script_path") or ""
+        except Exception:  # noqa: BLE001
+            continue
+        if (ma_tap_tu_script(goc) or "khac") != ma_tap:
+            continue
+        nhan = (nhan_chuong_tu_script(goc) or d.name).upper()
+        moi = d.stat().st_mtime
+        if nhan not in tot or moi > tot[nhan][0]:
+            tot[nhan] = (moi, d)
+    return {k: v[1] for k, v in sorted(tot.items(), key=lambda kv: _tap.thu_tu_chuong(kv[0]))}
+
+
+class GopTapRequest(BaseModel):
+    lam_lai: list[str] = []        # chương phân tích lại -> thay đúng đoạn đó
+
+
+@app.post("/api/offline/tap/{ma}/gop")
+def api_offline_gop_tap(ma: str, req: GopTapRequest, request: Request):
+    """GỘP TẬP — MỘT TIMELINE CHO CẢ TẬP (QĐ17, user chốt 17/09).
+
+    Đưa mọi chương ĐÃ PHÂN TÍCH của tập vào một project tập (`<mã>-tap`): voice
+    nối, hợp đồng nối, khối mang nhãn chương. Đoạn đã có giữ nguyên chỉnh tay;
+    chương mới chèn đúng chỗ; `lam_lai` thay đoạn. Khoá sổ / Export làm trên
+    project tập như mọi project khác.
+    """
+    _require_auth(request)
+    import re as _re
+
+    from autoedit.offline import runner as orun, tap as _tap
+
+    if not _re.fullmatch(r"[\w .-]{1,40}", ma):
+        raise HTTPException(422, "mã tập không hợp lệ")
+    chuong = _du_an_theo_chuong(ma)
+    if not chuong:
+        raise HTTPException(422, f"Tập «{ma}» chưa có chương nào phân tích xong — "
+                                 "bấm Phân tích từng chương trước rồi Gộp")
+    d_tap = PROJECTS_DIR / _tap.ten_project_tap(ma)
+    cu = orun.doc(d_tap) if (d_tap / orun.TEN_HOP_DONG).is_file() else None
+    if cu is not None:
+        _gac_quyen_sua(request, cu)
+    # CHỦ TẬP = người nộp tập (cùng luật với chương, 07/09)
+    nguoi = ""
+    try:
+        from autoedit.web import queue as _q
+
+        _cj = _q.connect()
+        try:
+            nguoi = nguoi_nop_tap(next(iter(chuong.values())), _cj)
+        finally:
+            _cj.close()
+    except Exception:  # noqa: BLE001 — tra job hỏng thì về người bấm
+        pass
+    try:
+        kq = _tap.gop_tap(PROJECTS_DIR, ma, chuong, lam_lai=set(req.lam_lai),
+                          nguoi_tao=nguoi or current_user(request), tab=_tab(request))
+    except RuntimeError as exc:
+        raise HTTPException(422, str(exc))
+    print(f"[tap] gộp {ma}: +{kq['moi']} giữ {kq['giu']} thay {kq['thay']} -> "
+          f"{kq['so_khoi']} khối · {kq['trang_thai']}", flush=True)
+    return kq
 
 
 @app.post("/api/offline/{project_id}/phan-tich")
@@ -1030,23 +1155,20 @@ def api_offline_phan_tich(project_id: str, req: OfflineRequest, request: Request
                 print(f"[offline] {project_id}: AUTO DỪNG — khay mỏng "
                       f"({co_hinh}/{tong_k})", flush=True)
             elif not hd["dong_kiem"]:
-                try:
-                    print(f"[offline] {project_id}: AUTO — máy tự khóa sổ + Online",
-                          flush=True)
-                    hd["trang_thai"] = "khoa"
-                    orun.luu(d, hd)
-                    from autoedit.offline import thay_mau as _tm
-
-                    _tm.thay_mau(d, log=lambda m: print("[online-auto]", m, flush=True))
-                except Exception as exc:  # noqa: BLE001
-                    print(f"[offline] {project_id}: AUTO gãy ({str(exc)[:120]}) — "
-                          "để người xử tiếp", flush=True)
+                # QĐ17 (user chốt 17/09): khoá sổ + Export là việc của CẢ TẬP.
+                # Chương AUTO chỉ còn "máy chọn sẵn hình rồi sang pha 2" — không
+                # tự khoá, không tự chạy Online theo chương nữa: tải bản sạch
+                # Envato trước khi tập được duyệt là trái luật 09/09.
+                hd["trang_thai"] = "pha2"
+                orun.luu(d, hd)
+                print(f"[offline] {project_id}: AUTO — máy đã chọn hình, sang pha 2; "
+                      "khoá sổ theo TẬP", flush=True)
             with _offline_lock:
                 _offline_dang[project_id] = {
                     "tt": "xong",
                     "ghi_chu": f"{len(hd['khoi'])} khối · "
                                + ("ĐỒNG KIỂM" if hd["dong_kiem"] else
-                                  "AUTO — máy đã khóa sổ + chạy bản Online")}
+                                  "AUTO — máy đã chọn hình, khoá sổ theo TẬP")}
         except Exception as exc:  # noqa: BLE001
             with _offline_lock:
                 _offline_dang[project_id] = {"tt": "loi", "ghi_chu": str(exc)[:200]}
@@ -1137,6 +1259,8 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     if cu is None:
         raise HTTPException(409, "Chưa có hợp đồng gốc")
     _gac_quyen_sua(request, cu)
+    tab = _tab(request, hd)
+    _gac_phien_ban(cu, hd, tab)
     if len(hd.get("khoi") or []) == 0:
         raise HTTPException(422, "Hợp đồng rỗng")
     # voice bất biến: tổng thời lượng NÓI không được đổi so bản gốc
@@ -1152,11 +1276,11 @@ def api_offline_luu(project_id: str, request: Request, hd: dict):
     mhinh.dam_bao(hd)
     mhinh.dong_bo_sau_tho(hd, moc_cu)
     loi_hinh = mhinh.kiem(hd)
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=tab)
     _xep_tai_ban_sach(hd)          # tải nền clip envato vừa được chọn
     if loi_hinh:
-        return {"ok": True, "canh_bao_hinh": loi_hinh}
-    return {"ok": True}
+        return {"ok": True, "canh_bao_hinh": loi_hinh, "phien_ban": hd["phien_ban"]}
+    return {"ok": True, "phien_ban": hd["phien_ban"]}
 
 
 class OfflineGenRequest(BaseModel):
@@ -1224,7 +1348,7 @@ def api_offline_hinh(project_id: str, req: OfflineHinhRequest, request: Request)
     else:
         raise HTTPException(422, "thao_tac lạ")
     loi = mhinh.kiem(hd)
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     # trả CẢ hợp đồng: thao tác 'bo' có thể đã co khoảng lặng -> voice đổi theo,
     # UI chỉ cập nhật hinh[] là vẽ dải voice CŨ — đúng kiểu bug "UI đánh lừa"
     return {"ok": True, "hop_dong": hd, "hinh": hd["hinh"], "loi": loi,
@@ -1254,7 +1378,7 @@ def api_offline_thay_mau(project_id: str, request: Request,
         hd_cu = _orun.doc(d)
         if hd_cu is not None:
             hd_cu["noi_xuat"] = noi_xuat
-            _orun.luu(d, hd_cu)
+            _orun.luu(d, hd_cu, tab=_tab(request))
     else:
         noi_xuat = ((_orun.doc(d) or {}).get("noi_xuat") or "").strip()
     # SOÁT MỘT LƯỢT trước khi ráp (user chốt 09/09): miếng đang chọn clip đã
@@ -1345,6 +1469,8 @@ async def api_offline_luu_nhanh(project_id: str, request: Request):
         hd = json.loads(await request.body())
     except Exception:  # noqa: BLE001
         raise HTTPException(422, "Body không hợp lệ")
+    tab = _tab(request, hd)
+    _gac_phien_ban(cu_hd, hd, tab)
     if not (hd.get("khoi") or []):
         raise HTTPException(422, "Hợp đồng rỗng")
 
@@ -1357,7 +1483,7 @@ async def api_offline_luu_nhanh(project_id: str, request: Request):
 
     mhinh.dam_bao(hd)
     mhinh.khit_mep(hd)
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=tab)
     _xep_tai_ban_sach(hd)
     return {"ok": True}
 
@@ -1421,7 +1547,7 @@ def api_offline_trim(project_id: str, req: TrimRequest, request: Request):
         h["uv"] = [moi] + [u for u in (h.get("uv") or []) if u["id"] != cid]
         h["chon"] = 0
         h["nguoi_sua"] = True
-        orun.luu(d, hd)
+        orun.luu(d, hd, tab=_tab(request))
     return {"ok": True, "clip_id": cid}
 
 
@@ -1447,7 +1573,7 @@ def api_offline_dich(project_id: str, request: Request):
     for i, k in enumerate(hd["khoi"]):
         if i in ban:
             k["dich"] = ban[i]
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     return {"ok": True, "so_dong": len(ban)}
 
 
@@ -1485,7 +1611,7 @@ def api_offline_che_tai(project_id: str, req: dict, request: Request):
     if not mhinh.che_tai(hd, t):
         raise HTTPException(422, f"Không cắt được tại {t:.2f}s — mảnh sẽ ngắn "
                                  f"hơn {mhinh.TOI_THIEU_S}s hoặc vạch ngoài dải hình")
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     return {"ok": True, "hop_dong": hd}
 
 
@@ -1516,7 +1642,7 @@ def api_offline_do_lai_khay(project_id: str, request: Request):
                               giu_chon=giu)
     finally:
         conn.close()
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     # QĐ6: khối MÁY chọn được chọn LẠI — phải nói ra con số, đổi ngầm dưới tay
     # người dùng thì họ bấm nút mà không biết vừa có gì thay đổi (BH5).
     return {"ok": True, "so_khoi": n, "so_may_doi": len(may_doi), "hop_dong": hd}
@@ -1534,7 +1660,7 @@ def api_offline_khoa(project_id: str, request: Request):
         raise HTTPException(409, "Chưa phân tích")
     _gac_quyen_sua(request, hd)
     hd["trang_thai"] = "khoa"
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     # ĐÂY mới là lúc tải bản sạch (user chốt 09/09: "timeline chưa được duyệt
     # thì chưa down video nào"). Khoá sổ = chốt danh sách clip, tải từ giờ không
     # phí. Phải gọi ở đây: `_xep_tai_ban_sach` nay chặn chương chưa khoá, không
@@ -1954,7 +2080,7 @@ def api_offline_nhac_chon(project_id: str, req: NhacChonRequest, request: Reques
     _gac_quyen_sua(request, hd)
     if not req.id:
         hd.pop("nhac", None)
-        orun.luu(d, hd)
+        orun.luu(d, hd, tab=_tab(request))
         return {"ok": True, "nhac": None}
     conn = _sdb.mo()
     try:
@@ -1970,7 +2096,7 @@ def api_offline_nhac_chon(project_id: str, req: NhacChonRequest, request: Reques
         conn.close()
     hd["nhac"] = {k: t[k] for k in ("id", "tieu_de", "nghe_si", "mood", "bpm",
                                     "energy", "dai_s", "url_nghe")}
-    orun.luu(d, hd)
+    orun.luu(d, hd, tab=_tab(request))
     return {"ok": True, "nhac": hd["nhac"]}
 
 

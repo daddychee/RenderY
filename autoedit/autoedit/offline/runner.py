@@ -449,8 +449,14 @@ def doc(project_dir: Path) -> dict | None:
     return hd
 
 
-def luu(project_dir: Path, hd: dict) -> None:
+def luu(project_dir: Path, hd: dict, tab: str = "") -> None:
     """Ghi hợp đồng NGUYÊN TỬ: file tạm rồi os.replace.
+
+    KHOÁ PHIÊN BẢN (user chốt 17/09): mỗi lần ghi tăng `phien_ban` và ghi
+    `tab_cuoi` = mã tab vừa lưu (rỗng = máy chủ tự ghi: phân tích, làm tươi
+    ref...). `_gac_phien_ban` ở server dựa vào hai trường này để chặn tab
+    khác/người khác đè bản cũ lên bản mới. Trước đây `phien_ban` được ghi
+    nhưng không nơi nào đọc.
 
     Bug 08/09: ghi đè trực tiếp, bản mới NGẮN hơn bản cũ mà không cắt đuôi ->
     file còn ký tự thừa cuối ('}' lẻ) -> json.loads "Extra data" -> API 500 ->
@@ -460,6 +466,8 @@ def luu(project_dir: Path, hd: dict) -> None:
     import os
     import tempfile
 
+    hd["phien_ban"] = int(hd.get("phien_ban") or 0) + 1
+    hd["tab_cuoi"] = str(tab or "")
     d = Path(project_dir)
     fd, tam = tempfile.mkstemp(dir=str(d), prefix=".offline_", suffix=".tmp")
     try:

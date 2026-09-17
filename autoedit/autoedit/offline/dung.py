@@ -73,7 +73,8 @@ def clip_da_dung_trong_tap(projects_dir, ma_tap: str, tru: str) -> dict[str, int
             hd = json.loads(f.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 — một hợp đồng hỏng không chặn cả tập
             continue
-        if not isinstance(hd, dict) or hd.get("ma_tap") != ma_tap:
+        # hợp đồng TẬP (QĐ17) chứa lại lựa chọn của mọi chương -> đếm là đếm đôi
+        if not isinstance(hd, dict) or hd.get("ma_tap") != ma_tap or hd.get("la_tap"):
             continue
         chon_o_chuong: set[str] = set()
         for h in hd.get("hinh") or []:

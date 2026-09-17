@@ -147,17 +147,23 @@ def _may_chu_auto(tmp_path, monkeypatch, khay_day: bool):
     return TestClient(server.app), d, goi
 
 
-def test_auto_khay_day_thi_TU_khoa_so_va_dung(tmp_path, monkeypatch):
-    """Bấm Phân tích một lần là xong: máy tự khoá sổ rồi chạy Online. Nếu dây
-    chuyền này đứt thì `kieu_chay=auto` chỉ còn nghĩa 'khỏi duyệt khay', chứ
-    không phải 'tool tự dựng' như tên gọi hứa."""
+def test_auto_khay_day_thi_chon_san_hinh_KHONG_tu_khoa_so(tmp_path, monkeypatch):
+    """ĐỔI 17/09 (QĐ17 — một timeline cho cả tập): khoá sổ và Export là việc
+    của CẢ TẬP, không còn theo chương. Chương AUTO chỉ còn nghĩa "máy chọn sẵn
+    hình rồi sang thẳng pha 2"; tự khoá sổ + tự chạy Online theo chương phải
+    TẮT — nếu không Envato tải bản sạch trước khi tập được duyệt (trái luật
+    09/09 "timeline chưa được duyệt thì chưa down video nào").
+
+    Trước 17/09 test này đòi `trang_thai == "khoa"` và `goi` khác rỗng."""
     tc, d, goi = _may_chu_auto(tmp_path, monkeypatch, khay_day=True)
     r = tc.post(f"/api/offline/{d.name}/phan-tich", json={"kieu_chay": "auto"})
     assert r.status_code == 200, r.text
-    hd = _cho_xong(d, lambda h: h.get("trang_thai") == "khoa")
+    _cho_luong_nen_xong(d.name)
+    hd = _cho_xong(d, lambda h: h.get("trang_thai") == "pha2")
     assert hd["dong_kiem"] is False
-    assert hd["trang_thai"] == "khoa", "auto không tự khoá sổ"
-    assert goi, "auto không tự chạy Online"
+    assert hd["trang_thai"] == "pha2", "auto phải sang pha 2 (máy đã chọn hình)"
+    assert any(k.get("chon", -1) >= 0 for k in hd["khoi"]), "auto chưa chọn sẵn hình"
+    assert not goi, "auto vẫn tự chạy Online theo chương — phải khoá theo TẬP"
 
 
 def test_auto_khay_rong_thi_DUNG_va_bao(tmp_path, monkeypatch):
