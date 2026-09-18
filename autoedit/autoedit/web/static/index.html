@@ -1650,7 +1650,7 @@ function canhBaoNiche() {
     // QĐ18: trỏ sang tab Ngách. Câu cũ chỉ sang "trang Cài đặt" — trang đó
     // không còn trong giao diện này, bấm quanh cả ngày cũng không thấy.
     o.innerHTML = '⚠ Ngách «' + esc(ten) + '» chưa có HỒ SƠ (quay ai, quay cái gì)'
-      + ' — <a onclick="doiTrang('ngach')">sang tab Ngách</a> tạo hồ sơ rồi nộp lại.'
+      + ' — <a onclick="doiTrang(&quot;ngach&quot;)">sang tab Ngách</a> tạo hồ sơ rồi nộp lại.'
   }
 }
 
@@ -3610,6 +3610,269 @@ async function stVeNhac() {
 /* ── FRAMING INSIGHT (khuôn Author Extract): dropdown hồ sơ + thân mô tả ── */
 let KENH_DS = []
 let CT_TEN = ''
+
+/* ══════════ Ngách — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ══════════
+   Đứng sau ô «Niche» của form nộp tập, y như Framing Insight đứng sau ô
+   «Phong cách tham chiếu». Máy ĐỀ XUẤT, NGƯỜI bấm Duyệt mới lưu. */
+let NC_DS = [], NC_MA = '', NC_N = null, NC_POOL = null, NC_BO = null
+let NC_SOAN = null        // hồ sơ đang soạn — null là chưa có gì
+let NC_BAN = ''           // 'luu' | 'moi' (máy vừa sinh) | 'sua' (đã sửa tay)
+let NC_KHO = {}           // từ khoá -> số clip trong kho; thiếu key = chưa đếm
+let NC_SUA = false        // có quyền duyệt không
+let NC_DO = null          // số đo tỉ lệ tiêu đề nhắc tới người
+
+async function loadNgach() {
+  let d
+  try { d = await api('/api/ngach') } catch (e) {
+    document.getElementById('nc-main').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+    return
+  }
+  NC_DS = d.ngach || []
+  const co = NC_DS.filter(n => n.co_ho_so).length
+  document.getElementById('nc-tong').textContent = NC_DS.length
+    ? NC_DS.length + ' ngách trong danh bạ CRM · ' + co + ' đã có hồ sơ'
+    : 'không đọc được danh bạ nền của CRM'
+  const sel = document.getElementById('nc-select')
+  sel.innerHTML = NC_DS.length
+    ? NC_DS.map(n => '<option value="' + esc(n.ma) + '">' + esc(n.ten)
+        + (n.co_ho_so ? ' ✓' : '') + '</option>').join('')
+    : '<option value="">— không đọc được danh bạ —</option>'
+  if (NC_DS.some(n => n.ma === NC_MA)) sel.value = NC_MA
+  if (sel.value) chonNgach(sel.value)
+}
+
+async function chonNgach(ma) {
+  if (!ma) return
+  NC_MA = ma; NC_SOAN = null; NC_BAN = ''; NC_KHO = {}; NC_DO = null
+  document.getElementById('nc-main').innerHTML = '<div class="note">Đang tải…</div>'
+  document.getElementById('nc-ben').innerHTML = ''
+  let d
+  try { d = await api('/api/ngach/' + encodeURIComponent(ma) + '/ho-so') } catch (e) {
+    document.getElementById('nc-main').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+    return
+  }
+  NC_N = d.ngach; NC_POOL = d.pool || {}; NC_SUA = !!d.sua_duoc; NC_BO = d.bo_nhan_vat
+  if (d.ho_so) { NC_SOAN = d.ho_so; NC_BAN = 'luu' }
+  for (const k of (d.kho || [])) NC_KHO[k.tu] = k.clip
+  ncVe()
+}
+
+function ncPool() {
+  const p = NC_POOL || {}
+  if (!p.doc_duoc) {
+    return '<div class="nc-pool"><b>Pool Radary</b> — <span style="color:var(--warn)">'
+      + 'không đọc được kho Radary</span><div class="note" style="margin:8px 0 0">'
+      + 'Máy chủ Radary tắt hoặc ổ D chưa gắn. Vẫn khai tay được.</div></div>'
+  }
+  const ws = (p.ws || []).map(w => esc(w.ten)).join(' + ') || '—'
+  return '<div class="nc-pool"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    + '<b>Pool Radary</b><span class="note" style="margin:0">' + ws + ' · <b>'
+    + (p.kenh || 0) + ' kênh</b> · <b>' + (p.video || 0) + ' video</b></span></div>'
+    + '<div class="note" style="margin:8px 0 0">Đọc thẳng <code>radary.db</code> chế độ '
+    + 'CHỈ ĐỌC — RenderY không có đường nào ghi vào kho của Radary.</div></div>'
+}
+
+function ncChip(t, i) {
+  const n = NC_KHO[t]
+  const c = n === undefined ? 'nc-am' : (n === 0 ? 'nc-0' : (n < 25 ? 'nc-it' : 'nc-co'))
+  const so = n === undefined ? '?' : n
+  const ti = n === undefined ? ' title="chưa đếm — lưu xong sẽ đếm"' : ''
+  return '<span class="the">' + esc(t) + ' <b class="' + c + '"' + ti + '>' + so + '</b>'
+    + (NC_SUA ? ' <i onclick="ncXoaTu(' + i + ')" title="bỏ từ khoá này">×</i>' : '')
+    + '</span>'
+}
+
+function ncCanhKho() {
+  const ds = (NC_SOAN.vat_the || []).filter(t => NC_KHO[t] !== undefined)
+  if (!ds.length) return ''
+  const tong = ds.reduce((a, t) => a + NC_KHO[t], 0)
+  const khong = ds.filter(t => NC_KHO[t] === 0).length
+  if (tong >= 300 && !khong) return ''
+  return '<div class="nc-canh">⚠ <b>Kho gần như trống cho ngách này.</b> '
+    + ds.length + ' từ khoá đếm được chỉ có <b>' + tong + ' clip</b>'
+    + (khong ? ', trong đó <b>' + khong + ' từ khoá 0 clip</b>' : '')
+    + '. Ngách đang chạy để so: village 648 · market 959 · senior 532. '
+    + 'Duyệt xong hãy hút thêm ở <a onclick="doiTrang(&quot;sotra&quot;)">Library</a> '
+    + 'trước khi nộp tập, không thì khay sẽ trống.</div>'
+}
+
+function ncMucNguoi() {
+  const loc = !!NC_SOAN.loc_nguoi
+  const t = (NC_SUA ? '' : ' disabled')
+  let h = '<div class="nc-muc dau"><div class="nc-th">AI ĐƯỢC CÓ TRONG KHUNG</div>'
+    + '<label class="nc-rd"><input type="radio" name="nc-loc"' + (loc ? '' : ' checked')
+    + t + ' onchange="ncDoiLoc(false)"> <b>Không lọc theo người</b>'
+    + '<span class="note" style="margin:0">— ngách đồ vật, khung có người hay không đều nhận</span></label>'
+    + '<label class="nc-rd"><input type="radio" name="nc-loc"' + (loc ? ' checked' : '')
+    + t + ' onchange="ncDoiLoc(true)"> Lọc theo người'
+    + '<span class="note" style="margin:0">— chọn tuổi + chủng tộc</span></label>'
+  if (loc && NC_BO) {
+    const nv = NC_SOAN.nhan_vat || {}
+    h += '<div class="nc-nv">' + ['tuoi', 'chung_toc'].map(k =>
+      '<label class="note" style="margin:0">' + (k === 'tuoi' ? 'tuổi' : 'chủng tộc') + '<br>'
+      + '<select multiple size="4"' + t + ' onchange="ncDoiNV(&quot;' + k + '&quot;, this)">'
+      + (NC_BO[k] || []).map(v => '<option value="' + esc(v) + '"'
+          + ((nv[k] || []).includes(v) ? ' selected' : '') + '>' + esc(v) + '</option>').join('')
+      + '</select></label>').join('') + '</div>'
+      + '<div class="note" style="margin:8px 0 0">Chỉ chọn được giá trị kho BIẾT — '
+      + 'gõ "elderly" nghe rất hợp lý mà lọc ra đúng 0 clip.</div>'
+  }
+  if (NC_DO) {
+    h += '<div class="note" style="margin:8px 0 0">Máy đếm: <b>' + NC_DO.co_nguoi + '/'
+      + NC_DO.tong + '</b> tiêu đề (' + Math.round(NC_DO.ty_le * 100)
+      + '%) nhắc tới người. Từ 40% trở lên thì coi là ngách quay người.</div>'
+  }
+  return h + '</div>'
+}
+
+function ncVe() {
+  const main = document.getElementById('nc-main')
+  const ben = document.getElementById('nc-ben')
+  if (!NC_N) { main.innerHTML = '<div class="note">Chọn ngách ở trên.</div>'; return }
+
+  if (!NC_SOAN) {
+    const geo = !!NC_N.can_dia_danh
+    main.innerHTML = '<h2>' + esc(NC_N.ten) + '</h2>'
+      + '<div class="note" style="margin:0 0 12px">' + esc(NC_N.ma) + ' · chưa có hồ sơ</div>'
+      + (geo
+        ? '<div class="note" style="margin:0 0 14px">Ngách gắn ĐỊA LÝ — nhân vật của nó là '
+          + '"người dân địa danh đó", cửa địa danh lúc nộp tập đã làm đúng việc ấy. '
+          + 'Hồ sơ ở đây là tuỳ chọn, không bắt buộc.</div>'
+        : '<div class="note" style="color:var(--bad);margin:0 0 14px">⚠ Ngách này '
+          + '<b>chưa có hồ sơ</b> — form nộp tập đang chặn. Tạo hồ sơ xong mới nộp tập được.</div>')
+      + ncPool()
+      + (NC_SUA
+        ? '<div style="display:flex;gap:8px;margin-top:14px">'
+          + '<button class="btn" id="nc-nut-sinh" onclick="ncSinh()">✨ Sinh hồ sơ từ pool (~15s)</button>'
+          + '<button class="btn ghost small" onclick="ncKhaiTay()">✎ Khai tay không dùng pool</button></div>'
+        : '<div class="note" style="margin-top:14px">Cần cấp manager/owner mới tạo được hồ sơ.</div>')
+    ben.innerHTML = '<h2>Hồ sơ ngách làm gì? <small>manager/owner</small></h2>'
+      + '<div class="note" style="line-height:1.7">'
+      + '① Máy đọc <b>tiêu đề video</b> trong pool Radary của ngách → đề xuất '
+      + '<b>ai được có trong khung</b> và <b>quay cái gì</b>.<br>'
+      + '② Bạn sửa rồi <b>bấm Duyệt</b> — máy không tự áp dụng.<br>'
+      + '③ Hồ sơ đã duyệt mở cổng nộp tập cho ngách, và lọc khay ứng viên lúc dựng.</div>'
+      + '<div class="note" style="margin-top:12px">Cùng kiểu với <b>Framing Insight</b>: ở đó '
+      + 'là hồ sơ <i>nhịp cắt</i> đứng sau ô «Phong cách tham chiếu». Ở đây là hồ sơ '
+      + '<i>kho</i> đứng sau ô «Niche».</div>'
+    return
+  }
+
+  const nhan = NC_BAN === 'luu'
+    ? '<span class="nc-nhan luu">ĐÃ DUYỆT</span>'
+    : '<span class="nc-nhan moi">' + (NC_BAN === 'moi'
+      ? 'MÁY ĐỀ XUẤT — CHƯA ÁP DỤNG' : 'ĐÃ SỬA — CHƯA LƯU') + '</span>'
+  const meta = NC_BAN === 'luu'
+    ? esc(NC_N.ma) + ' · duyệt'
+      + (NC_SOAN.nguoi_duyet ? ' bởi <b>' + esc(NC_SOAN.nguoi_duyet) + '</b>' : '')
+      + ' lúc ' + esc((NC_SOAN.duyet_luc || '').replace('T', ' '))
+    : esc(NC_N.ma) + ' · chưa lưu'
+  const vt = NC_SOAN.vat_the || []
+  main.innerHTML = '<h2>' + esc(NC_N.ten) + ' ' + nhan + '</h2>'
+    + '<div class="note" style="margin:0 0 16px">' + meta + '</div>'
+    + ncMucNguoi()
+    + '<div class="nc-muc"><div class="nc-th">VẬT THỂ / CHỦ ĐỀ'
+    + '<span class="note" style="margin:0">' + vt.length + ' từ khoá · số trong ngoặc là '
+    + '<b>clip đang có trong kho</b>, đếm đúng cụm</span></div>'
+    + '<div class="chips nc-chips">' + vt.map(ncChip).join('')
+    + (NC_SUA ? '<input type="text" class="nc-them" placeholder="+ thêm từ khoá rồi Enter"'
+      + ' onkeydown="ncThemTu(event)">' : '') + '</div></div>'
+    + ncCanhKho()
+    + (NC_SUA ? '<div style="display:flex;gap:8px;margin-top:16px;align-items:center">'
+      + '<button class="btn" onclick="ncDuyet()"' + (NC_BAN === 'luu' ? ' disabled' : '')
+      + '>✓ Duyệt &amp; lưu hồ sơ</button>'
+      + '<button class="btn ghost small" onclick="ncSinh()">↻ Sinh lại từ pool</button>'
+      + '<button class="btn ghost small" style="color:var(--muted);border-color:var(--line)"'
+      + ' onclick="chonNgach(NC_MA)">Huỷ</button>'
+      + '<span class="note" style="margin:0 0 0 auto">lưu xong ghi tên bạn + ngày vào hồ sơ</span>'
+      + '</div>' : '')
+  ncBen()
+}
+
+function ncBen() {
+  document.getElementById('nc-ben').innerHTML =
+    '<h2>' + (NC_BAN === 'luu' ? 'Hồ sơ đã áp dụng' : 'Sau khi duyệt') + '</h2>'
+    + '<div class="note" style="line-height:1.7">Hồ sơ lưu thành 1 file trong kho dữ liệu, '
+    + 'cùng chỗ với Sổ Tra — không nhét vào <code>.env</code>.</div>'
+    + '<div class="note" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
+    + 'Ngách có hồ sơ thì ô «Niche» ở <b>+ New Sequence</b> hết chặn. Kho mỏng thì '
+    + 'hút thêm ở <a onclick="doiTrang(&quot;sotra&quot;)">Library</a> theo đúng các từ khoá trên.</div>'
+}
+
+function ncDoiLoc(v) {
+  if (!NC_SOAN) return
+  NC_SOAN.loc_nguoi = !!v
+  if (!v) NC_SOAN.nhan_vat = {}
+  if (NC_BAN) NC_BAN = 'sua'      // máy đề xuất + người sửa = của NGƯỜI
+  ncVe()
+}
+
+function ncDoiNV(truong, sel) {
+  if (!NC_SOAN) return
+  const gia = Array.from(sel.selectedOptions).map(o => o.value)
+  NC_SOAN.nhan_vat = NC_SOAN.nhan_vat || {}
+  if (gia.length) NC_SOAN.nhan_vat[truong] = gia
+  else delete NC_SOAN.nhan_vat[truong]
+  if (NC_BAN) NC_BAN = 'sua'      // máy đề xuất + người sửa = của NGƯỜI
+}
+
+function ncXoaTu(i) {
+  if (!NC_SOAN) return
+  NC_SOAN.vat_the.splice(i, 1)
+  if (NC_BAN) NC_BAN = 'sua'      // máy đề xuất + người sửa = của NGƯỜI
+  ncVe()
+}
+
+function ncThemTu(ev) {
+  if (ev.key !== 'Enter') return
+  const t = (ev.target.value || '').trim().toLowerCase()
+  ev.target.value = ''
+  if (!t || !NC_SOAN || NC_SOAN.vat_the.includes(t)) return
+  NC_SOAN.vat_the.push(t)
+  if (NC_BAN) NC_BAN = 'sua'      // máy đề xuất + người sửa = của NGƯỜI
+  ncVe()
+}
+
+function ncKhaiTay() {
+  NC_SOAN = {loc_nguoi: false, nhan_vat: {}, vat_the: [], nguon: {}}
+  NC_BAN = 'sua'; NC_DO = null
+  ncVe()
+}
+
+async function ncSinh() {
+  const n = document.getElementById('nc-nut-sinh')
+  if (n) { n.disabled = true; n.textContent = '✨ đang đọc pool…' }
+  let d
+  try {
+    d = await api('/api/ngach/' + encodeURIComponent(NC_MA) + '/sinh', {method: 'POST'})
+  } catch (e) {
+    if (n) { n.disabled = false; n.textContent = '✨ Sinh hồ sơ từ pool (~15s)' }
+    toastOf(e.message || 'không sinh được đề xuất')
+    return
+  }
+  const dx = d.de_xuat || {}
+  NC_SOAN = {loc_nguoi: !!dx.loc_nguoi, nhan_vat: dx.nhan_vat || {},
+             vat_the: dx.vat_the || [], nguon: d.pool || {}}
+  NC_DO = dx.do_nguoi || null
+  NC_BAN = 'moi'
+  for (const k of (d.kho || [])) NC_KHO[k.tu] = k.clip
+  ncVe()
+}
+
+async function ncDuyet() {
+  if (!NC_SOAN) return
+  try {
+    await api('/api/ngach/' + encodeURIComponent(NC_MA) + '/ho-so', {
+      method: 'PUT',
+      body: JSON.stringify({loc_nguoi: !!NC_SOAN.loc_nguoi,
+                            nhan_vat: NC_SOAN.nhan_vat || {},
+                            vat_the: NC_SOAN.vat_the || [],
+                            nguon: NC_SOAN.nguon || {}})
+    })
+  } catch (e) { toastOf(e.message || 'không lưu được'); return }
+  toastOf('Đã duyệt hồ sơ ngách ' + NC_N.ten)
+  await loadNgach()
+}
 
 async function loadKenh() {
   let d
