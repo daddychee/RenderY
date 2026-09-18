@@ -110,14 +110,35 @@ def _tap_phang(goc: Path, srt: dict[str, str]) -> Path:
 
 
 @pytest.fixture
-def may_chu(monkeypatch):
+def may_chu(monkeypatch, tmp_path):
+    """TestClient có HÀNG ĐỢI RIÊNG.
+
+    BẮT BUỘC (sự cố 18/09): test nào POST `/api/jobs` mà KHÔNG bị cổng chặn thì
+    đi thẳng tới `q.add_job` -> ghi vào `jobs.db` THẬT của checkout đang chạy.
+    Chạy bộ test trên checkout production là worker thật nhặt job đó lên chạy:
+    2 job rác mang tên `haint` + 8 project rác, và bảng sức khoẻ báo "1 job hỏng".
+    Hàng đợi phải trỏ vào tmp_path trước khi bấm bất cứ nút nào.
+    """
     from fastapi.testclient import TestClient
 
+    from autoedit.web import queue as q
     from autoedit.web import server as sv
 
     monkeypatch.setattr(sv, "_trust_proxy", lambda r: True)
     monkeypatch.setattr(sv, "_trong_nas", lambda p: p)
+    # `_queue_conn()` = `q.connect(ROOT / "jobs.db")` -> vá ROOT là đủ, đúng lối
+    # các fixture cổng nộp tập khác (test_nhan_vat_ngach, test_kho_tam).
+    monkeypatch.setattr(sv, "ROOT", tmp_path)
+    q.connect(tmp_path / "jobs.db").close()
     return TestClient(sv.app)
+
+
+def test_hang_doi_cua_test_KHONG_dung_so_that(may_chu, tmp_path):
+    """Canh cho chính cái bẫy trên: fixture phải trỏ hàng đợi vào tmp_path."""
+    from autoedit.web import server as sv
+
+    duong = [r[2] for r in sv._queue_conn().execute("PRAGMA database_list")]
+    assert any(str(tmp_path) in (d or "") for d in duong), duong
 
 
 def _nop(tc, folder: Path):
