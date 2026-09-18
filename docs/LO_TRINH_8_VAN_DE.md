@@ -2317,3 +2317,40 @@ Kho cho 22 từ khoá này: **62 clip, 14 từ khoá 0 clip** — vẫn phải h
 **Việc còn treo:** nút «✨ Sinh hồ sơ từ pool» hiện chỉ gọi GLM một lượt, nên người dùng
 bấm được đúng một lá thăm. Nên cho nó tự sinh vài lượt rồi giữ phần lặp lại, hoặc ít
 nhất nói rõ trên màn hình rằng bấm lại sẽ ra danh sách khác.
+
+
+## Bổ sung 18/09 tối — GỠ BA CÁI CHỐT TỰ TÔI ĐẶT
+
+User hỏi đúng chỗ: *"tại sao trong pool có gần 40 kênh và hơn 9000 video mà chỉ có
+từng này từ khoá?"*
+
+**Chốt 1 — pool nhỏ hơn tưởng, và đó là giới hạn của Radary.** 36 kênh của X FILE có
+**7.760 video thật trên YouTube** (trung vị 59/kênh), nhưng bảng `videos` của Radary
+chỉ giữ **675** (~19/kênh). RenderY đọc đúng bảng đó. Con số ~9000 là tổng video của
+các kênh, không phải số Radary lưu.
+
+**Chốt 2 — cắt "top N toàn cục" bỏ im cả kênh.** Đo: SPACE chỉ phủ 156/206 kênh có
+video, LIFE IN 97/126, và 5 kênh đăng dày nhất chiếm 171/600 suất. Vốn từ rút ra khi
+đó là vốn từ của mấy kênh khoẻ nhất, không phải của ngách. Đổi sang **lấy vòng tròn
+theo kênh** -> phủ 206/206 và 126/126. Trần 600 -> **2000** (trần cũ còn cắt oan 75
+tiêu đề của X FILE).
+
+**Chốt 3 — trần 24 từ khoá là con số tôi đặt theo cảm giác.** 675 tiêu đề chứa **1.303
+từ nội dung khác nhau**, 217 từ xuất hiện ≥3 lần. Pool thừa sức nuôi hàng trăm từ khoá.
+Nâng trần lên **80**, và nút Sinh tự chạy **3 lượt rồi giữ từ xuất hiện ≥2 lượt** —
+đúng việc trước đó phải làm tay.
+
+Kết quả đo trên chính pool X FILE:
+
+    truoc:  600/675 tieu de · 1 luot · tran 24  ->  22 tu khoa  ->   62 clip trong kho
+    nay  :  675/675 tieu de · 3 luot · tran 80  ->  80 tu khoa  ->  446 clip trong kho
+
+Thời gian 80-120 giây (3 lượt GLM) thay vì 15 giây — nhãn nút sửa theo số đo thật.
+
+**Máy hút giữ nguyên trần 40 từ khoá/phiên** vì trần đó đứng cạnh phanh Envato (20
+clip/giờ, gặp captcha dừng hẳn). Nút Hút nói rõ đang lấy 40 từ ổn định nhất và còn
+bao nhiêu để phiên sau, thay vì âm thầm cắt.
+
+**Bẫy gặp khi làm:** fixture test API dựng bảng `videos` thiếu cột `channel_yt_id` mà
+bảng thật có — pool im lặng trả rỗng qua đường fail-open, 6 test đỏ. Lại đúng bài
+"dữ liệu thử phải sát ca thật".
