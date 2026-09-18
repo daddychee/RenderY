@@ -35,8 +35,10 @@ from pathlib import Path
 DUONG_MAC_DINH = r"D:\AI AGENT OUTLIERY\data\radary\radary.db"
 
 # Trần tiêu đề đưa cho LLM. Ngách to nhất (N-SPACE) có 10.450 video — nhồi hết
-# vào prompt là vỡ cửa sổ ngữ cảnh mà chẳng thêm vốn từ nào.
-TRAN_TIEU_DE = 600
+# vào prompt là vỡ cửa sổ ngữ cảnh. 2000 đủ ôm trọn ngách thường (X FILE 675)
+# mà vẫn chặn được ngách khổng lồ. Trần cũ 600 cắt mất 75 tiêu đề của X FILE
+# không vì lý do gì.
+TRAN_TIEU_DE = 2000
 
 
 def duong_radary() -> Path:
@@ -66,6 +68,35 @@ def doc_duoc() -> bool:
         return False
     finally:
         conn.close()
+
+
+def _lay_deu(hang, tran: int) -> list[str]:
+    """Chia đều suất cho TỪNG KÊNH (vòng tròn), trong mỗi kênh giữ thứ tự tier.
+
+    Vì sao không cắt "top N toàn cục": đo 18/09, cách đó làm LIFE IN chỉ còn
+    **70/166 kênh** có mặt trong 600 tiêu đề, 5 kênh đăng dày nhất chiếm 171/600;
+    SPACE mất 72/212 kênh. Vốn từ rút ra khi đó là vốn từ của mấy kênh đăng
+    khoẻ nhất, không phải của ngách.
+    """
+    if tran <= 0:
+        return []
+    theo: dict[str, list[str]] = {}
+    for ck, title in hang:
+        theo.setdefault(ck, []).append(title)
+    ra: list[str] = []
+    vong = 0
+    while len(ra) < tran:
+        them = False
+        for ds in theo.values():
+            if vong < len(ds):
+                ra.append(ds[vong])
+                them = True
+                if len(ra) >= tran:
+                    break
+        if not them:
+            break
+        vong += 1
+    return ra
 
 
 def pool(ma: str, tran: int = TRAN_TIEU_DE) -> dict:
@@ -98,10 +129,10 @@ def pool(ma: str, tran: int = TRAN_TIEU_DE) -> dict:
         ra["video"] = int(conn.execute(
             f"SELECT COUNT(*) FROM videos WHERE workspace_id IN ({cho})",
             ids).fetchone()[0])
-        ra["tieu_de"] = [r["title"] for r in conn.execute(
-            f"SELECT title FROM videos WHERE workspace_id IN ({cho}) "
-            "AND COALESCE(title,'') <> '' ORDER BY tier DESC, pub_ts DESC LIMIT ?",
-            [*ids, max(0, int(tran))]).fetchall()]
+        ra["tieu_de"] = _lay_deu(conn.execute(
+            f"SELECT COALESCE(channel_yt_id,'') ck, title FROM videos "
+            f"WHERE workspace_id IN ({cho}) AND COALESCE(title,'') <> '' "
+            "ORDER BY tier DESC, pub_ts DESC", ids).fetchall(), max(0, int(tran)))
         return ra
     except Exception:  # noqa: BLE001
         # Radary đổi cấu trúc bảng -> câm lặng, không nổ giữa mặt user.

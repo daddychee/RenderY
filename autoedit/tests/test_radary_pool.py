@@ -147,3 +147,60 @@ def test_ket_noi_CHI_DOC__khong_co_duong_nao_ghi_vao_kho_radary(kho):
             conn.execute("INSERT INTO workspaces(id,ngach) VALUES(999,'X')")
     finally:
         conn.close()
+
+
+# ------------------------------------------------- lấy đều theo kênh (18/09 chiều)
+# Đo thật: cắt "top N toàn cục" làm LIFE IN chỉ còn 70/166 kênh có mặt trong 600
+# tiêu đề, 5 kênh khoẻ nhất chiếm 171/600. SPACE mất 72/212 kênh. Vốn từ của ngách
+# vì thế là vốn từ của mấy kênh đăng dày nhất, không phải của ngách.
+
+def _kho_lech(tmp_path, monkeypatch):
+    """1 kênh khoẻ 10 video + 2 kênh nhỏ — đúng hình dạng LIFE IN."""
+    f = tmp_path / "lech.db"
+    vd = [(i, 53, f"kenh khoe {i}", 0, 1000 - i) for i in range(10)]
+    vd += [(100, 53, "kenh nho A", 0, 500), (101, 53, "kenh nho B", 0, 400)]
+    _lam_db(f, ws=[(53, "X", "", "N-003")],
+            ch=[(1, 53, "khoe"), (2, 53, "nhoA"), (3, 53, "nhoB")], vd=vd)
+    c = sqlite3.connect(str(f))
+    c.execute("UPDATE videos SET channel_yt_id='KHOE' WHERE id < 100")
+    c.execute("UPDATE videos SET channel_yt_id='NHO_A' WHERE id = 100")
+    c.execute("UPDATE videos SET channel_yt_id='NHO_B' WHERE id = 101")
+    c.commit()
+    c.close()
+    monkeypatch.setenv("RENDERY_RADARY", str(f))
+    return f
+
+
+def test_tran_KHONG_duoc_bo_im_ca_mot_kenh(tmp_path, monkeypatch):
+    _kho_lech(tmp_path, monkeypatch)
+    td = radary.pool("N-003", tran=6)["tieu_de"]
+    assert len(td) == 6
+    assert "kenh nho A" in td and "kenh nho B" in td, td
+
+
+def test_khong_de_mot_kenh_chiem_het_suat(tmp_path, monkeypatch):
+    _kho_lech(tmp_path, monkeypatch)
+    td = radary.pool("N-003", tran=6)["tieu_de"]
+    assert sum(1 for t in td if t.startswith("kenh khoe")) <= 4, td
+
+
+def test_tran_rong_hon_pool_thi_lay_HET(tmp_path, monkeypatch):
+    _kho_lech(tmp_path, monkeypatch)
+    assert len(radary.pool("N-003", tran=500)["tieu_de"]) == 12
+
+
+def test_trong_mot_kenh_van_uu_tien_tier_cao(tmp_path, monkeypatch):
+    f = tmp_path / "tier.db"
+    _lam_db(f, ws=[(53, "X", "", "N-003")], ch=[(1, 53, "k")],
+            vd=[(1, 53, "thap", 0, 900), (2, 53, "cao", 5, 100)])
+    c = sqlite3.connect(str(f))
+    c.execute("UPDATE videos SET channel_yt_id='K'")
+    c.commit()
+    c.close()
+    monkeypatch.setenv("RENDERY_RADARY", str(f))
+    assert radary.pool("N-003", tran=1)["tieu_de"] == ["cao"]
+
+
+def test_tran_mac_dinh_du_cho_ngach_thuong(kho):
+    """675 tiêu đề của X FILE phải vào hết, đừng tự cắt 75 cái không lý do."""
+    assert radary.TRAN_TIEU_DE >= 2000
