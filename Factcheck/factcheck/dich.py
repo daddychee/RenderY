@@ -58,10 +58,11 @@ def _khoa_tu_ket() -> tuple[str, str]:
     Đây là ngoại lệ DUY NHẤT của luật cách ly (test `test_khong_dinh_gi_toi_day
     _chuyen_dung`): `web/ket_v3` chỉ gọi HTTP, không kéo theo tầng dựng nào.
     """
-    # Import ĐÚNG module con (không `from autoedit.web import ket_v3`) để test
-    # cách ly còn soi được tên đầy đủ — nó chặn theo tiền tố chuỗi.
-    from autoedit.web.ket_v3 import khoa_cua_viec
-
+    # TUỲ CHỌN: Factcheck đứng riêng, không có RenderY cạnh bên thì bỏ qua két.
+    try:
+        from autoedit.web.ket_v3 import khoa_cua_viec
+    except ImportError:
+        return "", ""
     return khoa_cua_viec("cham_footage")
 
 

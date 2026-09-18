@@ -1,0 +1,65 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Mockup — cảnh báo chỉ đúng khối</title>
+<style>
+:root{--bg:#0f1216;--panel:#171b21;--line:#2a313b;--text:#e9ecef;--muted:#8a93a0;--accent:#3b82f6;--warn:#d9a441;--ok:#5cb98a;--bad:#e05c5c;--bad-soft:rgba(224,92,92,.12)}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,Segoe UI,sans-serif;padding:18px}
+h2{font-size:15px;margin:0 0 10px;letter-spacing:.05em;text-transform:uppercase}
+h2 span{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px}
+.khung{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:22px;background:#12161b}
+.banner{background:var(--bad-soft);border:1px solid var(--bad);border-radius:10px;padding:9px 12px;color:var(--text);font-size:12px;margin-bottom:12px;max-width:560px}
+.banner b.dau{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;color:var(--bad);margin-bottom:4px}
+.nhay{cursor:pointer;text-decoration:underline;text-underline-offset:2px;color:var(--bad);font-weight:700}
+.tl{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px}
+.dai{position:relative;height:56px}
+.mieng{position:absolute;top:0;height:100%;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;background:#1c2229;overflow:hidden}
+.mieng .i{position:absolute;left:4px;top:3px;font-size:9.5px;color:var(--muted)}
+.mieng.tho{background:repeating-linear-gradient(135deg,#171b21 0 6px,#1c2229 6px 12px)}
+.mieng.chon{outline:2px solid var(--warn);outline-offset:-2px}
+/* ĐỀ XUẤT: mảnh vi phạm luật 60s */
+.mieng.lap{border-color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad)}
+.mieng.lap .i{color:var(--bad);font-weight:700}
+.chu{color:var(--muted);font-size:12px;margin-top:8px}
+.chu li{margin:2px 0}
+</style></head><body>
+
+<div class="khung">
+  <h2>TRƯỚC <span>banner chỉ đếm; timeline không đánh dấu gì</span></h2>
+  <div class="banner"><b class="dau">⚠ Cảnh báo chương</b>
+    • 2 khối vi phạm luật 60s<br>• Ngách KHÔNG tới nơi — kiểm ô Niche lúc nộp tập
+  </div>
+  <div class="tl"><div class="dai">
+    <div class="mieng chon" style="left:0;width:86px"><span class="i">01</span></div>
+    <div class="mieng" style="left:86px;width:86px"><span class="i">02</span></div>
+    <div class="mieng tho" style="left:172px;width:100px"><span class="i">03</span></div>
+    <div class="mieng" style="left:272px;width:92px"><span class="i">04</span></div>
+    <div class="mieng tho" style="left:364px;width:88px"><span class="i">05</span></div>
+    <div class="mieng tho" style="left:452px;width:96px"><span class="i">06</span></div>
+  </div></div>
+  <ul class="chu">
+    <li>Không biết khối nào — đúng điều user báo 18/09.</li>
+    <li>Mảnh được gắn class <code>lap</code> nhưng stylesheet không có luật cho nó.</li>
+    <li>Mà chỗ gắn còn so nhầm trục: chỉ số MIẾNG với chỉ số KHỐI (27/88 hợp đồng tô sai chỗ).</li>
+  </ul>
+</div>
+
+<div class="khung">
+  <h2>SAU <span>banner kê tên + bấm được; đúng mảnh vi phạm đỏ lên</span></h2>
+  <div class="banner"><b class="dau">⚠ Cảnh báo chương</b>
+    • Lặp hình trong 60s — 2 miếng: <b class="nhay">2</b>, <b class="nhay">6</b><br>
+    • Ngách KHÔNG tới nơi — kiểm ô Niche lúc nộp tập
+  </div>
+  <div class="tl"><div class="dai">
+    <div class="mieng chon" style="left:0;width:86px"><span class="i">01</span></div>
+    <div class="mieng lap" style="left:86px;width:86px"><span class="i">02</span></div>
+    <div class="mieng tho" style="left:172px;width:100px"><span class="i">03</span></div>
+    <div class="mieng" style="left:272px;width:92px"><span class="i">04</span></div>
+    <div class="mieng tho" style="left:364px;width:88px"><span class="i">05</span></div>
+    <div class="mieng tho lap" style="left:452px;width:96px"><span class="i">06</span></div>
+  </div></div>
+  <ul class="chu">
+    <li>Bấm số trong banner → nhảy tới đúng miếng, playhead theo cùng.</li>
+    <li>Hợp đồng TẬP thì số mang theo chương: <b class="nhay">H/2</b>, <b class="nhay">C1/6</b>.</li>
+    <li>Banner tính LẠI theo hợp đồng đang mở — thay clip xong là dòng đó biến mất.</li>
+    <li>Nhiều quá thì kê 12 cái đầu rồi "…và N nữa".</li>
+  </ul>
+</div>
+</body></html>

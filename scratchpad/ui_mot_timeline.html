@@ -1,0 +1,126 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Mockup — một timeline cho cả tập</title>
+<style>
+:root{--bg:#0f1216;--panel:#171b21;--line:#2a313b;--text:#e9ecef;--muted:#8a93a0;--accent:#3b82f6;--warn:#d9a441;--ok:#5cb98a;--bad:#e05c5c}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,Segoe UI,sans-serif;padding:18px}
+h2{font-size:15px;margin:0 0 10px;letter-spacing:.05em;text-transform:uppercase}
+h2 span{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px}
+.khung{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:22px;background:#12161b}
+.thanh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.lbl{text-transform:uppercase;letter-spacing:.07em;font-size:11.5px;color:var(--muted);font-weight:700}
+select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+.of-ch{padding:4px 11px;border-radius:7px;border:1px solid var(--line);font-size:12px;font-weight:600;background:var(--panel);color:var(--muted)}
+.of-ch.dang{background:var(--accent);color:#fff;border-color:var(--accent)}
+.of-ch .tt{font-weight:400;font-size:10px;margin-left:5px;opacity:.85}
+.of-ch.tap{border-color:var(--warn);color:var(--warn);font-weight:800;letter-spacing:.04em}
+.of-ch.tap.dang{background:var(--warn);color:#111}
+.vach{width:1px;height:22px;background:var(--line);margin:0 4px}
+.btn{padding:5px 11px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:12px}
+.btn.ghost{color:var(--muted)}
+.note{color:var(--muted);font-size:12px}
+.tl{position:relative;overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px 0 8px 0}
+.dai{position:relative;height:56px;margin:0 8px}
+.dai-au{position:relative;height:40px;margin:10px 8px 0}
+.thuoc{position:relative;height:16px;margin:0 8px 4px;color:var(--muted);font-size:10.5px;font-family:ui-monospace,Consolas,monospace}
+.thuoc span{position:absolute;top:0}
+.mieng{position:absolute;top:0;height:100%;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;background:#1c2229;overflow:hidden;font-size:10.5px;color:var(--muted);padding:3px 6px}
+.mieng .i{position:relative;font-weight:700;color:var(--text)}
+.au{position:absolute;top:0;height:100%;border-radius:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.au .t{position:absolute;left:6px;right:4px;top:50%;transform:translateY(-50%);font-size:12px;white-space:nowrap;overflow:hidden}
+.au.chon{outline:2px solid var(--warn);outline-offset:-2px}
+.im{position:absolute;top:0;height:100%;border-radius:6px;background:repeating-linear-gradient(135deg,var(--bg) 0 6px,var(--panel) 6px 12px);border:1px dashed var(--line)}
+/* ── MỚI: nhãn chương trên khối + vạch ranh chương ── */
+.au .ch{position:absolute;left:0;top:0;bottom:0;width:26px;display:grid;place-items:center;font-size:11px;font-weight:800;letter-spacing:.03em;background:rgba(217,164,65,.16);color:var(--warn);border-right:1px solid var(--line)}
+.au.co-ch .t{left:32px}
+.ranh{position:absolute;top:-76px;bottom:-4px;width:2px;background:var(--warn);opacity:.9;z-index:3}
+.ranh b{position:absolute;top:-16px;left:4px;font-size:11px;color:var(--warn);white-space:nowrap}
+.chu-thich{margin-top:8px}
+.chu-thich li{margin:2px 0}
+</style></head><body>
+
+<div class="khung">
+  <h2>TRƯỚC <span>mỗi chương một timeline riêng — chip chương để chuyển</span></h2>
+  <div class="thanh"><span class="lbl">Offline</span>
+    <select><option>LI103</option></select>
+    <span class="of-ch">H<span class="tt">khóa sổ</span></span>
+    <span class="of-ch">C1<span class="tt">khóa sổ</span></span>
+    <span class="of-ch dang">C2<span class="tt">đổ hình</span></span>
+    <span class="of-ch">C3<span class="tt">✓draft</span></span>
+    <span class="of-ch">…</span>
+    <span class="of-ch">E<span class="tt">chưa</span></span>
+    <span style="flex:1"></span><button class="btn">✔ Khóa sổ chương</button>
+  </div>
+  <div class="tl">
+    <div class="thuoc"><span style="left:0">0:00</span><span style="left:140px">0:10</span><span style="left:280px">0:20</span><span style="left:420px">0:30</span></div>
+    <div class="dai">
+      <div class="mieng" style="left:0;width:70px"><span class="i">01</span></div>
+      <div class="mieng" style="left:70px;width:56px"><span class="i">02</span></div>
+      <div class="mieng" style="left:126px;width:84px"><span class="i">03</span></div>
+      <div class="mieng" style="left:210px;width:60px"><span class="i">04</span></div>
+      <div class="mieng" style="left:270px;width:98px"><span class="i">05</span></div>
+      <div class="mieng" style="left:368px;width:70px"><span class="i">06</span></div>
+    </div>
+    <div class="dai-au">
+      <div class="au chon" style="left:0;width:60px"><span class="t">Let us start with</span></div>
+      <div class="im" style="left:60px;width:10px"></div>
+      <div class="au" style="left:70px;width:56px"><span class="t">something that</span></div>
+      <div class="au" style="left:126px;width:84px"><span class="t">feels completely</span></div>
+      <div class="au" style="left:210px;width:60px"><span class="t">ordinary. Ever</span></div>
+      <div class="im" style="left:270px;width:12px"></div>
+      <div class="au" style="left:282px;width:86px"><span class="t">wake up feeling</span></div>
+      <div class="au" style="left:368px;width:70px"><span class="t">like your body</span></div>
+    </div>
+  </div>
+  <div class="note">Khóa sổ / Export / nhạc: theo TỪNG CHƯƠNG. Muốn xem cả phim phải mở 16 chip lần lượt.</div>
+</div>
+
+<div class="khung">
+  <h2>SAU <span>một timeline cho cả tập — chương chỉ còn là nhãn trên khối</span></h2>
+  <div class="thanh"><span class="lbl">Offline</span>
+    <select><option>LI103</option></select>
+    <span class="of-ch">H<span class="tt">✓ trong tập</span></span>
+    <span class="of-ch">C1<span class="tt">✓ trong tập</span></span>
+    <span class="of-ch">C2<span class="tt">✓ trong tập</span></span>
+    <span class="of-ch">C3<span class="tt">đã phân tích · chưa gộp</span></span>
+    <span class="of-ch">E<span class="tt">chưa</span></span>
+    <span class="vach"></span>
+    <span class="of-ch tap dang">TẬP<span class="tt">3 chương · 31 khối · đổ hình</span></span>
+    <button class="btn ghost" title="đưa chương đã phân tích nhưng chưa có trong tập vào timeline; chương đã có giữ nguyên chỉnh tay">⊕ Gộp C3 vào tập</button>
+    <span style="flex:1"></span><button class="btn">✔ Khóa sổ TẬP</button>
+  </div>
+  <div class="tl" style="padding-top:26px">
+    <div class="thuoc"><span style="left:0">0:00</span><span style="left:140px">0:10</span><span style="left:280px">0:20</span><span style="left:420px">0:30</span><span style="left:560px">0:40</span><span style="left:700px">0:50</span></div>
+    <div class="dai">
+      <div class="mieng" style="left:0;width:70px"><span class="i">01</span></div>
+      <div class="mieng" style="left:70px;width:56px"><span class="i">02</span></div>
+      <div class="mieng" style="left:126px;width:84px"><span class="i">03</span></div>
+      <div class="mieng" style="left:210px;width:60px"><span class="i">04</span></div>
+      <div class="mieng" style="left:270px;width:98px"><span class="i">05</span></div>
+      <div class="mieng" style="left:368px;width:70px"><span class="i">06</span></div>
+      <div class="mieng" style="left:438px;width:90px"><span class="i">07</span></div>
+      <div class="mieng" style="left:528px;width:64px"><span class="i">08</span></div>
+      <div class="mieng" style="left:592px;width:110px"><span class="i">09</span></div>
+      <div class="mieng" style="left:702px;width:80px"><span class="i">10</span></div>
+    </div>
+    <div class="dai-au">
+      <div class="ranh" style="left:0"><b>H</b></div>
+      <div class="au co-ch chon" style="left:0;width:126px"><span class="ch">H</span><span class="t">Let us start with something</span></div>
+      <div class="au co-ch" style="left:126px;width:84px"><span class="ch">H</span><span class="t">feels completely</span></div>
+      <div class="im" style="left:210px;width:14px"></div>
+      <div class="ranh" style="left:224px"><b>C1</b></div>
+      <div class="au co-ch" style="left:224px;width:100px"><span class="ch">C1</span><span class="t">ordinary. Ever wake</span></div>
+      <div class="au co-ch" style="left:324px;width:114px"><span class="ch">C1</span><span class="t">up feeling like your</span></div>
+      <div class="im" style="left:438px;width:12px"></div>
+      <div class="ranh" style="left:450px"><b>C2</b></div>
+      <div class="au co-ch" style="left:450px;width:142px"><span class="ch">C2</span><span class="t">body is a little</span></div>
+      <div class="au co-ch" style="left:592px;width:110px"><span class="ch">C2</span><span class="t">heavier than usual</span></div>
+      <div class="au co-ch" style="left:702px;width:80px"><span class="ch">C2</span><span class="t">and your</span></div>
+    </div>
+  </div>
+  <ul class="chu-thich note">
+    <li><b style="color:var(--warn)">Nhãn H / C1 / C2 / E</b> nằm ở đầu MỖI khối voice; vạch vàng + tên ở chỗ đổi chương.</li>
+    <li>Chip chương vẫn còn để <b>Phân tích / Phân tích lại</b> từng chương; chỉnh sửa, khoá sổ, Export làm trên chip <b>TẬP</b>.</li>
+    <li>Nút <b>⊕ Gộp</b> chỉ đưa chương chưa có vào; chương đã có trong tập giữ nguyên chỉnh tay. Phân tích lại chương → Gộp lại thay đúng đoạn đó.</li>
+    <li>Tập đang pha 2 mà gộp thêm chương chưa duyệt ranh → tập lùi về pha 1 (bấm một cái để về pha 2).</li>
+  </ul>
+</div>
+</body></html>

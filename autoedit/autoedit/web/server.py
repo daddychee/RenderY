@@ -961,8 +961,13 @@ def api_ho_so_ngach(ma: str, request: Request):
     p = _rd.pool(n["ma"])
     # Không trả 600 tiêu đề xuống trình duyệt — màn hình chỉ cần con số.
     p = {k: v for k, v in p.items() if k != "tieu_de"}
+    from autoedit import ngach_sinh as _ns
+
     return {"ngach": n, "ho_so": ho, "pool": p, "kho": kho,
-            "sua_duoc": _duoc_nghien_cuu_kenh(request)}
+            "sua_duoc": _duoc_nghien_cuu_kenh(request),
+            # Bộ đóng gửi kèm để màn hình khỏi chép lại lần hai rồi lệch nhau.
+            "bo_nhan_vat": {"tuoi": sorted(_ns.TUOI_HOP_LE),
+                            "chung_toc": sorted(_ns.CHUNG_TOC_HOP_LE)}}
 
 
 @app.put("/api/ngach/{ma}/ho-so")

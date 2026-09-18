@@ -18,8 +18,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from autoedit.kichban.app import tao_app
-from autoedit.kichban.kho import Kho
+from factcheck.app import tao_app
+from factcheck.kho import Kho
 
 
 class DichGia:
@@ -199,24 +199,26 @@ def test_lui_ve_ban_cu_qua_api(bo):
 
 
 # ----------------------------- cách ly production ---------------------------
-def test_khong_dinh_gi_toi_day_chuyen_dung():
-    """Cấm import ngược vào tầng dựng: `kichban` phải đứng riêng để sập không kéo
-    theo 9118. Ngoại lệ DUY NHẤT: `web.chapters` (luật tên chương H/C1/E)."""
+def test_dung_rieng_duoc_khong_can_renderY():
+    """Factcheck là MỘT THƯ MỤC ĐỘC LẬP (user chốt 18/09: "đóng gói tool trong một
+    folder tên là Factcheck"). Chỉ được đụng `autoedit` ở ĐÚNG MỘT chỗ: đọc két
+    khoá khi tình cờ chạy cạnh RenderY — và chỗ đó phải nằm trong try/except để
+    mang thư mục này đi máy khác vẫn chạy.
+    """
     import pathlib
     import re
 
-    goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "kichban"
+    goc = pathlib.Path(__file__).resolve().parents[1] / "factcheck"
     xau = []
     for f in goc.glob("*.py"):
-        for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",
-                            f.read_text(encoding="utf-8"), re.M):
-            # `web.ket_v3` — MỘT CỬA KHOÁ của cụm (docs/APPS.md bước 5): app không
-            # được giữ sổ khoá riêng. Module đó chỉ gọi HTTP tới gateway, không
-            # kéo theo tầng dựng nào.
-            if not m.startswith(("autoedit.kichban", "autoedit.web.chapters",
-                                 "autoedit.web.ket_v3")):
-                xau.append(f"{f.name}: {m}")
-    assert not xau, f"kichban đang import vào tầng dựng: {xau}"
+        chu = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"^(\s*)(?:from|import)\s+(autoedit[\w.]*)", chu, re.M):
+            thut, ten = m.group(1), m.group(2)
+            if not ten.startswith("autoedit.web.ket_v3"):
+                xau.append(f"{f.name}: {ten} — chỉ được phép két khoá")
+            elif not thut:
+                xau.append(f"{f.name}: {ten} import ở đầu file — phải nằm trong try/except")
+    assert not xau, xau
 
 
 def test_api_toi_tra_ve_nguoi_dang_dang_nhap(bo):
@@ -236,7 +238,7 @@ def test_chi_tin_header_khi_co_co_va_loopback(tmp_path, monkeypatch):
     Mặc định (không đặt cờ) vẫn tin, để chạy tay trên máy mình không vướng; cờ
     này để BẬT chế độ nghiêm khi đặt sau proxy.
     """
-    from autoedit.kichban.app import tao_app as _tao
+    from factcheck.app import tao_app as _tao
 
     kho = Kho(tmp_path / "k.db")
     c = TestClient(_tao(kho), client=("10.0.0.9", 5000))   # KHÔNG phải loopback
@@ -256,7 +258,7 @@ def test_co_xuong_may_chu_chay_that(tmp_path, monkeypatch):
     Dùng factory chứ không phải biến APP sẵn ở module — biến sẵn nghĩa là chỉ
     IMPORT thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
-    from autoedit.kichban import app as mapp
+    from factcheck import app as mapp
 
     monkeypatch.setenv("KICHBAN_DB", str(tmp_path / "k.db"))
     a = mapp.tao_app_mac_dinh()
@@ -319,7 +321,7 @@ def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
 
     Két tắt/chưa cấp phát -> rơi về biến môi trường (chạy tay trên máy dev).
     """
-    from autoedit.kichban import dich as mdich
+    from factcheck import dich as mdich
 
     monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-KET", "glm-5.3"))
     monkeypatch.setenv("GLM_API_KEY", "KHOA-ENV")
@@ -332,7 +334,7 @@ def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
 def test_ket_hong_khong_giet_ban_kich_ban(monkeypatch):
     """Gateway chết / không có mạng: vẫn mở được bàn kịch bản, chỉ nút Dịch lại
     báo lỗi. Cột tiếng Anh mới là thứ phải sống."""
-    from autoedit.kichban import dich as mdich
+    from factcheck import dich as mdich
 
     def _no(): raise RuntimeError("gateway chết")
     monkeypatch.setattr(mdich, "_khoa_tu_ket", _no)
@@ -348,7 +350,7 @@ class KiemGia:
         self.ket, self.da_kiem = ket, []
 
     def __call__(self, doan, **kw):
-        from autoedit.kichban.kiem import KetQua, Nguon, chu_ky
+        from factcheck.kiem import KetQua, Nguon, chu_ky
 
         self.da_kiem.append(doan)
         n = Nguon(url="https://www.cdc.gov/x", ten="CDC", trich="y",

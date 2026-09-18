@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from autoedit.kichban.kho import Kho, KhoaBiGiu
+from factcheck.kho import Kho, KhoaBiGiu
 
 
 @pytest.fixture()
@@ -195,3 +195,17 @@ def test_citation_khong_di_theo_ban_lui(kho):
     kho.luu_citation("SH011", "H", _kq(), nguoi="haint")
     kho.luu("SH011", "H", dong=[{"en": "A", "vi": "", "het": 0}], outline="", nguoi="haint")
     assert len(kho.ds_citation("SH011", "H")) == 1
+
+
+def test_luat_ten_chuong_khop_voi_ban_goc():
+    """Chép luật tên chương sang Factcheck là đẻ nguy cơ HAI LUẬT LỆCH NHAU.
+    Máy nào còn RenderY cạnh bên thì so từng tên; không có thì bỏ qua."""
+    import pytest as _pt
+
+    from factcheck.chuong import phan_tich_ten as ta
+    try:
+        from autoedit.web.chapters import phan_tich_ten as goc
+    except ImportError:
+        _pt.skip("máy này không có RenderY cạnh bên — không đối chiếu được")
+    for ten in ("H", "h", "C1", "c3", "C10", "C0", "E", "e", "Hook", "", "C", "chuong 1"):
+        assert ta(ten) == goc(ten), ten

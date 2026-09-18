@@ -619,6 +619,34 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   color:#fff;font-weight:600}
 #of-xk .ft button.phu{background:transparent;color:var(--muted)}
 #of-xk .ft button[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ══════ Ngách — hồ sơ KHO của ngách (QĐ18, 18/09) ══════ */
+#man-ngach .nc-pool{border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+  background:rgba(127,127,127,.05)}
+#man-ngach .nc-muc{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}
+#man-ngach .nc-muc.dau{border-top:0;padding-top:0;margin-top:0}
+#man-ngach .nc-th{font:600 11.5px/1.6 system-ui;letter-spacing:.09em;color:var(--muted);
+  margin-bottom:10px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#man-ngach .nc-rd{display:flex;gap:8px;align-items:baseline;padding:6px 0;cursor:pointer}
+#man-ngach .nc-chips .the{display:inline-flex;gap:6px;align-items:center;
+  border:1px solid var(--line);border-radius:20px;padding:4px 10px;background:rgba(127,127,127,.06)}
+#man-ngach .nc-chips .the i{font-style:normal;color:var(--muted);cursor:pointer;padding-left:2px}
+#man-ngach .nc-chips .the i:hover{color:var(--bad)}
+#man-ngach .nc-chips .the b{font-weight:600;font-size:11px;padding:1px 6px;border-radius:20px}
+#man-ngach .nc-0{background:rgba(248,81,73,.18);color:var(--bad)}
+#man-ngach .nc-it{background:rgba(210,153,34,.18);color:var(--warn)}
+#man-ngach .nc-co{background:rgba(63,185,80,.15);color:var(--ok)}
+#man-ngach .nc-am{background:rgba(127,127,127,.15);color:var(--muted)}
+#man-ngach .nc-them{background:transparent;border:1px dashed var(--line);border-radius:20px;
+  padding:4px 12px;color:var(--txt);font-size:12px;min-width:200px}
+#man-ngach .nc-nhan{font:600 11px/1 system-ui;letter-spacing:.06em;border-radius:20px;
+  padding:5px 10px;vertical-align:middle;white-space:nowrap}
+#man-ngach .nc-nhan.moi{border:1px solid var(--warn);color:var(--warn);background:rgba(210,153,34,.12)}
+#man-ngach .nc-nhan.luu{border:1px solid var(--ok);color:var(--ok);background:rgba(63,185,80,.12)}
+#man-ngach .nc-canh{border:1px solid var(--warn);color:var(--warn);border-radius:8px;
+  padding:10px 12px;margin:14px 0 0;line-height:1.7}
+#man-ngach .nc-nv{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+#man-ngach .nc-nv select{min-width:150px}
 </style>
 </head>
 <body>
@@ -629,6 +657,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <button id="gn-seq" class="on" onclick="doiTrang('seq');doiTab('proc')">Overview</button>
     <button id="gn-offline" onclick="doiTrang('offline')">Offline</button>
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
+    <button id="gn-ngach" onclick="doiTrang('ngach')">Ngách</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
     <button id="gn-new" onclick="doiTrang('seq',true);doiTab('new');ryGhiUrl('new-sequence')"
             style="margin-left:10px;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
@@ -829,6 +858,24 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
         </div>
       </details>
     </div>
+  </div>
+</section>
+
+<!-- ═════════ NGÁCH — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ═════════
+     Đứng sau ô «Niche» của form nộp tập, y như Framing Insight đứng sau ô
+     «Phong cách tham chiếu». Trước 18/09 chỗ khai duy nhất là biến môi trường
+     RENDERY_NGACH_NHAN_VAT, mà câu báo lỗi lại chỉ sang "trang Cài đặt" —
+     trang đó đã không còn trong giao diện này. -->
+<section class="man" id="man-ngach">
+  <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span class="fi-eb" style="margin:0;border:0;padding:0">Hồ sơ ngách</span>
+    <select id="nc-select" style="min-width:260px" onchange="chonNgach(this.value)"></select>
+    <button class="btn ghost small" onclick="loadNgach()">Làm mới</button>
+    <span class="note" id="nc-tong" style="margin:0"></span>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start">
+    <div class="panel" id="nc-main"><div class="note">Đang tải…</div></div>
+    <div class="panel" id="nc-ben"></div>
   </div>
 </section>
 
@@ -1143,14 +1190,16 @@ async function api(path, opts) {
 // #new-sequence · #offline/<sequence>. F5 đứng nguyên chỗ cũ (hash + localStorage
 // dự phòng vì iframe CRM nạp lại src gốc không mang hash).
 const RY_TEN_TAB = {overview: 'seq', offline: 'offline', library: 'sotra',
-                    'framing-insight': 'kenh', 'new-sequence': 'new'}
+                    'framing-insight': 'kenh', ngach: 'ngach',
+                    'new-sequence': 'new'}
 function doiTrang(t, khong_ghi) {
-  for (const m of ['seq', 'gen', 'kenh', 'sotra', 'offline']) {
+  for (const m of ['seq', 'gen', 'kenh', 'ngach', 'sotra', 'offline']) {
     document.getElementById('man-' + m).classList.toggle('on', t === m)
     const nut = document.getElementById('gn-' + m)
     if (nut) nut.classList.toggle('on', t === m)   // tab Generation đã gỡ khỏi nav (07/09)
   }
   if (t === 'kenh') loadKenh()
+  if (t === 'ngach') loadNgach()
   if (t === 'sotra') stVe()
   document.body.classList.toggle('dung-video', t === 'offline')
   if (t === 'offline') ofKhoiDong()
@@ -1598,8 +1647,10 @@ function canhBaoNiche() {
       : '👤 Ngách này đã khai nhân vật — khay chỉ lấy hình đúng người, câu nào không có thì để trống cho bạn đắp.'
   } else {
     o.style.color = 'var(--bad)'
-    o.textContent = '⚠ Ngách «' + ten + '» chưa khai NHÂN VẬT (ai được có trong khung)'
-      + ' — khai ở trang Cài đặt (RENDERY_NGACH_NHAN_VAT) rồi nộp lại.'
+    // QĐ18: trỏ sang tab Ngách. Câu cũ chỉ sang "trang Cài đặt" — trang đó
+    // không còn trong giao diện này, bấm quanh cả ngày cũng không thấy.
+    o.innerHTML = '⚠ Ngách «' + esc(ten) + '» chưa có HỒ SƠ (quay ai, quay cái gì)'
+      + ' — <a onclick="doiTrang('ngach')">sang tab Ngách</a> tạo hồ sơ rồi nộp lại.'
   }
 }
 

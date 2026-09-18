@@ -1,0 +1,620 @@
+<title>Bàn kịch bản RenderY</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f5f5f5; --panel:#fff; --line:#e6e6e6; --text:#16181c; --muted:#6c6c72;
+  --accent:#2c6fc4; --accent-soft:#e8f0fb;
+  --good:#16a34a; --good-soft:rgba(22,163,74,.10);
+  --warn:#d97706; --warn-soft:rgba(217,119,6,.10);
+  --bad:#dc2626; --bad-soft:rgba(220,38,38,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#090c12; --panel:#121826; --line:#243149; --text:#e8edf4; --muted:#8b96a8;
+    --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
+    --good:#3fae63; --good-soft:rgba(63,174,99,.14);
+    --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
+    --bad:#ef4444; --bad-soft:rgba(239,68,68,.12);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#090c12; --panel:#121826; --line:#243149; --text:#e8edf4; --muted:#8b96a8;
+  --accent:#4c8fe0; --accent-soft:rgba(76,143,224,.14);
+  --good:#3fae63; --good-soft:rgba(63,174,99,.14);
+  --warn:#d9a94c; --warn-soft:rgba(217,169,76,.13);
+  --bad:#ef4444; --bad-soft:rgba(239,68,68,.12);
+}
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);min-height:100%;
+     display:flex;flex-direction:column;
+     font:14px/1.5 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+.ribbon{background:var(--warn-soft);border-bottom:1px solid var(--line);
+  color:var(--warn);padding:5px 14px;font-size:11.5px;letter-spacing:.03em;font-weight:700}
+
+header{background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:13px;padding:9px 14px;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.02em}
+.logo span{color:var(--muted);font-weight:600}
+select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px}
+.chuong{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.ch{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:7px;
+  padding:5px 11px;cursor:pointer;font-weight:600;font-size:13px}
+.ch:hover{border-color:var(--accent)}
+.ch.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ch.tong{font-weight:800}
+.ch .ai{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:50%;
+  font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  color:#fff;border:2px solid var(--panel)}
+.vach{width:1px;height:22px;background:var(--line)}
+.spacer{flex:1}
+.nguoi{display:flex;align-items:center}
+.av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;font-weight:800;color:#fff;border:2px solid var(--panel);margin-left:-7px}
+.luu{font-size:12px;color:var(--good)}
+.icon-btn{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 9px;cursor:pointer}
+
+.khung{display:grid;grid-template-columns:206px minmax(0,1fr) 352px;
+  gap:1px;background:var(--line);flex:1;min-height:0}
+.cot{background:var(--bg);overflow:auto;padding:12px}
+.nhan{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  font-weight:800;margin:0}
+
+.o{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;
+  white-space:pre-wrap;font-size:13px;line-height:1.7}
+.o:focus{outline:2px solid var(--accent);outline-offset:1px}
+.ol-ten{font-size:11px;font-weight:800;color:var(--accent);margin:12px 0 5px;letter-spacing:.04em}
+.ol-ten:first-child{margin-top:0}
+.so{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px}
+.so div{display:flex;justify-content:space-between;gap:10px;padding:2.5px 0;font-size:12.5px}
+.so b{font-variant-numeric:tabular-nums}
+.so .dam{color:var(--accent);font-weight:800}
+
+.khoa{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
+  border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:12.5px;
+  display:flex;align-items:center;gap:9px}
+.khoa button{margin-left:auto;background:var(--warn);color:#0b0b0b;border:0;border-radius:6px;
+  padding:4px 10px;font-weight:700;cursor:pointer}
+.dau{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;
+  position:sticky;top:-12px;background:var(--bg);padding:8px 0 7px;z-index:3}
+.dau > div{display:flex;align-items:center;gap:9px}
+.cp{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 9px;
+  cursor:pointer;font-size:11.5px;font-weight:700;color:var(--accent);margin-left:auto}
+.cp:hover{border-color:var(--accent);background:var(--accent-soft)}
+
+.tap-ch{counter-reset:dong}
+.mu{display:flex;align-items:center;gap:9px;margin:18px 0 8px;padding-bottom:5px;
+  border-bottom:1px solid var(--line)}
+.mu:first-child{margin-top:0}
+.mu b{font-size:13px;letter-spacing:.03em}
+.mu .kh{font-size:11.5px;color:var(--warn)}
+.dong{display:grid;grid-template-columns:1fr 1fr;gap:14px;cursor:pointer;
+  counter-increment:dong;border-left:3px solid transparent;
+  padding:4px 6px 4px 7px;border-radius:0 7px 7px 0}
+.dong:hover{background:var(--panel)}
+.dong.dung{background:var(--good-soft)}
+.dong.sai{background:var(--bad-soft)}
+.dong.cu{background:var(--warn-soft)}
+.dong.chon{background:var(--accent-soft);border-left-color:var(--accent)}
+.en,.vi{position:relative;padding-left:24px}
+.en::before,.vi::before{content:counter(dong);position:absolute;left:0;top:2px;width:18px;
+  text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;
+  user-select:none;-webkit-user-select:none}
+.vi{color:var(--muted)}
+.dh{user-select:none;-webkit-user-select:none;font-size:12px;margin-left:5px}
+.cach{height:11px}
+.noi[contenteditable]:focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.ro{opacity:.55}
+
+.tabs{display:flex;gap:5px;margin-bottom:11px}
+.tabs button{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:6px 9px;cursor:pointer;font-weight:700;font-size:12.5px}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.the{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px}
+.doan{font-size:12.5px;color:var(--muted);border-left:2px solid var(--accent);padding-left:9px;
+  margin-bottom:10px;max-height:84px;overflow:auto}
+.ket{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;margin-bottom:5px}
+.ket.d{color:var(--good)} .ket.s{color:var(--bad)} .ket.c{color:var(--warn)}
+.ly{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.ng{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.ng .ten{font-weight:700;font-size:13px;margin-bottom:3px;line-height:1.4}
+.ng .meta{font-size:11.5px;color:var(--muted);margin-bottom:5px;display:flex;gap:7px;
+  flex-wrap:wrap;align-items:center}
+.tier{background:var(--good-soft);color:var(--good);border:1px solid var(--good);
+  border-radius:5px;padding:0 5px;font-size:10px;font-weight:800}
+.trich{font-size:12px;background:var(--bg);border-radius:7px;padding:7px 9px;line-height:1.55}
+.trich mark{background:var(--good-soft);color:inherit;padding:0 2px;border-radius:3px}
+.song{font-size:11.5px;color:var(--good);margin-top:5px}
+.nut{display:flex;gap:6px;margin-top:10px}
+.nut button{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:7px;cursor:pointer;font-size:12.5px;font-weight:600}
+.nut button:hover{border-color:var(--accent)}
+.gia{font-size:11px;color:var(--muted);text-align:center;margin-top:7px}
+.tt{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;
+  min-height:120px;white-space:pre-wrap;font-size:13px;line-height:1.65}
+.mo{opacity:.5;pointer-events:none}
+.ghi{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+#noi{position:fixed;display:none;z-index:40;background:var(--accent);color:#fff;border:0;
+  border-radius:8px;padding:7px 13px;font-weight:700;cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.35)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:50;
+  background:var(--panel);border:1px solid var(--good);color:var(--text);
+  border-radius:9px;padding:9px 15px;font-size:12.5px;box-shadow:0 8px 26px rgba(0,0,0,.3);
+  display:none;max-width:min(92vw,560px)}
+#toast b{color:var(--good)}
+footer{background:var(--panel);border-top:1px solid var(--line);padding:7px 14px;
+  display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
+  padding:7px 14px;font-weight:700;cursor:pointer}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(max-width:1100px){.khung{grid-template-columns:1fr}
+  .dau,.dong{grid-template-columns:1fr}.vi{display:none}}
+</style>
+
+<div class="ribbon">UI MẪU — <b>Enter</b> giữa dòng = chẻ thành dòng mới · <b>Backspace</b> ở đầu dòng = gộp lên trên · <b>Ctrl+Enter</b> = bật/tắt ranh đoạn · số thứ tự vẽ bằng CSS nên copy KHÔNG dính</div>
+
+<header>
+  <div class="logo">RenderY <span>· Kịch bản</span></div>
+  <select class="tap"><option>SH011 — Đồ uống sau tuổi 60</option><option>SH010</option><option>LI106</option></select>
+  <div class="chuong" id="chuong"></div>
+  <div class="spacer"></div>
+  <div class="nguoi" id="nguoi"></div>
+  <span class="luu">✓ Đã lưu 14:32</span>
+  <button class="icon-btn" onclick="doiNen()" title="Đổi nền sáng/tối">◐</button>
+</header>
+
+<div class="khung">
+  <div class="cot">
+    <p class="nhan" id="nhanOutline">Outline — chương C2</p>
+    <div id="outline"></div>
+    <div class="so" id="so"></div>
+    <div class="ghi">Ước tính bằng giây/từ đo từ 106 transcript thật của kênh — không phải đoán.</div>
+  </div>
+
+  <div class="cot" id="cotScript">
+    <div id="khoaHop"></div>
+    <div class="dau">
+      <div><p class="nhan">English Script</p>
+           <button class="cp" onclick="chep('en')">⧉ Copy .txt</button></div>
+      <div><p class="nhan">Tiếng Việt <span style="text-transform:none;letter-spacing:0;font-weight:600">— LLM dịch</span></p>
+           <button class="cp" onclick="dichLai()" style="margin-left:auto">⟳ Dịch lại</button>
+           <button class="cp" onclick="chep('vi')" style="margin-left:0">⧉ Copy .txt</button></div>
+    </div>
+    <div id="script"></div>
+  </div>
+
+  <div class="cot">
+    <div class="tabs">
+      <button id="tb-c" class="on" onclick="doiTab('c')">Citation</button>
+      <button id="tb-t" onclick="doiTab('t')">Treatment</button>
+    </div>
+    <div id="pane-c"></div>
+    <div id="pane-t" hidden>
+      <div class="the">
+        <div class="doan" id="tDoan">Chọn một dòng ở cột giữa.</div>
+        <div class="tt" contenteditable>Wide: dãy kệ nước ngọt siêu thị, dolly chậm
+CU: tay cầm lon zero-sugar, nhãn “0 calo”
+Số 23% dựng đếm lên, nền tối</div>
+        <div class="nut mo"><button>✨ AI gợi ý đường hình</button></div>
+        <div class="ghi">Nút AI thuộc giai đoạn 3. Giai đoạn 1 team tự gõ.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button onclick="chep('en')">⧉ Copy kịch bản cho TTS</button>
+  <span id="chanGhi">Copy ra đúng các dòng đang thấy — không số thứ tự, không dấu ✅❌, không cột tiếng Việt.</span>
+  <div class="spacer"></div>
+  <span>Ctrl+Z hoàn tác · tự lưu · giữ 12 bản gần nhất</span>
+</footer>
+
+<button id="noi" onclick="kiemDoan()">🔍 Kiểm đoạn này</button>
+<div id="toast"></div>
+
+<script>
+var TOI = "haint";
+var NGUOI = [{t:"haint",m:"#4c8fe0"},{t:"thanhdn",m:"#3fae63"},{t:"hieuvn",m:"#d9a94c"}];
+
+/* Mỗi chương: outline + các DÒNG (người tự xuống dòng — đây là format cho TTS).
+   het:1 = sau dòng này là một dòng trống (ranh đoạn).                        */
+var TAP = [
+ {ma:"H", giu:"haint", outline:"• Câu móc: đồ uống đang cầm có trong danh sách\n• Khoanh đối tượng: trên 60 tuổi\n• Miễn trừ y tế",
+  dong:[
+   {en:"There's a good chance the drink sitting next to you right now is on this list.",
+    vi:"Rất có thể thứ đồ uống đang ở ngay cạnh bạn lúc này nằm trong danh sách.", het:1},
+   {en:"If you're over sixty and most mornings start with a glass of juice, a diet soda, a sweet iced coffee, or an energy drink, the next few minutes are for you.",
+    vi:"Nếu bạn ngoài sáu mươi và phần lớn buổi sáng bắt đầu bằng một ly nước ép, một lon soda ăn kiêng, một cốc cà phê đá ngọt hay một chai nước tăng lực, thì vài phút tới là dành cho bạn."},
+   {en:"Not because one glass is going to hurt you today.",
+    vi:"Không phải vì một ly hôm nay sẽ làm hại bạn."},
+   {en:"Because of a pattern researchers keep running into that almost nobody talks about at the kitchen table.",
+    vi:"Mà vì một quy luật các nhà nghiên cứu liên tục gặp lại, thứ gần như không ai nói tới ở bàn ăn.", het:1},
+   {en:"One quick, honest note first.",
+    vi:"Một lưu ý ngắn và thành thật trước đã."},
+   {en:"I work in metabolic health, but I'm not your doctor, and this is general information, not medical advice.",
+    vi:"Tôi làm trong lĩnh vực sức khoẻ chuyển hoá, nhưng tôi không phải bác sĩ của bạn, và đây là thông tin chung, không phải lời khuyên y tế."}]},
+
+ {ma:"C1", giu:"thanhdn", outline:"• Nước ép trái cây — nhãn “tự nhiên”\n• Mất chất xơ → đường vào máu nhanh\n• Thay thế: ăn cả quả",
+  dong:[
+   {en:"Number one is the drink sitting in the health-food aisle with \"\"natural\"\" and \"\"vitamin-rich\"\" printed right on the label.",
+    vi:"Thứ nhất là loại đồ uống nằm ở quầy thực phẩm lành mạnh, in hẳn chữ “tự nhiên” và “giàu vitamin” trên nhãn.", ban:1},
+   {en:"Fruit juice.", vi:"Nước ép trái cây.", het:1},
+   {en:"I know. It has fruit in the name.",
+    vi:"Tôi biết. Tên nó có chữ trái cây."},
+   {en:"So why does it keep turning up in the stroke research?",
+    vi:"Vậy tại sao nó cứ xuất hiện trong các nghiên cứu về đột quỵ?", het:1},
+   {en:"When fruit gets pressed into juice, the fiber that normally comes with it is mostly stripped away.",
+    vi:"Khi trái cây bị ép thành nước, phần chất xơ vốn đi kèm gần như bị loại bỏ hết."},
+   {en:"That fiber is the thing that slows how fast sugar enters your blood.",
+    vi:"Chính chất xơ đó là thứ làm chậm tốc độ đường đi vào máu."}]},
+
+ {ma:"C2", giu:"haint", outline:"• Soda ăn kiêng / zero sugar\n   · WHI: +23% nguy cơ đột quỵ\n   · Nói rõ: liên hệ, KHÔNG phải nhân quả\n   · Thay thế: sparkling + cranberry",
+  dong:[
+   {en:"Number two is the one people switch to thinking they are doing the healthy thing.",
+    vi:"Thứ hai là loại mà người ta chuyển sang vì tưởng mình đang chọn điều lành mạnh."},
+   {en:"Diet soda and zero-sugar drinks.",
+    vi:"Soda ăn kiêng và đồ uống không đường.", het:1},
+   {en:"If you gave up regular soda and moved to diet to protect yourself, I understand the logic completely.",
+    vi:"Nếu bạn đã bỏ soda thường để chuyển sang loại ăn kiêng nhằm giữ sức khoẻ, tôi hoàn toàn hiểu lý lẽ đó."},
+   {en:"But the research on artificial sweeteners has complicated that story, and it is worth knowing what it found.",
+    vi:"Nhưng nghiên cứu về chất tạo ngọt nhân tạo đã làm câu chuyện phức tạp hơn, và bạn nên biết chúng tìm ra điều gì.", het:1},
+   {en:"The strongest evidence here comes from the Women's Health Initiative, a study that followed more than eighty thousand postmenopausal women in the United States for around twelve years.",
+    vi:"Bằng chứng mạnh nhất đến từ Women's Health Initiative, nghiên cứu theo dõi hơn tám mươi nghìn phụ nữ mãn kinh tại Mỹ trong khoảng mười hai năm.", tt:"dung", doan:1},
+   {en:"It found that women who drank two or more artificially sweetened drinks a day had about a twenty-three percent higher risk of stroke, and a thirty-one percent higher risk of the clot-type stroke specifically, compared with women who rarely drank them.",
+    vi:"Kết quả: phụ nữ uống từ hai ly nước ngọt tạo ngọt nhân tạo mỗi ngày có nguy cơ đột quỵ cao hơn khoảng hai mươi ba phần trăm, riêng đột quỵ do cục máu đông cao hơn ba mươi mốt phần trăm, so với nhóm hiếm khi uống.", tt:"dung", doan:1},
+   {en:"It was also linked to higher rates of heart disease.",
+    vi:"Nó cũng gắn với tỉ lệ bệnh tim cao hơn.", tt:"cu", doan:2, het:1},
+   {en:"Two things I have to say honestly.",
+    vi:"Có hai điều tôi phải nói thẳng."},
+   {en:"First, this is an association, not proof — the researchers were clear that it does not establish cause and effect.",
+    vi:"Thứ nhất, đây là mối liên hệ, không phải bằng chứng — nhóm nghiên cứu nói rõ nó không chứng minh nhân quả."},
+   {en:"Second, the effect was strongest in women drinking two or more a day, every day.",
+    vi:"Thứ hai, tác động rõ nhất ở nhóm uống từ hai ly mỗi ngày, ngày nào cũng uống."},
+   {en:"An occasional diet soda is not what this study was pointing at.",
+    vi:"Thỉnh thoảng uống một lon soda ăn kiêng không phải điều nghiên cứu này nhắm tới.", het:1},
+   {en:"The same INTERSTROKE research I mentioned earlier backs this up from another angle: it found that fizzy drinks — both the sugary kind and the artificially sweetened kind — were associated with higher stroke risk.",
+    vi:"Chính nghiên cứu INTERSTROKE tôi nhắc lúc nãy củng cố điều này từ góc khác: nước có ga — cả loại ngọt đường lẫn loại tạo ngọt nhân tạo — đều gắn với nguy cơ đột quỵ cao hơn.", tt:"sai", doan:3},
+   {en:"So the “diet” label, on its own, does not buy you the safety it seems to promise.",
+    vi:"Nên riêng cái nhãn “diet” không mua cho bạn sự an toàn mà nó có vẻ hứa hẹn.", het:1},
+   {en:"Here is the upgrade: sparkling water with a splash of real cranberry juice and a squeeze of fresh lime.",
+    vi:"Đây là bản nâng cấp: nước có ga pha chút nước ép nam việt quất thật và vắt thêm lát chanh tươi."},
+   {en:"Your taste buds adjust within a few days — genuinely faster than most people expect — and it is a far gentler choice for your blood vessels.",
+    vi:"Vị giác thích nghi trong vài ngày — nhanh hơn hầu hết mọi người nghĩ — và đây là lựa chọn dịu dàng hơn nhiều cho mạch máu."}]},
+
+ {ma:"C3", giu:"hieuvn", outline:"• Cà phê đá ngọt", dong:[]},
+ {ma:"C4", giu:null, outline:"", dong:[]},
+ {ma:"E",  giu:null, outline:"", dong:[]}
+];
+
+var DOAN = {
+ 1:{tt:"dung", dong:"5–6",
+    txt:"The strongest evidence here comes from the Women's Health Initiative… about a twenty-three percent higher risk of stroke, and a thirty-one percent higher risk of the clot-type stroke specifically.",
+    ng:[
+     {ten:"Mossavar-Rahmani Y, et al. — Artificially Sweetened Beverages and Stroke, Coronary Heart Disease, and All-Cause Mortality in the Women's Health Initiative",
+      meta:["T1","Stroke · 2019","DOI 10.1161/STROKEAHA.118.023100","Europe PMC"],
+      trich:"Among 81,714 postmenopausal women, those consuming <mark>2 or more artificially sweetened beverages per day</mark> had a higher risk of <mark>all stroke (aHR 1.23)</mark> and <mark>ischemic stroke (aHR 1.31)</mark> versus never/rare consumers.",
+      song:"✓ link sống · trích đoạn có thật trong trang · kiểm 15/09/2026 · đã lưu bản chụp"},
+     {ten:"NHLBI — Women's Health Initiative: thiết kế nghiên cứu và thời gian theo dõi",
+      meta:["T1","nhlbi.nih.gov","Cơ quan chính phủ Mỹ"],
+      trich:"WHI enrolled <mark>161,808 postmenopausal women</mark> aged 50–79; the observational study followed participants for a <mark>mean of about 12 years</mark>.",
+      song:"✓ link sống · xác nhận cỡ mẫu + thời gian theo dõi · kiểm 15/09/2026"}]},
+ 2:{tt:"cu", dong:"7", txt:"It was also linked to higher rates of heart disease.",
+    ly:"Dòng này bị sửa chữ lúc 14:21, sau lần kiểm gần nhất (14:02). Kết luận cũ không còn được bảo đảm."},
+ 3:{tt:"sai", dong:"12",
+    txt:"The same INTERSTROKE research… fizzy drinks — both the sugary kind and the artificially sweetened kind — were associated with higher stroke risk.",
+    ly:"Tra Europe PMC + Crossref: INTERSTROKE (Lancet 2010 và 2016) đo 10 yếu tố nguy cơ đột quỵ — không có kết quả riêng nào về nước có ga. Thứ duy nhất nói vậy là một bài tổng hợp hạng 3, không phải bài gốc.",
+    goi:"Gợi ý sửa: bỏ cụm “the same INTERSTROKE research”, hạ giọng thành “some cohort studies have found…”, hoặc thay bằng nguồn gốc có thật."}
+};
+
+var man = "C2";        // "TONG" hoặc mã chương
+var chonCh = "C2", chonD = 4;
+
+function ch(ma){ for(var i=0;i<TAP.length;i++) if(TAP[i].ma===ma) return TAP[i]; return null; }
+function mau(ten){ for(var i=0;i<NGUOI.length;i++) if(NGUOI[i].t===ten) return NGUOI[i].m; return "#888"; }
+function hienThi(){ return man==="TONG" ? TAP.filter(function(c){return c.dong.length}) : [ch(man)]; }
+
+/* ───────── thanh chương ───────── */
+document.getElementById("nguoi").innerHTML = NGUOI.map(function(n){
+  return '<div class="av" style="background:'+n.m+'" title="'+n.t+' đang online">'+
+         n.t.slice(0,2).toUpperCase()+'</div>'; }).join("");
+
+function veChuong(){
+  var h = '<button class="ch tong '+(man==="TONG"?"on":"")+'" onclick="doiMan(\'TONG\')">Toàn bộ</button><span class="vach"></span>';
+  h += TAP.map(function(c){
+    var ai = c.giu ? '<span class="ai" style="background:'+mau(c.giu)+'" title="'+c.giu+' đang giữ">'+c.giu.slice(0,1).toUpperCase()+'</span>' : '';
+    return '<button class="ch '+(man===c.ma?"on":"")+'" onclick="doiMan(\''+c.ma+'\')">'+c.ma+ai+'</button>';
+  }).join("");
+  document.getElementById("chuong").innerHTML = h;
+}
+
+function doiMan(m){ man = m; if(m!=="TONG"){ chonCh = m; chonD = 0; } veChuong(); ve(); }
+
+/* ───────── cột giữa ───────── */
+function veScript(){
+  var ds = hienThi(), h = "";
+  ds.forEach(function(c){
+    var cuaNguoiKhac = c.giu && c.giu !== TOI;
+    if(man === "TONG"){
+      h += '<div class="mu"><b>'+c.ma+'</b>' +
+           (cuaNguoiKhac ? '<span class="kh">🔒 '+c.giu+' đang sửa — chỉ xem</span>'
+                         : '<span class="kh" style="color:var(--good)">✎ sửa được</span>') +
+           '<span class="spacer" style="flex:1"></span>' +
+           '<button class="cp" onclick="chep(\'en\',\''+c.ma+'\')">⧉ Copy '+c.ma+'.txt</button></div>';
+    }
+    h += '<div class="tap-ch'+(cuaNguoiKhac?" ro":"")+'">';
+    c.dong.forEach(function(d, i){
+      var dh = d.tt==="dung" ? '<span class="dh">✅</span>'
+             : d.tt==="sai"  ? '<span class="dh">❌</span>'
+             : d.tt==="cu"   ? '<span class="dh">🕐</span>' : "";
+      var sua = cuaNguoiKhac ? "" : ' contenteditable';
+      var vi = d.vi || '<i style="opacity:.55">(chưa dịch — bấm ⟳ Dịch lại)</i>';
+      h += '<div class="dong '+(d.tt||"")+' '+(chonCh===c.ma&&chonD===i?"chon":"")+'"'+
+           ' onclick="chonDong(\''+c.ma+'\','+i+')">'+
+           '<div class="en"><span class="noi" data-ch="'+c.ma+'" data-i="'+i+'"'+sua+'>'+d.en+'</span>'+dh+'</div>'+
+           '<div class="vi"><span class="noi">'+vi+'</span></div></div>'+
+           (d.het ? '<div class="cach"></div>' : "");
+    });
+    h += '</div>';
+  });
+  document.getElementById("script").innerHTML = h;
+
+  var c = ch(man), kh = document.getElementById("khoaHop");
+  if(man !== "TONG" && c && c.giu && c.giu !== TOI){
+    kh.innerHTML = '<div class="khoa"><span>🔒 <b>'+c.giu+'</b> đang sửa chương này — bạn ở chế độ chỉ xem.</span>'+
+                   '<button onclick="alert(\'Mẫu: gửi yêu cầu giành quyền.\')">Giành quyền</button></div>';
+  } else kh.innerHTML = "";
+}
+
+function chonDong(ma, i){
+  // KHONG ve lai cot giua: o contenteditable vua bam se bi thay the va mat con tro
+  // (do that 15/09: click xong focus nhay ve BODY, Enter khong che duoc dong nao).
+  chonCh = ma; chonD = i;
+  var ds = document.querySelectorAll(".dong");
+  for(var k = 0; k < ds.length; k++) ds[k].classList.remove("chon");
+  var el = document.querySelector('.dong[data-ch="' + ma + '"][data-i="' + i + '"]');
+  if(el) el.classList.add("chon");
+  vePhai();
+}
+
+/* ───────── cột trái ───────── */
+function veTrai(){
+  var ds = hienThi();
+  document.getElementById("nhanOutline").textContent =
+    man === "TONG" ? "Outline — toàn bộ kịch bản" : "Outline — chương " + man;
+  document.getElementById("outline").innerHTML = ds.map(function(c){
+    return (man==="TONG" ? '<div class="ol-ten">'+c.ma+'</div>' : '') +
+           '<div class="o" contenteditable>'+(c.outline || "(chưa nhập)")+'</div>';
+  }).join("");
+
+  var dong = 0, tu = 0, doan = {}, kiem = 0;
+  ds.forEach(function(c){ c.dong.forEach(function(d){
+    dong++; tu += d.en.split(/\s+/).length;
+    if(d.doan && !doan[d.doan]){ doan[d.doan] = 1; if(d.tt !== "cu") kiem++; }
+  }); });
+  var giay = Math.round(tu / 2.6), ph = Math.floor(giay/60);
+  document.getElementById("so").innerHTML =
+    '<div><span>Dòng</span><b>'+dong+'</b></div>'+
+    '<div><span>Từ</span><b>'+tu+'</b></div>'+
+    '<div><span>Ước tính</span><b class="dam">'+ph+' ph '+(giay%60)+'</b></div>'+
+    '<div><span>Đoạn đã kiểm</span><b>'+kiem+' / '+Object.keys(doan).length+'</b></div>';
+}
+
+/* ───────── cột phải ───────── */
+function vePhai(){
+  var c = ch(chonCh); if(!c || !c.dong.length){ return; }
+  var d = c.dong[chonD] || c.dong[0], t = d.doan ? DOAN[d.doan] : null;
+  document.getElementById("tDoan").textContent = d.en;
+  var p = document.getElementById("pane-c");
+  if(!t){
+    p.innerHTML = '<div class="the"><div class="doan">'+d.en+'</div>'+
+      '<div class="ly">Đoạn này chưa được kiểm.</div>'+
+      '<div class="nut"><button onclick="kiemDoan()">🔍 Kiểm đoạn này</button>'+
+      '<button onclick="alert(\'Mẫu: ô dán link tay\')">+ Dán link tay</button></div>'+
+      '<div class="gia">1 lượt kiểm ≈ $0,02 · chỉ chạy khi bạn bấm</div></div>';
+    return;
+  }
+  if(t.tt === "dung"){
+    var ng = t.ng.map(function(n){
+      var meta = n.meta.map(function(m,k){
+        return k===0 ? '<span class="tier">'+m+'</span>' : '<span>'+m+'</span>'; }).join("");
+      return '<div class="ng"><div class="ten">'+n.ten+'</div>'+
+        '<div class="meta">'+meta+'<a href="#" onclick="return false" style="color:var(--accent)">⧉ mở</a></div>'+
+        '<div class="trich">'+n.trich+'</div><div class="song">'+n.song+'</div></div>';
+    }).join("");
+    p.innerHTML = '<div class="the"><div class="doan">Dòng '+t.dong+': '+t.txt+'</div>'+
+      '<div class="ket d">✅ ĐÚNG</div>'+
+      '<div class="ly">2 nguồn hạng 1 chống lưng · Python đã kiểm link sống và trích đoạn có thật trong trang.</div>'+
+      ng+'<div class="nut"><button onclick="alert(\'Mẫu: chạy lại lượt kiểm\')">↻ Kiểm lại</button>'+
+      '<button onclick="alert(\'Mẫu: ô dán link tay\')">+ Dán link tay</button></div></div>';
+  } else if(t.tt === "sai"){
+    p.innerHTML = '<div class="the"><div class="doan">Dòng '+t.dong+': '+t.txt+'</div>'+
+      '<div class="ket s">❌ SAI / CHƯA KẾT LUẬN ĐƯỢC</div>'+
+      '<div class="ly">'+t.ly+'</div><div class="trich">'+t.goi+'</div>'+
+      '<div class="nut"><button onclick="alert(\'Mẫu: chạy lại lượt kiểm\')">↻ Kiểm lại</button>'+
+      '<button onclick="alert(\'Mẫu: ô dán link tay\')">+ Dán link tay</button></div></div>';
+  } else {
+    p.innerHTML = '<div class="the"><div class="doan">Dòng '+t.dong+': '+t.txt+'</div>'+
+      '<div class="ket c">🕐 CẦN KIỂM LẠI</div><div class="ly">'+t.ly+'</div>'+
+      '<div class="nut"><button onclick="alert(\'Mẫu: chạy lại lượt kiểm\')">↻ Kiểm lại đoạn này</button></div></div>';
+  }
+}
+
+function ve(){
+  // Vẽ lại làm ô đang gõ mất focus -> blur của NÓ bắn với chữ CŨ và ghi đè dữ
+  // liệu vừa đổi (đo 15/09: Ctrl+Z xong thì Ctrl+Shift+Z chết vì blur cũ xoá
+  // chồng làm-lại). Khoá cửa sổ đó cho MỌI đường vẽ lại, không riêng chẻ/gộp.
+  dangCheGop = true;
+  veScript(); veTrai(); vePhai();
+  setTimeout(function(){ dangCheGop = false; }, 0);
+}
+
+/* ───────── COPY: đúng các dòng đang thấy, không số, không dấu ───────── */
+function chep(cot, ma){
+  var ds = ma ? [ch(ma)] : hienThi(), ban = 0, n = 0, phan = [];
+  ds.forEach(function(c){
+    var t = "";
+    c.dong.forEach(function(d){
+      var s = (cot === "vi" ? d.vi : d.en);
+      if(s.indexOf('""') >= 0){ ban++; s = s.replace(/""/g, '"'); }   // rác escape từ Sheet
+      t += s + "\n" + (d.het ? "\n" : "");
+      n++;
+    });
+    phan.push(t.replace(/\n+$/, "") + "\n");
+  });
+  var ra = phan.join("\n");
+  if(navigator.clipboard) navigator.clipboard.writeText(ra);
+  var ten = ma ? ma + ".txt" : (man === "TONG" ? "toàn bộ kịch bản" : man + ".txt");
+  bao("<b>Đã copy " + ten + "</b> — " + n + " dòng, " + ds.length + " chương · không kèm số thứ tự, không dấu ✅❌, không cột tiếng Việt" +
+      (ban ? " · đã sửa " + ban + " chỗ rác <code>\"\"</code> từ Sheet" : ""));
+}
+function bao(html){
+  var t = document.getElementById("toast");
+  t.innerHTML = html; t.style.display = "block";
+  clearTimeout(bao._h); bao._h = setTimeout(function(){ t.style.display = "none"; }, 4200);
+}
+
+function doiTab(x){
+  document.getElementById("tb-c").classList.toggle("on", x === "c");
+  document.getElementById("tb-t").classList.toggle("on", x === "t");
+  document.getElementById("pane-c").hidden = (x !== "c");
+  document.getElementById("pane-t").hidden = (x !== "t");
+}
+function kiemDoan(){
+  document.getElementById("noi").style.display = "none";
+  alert("Mẫu: gửi ĐÚNG đoạn đang bôi đen đi tra nguồn.\n\nBản thật: tra Europe PMC / PubMed / Crossref + web search giới hạn trong danh sách nguồn uy tín → Python kiểm link sống, trích đoạn có thật, lưu bản chụp → LLM kết luận ĐÚNG hoặc SAI/CHƯA KẾT LUẬN.");
+}
+document.addEventListener("selectionchange", function(){
+  var s = document.getSelection(), n = document.getElementById("noi");
+  if(!s || s.isCollapsed || !s.toString().trim() ||
+     !document.getElementById("cotScript").contains(s.anchorNode)){ n.style.display = "none"; return; }
+  var r = s.getRangeAt(0).getBoundingClientRect();
+  n.style.display = "block";
+  n.style.top = Math.max(8, r.top - 44) + "px";
+  n.style.left = Math.max(8, r.left + r.width / 2 - 80) + "px";
+});
+function doiNen(){
+  var d = document.documentElement;
+  d.setAttribute("data-theme", d.getAttribute("data-theme") === "dark" ? "light" : "dark");
+}
+
+/* ───────── HOÀN TÁC (Ctrl+Z) ─────────
+   Vẽ lại danh sách sau mỗi lần chẻ nên undo của trình duyệt vô hiệu -> tự giữ
+   20 trạng thái gần nhất. Chụp TRƯỚC mỗi thay đổi, không phải sau.            */
+var lichSu = [], lamLaiDuoc = [];
+function ghiNho(){
+  lichSu.push(JSON.stringify(TAP));
+  if(lichSu.length > 20) lichSu.shift();
+  lamLaiDuoc.length = 0;
+}
+function hoanTac(){
+  if(!lichSu.length){ bao("Không còn gì để hoàn tác."); return; }
+  lamLaiDuoc.push(JSON.stringify(TAP));
+  TAP = JSON.parse(lichSu.pop());
+  ve(); bao("↶ Đã hoàn tác. <b>Ctrl+Shift+Z</b> để làm lại.");
+}
+function lamLai(){
+  if(!lamLaiDuoc.length){ bao("Không còn gì để làm lại."); return; }
+  lichSu.push(JSON.stringify(TAP));
+  TAP = JSON.parse(lamLaiDuoc.pop());
+  ve(); bao("↷ Đã làm lại.");
+}
+document.addEventListener("keydown", function(e){
+  if(!(e.ctrlKey || e.metaKey)) return;
+  var k = (e.key || "").toLowerCase();
+  if(k === "z"){ e.preventDefault(); e.shiftKey ? lamLai() : hoanTac(); }
+  else if(k === "y"){ e.preventDefault(); lamLai(); }
+});
+
+/* ───────── CHẺ / GỘP DÒNG theo mạch dựng ─────────
+   Chẻ và gộp KHÔNG đổi một chữ nào → kết luận fact-check giữ nguyên.
+   Chỉ khi SỬA CHỮ mới rơi về 🕐 cần kiểm lại (xử lý ở blur bên dưới).     */
+function viTriCaret(el){
+  var s = getSelection();
+  if(!s.rangeCount) return 0;
+  var r = s.getRangeAt(0).cloneRange(), q = document.createRange();
+  q.selectNodeContents(el); q.setEnd(r.endContainer, r.endOffset);
+  return q.toString().length;
+}
+function datCaret(ma, i, off){
+  var el = document.querySelector('.noi[data-ch="'+ma+'"][data-i="'+i+'"]');
+  if(!el) return;
+  el.focus();
+  var tn = el.firstChild || el.appendChild(document.createTextNode(""));
+  var r = document.createRange();
+  r.setStart(tn, Math.min(off, tn.length || 0)); r.collapse(true);
+  var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+/* Chẻ/gộp làm phần tử cũ mất focus -> blur của NÓ bắn sau khi dữ liệu đã đổi và
+   sẽ ghi đè bằng chữ cũ (đo thật: dòng bị chẻ quay lại nguyên văn, copy ra 2 bản
+   trùng nhau). Cờ này bịt đúng cửa sổ đó.                                      */
+var dangCheGop = false;
+
+function oDong(e){
+  var el = e.target;
+  while(el && el !== document && !(el.classList && el.classList.contains("noi"))) el = el.parentNode;
+  return (el && el.getAttribute && el.getAttribute("contenteditable") !== null) ? el : null;
+}
+
+document.getElementById("script").addEventListener("keydown", function(e){
+  var el = oDong(e); if(!el) return;
+  var ma = el.dataset.ch, i = +el.dataset.i, c = ch(ma), d = c.dong[i];
+  if(["Enter","Backspace"].indexOf(e.key) >= 0) dangCheGop = true;
+
+  if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){        // ranh đoạn
+    e.preventDefault(); ghiNho(); d.en = el.textContent; d.het = d.het ? 0 : 1;
+    ve(); datCaret(ma, i, d.en.length);
+    bao(d.het ? "Đã thêm <b>ranh đoạn</b> sau dòng này (dòng trống khi copy)."
+              : "Đã bỏ ranh đoạn.");
+    return;
+  }
+  if(e.key === "Enter"){                                     // chẻ dòng
+    e.preventDefault();
+    var off = viTriCaret(el), t = el.textContent;
+    var truoc = t.slice(0, off).replace(/\s+$/, ""), sau = t.slice(off).replace(/^\s+/, "");
+    ghiNho();
+    d.en = truoc;
+    c.dong.splice(i + 1, 0, {en:sau, vi:"", tt:d.tt, doan:d.doan, het:d.het});
+    d.het = 0;
+    ve(); datCaret(ma, i + 1, 0);
+    bao("Đã chẻ thành dòng mới · <b>citation giữ nguyên</b> (chữ không đổi) · tiếng Việt cần dịch lại");
+    return;
+  }
+  if(e.key === "Backspace" && viTriCaret(el) === 0 && i > 0){ // gộp lên trên
+    var tr = c.dong[i - 1];
+    e.preventDefault(); ghiNho();
+    if(tr.het){ tr.het = 0; ve(); datCaret(ma, i, 0);
+                bao("Đã bỏ ranh đoạn giữa hai dòng."); return; }
+    var noi = tr.en.replace(/\s+$/, "");
+    tr.en = noi + (el.textContent ? " " + el.textContent.replace(/^\s+/, "") : "");
+    tr.vi = (tr.vi || "") + (d.vi ? " " + d.vi : "");
+    tr.het = d.het;
+    c.dong.splice(i, 1);
+    ve(); datCaret(ma, i - 1, noi.length + 1);
+    bao("Đã gộp vào dòng trên.");
+  }
+  setTimeout(function(){ dangCheGop = false; }, 0);
+});
+
+document.getElementById("script").addEventListener("blur", function(e){
+  var el = oDong(e); if(!el || dangCheGop) return;
+  var ma = el.dataset.ch, i = +el.dataset.i, d = ch(ma).dong[i];
+  var moi = el.textContent;
+  if(!d || moi === d.en) return;
+  ghiNho();
+  d.en = moi;
+  if(d.doan && d.tt !== "cu"){ d.tt = "cu"; bao("Dòng đã đổi chữ → citation chuyển <b>🕐 cần kiểm lại</b>."); }
+  setTimeout(ve, 0);
+}, true);
+
+function dichLai(){
+  hienThi().forEach(function(c){ c.dong.forEach(function(d){
+    if(!d.vi) d.vi = "(bản dịch mới do LLM sinh — mẫu)"; }); });
+  ve(); bao("Mẫu: gọi LLM dịch các dòng còn thiếu, giữ nguyên dòng đã có.");
+}
+
+veChuong(); ve();
+</script>

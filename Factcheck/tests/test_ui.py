@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 TRANG = (Path(__file__).resolve().parents[1]
-         / "autoedit" / "kichban" / "static" / "kichban.html")
+         / "factcheck" / "static" / "factcheck.html")
 
 
 @pytest.fixture(scope="module")
@@ -100,3 +100,8 @@ def test_co_tab_cai_dat(html):
     assert "grok-4.6" in html and "gpt-5.6" in html, "gợi ý sẵn 2 model của nhà cung cấp"
     assert "api2.apisuper.cloud" in html
     assert "cai-dat/thu" in html, "phải có nút Thử — lỗi khoá không được lộ giữa chừng"
+
+
+def test_co_o_khoa_serper(html):
+    """Đứng riêng thì không đọc được két — khoá Serper phải đặt được tại chỗ."""
+    assert "s-serper" in html and "Serper" in html

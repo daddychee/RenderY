@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from autoedit.web.chapters import phan_tich_ten
+from factcheck.chuong import phan_tich_ten
 
 SO_BAN_LUI = 12      # user chốt: giữ 12 bản gần nhất
 KHOA_GIAY = 180      # nhả sau 3 phút không gõ
@@ -166,7 +166,8 @@ class Kho:
     # Khoá LLM của phần kiểm chứng để TẠM trong app (user chốt 16/09, cuối tuần
     # ghép vào két OUTLIERY). Whitelist chặt: ô cài đặt không được biến thành
     # chỗ ghi gì cũng được.
-    KHOA_CAI_DAT = ("llm_url", "llm_key", "llm_model", "dich_model")
+    KHOA_CAI_DAT = ("llm_url", "llm_key", "llm_model", "dich_model",
+                    "serper_key")
 
     def luu_cai_dat(self, d: dict) -> None:
         la = [k for k in d if k not in self.KHOA_CAI_DAT]

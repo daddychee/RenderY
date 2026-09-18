@@ -20,6 +20,8 @@ import re
 import urllib.error
 import urllib.request
 
+import requests
+
 SERPER_URL = "https://google.serper.dev/search"
 _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RenderY-KichBan/0.1"
 
@@ -27,11 +29,11 @@ _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RenderY-KichBan/0.1"
 def _khoa(viec: str, nha: str = "") -> str:
     """Khoá của một việc trong két; `nha` để chọn đúng nhà cung cấp khi việc đó
     có nhiều khoá (tim_tu_lieu đang giữ cả serpapi lẫn serper)."""
-    try:
+    try:                     # két là TUỲ CHỌN — đứng riêng thì rơi về biến môi trường
         from autoedit.web.ket_v3 import doc_ket
 
         ds = (doc_ket().get(viec) or {}).get("khoa") or []
-    except Exception:  # noqa: BLE001 — gateway chết thì rơi về env
+    except Exception:  # noqa: BLE001
         ds = []
     for k in ds:
         if not nha or nha in (k.get("nha") or "").lower():
@@ -41,19 +43,27 @@ def _khoa(viec: str, nha: str = "") -> str:
 
 
 # ------------------------------------------------------------------ tra
-def tim_serper(truy_van: str, so: int = 8) -> list[dict]:
-    """Google qua Serper.dev -> [{url, ten, mo_ta}]. Không có khoá -> rỗng."""
-    key = _khoa("tim_tu_lieu", "serper") or os.getenv("SERPER_API_KEY", "")
+def tim_serper(truy_van: str, so: int = 8, cai_dat: dict | None = None) -> list[dict]:
+    """Google qua Serper.dev -> [{url, ten, mo_ta}]. Không có khoá -> rỗng.
+
+    Thứ tự khoá: tab ⚙ trong app -> két OUTLIERY -> biến môi trường. Ô trong app
+    là BẮT BUỘC phải có: đóng gói xong, máy chủ chạy Factcheck ở thư mục riêng nên
+    không import được `autoedit` -> mất luôn khoá Serper của két, mà mất kênh này
+    thì mảng điều tra báo chí chết lặng, chỉ còn Europe PMC lo phần học thuật.
+    """
+    key = ((cai_dat or {}).get("serper_key") or _khoa("tim_tu_lieu", "serper")
+           or os.getenv("SERPER_API_KEY", ""))
     if not key or not truy_van.strip():
         return []
-    goi = json.dumps({"q": truy_van, "num": so}).encode("utf-8")
-    req = urllib.request.Request(
-        SERPER_URL, data=goi,
-        headers={"X-API-KEY": key, "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            kq = json.loads(r.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, ValueError):
+        r = requests.post(SERPER_URL, timeout=25,
+                          json={"q": truy_van, "num": so},
+                          headers={"X-API-KEY": key, "Content-Type": "application/json",
+                                   "User-Agent": _UA})
+        if r.status_code != 200:
+            return []
+        kq = r.json()
+    except Exception:  # noqa: BLE001 — mất một kênh, không được giết lượt kiểm
         return []
     return [{"url": m.get("link", ""), "ten": m.get("title", ""),
              "mo_ta": m.get("snippet", "")}
@@ -109,9 +119,9 @@ def tim_europepmc(truy_van: str, so: int = 4) -> list[dict]:
     return ra
 
 
-def tim_gop(truy_van: str, so: int = 8) -> list[dict]:
+def tim_gop(truy_van: str, so: int = 8, cai_dat: dict | None = None) -> list[dict]:
     """Europe PMC TRƯỚC (bài gốc, lấy được chữ), rồi mới tới Serper."""
-    return tim_europepmc(truy_van, so=4) + tim_serper(truy_van, so=so)
+    return tim_europepmc(truy_van, so=4) + tim_serper(truy_van, so=so, cai_dat=cai_dat)
 
 
 # ----------------------------------------------------------------- tải
@@ -209,7 +219,7 @@ class LlmKiem:
     """GLM đọc trang và kết luận. Cùng khuôn gọi với `dich.DichGLM`."""
 
     def __init__(self, key: str = "", model: str = "", cai_dat: dict | None = None) -> None:
-        from autoedit.kichban.dich import DichGLM
+        from factcheck.dich import DichGLM
 
         goc = DichGLM(key=key, model=model, cai_dat=cai_dat)   # chung đường lấy khoá
         self.key, self.url, self.model = goc.key, goc.url, goc.model
@@ -217,7 +227,7 @@ class LlmKiem:
     def _goi(self, he: str, than: str) -> dict:
         """Dùng CHUNG một đường gọi với bộ dịch — một chỗ sửa, không để hai nơi
         lệch nhau (urllib/requests, tham số riêng từng nhà, câu báo lỗi)."""
-        from autoedit.kichban.dich import DichGLM
+        from factcheck.dich import DichGLM
 
         m = DichGLM(key=self.key, model=self.model)
         m.url = self.url

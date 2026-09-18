@@ -245,6 +245,9 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
         <input id="s-model" class="ban-cu" list="ds-model" placeholder="grok-4.6">
         <label class="nhan">Model — dịch (để trống = dùng chung)</label>
         <input id="s-dich" class="ban-cu" list="ds-model" placeholder="gpt-5.6">
+        <label class="nhan">Khoá Serper (tra Google)</label>
+        <input id="s-serper" class="ban-cu" type="password"
+               placeholder="để trống = giữ nguyên · thiếu thì chỉ còn Europe PMC">
         <datalist id="ds-model">
           <option value="grok-4.6"></option><option value="gpt-5.6"></option>
           <option value="glm-5.3"></option>
@@ -579,6 +582,9 @@ async function napCaiDat(){
   document.getElementById("s-url").value = d.llm_url || "";
   document.getElementById("s-model").value = d.llm_model || "";
   document.getElementById("s-dich").value = d.dich_model || "";
+  document.getElementById("s-serper").placeholder =
+    d.serper_key ? ("đang dùng khoá " + d.serper_key)
+                 : "chưa có — thiếu thì chỉ tra được Europe PMC, mất kênh báo chí";
   document.getElementById("s-key").placeholder =
     d.llm_key ? ("đang dùng khoá " + d.llm_key) : (d.co_ket ? "đang dùng khoá của hệ (két)" : "chưa có khoá");
   document.getElementById("s-tt").textContent =
@@ -592,9 +598,12 @@ async function luuCaiDat(){
               dich_model: document.getElementById("s-dich").value.trim()};
   var k = document.getElementById("s-key").value;
   if(k !== "") than.llm_key = k.trim();      // để trống = giữ khoá cũ
+  var sp = document.getElementById("s-serper").value;
+  if(sp !== "") than.serper_key = sp.trim();
   try { await api("/api/cai-dat", "POST", than); }
   catch(e){ return bao(e.message, true); }
   document.getElementById("s-key").value = "";
+  document.getElementById("s-serper").value = "";
   await napCaiDat(); bao("Đã lưu cài đặt.");
 }
 
