@@ -3794,9 +3794,35 @@ function ncBen() {
     '<h2>' + (NC_BAN === 'luu' ? 'Hồ sơ đã áp dụng' : 'Sau khi duyệt') + '</h2>'
     + '<div class="note" style="line-height:1.7">Hồ sơ lưu thành 1 file trong kho dữ liệu, '
     + 'cùng chỗ với Sổ Tra — không nhét vào <code>.env</code>.</div>'
+    + (NC_BAN === 'luu' && (NC_SOAN.vat_the || []).length
+      ? '<button class="btn" id="nc-nut-hut" style="width:100%;margin-top:14px"'
+        + ' onclick="ncHut()">⛏ Hút ' + NC_SOAN.vat_the.length
+        + ' từ khoá vào kho</button>'
+        + '<div class="note" style="margin-top:8px">Chạy đúng máy hút đang có ở Library, '
+        + 'chỉ khác là từ khoá lấy sẵn từ hồ sơ thay vì gõ từng cái.</div>'
+      : '')
     + '<div class="note" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
-    + 'Ngách có hồ sơ thì ô «Niche» ở <b>+ New Sequence</b> hết chặn. Kho mỏng thì '
-    + 'hút thêm ở <a onclick="doiTrang(&quot;sotra&quot;)">Library</a> theo đúng các từ khoá trên.</div>'
+    + 'Ngách có hồ sơ thì ô «Niche» ở <b>+ New Sequence</b> hết chặn.</div>'
+}
+
+async function ncHut() {
+  // Máy hút của Library đã nhận sẵn DANH SÁCH từ khoá (trần 40) và chạy nền
+  // một phiên một lúc — ở đây chỉ đưa từ khoá của hồ sơ vào, không dựng lại.
+  if (ME && ME.hut_nguon === false) {
+    toastOf('Cần cấp Vận hành trở lên mới hút nguồn mới'); return
+  }
+  const tu = (NC_SOAN && NC_SOAN.vat_the) || []
+  if (!tu.length) return
+  const n = document.getElementById('nc-nut-hut')
+  if (n) { n.disabled = true; n.textContent = '⛏ đang hút nền…' }
+  try {
+    await api('/api/sotra/hut', {method: 'POST',
+      body: JSON.stringify({tu_khoa: tu.slice(0, 40), so_trang: 1})})
+    toastOf('Đang hút ' + Math.min(tu.length, 40) + ' từ khoá — xem tiến độ ở Library')
+  } catch (e) {
+    toastOf(e.message || 'không hút được')
+    if (n) { n.disabled = false; n.textContent = '⛏ Hút ' + tu.length + ' từ khoá vào kho' }
+  }
 }
 
 function ncDoiLoc(v) {
