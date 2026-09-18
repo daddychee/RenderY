@@ -115,13 +115,32 @@ def _bo_nhan_vat() -> dict[str, dict]:
     return ra
 
 
+def _ho_so(x: str, n: dict | None = None) -> dict | None:
+    """Hồ sơ ngách (QĐ18) — thứ NGƯỜI bấm Duyệt trên màn hình.
+
+    Thắng `.env` và mặc định trong code: dòng `.env` gõ tay từ đời nào không
+    được đè lên lời khai vừa duyệt.
+    """
+    from autoedit import ngach_ho_so as _hs
+
+    for k in ([n["ma"]] if n else []) + [x]:
+        d = _hs.doc(k)
+        if d:
+            return d
+    return None
+
+
 def nhan_vat(x: str) -> dict:
     """Ngách này quay AI — {"tuoi": [...], "chung_toc": [...]}. Chưa khai -> {}.
 
-    {} nghĩa là KHÔNG lọc (ngách gắn địa lý, hoặc chưa khai): `xep_3_tang` giữ
-    nguyên thứ tự cũ, không vô tình đổi cách Life In đang chạy.
+    {} nghĩa là KHÔNG lọc (ngách gắn địa lý, đã khai "không lọc theo người",
+    hoặc chưa khai): `xep_3_tang` giữ nguyên thứ tự cũ, không vô tình đổi cách
+    Life In đang chạy.
     """
     n = _tim(x)
+    ho = _ho_so(x, n)
+    if ho is not None:
+        return dict(ho.get("nhan_vat") or {}) if ho.get("loc_nguoi") else {}
     bo = _bo_nhan_vat()
     if n is not None:
         return dict(bo.get((n["ma"] or "").upper())
@@ -138,9 +157,13 @@ def da_khai_nhan_vat(x: str) -> bool:
     """
     if not doc_duoc():
         return True
+    n = _tim(x)
+    # QĐ18: hồ sơ khai "không lọc theo người" cũng LÀ một lời khai. Trước đây
+    # "đã khai" suy ra từ "có nhân vật" nên ngách đồ vật không có đường qua cổng.
+    if _ho_so(x, n) is not None:
+        return True
     if bool(nhan_vat(x)):
         return True
-    n = _tim(x)
     return bool(n and n["can_dia_danh"])
 
 
@@ -161,14 +184,20 @@ def liet_ke() -> list[dict]:
     # tính TẠI ĐÂY, không gọi `da_khai_nhan_vat` — hàm đó gọi `_tim` -> `liet_ke`
     # thì thành đệ quy vô tận.
     nv = _bo_nhan_vat()
+    from autoedit import ngach_ho_so as _hs
+
+    hos = {(d.get("ma") or "").upper() for d in _hs.liet_ke()}
     ra = []
     for r in rows:
         khoa = {(r["ma"] or "").upper(), (r["ten_chuan"] or "").upper()}
         geo = bool(khoa & bo)
+        co_hs = bool(khoa & hos)
         ra.append({"ma": r["ma"], "ten": r["ten_chuan"],
                    "trang_thai": r["trang_thai"] or "",
                    "can_dia_danh": geo,
-                   "da_khai_nhan_vat": geo or any(bool(nv.get(k)) for k in khoa)})
+                   "co_ho_so": co_hs,
+                   "da_khai_nhan_vat": co_hs or geo
+                   or any(bool(nv.get(k)) for k in khoa)})
     return ra
 
 
