@@ -81,11 +81,13 @@ def may_chu(tmp_path, monkeypatch):
         CREATE TABLE workspaces(id INTEGER PRIMARY KEY, name TEXT, market TEXT, ngach TEXT);
         CREATE TABLE channels(id INTEGER PRIMARY KEY, workspace_id INT, title TEXT);
         CREATE TABLE videos(id INTEGER PRIMARY KEY, workspace_id INT, title TEXT,
-                            tier INT, pub_ts INT);
+                            tier INT, pub_ts INT, channel_yt_id TEXT);
     """)
     rc.execute("INSERT INTO workspaces VALUES(53,'X FILE — US','TT-US','N-003')")
     rc.execute("INSERT INTO channels VALUES(1,53,'Kênh A')")
-    rc.execute("INSERT INTO videos VALUES(1,53,'How Duct Tape Is Made',3,9)")
+    # `channel_yt_id` là cột THẬT của radary.db — pool lấy đều theo kênh dựa vào
+    # nó, thiếu cột thì cả pool im lặng rỗng (18/09).
+    rc.execute("INSERT INTO videos VALUES(1,53,'How Duct Tape Is Made',3,9,'KA')")
     rc.commit()
     rc.close()
     monkeypatch.setenv("RENDERY_RADARY", str(r))

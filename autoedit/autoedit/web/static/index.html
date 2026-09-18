@@ -3620,6 +3620,7 @@ let NC_BAN = ''           // 'luu' | 'moi' (máy vừa sinh) | 'sua' (đã sửa
 let NC_KHO = {}           // từ khoá -> số clip trong kho; thiếu key = chưa đếm
 let NC_SUA = false        // có quyền duyệt không
 let NC_DO = null          // số đo tỉ lệ tiêu đề nhắc tới người
+let NC_LAN = 0, NC_LAP = {}   // sinh mấy lượt, mỗi từ khoá lặp mấy lượt
 
 async function loadNgach() {
   let d
@@ -3644,6 +3645,7 @@ async function loadNgach() {
 async function chonNgach(ma) {
   if (!ma) return
   NC_MA = ma; NC_SOAN = null; NC_BAN = ''; NC_KHO = {}; NC_DO = null
+  NC_LAN = 0; NC_LAP = {}
   document.getElementById('nc-main').innerHTML = '<div class="note">Đang tải…</div>'
   document.getElementById('nc-ben').innerHTML = ''
   let d
@@ -3676,7 +3678,9 @@ function ncChip(t, i) {
   const n = NC_KHO[t]
   const c = n === undefined ? 'nc-am' : (n === 0 ? 'nc-0' : (n < 25 ? 'nc-it' : 'nc-co'))
   const so = n === undefined ? '?' : n
-  const ti = n === undefined ? ' title="chưa đếm — lưu xong sẽ đếm"' : ''
+  const lap = NC_LAP[t]
+  const ti = ' title="' + (n === undefined ? 'chưa đếm — lưu xong sẽ đếm'
+    : n + ' clip trong kho') + (lap ? ' · máy nhắc lại ' + lap + '/' + NC_LAN + ' lượt' : '') + '"'
   return '<span class="the">' + esc(t) + ' <b class="' + c + '"' + ti + '>' + so + '</b>'
     + (NC_SUA ? ' <i onclick="ncXoaTu(' + i + ')" title="bỏ từ khoá này">×</i>' : '')
     + '</span>'
@@ -3743,7 +3747,7 @@ function ncVe() {
       + ncPool()
       + (NC_SUA
         ? '<div style="display:flex;gap:8px;margin-top:14px">'
-          + '<button class="btn" id="nc-nut-sinh" onclick="ncSinh()">✨ Sinh hồ sơ từ pool (~15s)</button>'
+          + '<button class="btn" id="nc-nut-sinh" onclick="ncSinh()">✨ Sinh hồ sơ từ pool (~1-2 phút)</button>'
           + '<button class="btn ghost small" onclick="ncKhaiTay()">✎ Khai tay không dùng pool</button></div>'
         : '<div class="note" style="margin-top:14px">Cần cấp manager/owner mới tạo được hồ sơ.</div>')
     ben.innerHTML = '<h2>Niche Entity làm gì? <small>manager/owner</small></h2>'
@@ -3773,7 +3777,9 @@ function ncVe() {
     + ncMucNguoi()
     + '<div class="nc-muc"><div class="nc-th">VẬT THỂ / CHỦ ĐỀ'
     + '<span class="note" style="margin:0">' + vt.length + ' từ khoá · số trong ngoặc là '
-    + '<b>clip đang có trong kho</b>, đếm đúng cụm</span></div>'
+    + '<b>clip đang có trong kho</b>, đếm đúng cụm'
+    + (NC_LAN > 1 ? ' · gộp ' + NC_LAN + ' lượt sinh, giữ từ máy nhắc lại ≥2 lượt' : '')
+    + '</span></div>'
     + '<div class="chips nc-chips">' + vt.map(ncChip).join('')
     + (NC_SUA ? '<input type="text" class="nc-them" placeholder="+ thêm từ khoá rồi Enter"'
       + ' onkeydown="ncThemTu(event)">' : '') + '</div></div>'
@@ -3796,10 +3802,15 @@ function ncBen() {
     + 'cùng chỗ với Sổ Tra — không nhét vào <code>.env</code>.</div>'
     + (NC_BAN === 'luu' && (NC_SOAN.vat_the || []).length
       ? '<button class="btn" id="nc-nut-hut" style="width:100%;margin-top:14px"'
-        + ' onclick="ncHut()">⛏ Hút ' + NC_SOAN.vat_the.length
+        + ' onclick="ncHut()">⛏ Hút ' + Math.min(NC_SOAN.vat_the.length, 40)
         + ' từ khoá vào kho</button>'
         + '<div class="note" style="margin-top:8px">Chạy đúng máy hút đang có ở Library, '
-        + 'chỉ khác là từ khoá lấy sẵn từ hồ sơ thay vì gõ từng cái.</div>'
+        + 'chỉ khác là từ khoá lấy sẵn từ hồ sơ thay vì gõ từng cái.'
+        + (NC_SOAN.vat_the.length > 40
+          ? ' Một phiên hút chỉ nhận <b>40 từ khoá</b> (phanh Envato: 20 clip/giờ), '
+            + 'nên lần này lấy 40 từ ổn định nhất, còn '
+            + (NC_SOAN.vat_the.length - 40) + ' từ để phiên sau.'
+          : '') + '</div>'
       : '')
     + '<div class="note" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">'
     + 'Ngách có hồ sơ thì ô «Niche» ở <b>+ New Sequence</b> hết chặn.</div>'
@@ -3867,12 +3878,12 @@ function ncKhaiTay() {
 
 async function ncSinh() {
   const n = document.getElementById('nc-nut-sinh')
-  if (n) { n.disabled = true; n.textContent = '✨ đang đọc pool…' }
+  if (n) { n.disabled = true; n.textContent = '✨ đang đọc pool… (3 lượt)' }
   let d
   try {
     d = await api('/api/ngach/' + encodeURIComponent(NC_MA) + '/sinh', {method: 'POST'})
   } catch (e) {
-    if (n) { n.disabled = false; n.textContent = '✨ Sinh hồ sơ từ pool (~15s)' }
+    if (n) { n.disabled = false; n.textContent = '✨ Sinh hồ sơ từ pool (~1-2 phút)' }
     toastOf(e.message || 'không sinh được đề xuất')
     return
   }
@@ -3880,6 +3891,7 @@ async function ncSinh() {
   NC_SOAN = {loc_nguoi: !!dx.loc_nguoi, nhan_vat: dx.nhan_vat || {},
              vat_the: dx.vat_the || [], nguon: d.pool || {}}
   NC_DO = dx.do_nguoi || null
+  NC_LAN = dx.so_lan || 0; NC_LAP = dx.lap_lai || {}
   NC_BAN = 'moi'
   for (const k of (d.kho || [])) NC_KHO[k.tu] = k.clip
   ncVe()

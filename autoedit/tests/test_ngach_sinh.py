@@ -79,9 +79,9 @@ def test_da_lo_c_nguoi_thi_giu_tuoi_chung_toc_cua_LLM(_kho):
 
 def test_vat_the_lam_sach_va_cat_tran(_kho):
     llm = LLMGia({"vat_the": ["  Duct Tape ", "duct tape", "FORKLIFT"]
-                            + [f"tu{i}" for i in range(40)]})
+                            + [f"tu{i:03d}" for i in range(200)]})
     d = ns.de_xuat("X FILE", DO_VAT, llm=llm)
-    assert d["vat_the"][:2] == ["duct tape", "forklift"]
+    assert d["vat_the"][:2] == ["duct tape", "forklift"], d["vat_the"][:4]
     assert len(d["vat_the"]) == ns.TRAN_VAT_THE
 
 
@@ -125,3 +125,88 @@ def test_LLM_tra_gia_tri_NGOAI_kho_thi_bi_loai(_kho):
                   "chung_toc": ["caucasian"]})
     d = ns.de_xuat("SENIOR HEALTH", CO_NGUOI * 4, llm=llm)
     assert d["nhan_vat"] == {"tuoi": ["older"]}, d["nhan_vat"]
+
+
+# ------------------------------------- sinh NHIỀU LƯỢT rồi giữ phần lặp lại
+# Đo thật trên pool X FILE 18/09: sinh 4 lượt ra **59 từ khoá khác nhau**, chỉ 5
+# từ hiện cả 4 lượt, 37 từ hiện đúng 1 lượt. Pool có cả đồ vật lẫn đồ ăn, mỗi
+# lượt GLM bám vào một nửa. Một lượt = một lá thăm; người duyệt không có cách
+# nào biết mình đang xem lá nào.
+
+class LLMNhieuLuot:
+    """Mỗi lần gọi trả một kết quả khác — đúng hành vi thật của GLM."""
+
+    def __init__(self, day, no_tu_lan=None):
+        self.day, self.no_tu_lan, self.lan = list(day), no_tu_lan, 0
+
+    def complete(self, system, user, output_model, context=None):
+        self.lan += 1
+        if self.no_tu_lan is not None and self.lan >= self.no_tu_lan:
+            raise RuntimeError("GLM 500")
+        return output_model(**self.day[(self.lan - 1) % len(self.day)]), {}
+
+
+def test_giu_tu_LAP_LAI_bo_tu_chi_hien_mot_luot(_kho):
+    llm = LLMNhieuLuot([
+        {"vat_the": ["duct tape", "forklift", "chi lan 1"]},
+        {"vat_the": ["duct tape", "forklift", "chi lan 2"]},
+        {"vat_the": ["duct tape", "chi lan 3"]},
+    ])
+    d = ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=3)
+    assert llm.lan == 3, "chưa gọi đủ số lượt"
+    assert d["vat_the"] == ["duct tape", "forklift"]
+
+
+def test_xep_theo_DO_ON_DINH_giam_dan(_kho):
+    llm = LLMNhieuLuot([
+        {"vat_the": ["hai luot", "ba luot"]},
+        {"vat_the": ["ba luot"]},
+        {"vat_the": ["hai luot", "ba luot"]},
+    ])
+    d = ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=3)
+    assert d["vat_the"] == ["ba luot", "hai luot"]
+    assert d["lap_lai"] == {"ba luot": 3, "hai luot": 2}
+    assert d["so_lan"] == 3
+
+
+def test_mot_luot_thi_KHONG_loc_mat_het(_kho):
+    """so_lan=1 mà vẫn đòi lặp 2 lần thì kết quả rỗng trơn."""
+    llm = LLMNhieuLuot([{"vat_the": ["duct tape", "forklift"]}])
+    d = ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=1)
+    assert d["vat_the"] == ["duct tape", "forklift"]
+
+
+def test_tran_tu_khoa_nang_len_80(_kho):
+    assert ns.TRAN_VAT_THE >= 80
+    llm = LLMNhieuLuot([{"vat_the": [f"tu {i}" for i in range(200)]}])
+    d = ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=1)
+    assert len(d["vat_the"]) == ns.TRAN_VAT_THE
+
+
+def test_mot_luot_CHET_van_dung_duoc_cac_luot_con_lai(_kho):
+    """Hỏng lượt 3 mà vứt cả 2 lượt đã trả tiền là phí."""
+    llm = LLMNhieuLuot([
+        {"vat_the": ["duct tape", "forklift"]},
+        {"vat_the": ["duct tape", "forklift"]},
+    ], no_tu_lan=3)
+    d = ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=3)
+    assert d["vat_the"] == ["duct tape", "forklift"]
+    assert d["so_lan"] == 2, "phải báo số lượt THẬT đã chạy"
+
+
+def test_CHET_HET_cac_luot_thi_nem_len_caller(_kho):
+    llm = LLMNhieuLuot([{"vat_the": ["x"]}], no_tu_lan=1)
+    with pytest.raises(RuntimeError):
+        ns.de_xuat("X FILE", DO_VAT, llm=llm, so_lan=3)
+
+
+def test_nhan_vat_GOP_ca_cac_luot(_kho):
+    """Khác từ khoá: tuổi/chủng tộc lấy từ bộ 6-7 giá trị đóng nên ổn định sẵn,
+    lọc theo lặp lại chỉ tổ làm rỗng bộ lọc của ngách quay người."""
+    llm = LLMNhieuLuot([
+        {"vat_the": ["x"], "tuoi": ["older"], "chung_toc": ["white"]},
+        {"vat_the": ["x"], "tuoi": ["older"], "chung_toc": ["black"]},
+    ])
+    d = ns.de_xuat("SENIOR HEALTH", CO_NGUOI * 4, llm=llm, so_lan=2)
+    assert d["nhan_vat"]["tuoi"] == ["older"]
+    assert set(d["nhan_vat"]["chung_toc"]) == {"white", "black"}
