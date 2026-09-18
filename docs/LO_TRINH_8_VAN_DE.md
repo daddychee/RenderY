@@ -2290,3 +2290,30 @@ Chrome thật, server cách ly (`AUTOEDIT_DATA_ROOT` trỏ kho tạm + bản sao
 
 Test: `test_radary_pool.py` (13) · `test_ngach_ho_so.py` (18) · `test_api_ho_so_ngach.py`
 (21) · `test_ngach_sinh.py` (11).
+
+
+## Bổ sung 18/09 chiều — ĐỀ XUẤT CỦA MÁY DAO ĐỘNG MẠNH GIỮA CÁC LẦN SINH
+
+Lúc tạo hồ sơ X FILE thật trên prod, lần sinh đầu ra một danh sách **toàn đồ ăn**
+(chocolate · cheese · bread · pasta · bacon · taco), khác hẳn lần chạy ở dev buổi
+sáng (duct tape · cnc machine · forklift · typewriter · bricks). Sinh 4 lần rồi đếm:
+
+    59 từ khoá khác nhau qua 4 lần
+      hiện 4/4 lần:  5  (cnc machine · duct tape · factory line · forklift · tape measure)
+      hiện 3/4 lần:  5  (car tire · conveyor belt · cooking pan · olive oil bottle · steel beams)
+      hiện 2/4 lần: 12
+      hiện 1/4 lần: 37
+
+Pool của X FILE có CẢ đồ vật lẫn đồ ăn, mỗi lượt GLM lại bám vào một nửa. **Một lần
+sinh là một lần bốc thăm** — lưu đúng một lượt thì hồ sơ phụ thuộc may rủi, và người
+duyệt không có cách nào biết mình đang xem lượt nào.
+
+Hồ sơ X FILE trên prod vì vậy lưu **22 từ khoá xuất hiện ≥2/4 lần**, xếp theo độ ổn
+định giảm dần. Khe hở rõ: 22 từ lặp lại, 37 từ chỉ loé lên đúng một lần. Ghi cách làm
+vào `nguon.cach_lam` để sau này đọc lại biết con số ở đâu ra.
+
+Kho cho 22 từ khoá này: **62 clip, 14 từ khoá 0 clip** — vẫn phải hút trước khi dựng.
+
+**Việc còn treo:** nút «✨ Sinh hồ sơ từ pool» hiện chỉ gọi GLM một lượt, nên người dùng
+bấm được đúng một lá thăm. Nên cho nó tự sinh vài lượt rồi giữ phần lặp lại, hoặc ít
+nhất nói rõ trên màn hình rằng bấm lại sẽ ra danh sách khác.
