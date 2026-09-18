@@ -620,7 +620,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
 #of-xk .ft button.phu{background:transparent;color:var(--muted)}
 #of-xk .ft button[disabled]{opacity:.45;cursor:not-allowed}
 
-/* ══════ Ngách — hồ sơ KHO của ngách (QĐ18, 18/09) ══════ */
+/* ══════ Niche Entity — hồ sơ KHO của ngách (QĐ18, 18/09) ══════ */
 #man-ngach .nc-pool{border:1px solid var(--line);border-radius:10px;padding:12px 14px;
   background:rgba(127,127,127,.05)}
 #man-ngach .nc-muc{border-top:1px solid var(--line);padding-top:14px;margin-top:16px}
@@ -657,7 +657,7 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
     <button id="gn-seq" class="on" onclick="doiTrang('seq');doiTab('proc')">Overview</button>
     <button id="gn-offline" onclick="doiTrang('offline')">Offline</button>
     <button id="gn-sotra" onclick="doiTrang('sotra')">Library</button>
-    <button id="gn-ngach" onclick="doiTrang('ngach')">Ngách</button>
+    <button id="gn-ngach" onclick="doiTrang('ngach')">Niche Entity</button>
     <button id="gn-kenh" onclick="doiTrang('kenh')">Framing Insight</button>
     <button id="gn-new" onclick="doiTrang('seq',true);doiTab('new');ryGhiUrl('new-sequence')"
             style="margin-left:10px;background:var(--accent);color:#fff;border-color:var(--accent)">+ New Sequence</button>
@@ -861,14 +861,14 @@ tr.ls-mo>td{background:var(--bg);padding:12px 14px}
   </div>
 </section>
 
-<!-- ═════════ NGÁCH — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ═════════
+<!-- ═════════ NICHE ENTITY — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ═════════
      Đứng sau ô «Niche» của form nộp tập, y như Framing Insight đứng sau ô
      «Phong cách tham chiếu». Trước 18/09 chỗ khai duy nhất là biến môi trường
      RENDERY_NGACH_NHAN_VAT, mà câu báo lỗi lại chỉ sang "trang Cài đặt" —
      trang đó đã không còn trong giao diện này. -->
 <section class="man" id="man-ngach">
   <div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span class="fi-eb" style="margin:0;border:0;padding:0">Hồ sơ ngách</span>
+    <span class="fi-eb" style="margin:0;border:0;padding:0">Niche Entity</span>
     <select id="nc-select" style="min-width:260px" onchange="chonNgach(this.value)"></select>
     <button class="btn ghost small" onclick="loadNgach()">Làm mới</button>
     <span class="note" id="nc-tong" style="margin:0"></span>
@@ -1647,10 +1647,10 @@ function canhBaoNiche() {
       : '👤 Ngách này đã khai nhân vật — khay chỉ lấy hình đúng người, câu nào không có thì để trống cho bạn đắp.'
   } else {
     o.style.color = 'var(--bad)'
-    // QĐ18: trỏ sang tab Ngách. Câu cũ chỉ sang "trang Cài đặt" — trang đó
+    // QĐ18: trỏ sang tab Niche Entity. Câu cũ chỉ sang "trang Cài đặt" — trang đó
     // không còn trong giao diện này, bấm quanh cả ngày cũng không thấy.
     o.innerHTML = '⚠ Ngách «' + esc(ten) + '» chưa có HỒ SƠ (quay ai, quay cái gì)'
-      + ' — <a onclick="doiTrang(&quot;ngach&quot;)">sang tab Ngách</a> tạo hồ sơ rồi nộp lại.'
+      + ' — <a onclick="doiTrang(&quot;ngach&quot;)">sang tab Niche Entity</a> tạo hồ sơ rồi nộp lại.'
   }
 }
 
@@ -1675,7 +1675,7 @@ async function napNgach() {
     o.innerHTML = '<option value="">— chọn ngách —</option>'
       + NGACH_DS.map(n => `<option value="${esc(n.ten)}">${esc(n.ten)}`
           + `${n.can_dia_danh ? ' · cần địa danh' : ''}`
-          + `${n.da_khai_nhan_vat ? '' : ' · ⚠ chưa khai nhân vật'}</option>`).join('')
+          + `${n.da_khai_nhan_vat ? '' : ' · ⚠ chưa có hồ sơ'}</option>`).join('')
   } catch (e) { o.innerHTML = '<option value="">— lỗi nạp ngách —</option>' }
   nicheDoi()
 }
@@ -3611,7 +3611,7 @@ async function stVeNhac() {
 let KENH_DS = []
 let CT_TEN = ''
 
-/* ══════════ Ngách — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ══════════
+/* ══════════ Niche Entity — hồ sơ KHO của ngách (QĐ18, user chốt 18/09) ══════════
    Đứng sau ô «Niche» của form nộp tập, y như Framing Insight đứng sau ô
    «Phong cách tham chiếu». Máy ĐỀ XUẤT, NGƯỜI bấm Duyệt mới lưu. */
 let NC_DS = [], NC_MA = '', NC_N = null, NC_POOL = null, NC_BO = null
@@ -3746,7 +3746,7 @@ function ncVe() {
           + '<button class="btn" id="nc-nut-sinh" onclick="ncSinh()">✨ Sinh hồ sơ từ pool (~15s)</button>'
           + '<button class="btn ghost small" onclick="ncKhaiTay()">✎ Khai tay không dùng pool</button></div>'
         : '<div class="note" style="margin-top:14px">Cần cấp manager/owner mới tạo được hồ sơ.</div>')
-    ben.innerHTML = '<h2>Hồ sơ ngách làm gì? <small>manager/owner</small></h2>'
+    ben.innerHTML = '<h2>Niche Entity làm gì? <small>manager/owner</small></h2>'
       + '<div class="note" style="line-height:1.7">'
       + '① Máy đọc <b>tiêu đề video</b> trong pool Radary của ngách → đề xuất '
       + '<b>ai được có trong khung</b> và <b>quay cái gì</b>.<br>'
@@ -3896,7 +3896,7 @@ async function ncDuyet() {
                             nguon: NC_SOAN.nguon || {}})
     })
   } catch (e) { toastOf(e.message || 'không lưu được'); return }
-  toastOf('Đã duyệt hồ sơ ngách ' + NC_N.ten)
+  toastOf('Đã duyệt Niche Entity ' + NC_N.ten)
   await loadNgach()
 }
 

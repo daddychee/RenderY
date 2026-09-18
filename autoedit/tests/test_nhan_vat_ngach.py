@@ -144,7 +144,10 @@ def test_nop_tap_ngach_CHUA_KHAI_nhan_vat_bi_chan(may_chu):
     r = tc.post("/api/jobs", json={"folder": folder, "niche": "COOKING",
                                    "dia_danh": ""})
     assert r.status_code == 422, r.text
-    assert "nhân vật" in r.json()["detail"].lower()
+    # QĐ18 đổi lời: câu cũ bảo "khai ở trang Cài đặt" mà trang đó đã bị gỡ khỏi
+    # giao diện — người nhận 422 không có chỗ nào để đi.
+    ct = r.json()["detail"]
+    assert "hồ sơ" in ct.lower() and "Niche Entity" in ct, ct
 
 
 def test_nop_tap_ngach_DA_KHAI_thi_qua(may_chu):
@@ -180,7 +183,7 @@ def _trang() -> str:
 
 def test_form_noi_ro_ngach_chua_khai():
     s = _trang()
-    assert "chưa khai nhân vật" in s
+    assert "chưa có hồ sơ" in s      # QĐ18 đổi lời
     assert "da_khai_nhan_vat" in s
     assert "ns-nhan-vat" in s
 

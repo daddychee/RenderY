@@ -3050,9 +3050,11 @@ def api_add_job(req: JobRequest, request: Request):
     # người già da trắng, 77 miếng KHÔNG CÓ NGƯỜI NÀO — vì không chỗ nào biết
     # ngách quay ai. Chặn ở đây, đừng để dựng xong 24 phút mới thấy sai người.
     if not _ng.da_khai_nhan_vat(req.niche):
-        raise HTTPException(422, f"Ngách «{req.niche}» chưa khai NHÂN VẬT (ai được "
-                                 "có trong khung) — khai ở trang Cài đặt "
-                                 "(RENDERY_NGACH_NHAN_VAT) rồi nộp lại")
+        # QĐ18: trỏ sang tab Niche Entity. Câu cũ chỉ sang "trang Cài đặt" —
+        # trang đó không còn trong giao diện đang chạy, người nhận 422 không
+        # có chỗ nào để đi.
+        raise HTTPException(422, f"Ngách «{req.niche}» chưa có HỒ SƠ (quay ai, "
+                                 "quay cái gì) — tạo ở tab Niche Entity rồi nộp lại")
 
     # Chặn ở đây thay vì để worker chạy 24 phút rồi mới báo
     chuong, loi = doc_chuong(folder)

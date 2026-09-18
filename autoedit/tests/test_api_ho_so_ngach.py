@@ -172,7 +172,7 @@ def test_KHAI_KHONG_LOC_NGUOI_roi_thi_NOP_TAP_QUA_CONG(may_chu):
     """Payoff của cả QĐ18: X FILE nộp được tập mà không phải bịa ra nhân vật."""
     tc, folder = may_chu
     r = tc.post("/api/jobs", json={"folder": folder, "niche": "X FILE"})
-    assert r.status_code == 422 and "NHÂN VẬT" in r.json()["detail"]
+    assert r.status_code == 422 and "Niche Entity" in r.json()["detail"]
 
     tc.put("/api/ngach/N-003/ho-so", json={"loc_nguoi": False, "vat_the": ["duct tape"]})
     r = tc.post("/api/jobs", json={"folder": folder, "niche": "X FILE"})
