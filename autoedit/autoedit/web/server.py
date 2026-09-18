@@ -874,6 +874,77 @@ def api_ngach(request: Request):
     return {"ngach": _ng.liet_ke(), "doc_duoc": _ng.doc_duoc()}
 
 
+class HoSoNgachRequest(BaseModel):
+    """Hồ sơ ngách người dùng bấm Duyệt (QĐ18).
+
+    KHÔNG có trường `nguoi_duyet`: chữ ký lấy từ phiên đăng nhập, không để
+    phía gọi tự khai hộ người khác.
+    """
+
+    loc_nguoi: bool = False
+    nhan_vat: dict = {}
+    vat_the: list[str] = []
+    nguon: dict = {}
+
+
+def _ngach_theo_ma(ma: str) -> dict:
+    """Mã -> dòng ngách trong danh bạ. Không có -> 404.
+
+    Đây cũng là rào chống mã bậy: mã đi từ URL vào thành TÊN FILE hồ sơ, nên
+    thứ không có trong danh bạ thì không đi tiếp được bước nào.
+    """
+    from autoedit import ngach as _ng
+
+    k = (ma or "").strip().upper()
+    for n in _ng.liet_ke():
+        if (n["ma"] or "").upper() == k:
+            return n
+    raise HTTPException(404, f"Không có ngách «{ma}» trong danh bạ nền")
+
+
+@app.get("/api/ngach/{ma}/ho-so")
+def api_ho_so_ngach(ma: str, request: Request):
+    """Hồ sơ + pool Radary + kho đang có bao nhiêu clip cho từng từ khoá."""
+    _require_auth(request)
+    from autoedit import ngach_ho_so as _hs, radary as _rd
+
+    n = _ngach_theo_ma(ma)
+    ho = _hs.doc(n["ma"])
+    kho: list[dict] = []
+    if ho and ho.get("vat_the"):
+        from autoedit.sotra import db as _sdb
+
+        try:
+            conn = _sdb.mo()
+            try:
+                kho = [{"tu": t, "clip": _sdb.dem_cum(conn, t)}
+                       for t in ho["vat_the"]]
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001
+            kho = []        # Sổ Tra chưa dựng -> vẫn xem được hồ sơ
+    p = _rd.pool(n["ma"])
+    # Không trả 600 tiêu đề xuống trình duyệt — màn hình chỉ cần con số.
+    p = {k: v for k, v in p.items() if k != "tieu_de"}
+    return {"ngach": n, "ho_so": ho, "pool": p, "kho": kho,
+            "sua_duoc": _duoc_nghien_cuu_kenh(request)}
+
+
+@app.put("/api/ngach/{ma}/ho-so")
+def api_luu_ho_so_ngach(ma: str, req: HoSoNgachRequest, request: Request):
+    """Lưu hồ sơ SAU KHI người duyệt. Máy đề xuất, người chốt (user 18/09)."""
+    _require_auth(request)
+    n = _ngach_theo_ma(ma)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Cần cấp manager/owner mới duyệt hồ sơ ngách")
+    from autoedit import ngach_ho_so as _hs
+
+    d = _hs.luu({"ma": n["ma"], "ten": n["ten"], "loc_nguoi": req.loc_nguoi,
+                 "nhan_vat": req.nhan_vat, "vat_the": req.vat_the,
+                 "nguon": req.nguon, "nguoi_duyet": current_user(request)})
+    return {"ok": True, "ho_so": d}
+
+
 def _pdir_offline(project_id: str) -> Path:
     import re as _re
 

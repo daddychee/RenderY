@@ -409,6 +409,29 @@ def dem_tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         f"SELECT COUNT(*) FROM clip c WHERE {' AND '.join(dk)}", tham).fetchone()[0]
 
 
+def dem_cum(conn, cum: str) -> int:
+    """Đếm clip khớp NGUYÊN CỤM — khác `dem_tim` vốn nối các từ bằng OR.
+
+    Vì sao cần hàm thứ hai: đo trên kho thật 18/09, `dem_tim("vending machine")`
+    = **177** vì nó ăn mọi clip có chữ "machine"; đếm đúng cụm = **0**. Con số
+    trên chip từ khoá của HỒ SƠ NGÁCH là thứ người ta dựa vào để quyết "có phải
+    đi hút không" — trả 177 ở đó là nói dối đúng chỗ đắt nhất.
+
+    KHÔNG giãn alias (`ap_alias`): alias biến 1 từ thành nhiều từ, mà cụm thì
+    phải giữ nguyên hình.
+    """
+    tu = re.findall(r"[\w]+", (cum or "").lower())
+    if not tu:
+        return 0
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM clip_fts f JOIN clip c ON c.id=f.id "
+            "WHERE clip_fts MATCH ? AND c.trang_thai != 'loai_tru'",
+            ['"' + " ".join(tu) + '"']).fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+
+
 def tim(conn, q: str = "", nguon: str = "", chi_neo: bool = False,
         tap: str = "", limit: int = 60, offset: int = 0,
         meta: dict | None = None) -> list[dict]:
