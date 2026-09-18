@@ -902,6 +902,53 @@ def _ngach_theo_ma(ma: str) -> dict:
     raise HTTPException(404, f"Không có ngách «{ma}» trong danh bạ nền")
 
 
+def _dem_kho_theo_tu(tu: list[str] | None) -> list[dict]:
+    """Mỗi từ khoá đang có bao nhiêu clip trong Sổ Tra — đếm ĐÚNG CỤM.
+
+    Đây là con số người duyệt dựa vào để biết có phải đi hút hay không, nên
+    dùng `dem_cum` chứ không `dem_tim` (xem docstring `dem_cum`).
+    """
+    if not tu:
+        return []
+    from autoedit.sotra import db as _sdb
+
+    try:
+        conn = _sdb.mo()
+    except Exception:  # noqa: BLE001
+        return []       # Sổ Tra chưa dựng -> vẫn xem được hồ sơ
+    try:
+        return [{"tu": t, "clip": _sdb.dem_cum(conn, t)} for t in tu]
+    except Exception:  # noqa: BLE001
+        return []
+    finally:
+        conn.close()
+
+
+@app.post("/api/ngach/{ma}/sinh")
+def api_sinh_ho_so_ngach(ma: str, request: Request):
+    """Đọc pool Radary -> ĐỀ XUẤT hồ sơ. KHÔNG lưu.
+
+    Máy đề xuất, người chốt (user chốt 18/09) — sinh xong mà tự lưu là cướp
+    mất bước duyệt.
+    """
+    _require_auth(request)
+    n = _ngach_theo_ma(ma)
+    if not _duoc_nghien_cuu_kenh(request):
+        raise HTTPException(403, "Cần cấp manager/owner mới sinh hồ sơ ngách")
+    from autoedit import ngach_sinh as _ns, radary as _rd
+
+    p = _rd.pool(n["ma"])
+    try:
+        dx = _ns.de_xuat(n["ten"], p["tieu_de"])
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        # 502 chứ không 500: hỏng ở NHÀ CUNG CẤP, bấm lại là thường qua.
+        raise HTTPException(502, f"GLM không sinh được đề xuất: {e}") from e
+    return {"de_xuat": dx, "kho": _dem_kho_theo_tu(dx["vat_the"]),
+            "pool": {k: v for k, v in p.items() if k != "tieu_de"}}
+
+
 @app.get("/api/ngach/{ma}/ho-so")
 def api_ho_so_ngach(ma: str, request: Request):
     """Hồ sơ + pool Radary + kho đang có bao nhiêu clip cho từng từ khoá."""
@@ -910,19 +957,7 @@ def api_ho_so_ngach(ma: str, request: Request):
 
     n = _ngach_theo_ma(ma)
     ho = _hs.doc(n["ma"])
-    kho: list[dict] = []
-    if ho and ho.get("vat_the"):
-        from autoedit.sotra import db as _sdb
-
-        try:
-            conn = _sdb.mo()
-            try:
-                kho = [{"tu": t, "clip": _sdb.dem_cum(conn, t)}
-                       for t in ho["vat_the"]]
-            finally:
-                conn.close()
-        except Exception:  # noqa: BLE001
-            kho = []        # Sổ Tra chưa dựng -> vẫn xem được hồ sơ
+    kho = _dem_kho_theo_tu(ho.get("vat_the") if ho else [])
     p = _rd.pool(n["ma"])
     # Không trả 600 tiêu đề xuống trình duyệt — màn hình chỉ cần con số.
     p = {k: v for k, v in p.items() if k != "tieu_de"}

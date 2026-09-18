@@ -185,3 +185,99 @@ def test_api_ngach_kem_co_ho_so_cho_man_hinh(may_chu):
     theo = {x["ma"]: x for x in tc.get("/api/ngach").json()["ngach"]}
     assert theo["N-003"]["co_ho_so"] is True
     assert theo["N-COOKING"]["co_ho_so"] is False
+
+
+# --------------------------------------------- POST /sinh — máy ĐỀ XUẤT thôi
+
+class _LLMGia:
+    def __init__(self, tra=None, no=None):
+        self.tra, self.no = tra, no
+
+    def complete(self, system, user, output_model, context=None):
+        if self.no:
+            raise self.no
+        return output_model(**(self.tra or {})), {}
+
+
+@pytest.fixture
+def llm_gia(monkeypatch):
+    from autoedit import ngach_sinh as ns
+
+    hop = {"llm": _LLMGia({"vat_the": ["duct tape", "forklift"]})}
+    monkeypatch.setattr(ns, "_llm", lambda: hop["llm"])
+    return hop
+
+
+def test_POST_sinh_tra_DE_XUAT_va_KHONG_luu(may_chu, llm_gia):
+    """Máy đề xuất, người chốt — sinh xong mà tự lưu là cướp quyền duyệt."""
+    tc, _ = may_chu
+    r = tc.post("/api/ngach/N-003/sinh")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["de_xuat"]["vat_the"] == ["duct tape", "forklift"]
+    assert d["de_xuat"]["loc_nguoi"] is False
+    assert tc.get("/api/ngach/N-003/ho-so").json()["ho_so"] is None, "đã tự lưu"
+
+
+def test_POST_sinh_kem_SO_CLIP_trong_kho_cho_tung_tu(may_chu, llm_gia):
+    """Đề xuất mà không nói kho có gì thì người duyệt không biết phải đi hút."""
+    tc, _ = may_chu
+    kho = {x["tu"]: x["clip"] for x in tc.post("/api/ngach/N-003/sinh").json()["kho"]}
+    assert kho == {"duct tape": 1, "forklift": 0}
+
+
+def test_POST_sinh_kem_SO_DO_nguoi(may_chu, llm_gia):
+    tc, _ = may_chu
+    d = tc.post("/api/ngach/N-003/sinh").json()["de_xuat"]
+    assert d["do_nguoi"]["tong"] == 1
+
+
+def test_POST_sinh_pool_rong_thi_422_noi_ro(may_chu, llm_gia):
+    tc, _ = may_chu
+    r = tc.post("/api/ngach/N-COOKING/sinh")
+    assert r.status_code == 422 and "pool" in r.json()["detail"].lower()
+
+
+def test_POST_sinh_LLM_chet_thi_502_chu_khong_500(may_chu, llm_gia):
+    tc, _ = may_chu
+    llm_gia["llm"] = _LLMGia(no=RuntimeError("GLM 500"))
+    r = tc.post("/api/ngach/N-003/sinh")
+    assert r.status_code == 502, r.status_code
+
+
+# ------------------------------------------------------------------- quyền
+
+@pytest.fixture
+def qua_crm(monkeypatch):
+    """Giả lập đi qua cổng CRM để header vai có hiệu lực."""
+    from autoedit.web import server
+
+    monkeypatch.setattr(server, "_trust_proxy", lambda r: True)
+    return {"X-Remote-User": "haint", "X-Forwarded-Host": "crm.outliery"}
+
+
+def test_viewer_KHONG_duoc_duyet_ho_so(may_chu, llm_gia, qua_crm):
+    """Hồ sơ ngách đổi cách chọn hình của CẢ ngách — không để ai cũng sửa."""
+    tc, _ = may_chu
+    h = {**qua_crm, "X-Remote-Role": "viewer", "X-Remote-Level": "1"}
+    assert tc.put("/api/ngach/N-003/ho-so",
+                  json={"loc_nguoi": False, "vat_the": ["x"]},
+                  headers=h).status_code == 403
+    assert tc.post("/api/ngach/N-003/sinh", headers=h).status_code == 403
+
+
+def test_manager_duyet_duoc(may_chu, llm_gia, qua_crm):
+    tc, _ = may_chu
+    h = {**qua_crm, "X-Remote-Role": "manager", "X-Remote-Level": "3"}
+    assert tc.put("/api/ngach/N-003/ho-so",
+                  json={"loc_nguoi": False, "vat_the": ["x"]},
+                  headers=h).status_code == 200
+    assert tc.post("/api/ngach/N-003/sinh", headers=h).status_code == 200
+
+
+def test_viewer_VAN_XEM_duoc_ho_so(may_chu, qua_crm):
+    """Chặn sửa, không chặn xem: người dựng cần biết ngách mình khai gì."""
+    tc, _ = may_chu
+    h = {**qua_crm, "X-Remote-Role": "viewer", "X-Remote-Level": "1"}
+    r = tc.get("/api/ngach/N-003/ho-so", headers=h)
+    assert r.status_code == 200 and r.json()["sua_duoc"] is False
