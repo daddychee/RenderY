@@ -219,7 +219,7 @@ class LlmKiem:
     """GLM đọc trang và kết luận. Cùng khuôn gọi với `dich.DichGLM`."""
 
     def __init__(self, key: str = "", model: str = "", cai_dat: dict | None = None) -> None:
-        from factcheck.dich import DichGLM
+        from autoedit.factcheck.dich import DichGLM
 
         goc = DichGLM(key=key, model=model, cai_dat=cai_dat)   # chung đường lấy khoá
         self.key, self.url, self.model = goc.key, goc.url, goc.model
@@ -227,7 +227,7 @@ class LlmKiem:
     def _goi(self, he: str, than: str) -> dict:
         """Dùng CHUNG một đường gọi với bộ dịch — một chỗ sửa, không để hai nơi
         lệch nhau (urllib/requests, tham số riêng từng nhà, câu báo lỗi)."""
-        from factcheck.dich import DichGLM
+        from autoedit.factcheck.dich import DichGLM
 
         m = DichGLM(key=self.key, model=self.model)
         m.url = self.url

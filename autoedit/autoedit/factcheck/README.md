@@ -1,5 +1,8 @@
 # Factcheck — bàn kịch bản + kiểm chứng nguồn
 
+Một module của RenderY (`autoedit/factcheck/`), chạy **tiến trình riêng ở cổng
+9121** để restart nó không cắt UI của người đang dựng ở 9118.
+
 Công cụ biên kịch đứng **trước** dây chuyền dựng video. Team dán kịch bản tiếng
 Anh vào, tự chia chương, tự xuống dòng theo mạch dựng, rồi copy bản `.txt` sạch
 đem đi ren voice. Mỗi đoạn đáng ngờ bôi đen là kiểm chứng được nguồn.
@@ -75,11 +78,14 @@ biết ai đang giữ chương nào. Nối vào CRM thì header `X-Remote-User` 
 Khoá theo **chương**, gác ở **tầng ghi**: người thứ hai mở tab cũ bấm lưu cũng
 không phá được việc của người thứ nhất. Mỗi chương giữ **12 bản lùi**.
 
-## Đứng riêng tới đâu
+## Tách tới đâu
 
-Thư mục này mang đi máy khác vẫn chạy. Chỗ duy nhất chạm tới RenderY là đọc két
-khoá (`autoedit.web.ket_v3`), nằm trong `try/except` — không có thì dùng khoá
-trong tab ⚙. Có test canh điều đó (`tests/test_app.py::test_dung_rieng_duoc_khong_can_renderY`).
+Là module của RenderY nhưng **không dính tầng dựng**: chỉ được dùng lại đúng hai
+thứ — luật tên chương (`web/chapters.py`) và két khoá (`web/ket_v3.py`). Có test
+quét mã canh điều đó (`test_factcheck_app.py::test_khong_dinh_gi_toi_day_chuyen_dung`),
+nên sập bên này không kéo theo 9118.
+
+Kho dữ liệu riêng (`kichban.db`), tiến trình riêng, cổng riêng.
 
 ## Bẫy đã trả giá — đừng giẫm lại
 

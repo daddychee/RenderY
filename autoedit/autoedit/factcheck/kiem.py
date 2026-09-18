@@ -25,7 +25,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 
-from factcheck.nguon import hang
+from autoedit.factcheck.nguon import hang
 
 
 @dataclass

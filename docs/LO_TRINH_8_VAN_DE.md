@@ -2202,3 +2202,91 @@ xanh trong khi lỗi vẫn còn — phải dựng đúng cảnh "nhiều chươn
 
 Thư mục NAS hiện **đã sạch** `.srt` chương (chỉ còn `ref 1..3.srt` của video mẫu) —
 nộp lại tập là 6 chương chạy bằng whisper như H. Chậm hơn ~1 phút/10 phút voice.
+
+
+---
+
+# 18/09/2026 — QĐ18: HỒ SƠ NGÁCH (tab Ngách)
+
+User: *"Tôi đã có một pool về Xfile trong radary. Theo tôi, chúng ta nên dùng pool đó
+và xây dựng một cơ chế tự động để cho user có thể tạo được hồ sơ của ngách và sử dụng."*
+
+## Vì sao phải làm ngay
+
+Cổng QĐ15 chặn cứng 422 khi ngách chưa khai nhân vật. Đo trên danh bạ thật 18/09:
+**13/16 ngách chưa khai**, gồm X FILE (`N-003`) vừa mở. Đường khai duy nhất là biến
+môi trường `RENDERY_NGACH_NHAN_VAT`, còn câu báo lỗi lại chỉ sang *"trang Cài đặt"* —
+**trang đó không còn** trong `index.html` đang chạy, chỉ còn trong `index_cu.html`.
+Tức là cửa bị bít: người dùng bấm quanh cả ngày cũng không tìm ra chỗ khai.
+
+Và ngách X FILE nói về ĐỒ VẬT. Trước QĐ18, "đã khai" được SUY RA từ "có nhân vật",
+nên không có cách nào khai *"ngách này cố ý không lọc theo người"*.
+
+## Bốn lựa chọn user chốt
+
+| | |
+|---|---|
+| Tầng đầu của hồ sơ | **vật thể / chủ đề** rút từ tiêu đề video trong pool |
+| Ngách đồ vật | thêm lựa chọn **"không lọc theo người"** |
+| Đọc Radary | **đọc thẳng file, chỉ đọc** (y QĐ12 với danh bạ CRM) |
+| Áp dụng | **chờ người duyệt**, máy không tự áp |
+
+## Số đo làm nền cho thiết kế
+
+**Pool Radary theo mã ngách.** `workspaces.ngach` chứa đúng mã danh bạ. Bẫy: một mã có
+NHIỀU workspace — N-003 có ws 52 (`X FILE`, RỖNG, id nhỏ hơn) và ws 53 (`X FILE — US`,
+675 video). Đọc "workspace đầu tiên" là kết luận sai rằng ngách không có pool.
+
+**Tỉ lệ tiêu đề nhắc tới người** (600 tiêu đề/ngách):
+
+    X FILE 16.3% · COOKING 8.5% · STORM 11.2% · SPACE 19.8% · LIFE IN 29.3%
+    ||  RETIREMENT 50.0% · SENIOR HEALTH 60.3%
+
+Ngưỡng **40%** nằm giữa khoảng trống thật giữa 29.3% và 50.0%. LUẬT CỨNG 4: **Python
+quyết** cờ `loc_nguoi` bằng số đo này; **LLM chỉ sinh từ vựng** "quay cái gì".
+
+**Đếm clip phải đếm ĐÚNG CỤM.** `dem_tim` nối các từ bằng OR nên trên kho thật
+`"vending machine"` ra **177** (ăn mọi clip có chữ "machine"), đếm đúng cụm = **0**.
+Chip từ khoá là chỗ người ta quyết "có phải đi hút không" — trả 177 ở đó là nói dối
+đúng chỗ đắt nhất. → thêm `sotra/db.dem_cum`.
+
+**Giá trị nhân vật là BỘ ĐÓNG** đo từ kho: `tuoi` ∈ {none, older, young, mixed, middle,
+child}, `chung_toc` ∈ {none, white, unclear, asian, black, mixed, latino}. LLM trả
+"elderly" nghe rất hợp lý mà lọc ra đúng 0 clip → lọc lại bằng code, prompt không đủ.
+
+## Làm gì
+
+* `autoedit/radary.py` — đọc pool chỉ đọc, GỘP mọi workspace cùng mã, fail-open.
+* `autoedit/ngach_ho_so.py` — hồ sơ là FILE trong kho dữ liệu (`ho_so_ngach/<MÃ>.json`),
+  ghi atomic, ghi được AI DUYỆT + DUYỆT LÚC NÀO — `.env` không ghi nổi hai thứ đó.
+  Ưu tiên: **hồ sơ > `.env` > mặc định trong code**.
+* `autoedit/ngach_sinh.py` — Python đo tỉ lệ người, LLM sinh 12-24 từ khoá quay được.
+* API: `GET/PUT /api/ngach/{ma}/ho-so` · `POST /api/ngach/{ma}/sinh` (đề xuất, KHÔNG lưu).
+* **Tab Ngách** — đặt cạnh Framing Insight: mỗi ô hồ-sơ-hoá của form nộp tập có một
+  trang đứng sau. «Phong cách tham chiếu» → Framing Insight. «Niche» → tab này.
+* Nút ⛏ Hút dùng lại `POST /api/sotra/hut` — nó đã nhận sẵn danh sách từ khoá.
+
+## Kiểm bằng dữ liệu thật
+
+Chrome thật, server cách ly (`AUTOEDIT_DATA_ROOT` trỏ kho tạm + bản sao 27MB
+`so_tra.db`) nên không ghi gì vào kho thật:
+
+    GLM 12.7s -> 24 từ khoá: duct tape · cnc machine · forklift · typewriter · croissant
+    98/600 tiêu đề (16%) nhắc tới người -> loc_nguoi = False (Python quyết)
+    cả 24 từ khoá cộng lại: 175 clip trong kho, 12 từ khoá 0 clip
+    sửa tay -> nhãn "ĐÃ SỬA — CHƯA LƯU" -> Duyệt -> "ĐÃ DUYỆT"
+
+**Bẫy gặp khi làm:**
+
+1. Pha đỏ có 2 test XANH RỖNG — chúng pass chỉ vì route chưa tồn tại nên FastAPI trả
+   404. Đã vá: kiểm route có thật trước rồi mới kiểm 404.
+2. Vá JS bằng script làm nuốt dấu nháy → **cả `<script>` chết syntax**, `doiTrang`
+   không định nghĩa, TOÀN BỘ trang hỏng mà test Python vẫn xanh. Chỉ Chrome thật mới
+   thấy. Đã đổi sang `&quot;`.
+3. Suite nền đỏ 1 test vì tôi **sửa `server.py` trong lúc suite đang chạy** —
+   `inspect.getsource` lấy nhầm khối do lệch dòng. Không phải hồi quy.
+4. Rào mới ở `conftest.py`: mỗi test có kho hồ sơ riêng. Không có rào thì
+   `test_nhan_vat_ngach.py` sẽ đổi màu vào ngày có người duyệt hồ sơ COOKING thật.
+
+Test: `test_radary_pool.py` (13) · `test_ngach_ho_so.py` (18) · `test_api_ho_so_ngach.py`
+(21) · `test_ngach_sinh.py` (11).

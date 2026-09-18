@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from factcheck.chuong import phan_tich_ten
+from autoedit.web.chapters import phan_tich_ten
 
 SO_BAN_LUI = 12      # user chốt: giữ 12 bản gần nhất
 KHOA_GIAY = 180      # nhả sau 3 phút không gõ

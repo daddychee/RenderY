@@ -17,8 +17,8 @@ nhân quả — đó là lỗi hay gặp nhất của thể loại này.
 
 from __future__ import annotations
 
-from factcheck.nguon import CHAN, hang, mo_ta_hang
-from factcheck.kiem import Nguon, chu_ky, ket_luan
+from autoedit.factcheck.nguon import CHAN, hang, mo_ta_hang
+from autoedit.factcheck.kiem import Nguon, chu_ky, ket_luan
 
 
 # ------------------------------ xếp hạng ------------------------------------

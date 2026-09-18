@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 TRANG = (Path(__file__).resolve().parents[1]
-         / "factcheck" / "static" / "factcheck.html")
+         / "autoedit" / "factcheck" / "static" / "factcheck.html")
 
 
 @pytest.fixture(scope="module")

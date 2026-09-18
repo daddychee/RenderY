@@ -9,7 +9,7 @@ Danh tính: header `X-Remote-User` do cổng CRM đặt — cùng quy ước v�
 sau cùng một cổng gác là chạy ngay. Không có header thì CHỈ ĐỌC (401 khi ghi):
 2-3 người làm cùng lúc, không biết ai là ai thì không khoá được gì.
 
-Chạy:  python -m factcheck.app --port 9121
+Chạy:  python -m autoedit.factcheck.app --port 9121
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from factcheck import dong as mdong
-from factcheck.kho import Kho, KhoaBiGiu
+from autoedit.factcheck import dong as mdong
+from autoedit.factcheck.kho import Kho, KhoaBiGiu
 
 TRANG = Path(__file__).parent / "static" / "factcheck.html"
 
@@ -30,7 +30,7 @@ TRANG = Path(__file__).parent / "static" / "factcheck.html"
 def _khoa_ket_co() -> bool:
     """Két OUTLIERY đã có khoá chưa — để UI nói rõ đang dùng đường nào."""
     try:
-        from factcheck.dich import _khoa_tu_ket
+        from autoedit.factcheck.dich import _khoa_tu_ket
 
         return bool(_khoa_tu_ket()[0])
     except Exception:  # noqa: BLE001
@@ -333,7 +333,7 @@ class _Dich:
         self.kho = kho
 
     def dich(self, cau):
-        from factcheck.dich import DichGLM
+        from autoedit.factcheck.dich import DichGLM
 
         return DichGLM(cai_dat=self.kho.doc_cai_dat(), viec="dich").dich(cau)
 
@@ -350,8 +350,8 @@ def _kiem_mac_dinh(kho: Kho):
     """
     from functools import partial
 
-    from factcheck.kiem import kiem_doan
-    from factcheck.tra import LlmKiem, tai_thong_minh, tim_gop
+    from autoedit.factcheck.kiem import kiem_doan
+    from autoedit.factcheck.tra import LlmKiem, tai_thong_minh, tim_gop
 
     def _chay(doan, **kw):
         from functools import partial as _p
@@ -367,7 +367,7 @@ def _kiem_mac_dinh(kho: Kho):
 
 def _thu_llm(cai_dat: dict) -> dict:
     """Bấm Thử: gọi đúng cấu hình đang lưu bằng một câu ngắn nhất có thể."""
-    from factcheck.dich import DichGLM
+    from autoedit.factcheck.dich import DichGLM
 
     m = DichGLM(cai_dat=cai_dat)
     if not m.key:
@@ -377,7 +377,7 @@ def _thu_llm(cai_dat: dict) -> dict:
 
 
 def tao_app_mac_dinh() -> FastAPI:
-    """Chỗ bám cho uvicorn: `factcheck.app:tao_app_mac_dinh --factory`.
+    """Chỗ bám cho uvicorn: `autoedit.factcheck.app:tao_app_mac_dinh --factory`.
 
     FACTORY chứ không phải biến `APP` sẵn ở module: biến sẵn nghĩa là chỉ IMPORT
     thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
