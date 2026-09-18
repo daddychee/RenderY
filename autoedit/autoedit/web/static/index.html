@@ -203,7 +203,10 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 #of-canh-bao{grid-column:2 / -1; align-self:start; background:var(--bad-soft);
              border:1px solid var(--bad); border-radius:8px; padding:7px 10px;
              font-size:11.5px; line-height:1.55; color:var(--bad)}
-#of-canh-bao b{display:block; text-transform:uppercase; letter-spacing:.06em;
+#of-canh-bao .nhay{cursor:pointer; text-decoration:underline; text-underline-offset:2px;
+                   color:var(--bad); font-weight:700}
+#of-canh-bao .nhay:hover{color:var(--text)}
+#of-canh-bao b.dau{display:block; text-transform:uppercase; letter-spacing:.06em;
                font-size:10px; margin-bottom:3px}
 #of-khay-1{grid-column:2 / -1}
 #of-pool{flex:1 1 0; min-height:0; display:grid; gap:8px; overflow-y:auto;
@@ -332,6 +335,12 @@ nav.tabs button:focus-visible{outline:2px solid var(--accent)}
 /* Miếng hẹp (đo: 47px vừa khít nhãn 45px) -> bỏ chữ, để dấu ✕ gọn. Nhãn tràn
    ra ngoài miếng là đè lên miếng bên cạnh, tưởng miếng đó cũng hỏng. */
 @container (max-width: 62px) { .of-mieng.hong::after{content:"✕"; padding:1px 5px} }
+/* MẢNH VI PHẠM LUẬT 60s — user báo 18/09 "mất thông báo lỗi ở khối nào".
+   `ofVeTL` gắn class `lap` từ lâu, nhưng stylesheet chỉ có `.of-khoi.lap`
+   của UI đời trước (class đó nay không nơi nào sinh ra) -> mảnh vi phạm
+   trông y hệt mảnh lành. Viền + vệt trong để thấy cả khi mảnh có ảnh đè. */
+.of-mieng.lap{border-color:var(--bad); box-shadow:inset 0 0 0 2px var(--bad)}
+.of-mieng.lap .i{color:var(--bad); font-weight:700}
 .of-mieng{container-type:inline-size}
 .of-mieng .mep{position:absolute; right:-3px; top:0; width:10px; height:100%;
                cursor:ew-resize; z-index:5}
@@ -2153,7 +2162,10 @@ function ofVeTL() {
     const trong_tho = moc.some(([, t1, tt]) => h.t0 >= t1 - 0.05 && tt - t1 > 0.05)
     const d = document.createElement('div')
     d.className = 'of-mieng' + (trong_tho ? ' tho' : '') + (j === OF_HCHON ? ' chon' : '')
-                  + (lap.has(h.khoi_goc) ? ' lap' : '')
+                  // HAI TRỤC (lỗi 18/09): `ofKiemLap` trả chỉ số MIẾNG; hỏi
+                  // `khoi_goc` là hỏi chỉ số KHỐI -> đo thật 27/88 hợp đồng
+                  // production tô sai chỗ, có chương tô 0 mảnh dù có 2 vi phạm.
+                  + (lap.has(j) ? ' lap' : '')
                   + (OF_HONG.has(j) ? ' hong' : '')
     d.style.left = (h.t0 * OF_PXS) + 'px'
     d.style.width = Math.max(h.dur * OF_PXS, 1) + 'px'   // không min-width (08/09); không -2px khe (06/09)
@@ -3157,10 +3169,38 @@ let OF_KHAY_KEY = ''
 function ofVeCanhBao() {
   const el = document.getElementById('of-canh-bao')
   if (!el) return
-  const ds = (OF_HD && OF_HD.canh_bao) || []
-  el.hidden = !ds.length
-  el.innerHTML = ds.length
-    ? '<b>⚠ Cảnh báo chương</b>' + ds.map(x => '• ' + esc(x)).join('<br>') : ''
+  // Câu 60s của máy chủ ĐÓNG BĂNG lúc phân tích: người dựng thay clip xong mà
+  // banner vẫn kêu thì lần sau họ bỏ qua cả banner. Tính LẠI từ hợp đồng đang
+  // mở, và kê rõ MIẾNG nào — bấm số là nhảy tới đúng chỗ (user báo 18/09).
+  const dong = ((OF_HD && OF_HD.canh_bao) || [])
+    .filter(x => !/60s/.test(x)).map(x => '• ' + esc(x))
+  const lap = [...ofKiemLap()].sort((a, b) => a - b)
+  if (lap.length) {
+    const hs = ofHinh()
+    const ten = j => {                       // hợp đồng TẬP thì kèm chương (QĐ17)
+      const k = ofK()[(hs[j] || {}).khoi_goc]
+      return (k && k.chuong ? k.chuong + '/' : '') + (j + 1)
+    }
+    const hien = lap.slice(0, 12)
+    dong.unshift('• Lặp hình trong 60s — ' + lap.length + ' miếng: '
+      + hien.map(j => `<b class="nhay" onclick="ofToiMieng(${j})">${esc(ten(j))}</b>`).join(', ')
+      + (lap.length > hien.length ? ` …và ${lap.length - hien.length} nữa` : ''))
+  }
+  el.hidden = !dong.length
+  el.innerHTML = dong.length
+    ? '<b class="dau">⚠ Cảnh báo chương</b>' + dong.join('<br>') : ''
+}
+/* Bấm số trong banner -> nhảy tới đúng miếng đó (playhead + cuộn theo). */
+function ofToiMieng(j) {
+  const h = ofHinh()[j]
+  if (!h) return
+  OF_HCHON = j
+  if (h.khoi_goc !== undefined) OF_CHON = Math.min(h.khoi_goc, ofK().length - 1)
+  OF_LANG = null
+  if (OF_AUDIO) OF_AUDIO.currentTime = (OF_HD.offset || 0) + ofTlSangAudio(h.t0)
+  ofVeAll()
+  const el = document.querySelectorAll('#of-dai .of-mieng')[j]
+  if (el) el.scrollIntoView({behavior: 'smooth', block: 'nearest', inline: 'center'})
 }
 function ofVeAll(nhe) {
   ofVeTL(); ofVeLoi(); ofVeStat(); ofVeXem(); ofVeCanhBao()

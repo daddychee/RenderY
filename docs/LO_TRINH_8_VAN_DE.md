@@ -2087,3 +2087,50 @@ bỏ qua hợp đồng tập (đếm đôi). Nhạc: một track cho cả tập.
 
 Test: `test_mot_timeline_tap.py` (24, gồm Chrome thật cho nhãn khối, chip TẬP, header
 tab), `test_cong_auto` sửa test AUTO theo quyết định 2. Mockup: `scratchpad/ui_mot_timeline.html`.
+
+# 18/09/2026 — "MẤT THÔNG BÁO LỖI Ở KHỐI NÀO" (user báo, đã sửa)
+
+User gửi ảnh panel Offline: banner đỏ ghi *"2 khối vi phạm luật 60s"* mà trên timeline
+không mảnh nào được đánh dấu — *"nó đang mất cái báo lỗi ở khối nào"*.
+
+Mổ ra **ba lỗi độc lập**, không phải một:
+
+| # | Lỗi | Bằng chứng đo được |
+|---|---|---|
+| A | `ofVeTL` gắn class `lap` cho mảnh vi phạm, nhưng stylesheet **không có luật `.of-mieng.lap`** — chỉ có `.of-khoi.lap` của UI đời trước, mà class `of-khoi` nay không nơi nào sinh ra | mảnh vi phạm trông y hệt mảnh lành |
+| B | Chỗ vẽ hỏi `lap.has(h.khoi_goc)` — **chỉ số KHỐI**, trong khi `ofKiemLap()` trả **chỉ số MIẾNG**. Hai trục tách nhau từ 08/09 | **27/88** hợp đồng production tô SAI CHỖ |
+| C | `dung.kiem_lap` trả về đúng danh sách chỉ số, `runner.phan_tich` chỉ giữ `len()` | **52/86** hợp đồng mang câu "N khối vi phạm" không nói khối nào |
+
+Ví dụ đo thật (18/09):
+
+    c1-20260911-082148   31 miếng / 17 khối   vi phạm THẬT [26, 28]  ->  tô 0 mảnh
+    c1-20260915-101024   60 miếng / 19 khối   vi phạm THẬT [6, 9]    ->  tô 10 mảnh OAN
+    c13-20260907-051126  27 miếng / 25 khối   [0,1,13,14,17,18]      ->  4 sót + 4 oan
+
+## Đã sửa
+
+* CSS `.of-mieng.lap` — viền đỏ + vệt trong 2px (thấy cả khi mảnh có ảnh đè), số thứ tự
+  mảnh chuyển đỏ đậm. **Không đụng** `.of-khoi.*` đã chết (Karpathy #3).
+* `lap.has(h.khoi_goc)` → `lap.has(j)` — so đúng trục MIẾNG.
+* `runner.canh_bao_lap()` kê tên khối (đếm từ 1, khớp số trên timeline), quá 12 thì
+  "…và N khối nữa".
+* `ofVeCanhBao` **tính lại** dòng 60s từ hợp đồng đang mở thay vì dùng câu đóng băng lúc
+  phân tích: thay clip xong là dòng đó biến mất. Nhờ vậy 52 hợp đồng CŨ hưởng ngay,
+  không phải phân tích lại. Số trong banner **bấm được** → nhảy tới đúng mảnh, playhead
+  và khối bên trái theo cùng (`ofToiMieng`). Hợp đồng TẬP thì số mang theo chương
+  (`C1/29`) vì "miếng 148" trong tập 16 chương không giúp ai.
+* Gộp tập: ngưỡng báo lệch voice 0,005s → **0,05s**. `kim048-tap` thật đang mang cảnh báo
+  *"E: file voice ngắn hơn khối 0.01s"* — sai số làm tròn ffprobe. Báo oan làm người dựng
+  mất lòng tin rồi bỏ qua cả cảnh báo thật.
+
+## Bẫy gặp khi làm — test xanh GIẢ hai lần
+
+1. Test CSS so mảnh `lap` với mảnh **đang được chọn** (có outline vàng riêng) → thấy
+   "khác nhau" vì lý do khác, xanh trong khi CSS chưa hề tồn tại. Sửa: bật/tắt class
+   `lap` trên **cùng một** phần tử rồi so computed style.
+2. Sửa xong vẫn một test đỏ vì trang thử chưa nạp `ofToiMieng` — lỗi harness, không phải
+   code sản phẩm. Đúng bài học 13/09.
+
+Test: `test_canh_bao_chi_dung_khoi.py` (11, Chrome thật). Mockup:
+`scratchpad/ui_canh_bao_khoi.html`; ảnh dựng bằng hợp đồng production thật:
+`scratchpad/canhbao_do_that.png`.

@@ -135,6 +135,26 @@ def canh_bao_mat_loi(khoi: list) -> list[str]:
             f"sau khi gen voice không."]
 
 
+TRAN_KE_TEN = 12          # kê nhiều hơn thì banner tràn màn hình
+
+
+def canh_bao_lap(lap: list[int]) -> list[str]:
+    """Khối nào lặp hình trong 60s — KÊ TÊN, không chỉ đếm (user báo 18/09:
+    *"Hiện đang mất thông báo lỗi ở khối nào"*).
+
+    `dung.kiem_lap` trả về ĐÚNG chỉ số khối, bản cũ chỉ giữ `len()` nên 52/86
+    hợp đồng production mang câu "8 khối vi phạm luật 60s" mà không nói khối
+    nào. Đếm TỪ 1 cho khớp số hiện trên timeline.
+    """
+    if not lap:
+        return []
+    ten = [str(i + 1) for i in lap]
+    hien = ten[:TRAN_KE_TEN]
+    con = len(ten) - len(hien)
+    return [f"{len(ten)} khối vi phạm luật 60s: khối {', '.join(hien)}"
+            + (f" …và {con} khối nữa" if con else "")]
+
+
 def _canh_bao_phien(dong_kiem: bool) -> list[str]:
     """(4) user chốt 06/09: sequence tạo xong phải BIẾT NGAY phiên Envato sống
     chưa — đừng để dựng 2 tiếng rồi Export mới lộ watermark."""
@@ -406,7 +426,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
         } for i, k in enumerate(ds_khoi)],
         "canh_bao": _thieu
                     + canh_bao_mat_loi([{"loi": k.loi} for k in ds_khoi])
-                    + ([f"{len(lap)} khối vi phạm luật 60s"] if lap else [])
+                    + canh_bao_lap(lap)
                     + ([f"GÁN NGHĨA HỎNG ({_loi_4lop}) — khay sẽ rỗng. Kiểm khoá "
                         "GLM ở General › API Keys rồi Phân tích lại."]
                        if _loi_4lop else [])

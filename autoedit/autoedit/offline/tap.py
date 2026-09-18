@@ -34,6 +34,10 @@ from pathlib import Path
 DUOI_TAP = "-tap"          # project_id của tập: <mã tập>-tap (ổn định, không dấu giờ)
 NHAN_TAP = "TAP"           # nhãn "chương" của project tập -> draft OFF_<tập>_TAP
 SR, KENH = 48000, 2        # định dạng chung khi nối voice
+# Dưới mức này là sai số làm tròn của ffprobe, KHÔNG phải lệch thật. Đo trên
+# `kim048-tap` (18/09): banner kêu "E: file voice ngắn hơn khối 0.01s" — báo
+# oan làm người dựng mất lòng tin rồi bỏ qua cả cảnh báo thật.
+SAI_SO_S = 0.05
 TEN_DOAN = "doan_{ma}.wav"  # voice từng chương đã cắt, nằm trong media/ của tập
 
 
@@ -93,7 +97,7 @@ def noi_hop_dong(doan: list[dict]) -> dict:
             cuoi["tho"] = round(float(cuoi.get("tho") or 0) + du, 3)
             if hs:
                 hs[-1]["dur"] = round(float(hs[-1]["dur"]) + du, 3)
-        elif du < -0.005:
+        elif du < -SAI_SO_S:
             canh_bao.append(f"{ma}: file voice ngắn hơn khối {-du:.2f}s — kiểm master")
         n0 = len(khoi_all)
         for k in ks:
