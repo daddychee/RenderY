@@ -120,9 +120,9 @@ def _la_file_ref(folder: Path, p: Path) -> bool:
     'Ref 1.srt' đi kèm 'Ref 1.mp4' -> là phụ đề video tham chiếu. Cùng tên gốc là
     dấu hiệu chắc chắn, không đoán theo chữ 'ref' trong tên (nhân sự đặt tên tự do).
     """
-    from autoedit.sourcer.refvideo import VIDEO_EXTS
+    from autoedit.web.chapters import la_file_cua_video
 
-    return any((folder / (p.stem + e)).is_file() for e in VIDEO_EXTS)
+    return la_file_cua_video(folder, p)
 
 
 def _pick_input(folder: Path, exts: tuple[str, ...], preferred_stem: str):

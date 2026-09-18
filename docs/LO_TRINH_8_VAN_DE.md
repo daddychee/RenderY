@@ -2134,3 +2134,71 @@ Ví dụ đo thật (18/09):
 Test: `test_canh_bao_chi_dung_khoi.py` (11, Chrome thật). Mockup:
 `scratchpad/ui_canh_bao_khoi.html`; ảnh dựng bằng hợp đồng production thật:
 `scratchpad/canhbao_do_that.png`.
+
+# 18/09/2026 — "CÁC CHƯƠNG KHÔNG ĐỔ KHỐI ĐƯỢC, CHỈ MỖI HOOK" (haint)
+
+Panel báo *"thiếu media/voice_master.wav — chạy align/cut trước"*. Đó là triệu chứng,
+không phải bệnh: **align chết**, nên chương không có voice_master để phân tích.
+
+## Đọc log job 31 + 32 (LI042_Hai)
+
+    CHƯƠNG 1/6: H    -> không có H.srt -> whisper -> ✓ align xong, 66 từ
+    CHƯƠNG 2/6: C2   -> "✓ Thấy C2.srt — align đọc thẳng file này"
+                     -> Lỗi align: voice.srt không có block nào đọc được
+    C3 · C4 · C5 · E -> y hệt C2
+
+`inputs/voice.srt` của C2 (2018 byte) mở ra là **chữ kịch bản**:
+
+    FACT 6 — TOUCH THIS AND IT COSTS YOU $3,000
+    Off the northern coast, wrapped around the Bay Islands and the island of Roatán...
+
+Không một dòng `00:00:01,000 --> 00:00:03,000` nào. Ai đó lưu kịch bản thành đuôi
+`.srt`. H sống sót chỉ vì **không có** `H.srt` nên rơi về whisper.
+
+## Lỗi dữ liệu, nhưng tool có hai lỗ thủng thật
+
+Cổng "kiểm trước khi chạy" (17/09) lẽ ra phải bắt được ngay lúc nộp:
+
+1. **`do_khop_srt` trả `None` khi srt không parse nổi → cổng MỞ.** Fail-open đúng cho
+   "đo không được", nhưng đây là hỏng **chắc chắn**: align sẽ chết 100%, không phải
+   có thể chết.
+2. **Cổng đọc nhầm file ở bố cục PHẲNG.** `_khop_chuong_kem` quét `c.path.iterdir()`
+   lấy `.srt` đầu tiên — mà bố cục phẳng thì `c.path` là cả thư mục `RenderY/`. LI042_Hai
+   có 6 chương + `ref 1..3.srt` nằm chung, nên mọi chương đều bị đo bằng cặp file của
+   chương đầu, hoặc bằng phụ đề VIDEO MẪU. `_chuong_phang` đã điền sẵn `c.script`/`c.srt`
+   đúng của từng chương — cổng lại không dùng.
+
+## Đã sửa
+
+* `align.runner.la_phu_de(f)` — file `.srt` này có đọc ra được phụ đề không (đọc
+  `utf-8-sig` y như `SrtAligner` để không chặn oan file lành có BOM).
+* Cổng mới ở `POST /api/jobs`: `.srt` không phải phụ đề → **422 gọi đúng tên file**
+  ("C2: C2.srt · C3: C3.srt …"), kèm cách xử: xoá file đó (tool tự nhận dạng giọng)
+  hoặc thay bằng `.srt` thật.
+* `Chuong.tim_srt()` / `tim_script()` — trả file **của chính chương đó**, biết cả hai
+  bố cục, loại phụ đề của video mẫu. Cổng khớp 17/09 dùng chung, hết đọc nhầm.
+* `la_file_cua_video()` gom về `web/chapters.py`; `cli._la_file_ref` gọi thẳng nó —
+  một luật duy nhất cho cả đường `make` lẫn đường cổng.
+* `project.json → inputs.original_srt_path` ghi đường dẫn `.srt` GỐC; lỗi align nay
+  gọi `C2.srt` thay vì `voice.srt` (trên NAS không có file nào tên `voice.srt`, người
+  dựng không biết sửa cái gì).
+
+## Kiểm bằng dữ liệu thật
+
+Dựng lại đúng tình huống lúc chạy (chép `.srt` hỏng thật từ 5 project đã chết + `.txt`
+thật trên NAS + `ref 1..3.srt`):
+
+    CHẶN: [('C2','C2.srt'), ('C3','C3.srt'), ('C4','C4.srt'), ('C5','C5.srt'), ('E','E.srt')]
+    H không bị réo oan ✓   ·   không vớ phụ đề video ref ✓   ·   đo khớp: [] ✓
+
+Đúng 5 chương haint báo, không thừa không thiếu.
+
+Test: `test_srt_khong_phai_phu_de.py` (13). Bẫy gặp khi làm: hai lần dựng dữ liệu thử
+chưa sát ca thật (chỉ 1 chương có `.srt`, hoặc cặp file đầu tiên tình cờ khớp) nên test
+xanh trong khi lỗi vẫn còn — phải dựng đúng cảnh "nhiều chương đều có `.srt`, chương
+đầu lệch thật" mới lộ.
+
+## Việc cho haint
+
+Thư mục NAS hiện **đã sạch** `.srt` chương (chỉ còn `ref 1..3.srt` của video mẫu) —
+nộp lại tập là 6 chương chạy bằng whisper như H. Chậm hơn ~1 phút/10 phút voice.

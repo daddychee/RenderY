@@ -2852,18 +2852,10 @@ def _khop_chuong_kem(chuong) -> list[tuple[str, float]]:
     0 từ nên `loi` rỗng, `dich` rỗng theo. Người dựng thấy "mất kịch bản".
     """
     from autoedit.align.runner import KHOP_CHAN, do_khop_srt
-    from autoedit.web.chapters import _SRT_EXTS, _TEXT_EXTS
 
     kem: list[tuple[str, float]] = []
     for c in chuong:
-        if not getattr(c, "co_srt", False):
-            continue
-        d = Path(c.path)
-        try:
-            srt = next((f for f in d.iterdir() if f.suffix.lower() in _SRT_EXTS), None)
-            kb = next((f for f in d.iterdir() if f.suffix.lower() in _TEXT_EXTS), None)
-        except OSError:
-            continue
+        srt, kb = _cap_srt_script(c)
         if srt is None or kb is None:
             continue
         try:
@@ -2874,6 +2866,42 @@ def _khop_chuong_kem(chuong) -> list[tuple[str, float]]:
         if tl is not None and tl < KHOP_CHAN:
             kem.append((c.ma, tl))
     return kem
+
+
+def _cap_srt_script(c) -> "tuple[Path | None, Path | None]":
+    """(.srt, kịch bản) ĐÚNG CỦA CHƯƠNG NÀY. `Chuong.tim_srt/tim_script` biết cả
+    hai bố cục; đường lùi chỉ dành cho object giả trong test cũ."""
+    if not getattr(c, "co_srt", False):
+        return None, None
+    if hasattr(c, "tim_srt"):
+        return c.tim_srt(), c.tim_script()
+    from autoedit.web.chapters import _SRT_EXTS, _TEXT_EXTS
+
+    try:
+        d = Path(c.path)
+        srt = next((f for f in sorted(d.iterdir()) if f.suffix.lower() in _SRT_EXTS), None)
+        kb = next((f for f in sorted(d.iterdir()) if f.suffix.lower() in _TEXT_EXTS), None)
+    except OSError:
+        return None, None
+    return srt, kb
+
+
+def _srt_khong_phai_phu_de(chuong) -> list[tuple[str, str]]:
+    """Chương nào có `.srt` mà ruột KHÔNG phải phụ đề — [(mã chương, tên file)].
+
+    haint báo 18/09: 5/6 chương LI042_Hai chết ở align vì `C2.srt`…`E.srt` là
+    chữ kịch bản đổi đuôi. Cổng khớp (17/09) không bắt được: `do_khop_srt` trả
+    None khi không parse nổi, mà None nghĩa là "không đo được" -> mở cửa. Ca này
+    KHÔNG phải không đo được, nó là hỏng chắc chắn: align sẽ chết 100%.
+    """
+    from autoedit.align.runner import la_phu_de
+
+    xau: list[tuple[str, str]] = []
+    for c in chuong:
+        srt, _kb = _cap_srt_script(c)
+        if srt is not None and not la_phu_de(srt):
+            xau.append((c.ma, srt.name))
+    return xau
 
 
 @app.post("/api/jobs")
@@ -2925,6 +2953,17 @@ def api_add_job(req: JobRequest, request: Request):
     # SCRIPT CÓ KHỚP VOICE KHÔNG — kiểm TRƯỚC KHI CHẠY (user chốt 17/09).
     # Lệch nặng thì khối không nhận được từ nào, `loi` rỗng và bản dịch rỗng theo:
     # dựng xong mới thấy thì đã mất cả lượt. Xem `_khop_chuong_kem`.
+    # .srt KHÔNG PHẢI PHỤ ĐỀ -> align chắc chắn chết. Chặn ngay, gọi đúng tên
+    # file để người dựng xoá/thay, thay vì để từng chương chết lần lượt (18/09).
+    gia = _srt_khong_phai_phu_de(chuong)
+    if gia:
+        ds = " · ".join(f"{ma}: {ten}" for ma, ten in gia)
+        raise HTTPException(
+            422, f"Không phải phụ đề — {ds}. File .srt phải có dòng thời gian "
+                 "('00:00:01,000 --> 00:00:03,000' rồi tới lời thoại). Đang là "
+                 "chữ kịch bản đổi đuôi nên align sẽ chết. XOÁ file .srt đó (tool "
+                 "tự nhận dạng giọng) hoặc thay bằng .srt thật, rồi nộp lại.")
+
     kem = _khop_chuong_kem(chuong)
     if kem:
         ds = " · ".join(f"{ma} {tl:.0%}" for ma, tl in kem)

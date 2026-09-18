@@ -63,6 +63,23 @@ def words_from_captions(captions: list[tuple[float, float, str]]) -> list[RawWor
     return words
 
 
+def _ten_goc(path: Path) -> str:
+    """Tên file .srt NHƯ NGƯỜI DỰNG THẤY trên NAS.
+
+    Trong project nó đã được copy thành `voice.srt`, nên báo lỗi bằng tên đó là
+    chỉ vào một file không tồn tại ở nơi họ đang nhìn (haint 18/09: trên NAS là
+    `C2.srt`). Đường dẫn gốc nằm ở `project.json → inputs.original_srt_path`.
+    """
+    import json
+
+    try:
+        p = json.loads((path.parent.parent / "project.json").read_text(encoding="utf-8"))
+        goc = (p.get("inputs") or {}).get("original_srt_path") or ""
+    except Exception:  # noqa: BLE001 — không tra được thì dùng tên đang có
+        goc = ""
+    return Path(goc.replace("\\", "/")).name if goc else path.name
+
+
 class SrtAligner:
     """Aligner đọc .srt cạnh file voice. Cùng interface với FasterWhisperAligner."""
 
@@ -90,7 +107,8 @@ class SrtAligner:
         captions = parse_srt(path.read_text(encoding="utf-8-sig"))
         if not captions:
             raise ValueError(
-                f"{path.name} không có block nào đọc được — file rỗng hoặc sai định dạng SRT "
-                f"(cần dòng '00:00:01,000 --> 00:00:03,000' rồi tới lời thoại)."
+                f"{_ten_goc(path)} không có block nào đọc được — file rỗng hoặc sai "
+                f"định dạng SRT (cần dòng '00:00:01,000 --> 00:00:03,000' rồi tới lời "
+                f"thoại). Xoá file đó đi thì tool tự nhận dạng giọng."
             )
         return words_from_captions(captions)

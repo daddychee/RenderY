@@ -86,6 +86,30 @@ def run_align(project: Project, aligner: Aligner) -> Project:
     return project
 
 
+def la_phu_de(srt_path) -> bool:
+    """File `.srt` này ĐỌC RA ĐƯỢC phụ đề không (có ít nhất một dòng thời gian)?
+
+    Vì sao cần (haint báo 18/09): LI042_Hai có `C2.srt`…`E.srt` mà ruột là CHỮ
+    KỊCH BẢN, không một dòng `00:00:01,000 --> 00:00:03,000` nào. `make` thấy
+    đuôi .srt là tin ngay, align chết từng chương; chỉ H (không có .srt) sống
+    nhờ whisper. Đây là hỏng CHẮC CHẮN, khác hẳn "đo không được" — nên cổng
+    dùng nó để CHẶN, còn `do_khop_srt` vẫn fail-open như cũ.
+
+    Đọc utf-8-sig y như `SrtAligner` để không chặn oan file lành có BOM.
+    """
+    from pathlib import Path as _P
+
+    from autoedit.align.srt_file import parse_srt
+
+    f = _P(srt_path)
+    if not f.is_file():
+        return False
+    try:
+        return bool(parse_srt(f.read_text(encoding="utf-8-sig", errors="replace")))
+    except OSError:
+        return False
+
+
 def do_khop_srt(script_text: str, srt_path) -> float | None:
     """Tỉ lệ từ script khớp thẳng vào `.srt` — KIỂM TRƯỚC KHI CHẠY.
 

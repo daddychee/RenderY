@@ -71,6 +71,36 @@ class Chuong:
     def du_file(self) -> bool:
         return self.co_script and self.co_voice
 
+    def tim_srt(self) -> "Path | None":
+        """File .srt CỦA CHÍNH chương này, hoặc None.
+
+        Bố cục PHẲNG đã có sẵn `self.srt` (mỗi chương một cặp `C2.txt`/`C2.srt`
+        nằm chung thư mục) — phải dùng nó, KHÔNG được quét thư mục rồi lấy file
+        đầu tiên: LI042_Hai có 6 chương + `ref 1..3.srt` chung một chỗ, quét là
+        đem phụ đề chương khác (hay phụ đề video mẫu) đi đo chương này (18/09).
+        """
+        if self.srt is not None:
+            return self.srt
+        try:
+            ds = sorted(f for f in self.path.iterdir()
+                        if f.is_file() and f.suffix.lower() in _SRT_EXTS)
+        except OSError:
+            return None
+        ds = [f for f in ds if not la_file_cua_video(self.path, f)]
+        return ds[0] if ds else None
+
+    def tim_script(self) -> "Path | None":
+        """File kịch bản CỦA CHÍNH chương này, hoặc None. Cùng lý lẽ `tim_srt`."""
+        if self.script is not None:
+            return self.script
+        try:
+            ds = sorted(f for f in self.path.iterdir()
+                        if f.is_file() and f.suffix.lower() in _TEXT_EXTS)
+        except OSError:
+            return None
+        ds = [f for f in ds if not la_file_cua_video(self.path, f)]
+        return ds[0] if ds else None
+
 
 def phan_tich_ten(ten: str) -> tuple[str, int, str] | None:
     """Tên thư mục -> (mã chuẩn, thứ tự, nhãn). None nếu KHÔNG đúng quy ước."""
@@ -108,6 +138,19 @@ def thu_muc_rendery(tap: Path) -> Path:
 def _la_ref(f: Path) -> bool:
     """`ref 1.mp4` là phim mẫu của tập, không phải voice chương."""
     return f.stem.lower().startswith("ref")
+
+
+def la_file_cua_video(folder: Path, p: Path) -> bool:
+    """File này thuộc về một VIDEO MẪU (có video cùng tên gốc) hay không.
+
+    `ref 1.srt` đi kèm `ref 1.mp4` -> phụ đề VIDEO MẪU, KHÔNG phải phụ đề voice.
+    Cùng tên gốc là dấu hiệu chắc chắn; không đoán theo chữ "ref" trong tên vì
+    nhân sự đặt tên tự do. `cli._la_file_ref` gọi thẳng hàm này — MỘT luật duy
+    nhất cho cả đường `make` lẫn đường cổng kiểm lúc nộp tập.
+    """
+    from autoedit.sourcer.refvideo import VIDEO_EXTS
+
+    return any((folder / (p.stem + e)).is_file() for e in VIDEO_EXTS)
 
 
 def _chuong_phang(goc: Path) -> list[Chuong]:

@@ -96,6 +96,10 @@ class Inputs(BaseModel):
     # Đường dẫn file gốc trước khi copy (để truy vết)
     original_script_path: str
     original_voice_path: str
+    # Đường dẫn .srt GỐC trên NAS. Không ghi lại thì lỗi align chỉ gọi được tên
+    # bản copy (`voice.srt`) — người dựng tìm trên NAS không thấy file nào tên
+    # đó, không biết sửa cái gì (haint 18/09).
+    original_srt_path: str = ""
     # Nội dung script đọc sẵn (script là ground truth cho align)
     script_text: str
     voice_duration_sec: Optional[float] = None
@@ -684,6 +688,7 @@ def create_project(
         voice_path=str(dst_voice.relative_to(project_dir)),
         original_script_path=str(script_path),
         original_voice_path=str(voice_path),
+        original_srt_path=str(srt_path) if srt_path is not None else "",
         script_text=script_text,
         voice_duration_sec=ffprobe_duration(dst_voice),
         brief=brief,
