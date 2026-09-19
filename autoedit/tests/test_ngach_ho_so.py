@@ -175,3 +175,25 @@ def test_CA_SUITE_khong_doc_ho_so_that(tmp_path):
     """Không dùng fixture `kho` — chứng minh rào ở conftest.py có hiệu lực."""
     assert "AutoEdit" not in str(hs.thu_muc())
     assert hs.liet_ke() == []
+
+
+# --------------------------- NƠI CHỐN ngách chấp nhận (QĐ18b, 19/09)
+
+def test_khai_dia_ly_cho_phep(kho):
+    hs.luu(_hs(ma="N-SENIOR-HEALTH", ten="SENIOR HEALTH", dia_ly=["USA", " usa ", "uk"]))
+    assert hs.doc("N-SENIOR-HEALTH")["dia_ly"] == ["usa", "uk"]
+    assert ngach.dia_ly("SENIOR HEALTH") == ["usa", "uk"]
+
+
+def test_khong_khai_thi_rong(kho):
+    hs.luu(_hs())
+    assert ngach.dia_ly("X FILE") == []
+    assert ngach.dia_ly("COOKING") == []       # chưa có hồ sơ
+
+
+def test_dia_ly_khong_lam_hong_ho_so_cu(kho):
+    """Hồ sơ lưu trước khi có trường này -> đọc ra [] chứ không nổ."""
+    hs.thu_muc().mkdir(parents=True, exist_ok=True)
+    (hs.thu_muc() / "N-003.json").write_text(
+        '{"ma": "N-003", "loc_nguoi": false, "vat_the": ["x"]}', encoding="utf-8")
+    assert ngach.dia_ly("X FILE") == []

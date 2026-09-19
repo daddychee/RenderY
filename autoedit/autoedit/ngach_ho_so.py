@@ -97,6 +97,10 @@ def luu(d: dict) -> dict:
         "loc_nguoi": loc,
         "nhan_vat": _sach_nhan_vat(d.get("nhan_vat")) if loc else {},
         "vat_the": _sach_tu(d.get("vat_the")),
+        # Nơi chốn ngách CHẤP NHẬN (QĐ18b). Rỗng = ngách không gắn nơi chốn,
+        # clip có nơi chốn bị `tra` loại. Khác «địa danh của TẬP» vốn là luật
+        # chặt theo từng tập.
+        "dia_ly": _sach_tu(d.get("dia_ly")),
         "nguon": d.get("nguon") if isinstance(d.get("nguon"), dict) else {},
         "nguoi_duyet": str(d.get("nguoi_duyet") or "").strip(),
         "duyet_luc": (str(d.get("duyet_luc") or "").strip()

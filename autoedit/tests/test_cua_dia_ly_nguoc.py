@@ -161,3 +161,52 @@ def test_cua_XUOI_cung_phai_thay_dia_danh_ngan(conn):
     ra = tra(conn, {"L0": [], "L1": ["counting money"], "L2": [], "L3": []},
              so=12, geo_tap="usa", tap="LI300", can_neo=False)
     assert [u["id"] for u in ra] == ["envato:us"], [u["tieu_de"] for u in ra]
+
+
+# ------------------------- ngách khai NƠI CHỐN CHẤP NHẬN (hồ sơ ngách)
+# Cửa ngược ở trên chặn MỌI clip có nơi chốn. Nhưng SENIOR HEALTH là ngách Mỹ:
+# clip geo='usa' là ĐÚNG người đúng cảnh của nó, chặn đi là chặn nhầm.
+#
+# Đo thật 19/09, để không ai kỳ vọng nhầm: khai 'usa' cho KIM048 chỉ thêm 4 thẻ
+# (1742 -> 1746) và KHÔNG cứu được khay trống nào (19 -> 19). 19 khay đó trống
+# vì thứ khớp với chúng chỉ còn clip Oman/Ecuador — trống ĐÚNG.
+#
+# Khác `geo_tap` (địa danh của TẬP, luật CHẶT: clip phải khớp, geo trống cũng
+# loại). Đây là luật NỚI: clip có nơi chốn thì phải nằm trong danh sách ngách
+# chấp nhận, còn clip KHÔNG gắn nơi chốn vẫn đi bình thường.
+
+def test_ngach_khai_usa_thi_clip_usa_duoc_qua(conn):
+    _them(conn, "envato:us", "envato", "Counting Money in Store", geo="usa")
+    _them(conn, "envato:ec", "envato", "Counting Money in Market", geo="ecuador")
+    _them(conn, "envato:tt", "envato", "Counting Money Close Up")
+    ra = tra(conn, {"L0": [], "L1": ["counting money"], "L2": [], "L3": []},
+             so=12, geo_tap="", tap="KIM049", can_neo=False,
+             dia_ly_cho_phep="usa")
+    assert {u["id"] for u in ra} == {"envato:us", "envato:tt"}, \
+        [u["tieu_de"] for u in ra]
+
+
+def test_khai_nhieu_noi_chon(conn):
+    _them(conn, "envato:us", "envato", "Counting Money in Store", geo="usa")
+    _them(conn, "envato:uk", "envato", "Counting Money in London", geo="uk")
+    _them(conn, "envato:ec", "envato", "Counting Money in Market", geo="ecuador")
+    ra = tra(conn, {"L0": [], "L1": ["counting money"], "L2": [], "L3": []},
+             so=12, geo_tap="", tap="T", can_neo=False, dia_ly_cho_phep="usa uk")
+    assert {u["id"] for u in ra} == {"envato:us", "envato:uk"}
+
+
+def test_khong_khai_thi_giu_nguyen_cua_nguoc(conn):
+    _kho(conn)
+    ra = tra(conn, LOP, so=12, geo_tap="", tap="XF001", can_neo=False,
+             dia_ly_cho_phep="")
+    assert all(not u["id"].startswith("envato:ec") for u in ra)
+
+
+def test_dia_danh_cua_TAP_van_thang(conn):
+    """Tập khai địa danh thì luật CHẶT của tập thắng, không bị nới ra."""
+    _them(conn, "envato:us", "envato", "Counting Money in Store", geo="usa")
+    _them(conn, "envato:ec", "envato", "Counting Money in Market", geo="ecuador")
+    ra = tra(conn, {"L0": [], "L1": ["counting money"], "L2": [], "L3": []},
+             so=12, geo_tap="ecuador", tap="LI300", can_neo=False,
+             dia_ly_cho_phep="usa")
+    assert [u["id"] for u in ra] == ["envato:ec"]

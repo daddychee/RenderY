@@ -3729,6 +3729,43 @@ function ncMucNguoi() {
   return h + '</div>'
 }
 
+function ncMucDiaLy() {
+  // Cửa địa lý CHIỀU NGƯỢC (19/09): ngách không khai nơi chốn thì clip CÓ nơi
+  // chốn bị loại khỏi khay. SENIOR HEALTH là ngách Mỹ nên phải khai usa.
+  const ds = NC_SOAN.dia_ly || []
+  return '<div class="nc-muc"><div class="nc-th">NƠI CHỐN NGÁCH CHẤP NHẬN'
+    + '<span class="note" style="margin:0">để trống = ngách không gắn nơi chốn</span></div>'
+    + '<div class="chips nc-chips">'
+    + ds.map((t, i) => '<span class="the">' + esc(t)
+        + (NC_SUA ? ' <i onclick="ncXoaDiaLy(' + i + ')" title="bỏ">×</i>' : '')
+        + '</span>').join('')
+    + (NC_SUA ? '<input type="text" class="nc-them" placeholder="+ vd usa, uk rồi Enter"'
+      + ' onkeydown="ncThemDiaLy(event)">' : '')
+    + '</div>'
+    + '<div class="note" style="margin:8px 0 0">Clip gắn nơi chốn <b>khác</b> danh sách này '
+    + 'bị loại khỏi khay. Để trống thì <b>mọi</b> clip có nơi chốn đều bị loại — đúng cho '
+    + 'ngách đồ vật. Đây là thứ chặn footage Ecuador của Life In chảy sang.</div></div>'
+}
+
+function ncXoaDiaLy(i) {
+  if (!NC_SOAN) return
+  ;(NC_SOAN.dia_ly || []).splice(i, 1)
+  if (NC_BAN) NC_BAN = 'sua'
+  ncVe()
+}
+
+function ncThemDiaLy(ev) {
+  if (ev.key !== 'Enter') return
+  const t = (ev.target.value || '').trim().toLowerCase()
+  ev.target.value = ''
+  if (!t || !NC_SOAN) return
+  NC_SOAN.dia_ly = NC_SOAN.dia_ly || []
+  if (NC_SOAN.dia_ly.includes(t)) return
+  NC_SOAN.dia_ly.push(t)
+  if (NC_BAN) NC_BAN = 'sua'
+  ncVe()
+}
+
 function ncVe() {
   const main = document.getElementById('nc-main')
   const ben = document.getElementById('nc-ben')
@@ -3775,6 +3812,7 @@ function ncVe() {
   main.innerHTML = '<h2>' + esc(NC_N.ten) + ' ' + nhan + '</h2>'
     + '<div class="note" style="margin:0 0 16px">' + meta + '</div>'
     + ncMucNguoi()
+    + ncMucDiaLy()
     + '<div class="nc-muc"><div class="nc-th">VẬT THỂ / CHỦ ĐỀ'
     + '<span class="note" style="margin:0">' + vt.length + ' từ khoá · số trong ngoặc là '
     + '<b>clip đang có trong kho</b>, đếm đúng cụm'
@@ -3871,7 +3909,7 @@ function ncThemTu(ev) {
 }
 
 function ncKhaiTay() {
-  NC_SOAN = {loc_nguoi: false, nhan_vat: {}, vat_the: [], nguon: {}}
+  NC_SOAN = {loc_nguoi: false, nhan_vat: {}, vat_the: [], dia_ly: [], nguon: {}}
   NC_BAN = 'sua'; NC_DO = null
   ncVe()
 }
@@ -3889,7 +3927,9 @@ async function ncSinh() {
   }
   const dx = d.de_xuat || {}
   NC_SOAN = {loc_nguoi: !!dx.loc_nguoi, nhan_vat: dx.nhan_vat || {},
-             vat_the: dx.vat_the || [], nguon: d.pool || {}}
+             vat_the: dx.vat_the || [], nguon: d.pool || {},
+             // giữ nơi chốn đã duyệt — máy không đề xuất trường này
+             dia_ly: (NC_SOAN && NC_SOAN.dia_ly) || []}
   NC_DO = dx.do_nguoi || null
   NC_LAN = dx.so_lan || 0; NC_LAP = dx.lap_lai || {}
   NC_BAN = 'moi'
@@ -3905,6 +3945,7 @@ async function ncDuyet() {
       body: JSON.stringify({loc_nguoi: !!NC_SOAN.loc_nguoi,
                             nhan_vat: NC_SOAN.nhan_vat || {},
                             vat_the: NC_SOAN.vat_the || [],
+                            dia_ly: NC_SOAN.dia_ly || [],
                             nguon: NC_SOAN.nguon || {}})
     })
   } catch (e) { toastOf(e.message || 'không lưu được'); return }

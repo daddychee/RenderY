@@ -884,6 +884,8 @@ class HoSoNgachRequest(BaseModel):
     loc_nguoi: bool = False
     nhan_vat: dict = {}
     vat_the: list[str] = []
+    # Nơi chốn ngách CHẤP NHẬN (QĐ18b) — rỗng = ngách không gắn nơi chốn.
+    dia_ly: list[str] = []
     nguon: dict = {}
 
 
@@ -981,6 +983,7 @@ def api_luu_ho_so_ngach(ma: str, req: HoSoNgachRequest, request: Request):
 
     d = _hs.luu({"ma": n["ma"], "ten": n["ten"], "loc_nguoi": req.loc_nguoi,
                  "nhan_vat": req.nhan_vat, "vat_the": req.vat_the,
+                 "dia_ly": req.dia_ly,
                  "nguon": req.nguon, "nguoi_duyet": current_user(request)})
     return {"ok": True, "ho_so": d}
 

@@ -337,7 +337,8 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 # chương AUTO: không đốt license Envato (user chốt 06/09)
                 bo_nguon=() if dong_kiem else ("envato",),
                 # rào cứng theo tập (06/09): geo lệch/ref tập khác không chảy vào
-                geo_tap=dia_danh, tap=_ma_tap(project_dir), da_dung=da_dung)
+                geo_tap=dia_danh, tap=_ma_tap(project_dir), da_dung=da_dung,
+                dia_ly_cho_phep=dung.dia_ly_ngach(ngach))
             # BA TẦNG CỦA EDITOR (QĐ15, user chốt 12/09) — đọc hình những clip
             # chưa có nhân vật, rồi xếp khay A/B/C. `so_dung` là số thẻ MÁY được
             # phép lấy; thẻ còn lại vẫn nằm trong khay cho người tự chọn.
@@ -383,7 +384,7 @@ def phan_tich(project_dir: Path, avd_s: float = 0.0, mo_dau_tap_s: float = 0.0,
                 ung_vien = dung.do_ung_vien(
                     c, ds_khoi, lop_ds, chu_the, uu_tien_nguon=uu_tien_nguon,
                     bo_nguon=(), geo_tap=dia_danh, tap=_ma_tap(project_dir),
-                    da_dung=da_dung)
+                    da_dung=da_dung, dia_ly_cho_phep=dung.dia_ly_ngach(ngach))
                 so_dung = _ba_tang(ung_vien)
             noi_tiep = []
             # MÁY chỉ được chọn trong phần DÙNG ĐƯỢC. Vì phần đó là ĐOẠN ĐẦU của

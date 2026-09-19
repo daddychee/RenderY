@@ -148,6 +148,23 @@ def nhan_vat(x: str) -> dict:
     return dict(bo.get((x or "").strip().upper()) or {})
 
 
+def dia_ly(x: str) -> list[str]:
+    """Ngách này CHẤP NHẬN footage gắn nơi chốn nào (QĐ18b, 19/09).
+
+    Rỗng = ngách không gắn nơi chốn -> `tra` loại mọi clip có nơi chốn (cửa
+    ngược). Ngách gắn một vùng (SENIOR HEALTH là ngách Mỹ) khai `usa` để giữ
+    footage đúng vùng của mình.
+
+    ĐO THẬT 19/09, đừng kỳ vọng quá: khai `usa` cho KIM048 chỉ thêm **4 thẻ**
+    (1742 -> 1746) và **không cứu được miếng khay trống nào** (19 -> 19). Kho
+    Senior Health phần lớn không gắn nhãn vùng, còn 19 khay trống kia trống vì
+    thứ khớp với chúng chỉ còn clip Oman/Ecuador — tức trống ĐÚNG, là tín hiệu
+    kho thiếu thật chứ không phải chặn oan.
+    """
+    ho = _ho_so(x, _tim(x))
+    return list(ho.get("dia_ly") or []) if ho else []
+
+
 def da_khai_nhan_vat(x: str) -> bool:
     """Đã khai chưa — cổng nộp tập chặn khi chưa (user chốt 12/09: "cần khoá
     logic của từng niche trước khi bắt tay vào dựng").

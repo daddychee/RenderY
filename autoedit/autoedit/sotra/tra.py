@@ -88,7 +88,7 @@ TU_LIEU_CUA_MINH = ("ref", "kho", "rec")
 
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         can_neo: bool = True, suat_ref: int = 2, seed: int = 0,
-        geo_tap: str = "", tap: str = "",
+        geo_tap: str = "", tap: str = "", dia_ly_cho_phep: str = "",
         da_dung: dict[str, int] | None = None,
         nhan_vat: dict | None = None) -> list[dict]:
     """lop = {"L0": [...], "L1": [...], "L2": [...], "L3": [...]} -> ứng viên xếp
@@ -99,6 +99,14 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
     nhan_vat: {"tuoi": [...], "chung_toc": [...]} của ngách -> giữ chỗ
         `SAN_NHAN_VAT` suất cho thẻ ĐÚNG NGƯỜI. Rỗng = không ưu ai (khay y như
         trước — Life In không được phép lệch một thẻ)."""
+    # NƠI CHỐN NGÁCH CHẤP NHẬN (hồ sơ ngách, 19/09) — luật NỚI, khác `geo_tap`
+    # vốn là luật CHẶT của TẬP (clip phải khớp, geo trống cũng loại). Ở đây:
+    # clip CÓ nơi chốn thì phải nằm trong danh sách này, còn clip KHÔNG gắn nơi
+    # chốn vẫn đi bình thường. Cần cho ngách gắn một VÙNG (SENIOR HEALTH là
+    # ngách Mỹ) — clip geo='usa' là đúng cảnh của nó mà cửa ngược chặn sạch.
+    # Đo thật: khai 'usa' cho KIM048 chỉ thêm 4 thẻ và không cứu khay trống nào
+    # — kho ngách đó phần lớn không gắn nhãn vùng.
+    cho_phep = _tokens_dia([dia_ly_cho_phep]) if dia_ly_cho_phep else set()
     l0, l1 = _tokens(lop.get("L0")), _tokens(lop.get("L1"))
     l2, l3 = _tokens(lop.get("L2")), _tokens(lop.get("L3"))
     # kéo ứng viên qua FTS bằng TOÀN BỘ từ của các lớp (OR) — rẻ hơn quét cả bảng
@@ -187,7 +195,8 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         # Tư liệu CỦA MÌNH được miễn: `ref` của chính tập (nạp ref gắn cứng
         # quốc gia nên nhiều cảnh có geo), `kho`/`rec` (sổ nguồn gốc xếp chung
         # nhóm "local"). Chặn chúng là chặn nhầm nhà.
-        if not gt and gc and c["nguon"] not in TU_LIEU_CUA_MINH:
+        if (not gt and gc and not (gc & cho_phep)
+                and c["nguon"] not in TU_LIEU_CUA_MINH):
             continue
         co_neo = bool(c.get("geo")) or c["nguon"] in ("ref", "kho")
         # CỬA L0: thuộc thế giới video (neo địa lý HOẶC trúng chủ thể tập)

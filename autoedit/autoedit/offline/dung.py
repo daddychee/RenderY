@@ -86,9 +86,24 @@ def clip_da_dung_trong_tap(projects_dir, ma_tap: str, tru: str) -> dict[str, int
     return dem
 
 
+def dia_ly_ngach(ngach: str) -> str:
+    """Nơi chốn ngách CHẤP NHẬN, lấy từ hồ sơ ngách (QĐ18b) -> chuỗi cho `tra`.
+
+    Hồ sơ hỏng/chưa khai -> rỗng, tức giữ nguyên cửa ngược (loại mọi clip có
+    nơi chốn). Không ném: cả team đang dựng không được chết vì một file hồ sơ.
+    """
+    try:
+        from autoedit import ngach as _ng
+
+        return " ".join(_ng.dia_ly(ngach or ""))
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                 uu_tien_nguon: str = "", so_moi_khoi: int = 12,
                 bo_nguon: tuple = (), geo_tap: str = "", tap: str = "",
+                dia_ly_cho_phep: str = "",
                 da_dung: dict[str, int] | None = None,
                 nhan_vat: dict | None = None) -> list[list[dict]]:
     """Mỗi khối một danh sách ứng viên (đã xếp lớp/điểm) từ Library.
@@ -106,6 +121,7 @@ def do_ung_vien(conn, khoi: list, lop, chu_the_tap: list[str],
                  so=so_moi_khoi + (6 if bo_nguon else 0),
                  uu_tien_nguon=uu_tien_nguon, can_neo=bool(o.neo), seed=i,
                  geo_tap=geo_tap, tap=tap, da_dung=da_dung,
+                 dia_ly_cho_phep=dia_ly_cho_phep,
                  # QĐ15b: giữ chỗ khay cho thẻ ĐÚNG NGƯỜI, không thì `xep_3_tang`
                  # chỉ được xếp lại một khay đã 85% người sai.
                  nhan_vat=nhan_vat)
@@ -452,6 +468,7 @@ def do_lai_khay(hd: dict, conn, so_moi_khoi: int = 12,
                       so=so_moi_khoi, uu_tien_nguon=hd.get("uu_tien_nguon") or "",
                       can_neo=bool(k.get("neo")), seed=i,
                       geo_tap=hd.get("dia_danh") or "", tap=hd.get("ma_tap") or "",
+                      dia_ly_cho_phep=dia_ly_ngach(hd.get("ngach") or ""),
                       da_dung=da_dung)
         except Exception:  # noqa: BLE001 — một khối hỏng không giết cả chương
             continue
@@ -595,6 +612,7 @@ def lam_tuoi_ref(hd: dict, conn) -> bool:
                             "L3": k.get("L3") or []},
                      so=12, uu_tien_nguon="ref", can_neo=bool(k.get("neo")),
                      seed=i, geo_tap=hd.get("dia_danh") or "",
+                     dia_ly_cho_phep=dia_ly_ngach(hd.get("ngach") or ""),
                      tap=hd.get("ma_tap") or "")
             tuoi_theo_khoi[i] = [
                 {"id": c["id"], "nguon": c["nguon"], "tieu_de": c["tieu_de"],
