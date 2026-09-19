@@ -340,7 +340,11 @@ def test_do_nhu_auto_bo_envato_thi_phu_giam(tmp_path, monkeypatch):
         ]):
             sdb.them_clip(conn, {"id": sdb.lam_id(nguon, str(i)), "nguon": nguon,
                                  "tieu_de": ten, **tag_tu_tieu_de(ten)})
-        hd = {"ma_tap": "LI999", "dia_danh": "", "chu_the_tap": [],
+        # Hai clip đều mang geo 'ecuador>...' (tag_tu_tieu_de đọc Quito/Andes).
+        # Từ 19/09 `tra` có cửa địa lý CHIỀU NGƯỢC, nên tập PHẢI khai địa danh —
+        # Life In không khai được là trạng thái KHÔNG tồn tại thật (cổng nộp
+        # chặn 422). Không khai thì cả 2 clip bị loại và test đo nhầm thứ khác.
+        hd = {"ma_tap": "LI999", "dia_danh": "ecuador", "chu_the_tap": [],
               "khoi": [
                   {"v0": 0, "v1": 2, "L1": ["market"], "L2": [], "L3": [],
                    "neo": False, "uv": [{"nguon": "envato"}]},
