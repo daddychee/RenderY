@@ -27,6 +27,10 @@ from autoedit.sotra import db as sdb
 from autoedit.sotra.tra import SAN_REF, tra
 
 STOCK = ("envato", "pexels", "pixabay")
+# Kho ở đây gắn geo="nepal" cho mọi clip, tức mô phỏng một TẬP VỀ NEPAL. Từ
+# 19/09 `tra` có cửa địa lý CHIỀU NGƯỢC (tập không khai nơi chốn thì loại clip
+# có nơi chốn), nên phải khai `geo_tap` — không khai là mô phỏng một trạng thái
+# KHÔNG tồn tại thật: cổng nộp bắt buộc ngách gắn địa lý phải khai địa danh.
 LOP = {"L0": [], "L1": ["market"], "L2": ["street"], "L3": ["morning"]}
 
 
@@ -69,13 +73,13 @@ def test_san_ref_la_ba():
 
 def test_khay_du_SAN_REF_khi_kho_co(conn):
     _kho_day(conn)
-    ra = tra(conn, LOP, so=12, tap="T1")
+    ra = tra(conn, LOP, so=12, tap="T1", geo_tap="nepal")
     assert _dem(ra)["ref"] >= SAN_REF
 
 
 def test_kho_it_ref_thi_KHONG_bia_them(conn):
     _kho_day(conn, so_ref=1)
-    ra = tra(conn, LOP, so=12, tap="T1")
+    ra = tra(conn, LOP, so=12, tap="T1", geo_tap="nepal")
     assert _dem(ra)["ref"] == 1
 
 
@@ -84,7 +88,7 @@ def test_kho_it_ref_thi_KHONG_bia_them(conn):
 def test_moi_nguon_stock_co_it_nhat_mot_o(conn):
     """envato trước đây không có suất nào — chỉ pexels/pixabay được giữ chỗ."""
     _kho_day(conn)
-    d = _dem(tra(conn, LOP, so=12, tap="T1"))
+    d = _dem(tra(conn, LOP, so=12, tap="T1", geo_tap="nepal"))
     for ng in STOCK:
         assert d[ng] >= 1, f"khay thiếu hẳn nguồn {ng}"
 
@@ -95,7 +99,7 @@ def test_nguon_vang_mat_trong_kho_thi_thoi(conn):
         _them(conn, "ref", i, "market street morning")
     for i in range(8):
         _them(conn, "envato", 100 + i, "market street morning")
-    d = _dem(tra(conn, LOP, so=12, tap="T1"))
+    d = _dem(tra(conn, LOP, so=12, tap="T1", geo_tap="nepal"))
     assert d["pixabay"] == 0 and d["envato"] >= 1 and d["ref"] >= SAN_REF
 
 
@@ -104,13 +108,13 @@ def test_nguon_vang_mat_trong_kho_thi_thoi(conn):
 def test_khay_KHONG_vuot_qua_so_o_yeu_cau(conn):
     _kho_day(conn, so_ref=20, so_stock=20)
     for so in (8, 12, 16):
-        ra = tra(conn, LOP, so=so, tap="T1")
+        ra = tra(conn, LOP, so=so, tap="T1", geo_tap="nepal")
         assert len(ra) <= so, f"khay {len(ra)} ô > {so} ô yêu cầu"
 
 
 def test_khay_van_xep_theo_diem_giam_dan(conn):
     _kho_day(conn)
-    diem = [u["diem"] for u in tra(conn, LOP, so=12, tap="T1")]
+    diem = [u["diem"] for u in tra(conn, LOP, so=12, tap="T1", geo_tap="nepal")]
     assert diem == sorted(diem, reverse=True)
 
 
@@ -149,7 +153,7 @@ def test_ref_trung_tieu_de_van_du_the_phan_biet(conn):
         for i in range(6):
             _them(conn, ng, 200 + j * 20 + i, "woman speaking scene")
     ra = tra(conn, {"L0": [], "L1": ["woman speaking"], "L2": [], "L3": []},
-             so=12, tap="T1")
+             so=12, tap="T1", geo_tap="nepal")
     the_ref = [u for u in ra if u["nguon"] == "ref"]
     ten = [(u.get("tieu_de") or "").lower() for u in the_ref]
     assert len(the_ref) >= SAN_REF, f"gộp bản trùng nuốt mất sàn ref: {ten}"

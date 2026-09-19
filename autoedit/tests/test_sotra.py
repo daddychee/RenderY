@@ -98,11 +98,13 @@ def test_tra_4_lop_giao_nhau(conn):
     sdb.them_clip(conn, _clip(4, "New York Refrigerator Store"))   # KHÔNG neo, không L0
     sdb.them_clip(conn, {"id": sdb.lam_id("ref", "LI100-r1", "5-9"), "nguon": "ref",
                          "tieu_de": "gia đình nấu ăn", "path_local": "x.mp4",
-                         **tag_tu_tieu_de("family cooking")})
+                         # `nap_ref_tap` gắn CỨNG quốc gia cấp tập cho mọi cảnh
+                         # ref — fixture phải giống, không thì cửa geo loại nó.
+                         **{**tag_tu_tieu_de("family cooking"), "geo": "ecuador"}})
     conn.commit()
     lop = {"L0": ["ecuador", "daily life", "cost"], "L1": ["refrigerator food"],
            "L2": ["grocery supermarket"], "L3": ["quito street morning"]}
-    kq = tra(conn, lop, so=10)
+    kq = tra(conn, lop, so=10, geo_tap="ecuador")   # tập Ecuador PHẢI khai (QĐ14)
     lops = [(c["id"], c["lop"]) for c in kq]
     assert lops[0] == ("envato:1", "L1")               # trực chỉ đứng đầu
     assert ("envato:4", "L1") not in lops              # trượt cửa L0 (không neo)
@@ -116,7 +118,7 @@ def test_tra_uu_tien_nguon(conn):
     sdb.them_clip(conn, _clip(2, "Quito Market Vendor", nguon="envato"))
     conn.commit()
     lop = {"L0": ["ecuador"], "L1": ["market"], "L2": [], "L3": []}
-    kq = tra(conn, lop, uu_tien_nguon="pexels")
+    kq = tra(conn, lop, uu_tien_nguon="pexels", geo_tap="ecuador")
     assert kq[0]["nguon"] == "pexels"
 
 

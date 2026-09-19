@@ -67,6 +67,25 @@ def _tokens(cum) -> set:
     return {w for c in (cum or []) for w in re.findall(r"[a-z]{4,}", str(c).lower())}
 
 
+def _tokens_dia(cum) -> set:
+    """Tokenizer riêng cho NHÃN ĐỊA LÝ — lấy từ >=2 chữ cái.
+
+    `_tokens` chung lấy >=4 chữ để bớt nhiễu lúc chấm điểm chữ, nhưng áp vào
+    địa danh thì nuốt sạch `usa`, `uk`. Đo 19/09: kho có **84 clip** mang nhãn
+    geo bị nuốt kiểu này, và trên tập XF001 chúng lọt vào khay **27 lần** —
+    trong đó có «Crowd of People in Times Square, New York City» nằm giữa một
+    chương X FILE về động cơ phản lực.
+    """
+    if isinstance(cum, str):
+        cum = [cum]
+    return {w for c in (cum or []) for w in re.findall(r"[a-z]{2,}", str(c).lower())}
+
+
+# Nguồn là TƯ LIỆU CỦA MÌNH — miễn cửa địa lý chiều ngược. Cùng nhóm "local"
+# với `packager/sourcebook.py`.
+TU_LIEU_CUA_MINH = ("ref", "kho", "rec")
+
+
 def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         can_neo: bool = True, suat_ref: int = 2, seed: int = 0,
         geo_tap: str = "", tap: str = "",
@@ -150,13 +169,25 @@ def tra(conn, lop: dict, so: int = 12, uu_tien_nguon: str = "",
         #    thật cho editor, không phải chỗ để lấp bừa.
         #    Tiêu đề có nhắc địa danh mà cột geo rỗng (clip nạp trước khi từ
         #    điển được mở rộng) thì đọc lại từ tiêu đề, khỏi phải nạp lại kho.
-        gt = _tokens([geo_tap]) if geo_tap else set()
-        gc = _tokens([(c.get("geo") or "").replace(">", " ")])
+        gt = _tokens_dia([geo_tap]) if geo_tap else set()
+        gc = _tokens_dia([(c.get("geo") or "").replace(">", " ")])
         if gt and not gc:
             from autoedit.sotra.tag7 import tag_tu_tieu_de
-            gc = _tokens([(tag_tu_tieu_de(c.get("tieu_de") or "").get("geo") or "")
-                          .replace(">", " ")])
+            gc = _tokens_dia([(tag_tu_tieu_de(c.get("tieu_de") or "").get("geo") or "")
+                              .replace(">", " ")])
         if gt and not (gt & gc):
+            continue
+        # CHIỀU NGƯỢC (user chốt 19/09) — ngách KHÔNG gắn nơi chốn thì clip CÓ
+        # gắn nơi chốn là footage hút cho ngách KHÁC. Cửa trên chỉ bật khi tập
+        # hiện tại khai địa danh, nên trước 19/09 ngách như X FILE không có cửa
+        # nào: đo trên tập thật XF004, 45/92 hình MÁY ĐÃ CHỌN là clip có nơi
+        # chốn, 41 trong đó là Ecuador hút cho Life In — kể cả «Animated
+        # Ecuador Flag with Global Financial Market Data».
+        #
+        # Tư liệu CỦA MÌNH được miễn: `ref` của chính tập (nạp ref gắn cứng
+        # quốc gia nên nhiều cảnh có geo), `kho`/`rec` (sổ nguồn gốc xếp chung
+        # nhóm "local"). Chặn chúng là chặn nhầm nhà.
+        if not gt and gc and c["nguon"] not in TU_LIEU_CUA_MINH:
             continue
         co_neo = bool(c.get("geo")) or c["nguon"] in ("ref", "kho")
         # CỬA L0: thuộc thế giới video (neo địa lý HOẶC trúng chủ thể tập)
