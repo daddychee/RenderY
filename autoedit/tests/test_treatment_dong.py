@@ -15,7 +15,7 @@ Sheet để lại (đo thật: 16 chỗ trong 5/51 kịch bản trên NAS).
 
 from __future__ import annotations
 
-from autoedit.factcheck.dong import che, gop, nap, ranh, xuat
+from autoedit.treatment.dong import che, gop, nap, ranh, xuat
 
 MAU = """Number two is the one people switch to thinking they are doing the healthy thing.
 Diet soda and zero-sugar drinks.

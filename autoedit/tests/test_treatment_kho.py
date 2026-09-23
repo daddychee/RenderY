@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from autoedit.factcheck.kho import Kho, KhoaBiGiu
+from autoedit.treatment.kho import Kho, KhoaBiGiu
 
 
 @pytest.fixture()

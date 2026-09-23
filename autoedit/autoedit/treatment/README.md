@@ -1,6 +1,6 @@
-# Factcheck — bàn kịch bản + kiểm chứng nguồn
+# Treatment — bàn kịch bản + kiểm chứng nguồn
 
-Một module của RenderY (`autoedit/factcheck/`), chạy **tiến trình riêng ở cổng
+Một module của RenderY (`autoedit/treatment/`), chạy **tiến trình riêng ở cổng
 9121** để restart nó không cắt UI của người đang dựng ở 9118.
 
 Công cụ biên kịch đứng **trước** dây chuyền dựng video. Team dán kịch bản tiếng
@@ -47,7 +47,7 @@ kiểm** — link sống + trích đoạn có thật trong trang. LLM nói đún
 nào kiểm được thì rơi xuống ❌. Không có luật này thì ✅ chỉ là lời LLM tự khen
 mình, tệ hơn không có tool vì người viết sẽ thôi tự đọc nguồn.
 
-Nguồn xếp 3 hạng (`factcheck/nguon.py`): hạng 1 bài bình duyệt / cơ quan nhà nước
+Nguồn xếp 3 hạng (`treatment/nguon.py`): hạng 1 bài bình duyệt / cơ quan nhà nước
 / hồ sơ chính thức · hạng 2 báo uy tín · hạng 3 bách khoa, trang phổ thông (chỉ
 để tra ngược ra bài gốc, **không** đủ làm bằng chứng). Tên miền lạ bị từ chối —
 thà bắt kiểm tay còn hơn đóng dấu ✅ cho một blog.
@@ -82,7 +82,7 @@ không phá được việc của người thứ nhất. Mỗi chương giữ **
 
 Là module của RenderY nhưng **không dính tầng dựng**: chỉ được dùng lại đúng hai
 thứ — luật tên chương (`web/chapters.py`) và két khoá (`web/ket_v3.py`). Có test
-quét mã canh điều đó (`test_factcheck_app.py::test_khong_dinh_gi_toi_day_chuyen_dung`),
+quét mã canh điều đó (`test_treatment_app.py::test_khong_dinh_gi_toi_day_chuyen_dung`),
 nên sập bên này không kéo theo 9118.
 
 Kho dữ liệu riêng (`kichban.db`), tiến trình riêng, cổng riêng.

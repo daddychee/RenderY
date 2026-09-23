@@ -47,7 +47,7 @@ def tim_serper(truy_van: str, so: int = 8, cai_dat: dict | None = None) -> list[
     """Google qua Serper.dev -> [{url, ten, mo_ta}]. Không có khoá -> rỗng.
 
     Thứ tự khoá: tab ⚙ trong app -> két OUTLIERY -> biến môi trường. Ô trong app
-    là BẮT BUỘC phải có: đóng gói xong, máy chủ chạy Factcheck ở thư mục riêng nên
+    là BẮT BUỘC phải có: đóng gói xong, máy chủ chạy Treatment ở thư mục riêng nên
     không import được `autoedit` -> mất luôn khoá Serper của két, mà mất kênh này
     thì mảng điều tra báo chí chết lặng, chỉ còn Europe PMC lo phần học thuật.
     """
@@ -219,7 +219,7 @@ class LlmKiem:
     """GLM đọc trang và kết luận. Cùng khuôn gọi với `dich.DichGLM`."""
 
     def __init__(self, key: str = "", model: str = "", cai_dat: dict | None = None) -> None:
-        from autoedit.factcheck.dich import DichGLM
+        from autoedit.treatment.dich import DichGLM
 
         goc = DichGLM(key=key, model=model, cai_dat=cai_dat)   # chung đường lấy khoá
         self.key, self.url, self.model = goc.key, goc.url, goc.model
@@ -227,7 +227,7 @@ class LlmKiem:
     def _goi(self, he: str, than: str) -> dict:
         """Dùng CHUNG một đường gọi với bộ dịch — một chỗ sửa, không để hai nơi
         lệch nhau (urllib/requests, tham số riêng từng nhà, câu báo lỗi)."""
-        from autoedit.factcheck.dich import DichGLM
+        from autoedit.treatment.dich import DichGLM
 
         m = DichGLM(key=self.key, model=self.model)
         m.url = self.url

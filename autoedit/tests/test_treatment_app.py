@@ -18,8 +18,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from autoedit.factcheck.app import tao_app
-from autoedit.factcheck.kho import Kho
+from autoedit.treatment.app import tao_app
+from autoedit.treatment.kho import Kho
 
 
 class DichGia:
@@ -200,7 +200,7 @@ def test_lui_ve_ban_cu_qua_api(bo):
 
 # ----------------------------- cách ly production ---------------------------
 def test_khong_dinh_gi_toi_day_chuyen_dung():
-    """Factcheck là MỘT THƯ MỤC RIÊNG TRONG RenderY (user chốt 18/09) — không phải
+    """Treatment là MỘT THƯ MỤC RIÊNG TRONG RenderY (user chốt 18/09) — không phải
     tool tách hẳn. Nó được dùng lại đồ của RenderY, nhưng CHỈ hai thứ đã khai:
     luật tên chương và két khoá. Đụng tới tầng dựng (`web.server`, `offline`,
     `packager`…) là sai: sập bên này không được kéo theo 9118.
@@ -208,15 +208,15 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     import pathlib
     import re
 
-    goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "factcheck"
-    cho_phep = ("autoedit.factcheck", "autoedit.web.chapters", "autoedit.web.ket_v3")
+    goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "treatment"
+    cho_phep = ("autoedit.treatment", "autoedit.web.chapters", "autoedit.web.ket_v3")
     xau = []
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",
                             f.read_text(encoding="utf-8"), re.M):
             if not m.startswith(cho_phep):
                 xau.append(f"{f.name}: {m}")
-    assert not xau, f"factcheck đang với sang tầng dựng: {xau}"
+    assert not xau, f"treatment đang với sang tầng dựng: {xau}"
 
 
 def test_api_toi_tra_ve_nguoi_dang_dang_nhap(bo):
@@ -236,7 +236,7 @@ def test_chi_tin_header_khi_co_co_va_loopback(tmp_path, monkeypatch):
     Mặc định (không đặt cờ) vẫn tin, để chạy tay trên máy mình không vướng; cờ
     này để BẬT chế độ nghiêm khi đặt sau proxy.
     """
-    from autoedit.factcheck.app import tao_app as _tao
+    from autoedit.treatment.app import tao_app as _tao
 
     kho = Kho(tmp_path / "k.db")
     c = TestClient(_tao(kho), client=("10.0.0.9", 5000))   # KHÔNG phải loopback
@@ -256,7 +256,7 @@ def test_co_xuong_may_chu_chay_that(tmp_path, monkeypatch):
     Dùng factory chứ không phải biến APP sẵn ở module — biến sẵn nghĩa là chỉ
     IMPORT thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
-    from autoedit.factcheck import app as mapp
+    from autoedit.treatment import app as mapp
 
     monkeypatch.setenv("KICHBAN_DB", str(tmp_path / "k.db"))
     a = mapp.tao_app_mac_dinh()
@@ -319,7 +319,7 @@ def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
 
     Két tắt/chưa cấp phát -> rơi về biến môi trường (chạy tay trên máy dev).
     """
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-KET", "glm-5.3"))
     monkeypatch.setenv("GLM_API_KEY", "KHOA-ENV")
@@ -332,7 +332,7 @@ def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
 def test_ket_hong_khong_giet_ban_kich_ban(monkeypatch):
     """Gateway chết / không có mạng: vẫn mở được bàn kịch bản, chỉ nút Dịch lại
     báo lỗi. Cột tiếng Anh mới là thứ phải sống."""
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     def _no(): raise RuntimeError("gateway chết")
     monkeypatch.setattr(mdich, "_khoa_tu_ket", _no)
@@ -348,7 +348,7 @@ class KiemGia:
         self.ket, self.da_kiem = ket, []
 
     def __call__(self, doan, **kw):
-        from autoedit.factcheck.kiem import KetQua, Nguon, chu_ky
+        from autoedit.treatment.kiem import KetQua, Nguon, chu_ky
 
         self.da_kiem.append(doan)
         n = Nguon(url="https://www.cdc.gov/x", ten="CDC", trich="y",
@@ -436,8 +436,8 @@ def test_suc_khoe_bao_CANH_BAO_khi_thieu_khoa(tmp_path, monkeypatch):
     Phải BỊT CẢ HAI đường khoá: máy chạy test này có két thật của cụm, không bịt
     thì nó tìm ra khoá và test "thiếu khoá" xanh vì lý do sai.
     """
-    from autoedit.factcheck import dich as mdich
-    from autoedit.factcheck import tra as mtra
+    from autoedit.treatment import dich as mdich
+    from autoedit.treatment import tra as mtra
 
     monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("", ""))
     monkeypatch.setattr(mtra, "_khoa", lambda *a, **k: "")

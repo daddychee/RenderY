@@ -18,8 +18,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from autoedit.factcheck.app import tao_app
-from autoedit.factcheck.kho import Kho
+from autoedit.treatment.app import tao_app
+from autoedit.treatment.kho import Kho
 
 
 @pytest.fixture()
@@ -68,7 +68,7 @@ def test_de_trong_thi_xoa_de_roi_ve_ket(c):
 def test_dia_chi_goc_duoc_tu_noi_duoi_openai():
     """User đưa `https://api2.apisuper.cloud` — đó là GỐC, chưa phải endpoint.
     Tự nối `/v1/chat/completions` thay vì bắt người dùng nhớ."""
-    from autoedit.factcheck.dich import dia_chi_chat
+    from autoedit.treatment.dich import dia_chi_chat
 
     assert dia_chi_chat("https://api2.apisuper.cloud") == \
         "https://api2.apisuper.cloud/v1/chat/completions"
@@ -77,7 +77,7 @@ def test_dia_chi_goc_duoc_tu_noi_duoi_openai():
 
 
 def test_dia_chi_da_day_du_thi_giu_nguyen():
-    from autoedit.factcheck.dich import dia_chi_chat
+    from autoedit.treatment.dich import dia_chi_chat
 
     u = "https://api.z.ai/api/paas/v4/chat/completions"
     assert dia_chi_chat(u) == u
@@ -86,7 +86,7 @@ def test_dia_chi_da_day_du_thi_giu_nguyen():
 
 # ------------------------------- thứ tự đọc ---------------------------------
 def test_cai_dat_trong_app_THANG_ket_va_env(tmp_path, monkeypatch):
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     kho = Kho(tmp_path / "k.db")
     kho.luu_cai_dat({"llm_key": "KHOA-APP", "llm_model": "grok-4.6",
@@ -101,7 +101,7 @@ def test_cai_dat_trong_app_THANG_ket_va_env(tmp_path, monkeypatch):
 
 
 def test_bo_trong_o_app_thi_roi_ve_ket(tmp_path, monkeypatch):
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     kho = Kho(tmp_path / "k.db")
     monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-KET", "glm-5.3"))
@@ -141,7 +141,7 @@ def test_chon_model_rieng_cho_dich_va_cho_kiem(c):
 
 
 def test_de_trong_dich_model_thi_dung_chung_model_kiem(tmp_path):
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     kho = Kho(tmp_path / "k.db")
     kho.luu_cai_dat({"llm_key": "K", "llm_model": "grok-4.6",
@@ -150,7 +150,7 @@ def test_de_trong_dich_model_thi_dung_chung_model_kiem(tmp_path):
 
 
 def test_dich_dung_dich_model_khi_co(tmp_path):
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     kho = Kho(tmp_path / "k.db")
     kho.luu_cai_dat({"llm_key": "K", "llm_model": "grok-4.6", "dich_model": "gpt-5.6",
@@ -162,7 +162,7 @@ def test_tham_so_rieng_cua_glm_khong_gui_cho_nha_khac(tmp_path):
     """`reasoning_effort` là tham số RIÊNG của GLM (bắt buộc với nó — thiếu thì
     nó nuốt hết token vào phần suy nghĩ). Gửi sang cổng trung gian chạy
     grok-4.6 / gpt-5.6 thì nhiều cổng trả 400. Chỉ gửi khi model là glm."""
-    from autoedit.factcheck.dich import than_goi
+    from autoedit.treatment.dich import than_goi
 
     assert "reasoning_effort" in than_goi("glm-5.3", "he", "than")
     assert "reasoning_effort" not in than_goi("grok-4.6", "he", "than")
@@ -176,7 +176,7 @@ def test_dat_dia_chi_moi_thi_KHONG_muon_khoa_cua_he(tmp_path, monkeypatch):
     Địa chỉ và khoá phải đi CÙNG MỘT NGUỒN: đã khai địa chỉ riêng thì khoá cũng
     phải là khoá riêng, thiếu thì báo thẳng "chưa có khoá".
     """
-    from autoedit.factcheck import dich as mdich
+    from autoedit.treatment import dich as mdich
 
     kho = Kho(tmp_path / "k.db")
     kho.luu_cai_dat({"llm_url": "https://api2.apisuper.cloud", "llm_model": "grok-4.6"})
@@ -197,7 +197,7 @@ def test_bao_loi_goi_dung_TEN_MODEL_chu_khong_phai_GLM(tmp_path):
     """
     import requests
 
-    from autoedit.factcheck.dich import DichGLM, DichLoi
+    from autoedit.treatment.dich import DichGLM, DichLoi
 
     m = DichGLM(cai_dat={"llm_url": "https://api2.apisuper.cloud",
                          "llm_model": "grok-4.6", "llm_key": "sk-gia"})
@@ -217,7 +217,7 @@ def test_bao_loi_goi_dung_TEN_MODEL_chu_khong_phai_GLM(tmp_path):
 
 def test_thieu_khoa_thi_chi_duong_toi_tab_cai_dat():
     """Câu lỗi phải nói người dùng làm gì tiếp, không chỉ nêu tên biến kỹ thuật."""
-    from autoedit.factcheck.dich import DichGLM, DichLoi
+    from autoedit.treatment.dich import DichGLM, DichLoi
 
     m = DichGLM(cai_dat={"llm_url": "https://api2.apisuper.cloud"})
     with pytest.raises(DichLoi, match="Cài đặt"):
@@ -225,7 +225,7 @@ def test_thieu_khoa_thi_chi_duong_toi_tab_cai_dat():
 
 
 def test_khoa_serper_cung_dat_duoc_trong_app(c):
-    """Đóng gói xong mới lộ: máy chủ chạy Factcheck với thư mục làm việc riêng nên
+    """Đóng gói xong mới lộ: máy chủ chạy Treatment với thư mục làm việc riêng nên
     KHÔNG import được `autoedit` -> khoá Serper trong két cũng mất theo, chỉ còn
     kênh Europe PMC. Fact-check mảng ĐIỀU TRA BÁO CHÍ sẽ chết lặng.
 
@@ -237,7 +237,7 @@ def test_khoa_serper_cung_dat_duoc_trong_app(c):
 
 
 def test_tra_serper_lay_khoa_tu_cai_dat_truoc(monkeypatch, tmp_path):
-    from autoedit.factcheck import tra as mtra
+    from autoedit.treatment import tra as mtra
 
     kho = Kho(tmp_path / "k.db")
     kho.luu_cai_dat({"serper_key": "KHOA-APP"})

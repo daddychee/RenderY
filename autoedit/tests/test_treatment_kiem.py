@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from autoedit.factcheck.kiem import kiem_doan
+from autoedit.treatment.kiem import kiem_doan
 
 DOAN = ("The Women's Health Initiative found women drinking two or more "
         "artificially sweetened drinks a day had about 23 percent higher risk of stroke.")

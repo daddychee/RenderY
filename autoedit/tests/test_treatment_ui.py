@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 TRANG = (Path(__file__).resolve().parents[1]
-         / "autoedit" / "factcheck" / "static" / "factcheck.html")
+         / "autoedit" / "treatment" / "static" / "treatment.html")
 
 
 @pytest.fixture(scope="module")
@@ -105,3 +105,11 @@ def test_co_tab_cai_dat(html):
 def test_co_o_khoa_serper(html):
     """Đứng riêng thì không đọc được két — khoá Serper phải đặt được tại chỗ."""
     assert "s-serper" in html and "Serper" in html
+
+
+def test_nhan_hien_thi_la_Treatment(html):
+    """User đổi tên tool 23/09: Factcheck -> Treatment. Nhãn trên trang phải đổi
+    theo, không để tên cũ sót lại ở chỗ người dùng nhìn thấy."""
+    assert "<title>Treatment" in html
+    assert "· Treatment" in html
+    assert "Factcheck" not in html and "factcheck" not in html
