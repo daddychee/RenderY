@@ -34,7 +34,11 @@
 }
 *{box-sizing:border-box}
 html{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);min-height:100%;
+/* Khung cao ĐÚNG MỘT MÀN HÌNH, mỗi cột tự cuộn (user chốt 23/09). Trước đó
+   `min-height:100%` cho trang phình theo nội dung -> cả trang cuộn như tờ giấy,
+   làm nửa dưới chương là mất sạch thanh trên + bảng màu + panel (đo: −1771px,
+   −1707px, −1663px trên SE001/C1). */
+body{margin:0;background:var(--bg);color:var(--text);height:100%;overflow:hidden;
      display:flex;flex-direction:column;
      font:14px/1.5 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
 button,select,input,textarea{font:inherit;color:inherit}
@@ -206,7 +210,6 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 
   <div class="cot" id="cotScript">
     <div id="khoaHop"></div>
-    <div id="bangMau"></div>
     <div class="dau" id="dauCot" hidden>
       <div><p class="nhan">English Script</p>
            <button class="cp phai" onclick="chep('en')">⧉ Copy .txt</button></div>
@@ -218,6 +221,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   </div>
 
   <div class="cot">
+    <div id="bangMau"></div>
     <div class="tabs">
       <button id="tb-t" class="on" onclick="doiTab('t')">Treatment</button>
       <button id="tb-c" onclick="doiTab('c')">Citation</button>

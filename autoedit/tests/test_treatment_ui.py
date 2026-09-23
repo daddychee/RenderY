@@ -100,3 +100,32 @@ def test_trang_bao_che_do_chi_xem(html):
     assert "sua_duoc" in html
     assert "chỉ xem" in html.lower()
     assert "SUA_DUOC" in html, "trang phải giữ cờ quyền để tắt các nút ghi"
+
+
+# ---------------- bố cục: một màn hình, mỗi cột cuộn riêng (23/09) ----------
+def test_khung_cao_dung_mot_man_hinh(html):
+    """Đo 23/09 trên SE001/C1: bấm dòng 18 thì thanh trên (−1771px), bảng màu
+    (−1707px) và panel Treatment (−1663px) đều RA NGOÀI màn hình — làm nửa dưới
+    chương là mất sạch công cụ. Vì `body{min-height:100%}` cho trang phình theo
+    nội dung nên cả trang cuộn như tờ giấy, không cột nào cuộn riêng.
+
+    Khung phải cao đúng một màn hình để CHỈ cột giữa cuộn.
+    """
+    goc = html.replace(" ", "").replace("\n", "")
+    assert "body{margin:0" in goc and "height:100%;overflow:hidden" in goc, \
+        "body phải khoá đúng chiều cao màn hình"
+    than = goc[goc.index("<body") if "<body" in goc else 0:]
+    assert "body{margin:0" in goc
+    assert "min-height:100%;display:flex" not in goc, "min-height làm trang phình theo nội dung"
+    _ = than
+    assert ".cot{background:var(--bg);overflow:auto" in goc, "mỗi cột tự cuộn"
+
+
+def test_bang_mau_nam_o_COT_PHAI_canh_treatment(html):
+    """User chốt 23/09: bảng màu cụm sang cột phụ bên Treatment, thành một cụm
+    công cụ đứng yên — cuộn tới dòng nào cũng với tới được."""
+    i_tab = html.index('id="tb-c"')                 # tab Citation — chắc chắn cột phải
+    i_cot3 = html.rindex('<div class="cot">', 0, i_tab)   # đầu cột phải
+    i_mau = html.index('id="bangMau"')
+    assert i_mau > i_cot3, "bảng màu phải nằm TRONG cột phải"
+    assert i_mau < i_tab, "và nằm trên khối tab — cụm công cụ đọc từ trên xuống"
