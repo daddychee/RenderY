@@ -26,6 +26,10 @@ from autoedit.treatment.kho import Kho, KhoaBiGiu
 
 TRANG = Path(__file__).parent / "static" / "treatment.html"
 
+# Số dòng mỗi lượt gọi LLM. 8 là chỗ đo được: 17-18 dòng/lượt vẫn qua,
+# 20 dòng thì JSON cụt (SE001/C6, 23/09). Để rộng gấp đôi mức an toàn.
+CO_LO = 8
+
 
 def _loopback(request: Request) -> bool:
     host = (request.client.host if request.client else "") or ""
@@ -233,8 +237,15 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
     # -------------------------------------------------------------- dịch
     @app.post("/api/tap/{tap}/{chuong}/dich")
     def dich_chuong(tap: str, chuong: str, request: Request):
-        """Chỉ dịch dòng CÒN THIẾU — không đụng dòng người đã sửa tay, và không
-        đốt tiền dịch lại cả chương mỗi lần chẻ một dòng."""
+        """Dịch các dòng CÒN THIẾU, chia LÔ nhỏ và lưu sau mỗi lô.
+
+        Vì sao chia lô (đo thật 23/09 trên SE001): gửi cả chương 20 dòng thì
+        Claude trả JSON CỤT — `Expecting ',' delimiter` — và mất trắng cả chương;
+        chương 9-17 dòng thì qua. Lô nhỏ thì mỗi lượt JSON ngắn, và lô nào hỏng
+        cũng KHÔNG cuốn theo phần đã dịch xong: bấm lại là nó dịch tiếp chỗ thiếu.
+
+        Không đụng dòng người đã sửa tay, không dịch lại dòng đã có.
+        """
         ai = _ghi_duoc(request)
         if dich is None:
             raise HTTPException(503, "Chưa bật bộ dịch.")
@@ -243,17 +254,27 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
                and (x.get("en") or "").strip()]
         if not can:
             return {"dich": 0}
-        try:
-            ra = dich.dich([d[i]["en"] for i in can])
-        except Exception as exc:          # noqa: BLE001 — cột tiếng Anh phải còn nguyên
-            raise HTTPException(502, f"Dịch hỏng: {exc}") from exc
-        for i, v in zip(can, ra):
-            d[i]["vi"] = v
-        try:
-            kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
-        except KhoaBiGiu as exc:
-            raise HTTPException(409, str(exc)) from exc
-        return {"dich": len(can)}
+
+        xong, loi = 0, ""
+        for k in range(0, len(can), CO_LO):
+            phan = can[k:k + CO_LO]
+            try:
+                ra = dich.dich([d[i]["en"] for i in phan])
+            except Exception as exc:  # noqa: BLE001 — giữ phần đã dịch, báo rõ
+                loi = str(exc)
+                break
+            for i, v in zip(phan, ra):
+                d[i]["vi"] = v
+            xong += len(phan)
+            try:
+                kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
+            except KhoaBiGiu as exc:
+                raise HTTPException(409, str(exc)) from exc
+
+        if loi and not xong:
+            raise HTTPException(502, f"Dịch hỏng: {loi}")
+        return {"dich": xong, "con_thieu": len(can) - xong,
+                "loi": f"Dừng ở dòng {xong + 1}: {loi}" if loi else ""}
 
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")

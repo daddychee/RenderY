@@ -335,3 +335,68 @@ def test_suc_khoe_bao_LOI_khi_kho_hong(tmp_path):
     b = c.get("/api/suc-khoe").json()
     assert b["trang_thai"] == "loi"
     assert any(m["ten"] == "kho" and m["trang_thai"] == "loi" for m in b["mo_dun"])
+
+
+# ------------------- dịch theo LÔ (đo thật 23/09 trên SE001) -----------------
+class DichDem:
+    """Đếm số lượt gọi và kích thước từng lô."""
+
+    def __init__(self, hong_o_lo: int = -1):
+        self.lo: list[int] = []
+        self.hong_o_lo = hong_o_lo
+
+    def dich(self, cau):
+        self.lo.append(len(cau))
+        if len(self.lo) - 1 == self.hong_o_lo:
+            raise RuntimeError("claude-sonnet-5 trả về không đọc được: Expecting ','")
+        return ["VI:" + c for c in cau]
+
+
+def _chuong_dai(c, so_dong=20):
+    c.post("/api/tap/SH011/chuong", json={"ma": "C9"})
+    c.post("/api/tap/SH011/C9/nap",
+           json={"text": "\n".join(f"Line {i} of the script." for i in range(so_dong))})
+
+
+def test_dich_chia_LO_chu_khong_goi_mot_phat_ca_chuong(tmp_path):
+    """Đo thật 23/09 trên SE001: chương 20 dòng -> Claude trả JSON CỤT
+    ("Expecting ',' delimiter") và cả chương mất trắng. Chương ngắn thì qua.
+    Chia lô nhỏ thì mỗi lượt JSON ngắn, ít cụt hơn hẳn."""
+    kho = Kho(tmp_path / "k.db")
+    dem = DichDem()
+    c = TestClient(tao_app(kho, dich=dem))
+    c.headers.update({"X-Remote-User": "haint"})
+    c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
+    _chuong_dai(c)
+    assert c.post("/api/tap/SH011/C9/dich").json()["dich"] == 20
+    assert len(dem.lo) > 1, "phải chia lô"
+    assert max(dem.lo) <= 10, f"lô quá to: {dem.lo}"
+
+
+def test_lo_hong_thi_GIU_phan_da_dich(tmp_path):
+    """Hỏng lô thứ hai: 8 dòng lô đầu phải còn, không mất trắng cả chương."""
+    kho = Kho(tmp_path / "k.db")
+    c = TestClient(tao_app(kho, dich=DichDem(hong_o_lo=1)))
+    c.headers.update({"X-Remote-User": "haint"})
+    c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
+    _chuong_dai(c)
+    b = c.post("/api/tap/SH011/C9/dich").json()
+    assert 0 < b["dich"] < 20
+    assert "loi" in b and b["loi"], "phải nói rõ vì sao dừng"
+    d = c.get("/api/tap/SH011/C9").json()["dong"]
+    assert sum(1 for x in d if x["vi"]) == b["dich"], "phần đã dịch phải được lưu"
+
+
+def test_bam_lai_thi_dich_tiep_phan_con_thieu(tmp_path):
+    kho = Kho(tmp_path / "k.db")
+    hong = DichDem(hong_o_lo=1)
+    c = TestClient(tao_app(kho, dich=hong))
+    c.headers.update({"X-Remote-User": "haint"})
+    c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
+    _chuong_dai(c)
+    xong = c.post("/api/tap/SH011/C9/dich").json()["dich"]
+    c2 = TestClient(tao_app(kho, dich=DichDem()))
+    c2.headers.update({"X-Remote-User": "haint"})
+    assert c2.post("/api/tap/SH011/C9/dich").json()["dich"] == 20 - xong
+    d = c2.get("/api/tap/SH011/C9").json()["dong"]
+    assert all(x["vi"] for x in d)

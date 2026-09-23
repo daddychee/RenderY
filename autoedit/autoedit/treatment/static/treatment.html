@@ -696,7 +696,10 @@ async function dichLai(){
     try {
       var r = await api("/api/tap/" + TAP_MA + "/" + ds[i] + "/dich", "POST");
       DU[ds[i]] = await api("/api/tap/" + TAP_MA + "/" + ds[i]);
-      bao("Đã dịch <b>" + r.dich + " dòng</b> ở " + ds[i] + ".");
+      ve();
+      if(r.loi) bao("Dịch được <b>" + r.dich + " dòng</b> ở " + ds[i] + ", còn " +
+                    r.con_thieu + " dòng — bấm ⟳ lần nữa để dịch tiếp. (" + r.loi + ")", true);
+      else bao("Đã dịch <b>" + r.dich + " dòng</b> ở " + ds[i] + ".");
     } catch(e){ tt("✗ dịch hỏng", "loi"); return bao(e.message, true); }
   }
   tt("✓ Đã lưu " + gio(), "xong"); ve();
