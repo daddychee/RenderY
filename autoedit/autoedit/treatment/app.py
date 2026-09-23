@@ -81,10 +81,39 @@ def _nguoi(request: Request) -> str:
     return chuan_ten(request.cookies.get(COOKIE_AI) or "")
 
 
+HANH_DONG_SUA = "sua"
+
+
+def _co_hanh_dong(request: Request) -> set[str]:
+    """Cờ hành động do GATEWAY tính và tiêm (`X-Remote-Actions`, Permissions v2).
+
+    App CHỈ TIN CỜ, KHÔNG tự tính lại quyền theo level (luật ghim #2 của cụm):
+    Owner tick lẻ cho một người ở trang Permissions thì phải chảy sang ngay lượt
+    sau, mà tick lẻ chỉ hiện ra ở cờ này. Thiếu header -> rỗng -> fail-closed.
+    """
+    if not _tin_header(request):
+        return set()
+    return {x.strip() for x in (request.headers.get("x-remote-actions") or "").split(",")
+            if x.strip()}
+
+
+def _xem_duoc(request: Request) -> str:
+    """Ai cũng xem được (đã qua cửa `vao` của gateway) — trả tên để ghi sổ."""
+    return _nguoi(request)
+
+
 def _ghi_duoc(request: Request) -> str:
+    """Cửa gác GHI: L2 chỉ xem, Manager/Owner mới thêm sửa (user chốt 23/09).
+
+    Đặt ở TẦNG GHI chứ không phải ở chỗ ẩn nút: người xem mở tab cũ bấm lưu thì
+    vẫn phải bị chặn.
+    """
     ai = _nguoi(request)
     if not ai:
         raise HTTPException(401, "Chưa đăng nhập — cổng CRM chưa gửi X-Remote-User.")
+    if HANH_DONG_SUA not in _co_hanh_dong(request):
+        raise HTTPException(403, "Bạn đang ở chế độ chỉ xem. Quyền thêm/sửa dành cho "
+                                 "Manager trở lên — Owner cấp ở General › Permissions.")
     return ai
 
 
@@ -152,7 +181,8 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
         """Trang cần biết MÌNH là ai để biết chương nào là khoá của mình, chương
         nào của người khác. Không có header thì trả rỗng — trang tự chuyển sang
         chế độ chỉ xem thay vì để người ta gõ cả buổi rồi 401 lúc lưu."""
-        return {"nguoi": _nguoi(request)}
+        return {"nguoi": _nguoi(request),
+                "sua_duoc": HANH_DONG_SUA in _co_hanh_dong(request)}
 
     # --------------------------------------------------------------- tập
     @app.get("/api/tap")

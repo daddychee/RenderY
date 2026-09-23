@@ -187,7 +187,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 <header>
   <div class="logo">RenderY <span>· Treatment</span></div>
   <select class="tap" id="dsTap" onchange="doiTap(this.value)"></select>
-  <button class="icon-btn" onclick="taoTap()" title="Tạo tập mới">+ Tập</button>
+  <button class="icon-btn" id="nutTap" onclick="taoTap()" title="Tạo tập mới">+ Tập</button>
   <div class="chuong" id="chuong"></div>
   <div class="spacer"></div>
   <span class="ai-toi" id="aiToi"></span>
@@ -280,6 +280,14 @@ async function apiText(duong){
 }
 
 /* ═══════════ nạp màn ═══════════ */
+function batNutGhi(){
+  var n = document.getElementById("nutTap");
+  if(n) n.hidden = !SUA_DUOC;
+  document.querySelectorAll(".cp").forEach(function(b){
+    if(/Dịch lại/.test(b.textContent)) b.hidden = !SUA_DUOC;
+  });
+}
+
 async function napTap(){
   var ds = await api("/api/tap");
   var s = document.getElementById("dsTap");
@@ -321,7 +329,7 @@ function veChuong(){
     return '<button class="ch ' + (MAN === c.ma ? "on" : "") +
            '" onclick="doiMan(\'' + c.ma + '\')">' + c.ma + ai + '</button>';
   }).join("");
-  h += '<button class="ch them" onclick="taoChuong()">+ Chương</button>';
+  if(SUA_DUOC) h += '<button class="ch them" onclick="taoChuong()">+ Chương</button>';
   document.getElementById("chuong").innerHTML = h;
 }
 
@@ -368,7 +376,7 @@ function veScript(){
     }
     h += '<div class="tap-ch' + (khac ? " ro" : "") + '">';
     cua(ma).dong.forEach(function(d, i){
-      var sua = khac ? "" : " contenteditable";
+      var sua = (khac || !SUA_DUOC) ? "" : " contenteditable";
       var mau = MAU_CUM[d.cum] || "";
       var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">🔖</span>' : "";
       h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
@@ -386,6 +394,11 @@ function veScript(){
   oo.innerHTML = h;
 
   var kh = document.getElementById("khoaHop"), khac = MAN !== "TONG" ? giuBoiNguoiKhac(MAN) : null;
+  if(!SUA_DUOC){
+    kh.innerHTML = '<div class="khoa">👁 <b>Chế độ chỉ xem.</b> Quyền thêm/sửa dành cho ' +
+      'Manager trở lên — Owner cấp ở General › Permissions.</div>';
+    return;
+  }
   kh.innerHTML = khac
     ? '<div class="khoa"><span>🔒 <b>' + khac + '</b> đang sửa chương này — bạn ở chế độ chỉ xem.</span>' +
       '<button onclick="doiMan(\'' + MAN + '\')">Kiểm tra lại</button></div>' : "";
@@ -403,7 +416,7 @@ function veTrai(){
   document.getElementById("outline").innerHTML = ds.map(function(ma){
     return (MAN === "TONG" ? '<div class="ol-ten">' + ma + '</div>' : '') +
            '<div class="o" data-ol="' + ma + '"' +
-           (giuBoiNguoiKhac(ma) ? '' : ' contenteditable') + '>' +
+           ((giuBoiNguoiKhac(ma) || !SUA_DUOC) ? '' : ' contenteditable') + '>' +
            thoat(cua(ma).outline) + '</div>';
   }).join("");
 
@@ -422,7 +435,11 @@ function vePhai(){
   var d = (cua(chonCh).dong || [])[chonD];
   document.getElementById("cDoan").textContent = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("ctOo").textContent = d ? (d.ct || "") : "";
-  document.getElementById("bangMau").innerHTML = d ? veBangMau() : "";
+  for (var _o of ["ctOo", "tOo"]) {
+    var _e = document.getElementById(_o);
+    if (SUA_DUOC) _e.setAttribute("contenteditable", ""); else _e.removeAttribute("contenteditable");
+  }
+  document.getElementById("bangMau").innerHTML = (d && SUA_DUOC) ? veBangMau() : "";
   var txt = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("tDoan").textContent = txt;
   document.getElementById("tOo").textContent = d ? (d.tr || "") : "";
@@ -443,6 +460,7 @@ function chonDong(ma, i, sk){
 
 /* ═══════════ CỤM — gom câu, tô màu (user chốt 23/09) ═══════════ */
 var MAU_CUM = {1:"#d9a94c", 2:"#3fae63", 3:"#4c8fe0", 4:"#a274d6", 5:"#e08b4c", 6:"#dd6b9a"};
+var SUA_DUOC = false;              // gateway quyết, trang chỉ đọc cờ
 var chonTu = -1;                    // dòng đầu của vùng đang chọn (shift+bấm)
 
 function vungChon(){
@@ -736,9 +754,13 @@ function bao(html, xau){
   clearTimeout(bao._h); bao._h = setTimeout(function(){ t.style.display = "none"; }, 4500);
 }
 async function aiDay(){
-  try { TOI = (await api("/api/toi")).nguoi || ""; } catch(e){ TOI = ""; }
+  try {
+    var me = await api("/api/toi");
+    TOI = me.nguoi || ""; SUA_DUOC = !!me.sua_duoc;
+  } catch(e){ TOI = ""; SUA_DUOC = false; }
   var e = document.getElementById("aiToi");
-  e.textContent = TOI ? "✎ " + TOI : "⚠ chưa khai tên — chỉ xem";
+  e.textContent = !TOI ? "⚠ chưa khai tên — chỉ xem"
+                : SUA_DUOC ? "✎ " + TOI : "👁 " + TOI + " — chỉ xem";
   e.style.cursor = "pointer";
   e.title = "Bấm để đổi tên";
   e.onclick = khaiTen;
@@ -767,6 +789,7 @@ window.addEventListener("beforeunload", function(){
 
 (async function khoiDong(){
   await aiDay();
+  batNutGhi();
   await napTap();
   if(!TOI) khaiTen();
 })();

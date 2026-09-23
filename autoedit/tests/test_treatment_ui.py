@@ -92,3 +92,11 @@ def test_khong_con_tab_cai_dat_khoa(html):
     app KHÔNG có cửa sửa khoá — kể cả vai cao nhất."""
     for x in ("pane-s", "tb-s", "napCaiDat", "luuCaiDat", "s-key", "/api/cai-dat"):
         assert x not in html, x
+
+
+def test_trang_bao_che_do_chi_xem(html):
+    """Người chỉ xem phải BIẾT ngay, không phải gõ cả buổi rồi mới thấy 403 —
+    và các nút ghi phải mờ đi. Cửa gác thật vẫn ở máy chủ."""
+    assert "sua_duoc" in html
+    assert "chỉ xem" in html.lower()
+    assert "SUA_DUOC" in html, "trang phải giữ cờ quyền để tắt các nút ghi"

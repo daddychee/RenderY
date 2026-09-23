@@ -42,7 +42,7 @@ def bo(tmp_path):
     dich = DichGia()
     app = tao_app(kho, dich=dich)
     c = TestClient(app)
-    c.headers.update({"X-Remote-User": "haint"})
+    c.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     c.post("/api/tap", json={"ma": "SH011", "ten": "Đồ uống sau 60"})
     c.post("/api/tap/SH011/chuong", json={"ma": "H"})
     return c, kho, dich
@@ -51,7 +51,7 @@ def bo(tmp_path):
 def _nguoi(c, ten):
     """Client thứ hai — mô phỏng người khác đang mở cùng tập."""
     c2 = TestClient(c.app)
-    c2.headers.update({"X-Remote-User": ten})
+    c2.headers.update({"X-Remote-User": ten, "X-Remote-Actions": "sua"})
     return c2
 
 
@@ -177,7 +177,7 @@ def test_dich_chi_dich_dong_con_thieu(bo):
 def test_dich_hong_thi_khong_mat_chu(tmp_path):
     kho = Kho(tmp_path / "k.db")
     c = TestClient(tao_app(kho, dich=DichGia(hong=True)))
-    c.headers.update({"X-Remote-User": "haint"})
+    c.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
     c.post("/api/tap/SH011/chuong", json={"ma": "H"})
     c.put("/api/tap/SH011/H", json={"dong": [{"en": "A", "vi": "", "het": 0}],
@@ -240,7 +240,7 @@ def test_chi_tin_header_khi_co_co_va_loopback(tmp_path, monkeypatch):
 
     kho = Kho(tmp_path / "k.db")
     c = TestClient(_tao(kho), client=("10.0.0.9", 5000))   # KHÔNG phải loopback
-    c.headers.update({"X-Remote-User": "ke-gia-mao"})
+    c.headers.update({"X-Remote-User": "ke-gia-mao", "X-Remote-Actions": "sua"})
 
     monkeypatch.setenv("KICHBAN_TRUST_PROXY", "1")
     assert c.get("/api/toi").json()["nguoi"] == "", "ngoài loopback thì không tin header"
@@ -274,14 +274,21 @@ def test_chua_khai_ten_thi_chi_xem(bo):
     assert khach.put("/api/tap/SH011/H", json={"dong": [], "outline": ""}).status_code == 401
 
 
-def test_khai_ten_roi_lam_viec_duoc(bo):
+def test_khai_ten_roi_van_CHI_XEM_khi_chua_qua_CRM(bo):
+    """Tên tự khai chỉ để biết ai đang giữ chương — KHÔNG phải quyền.
+
+    Từ 23/09 quyền thêm/sửa do gateway cấp (`X-Remote-Actions`), nên vào thẳng
+    cổng 9121 không qua CRM thì xem được, sửa thì không. Đổi hành vi so với lúc
+    chưa nối CRM, và đó là chủ ý: ai cũng khai được tên bất kỳ.
+    """
     c, _, _ = bo
     khach = TestClient(c.app)
     assert khach.post("/api/toi", json={"nguoi": "thanhdn"}).json()["nguoi"] == "thanhdn"
     assert khach.get("/api/toi").json()["nguoi"] == "thanhdn", "tên phải sống qua request sau"
+    assert khach.get("/api/tap/SH011/H").status_code == 200
     assert khach.put("/api/tap/SH011/H",
                      json={"dong": [{"en": "A", "vi": "", "het": 0}], "outline": ""}
-                     ).status_code == 200
+                     ).status_code == 403
 
 
 def test_ten_khai_duoc_chuan_hoa(bo):
@@ -365,7 +372,7 @@ def test_dich_chia_LO_chu_khong_goi_mot_phat_ca_chuong(tmp_path):
     kho = Kho(tmp_path / "k.db")
     dem = DichDem()
     c = TestClient(tao_app(kho, dich=dem))
-    c.headers.update({"X-Remote-User": "haint"})
+    c.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
     _chuong_dai(c)
     assert c.post("/api/tap/SH011/C9/dich").json()["dich"] == 20
@@ -377,7 +384,7 @@ def test_lo_hong_thi_GIU_phan_da_dich(tmp_path):
     """Hỏng lô thứ hai: 8 dòng lô đầu phải còn, không mất trắng cả chương."""
     kho = Kho(tmp_path / "k.db")
     c = TestClient(tao_app(kho, dich=DichDem(hong_o_lo=1)))
-    c.headers.update({"X-Remote-User": "haint"})
+    c.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
     _chuong_dai(c)
     b = c.post("/api/tap/SH011/C9/dich").json()
@@ -391,12 +398,12 @@ def test_bam_lai_thi_dich_tiep_phan_con_thieu(tmp_path):
     kho = Kho(tmp_path / "k.db")
     hong = DichDem(hong_o_lo=1)
     c = TestClient(tao_app(kho, dich=hong))
-    c.headers.update({"X-Remote-User": "haint"})
+    c.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     c.post("/api/tap", json={"ma": "SH011", "ten": "x"})
     _chuong_dai(c)
     xong = c.post("/api/tap/SH011/C9/dich").json()["dich"]
     c2 = TestClient(tao_app(kho, dich=DichDem()))
-    c2.headers.update({"X-Remote-User": "haint"})
+    c2.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     assert c2.post("/api/tap/SH011/C9/dich").json()["dich"] == 20 - xong
     d = c2.get("/api/tap/SH011/C9").json()["dong"]
     assert all(x["vi"] for x in d)

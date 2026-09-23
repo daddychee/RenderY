@@ -21,7 +21,7 @@ from autoedit.treatment.kho import Kho
 @pytest.fixture()
 def c(tmp_path):
     cl = TestClient(tao_app(Kho(tmp_path / "k.db")))
-    cl.headers.update({"X-Remote-User": "haint"})
+    cl.headers.update({"X-Remote-User": "haint", "X-Remote-Actions": "sua"})
     return cl
 
 
