@@ -40,25 +40,34 @@ class DichLoi(RuntimeError):
 
 
 def doc_ket_viec() -> dict:
-    """{key, model, base_url} mà Owner đã cấp cho việc `dich` của app này.
+    """{key, model, base_url} mà Owner đã cấp cho việc `dich` của app NÀY.
+
+    Hỏi thẳng két bằng SLUG CỦA CHÍNH MÌNH, không đi nhờ `web/ket_v3` của RenderY:
+    module đó ghi cứng `SLUG = "rendery"` nên cấp phát của Treatment không bao giờ
+    thấy (đo 23/09: cấp phát đúng rồi mà app vẫn báo "chưa cấp").
 
     Chưa cấp / gateway chết -> {} và người dùng nhận câu lỗi chỉ thẳng chỗ bấm.
-    Đây là ngoại lệ DUY NHẤT của luật cách ly: `web/ket_v3` chỉ gọi HTTP tới
-    gateway, không kéo theo tầng dựng nào.
+    Không nuốt: đây là cột phụ, hỏng thì chỉ mất bản dịch.
     """
+    import os
+
+    import requests
+
+    goc = os.getenv("TREATMENT_GATEWAY", "http://127.0.0.1:9000")
+    tnb = os.getenv("OUTLIERY_TOKEN_NOI_BO", "").strip()
     try:
-        from autoedit.web.ket_v3 import doc_ket
-    except ImportError:
-        return {}
-    try:
-        ds = (doc_ket().get(VIEC) or {}).get("khoa") or []
+        r = requests.get(f"{goc}/api/cau-hinh/api-khoa/{SLUG}",
+                         headers={"X-Noi-Bo": tnb} if tnb else {}, timeout=5)
+        if r.status_code != 200:
+            return {}
+        muc = r.json().get(VIEC) or {}
     except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
         return {}
+    ds = muc.get("khoa") or []
     if not ds:
         return {}
-    k = ds[0]
-    return {"key": k.get("key", ""), "base_url": k.get("base_url", ""),
-            "model": (doc_ket().get(VIEC) or {}).get("model", "")}
+    return {"key": ds[0].get("key", ""), "base_url": ds[0].get("base_url", ""),
+            "model": muc.get("model", "")}
 
 
 def dia_chi_chat(url: str) -> str:

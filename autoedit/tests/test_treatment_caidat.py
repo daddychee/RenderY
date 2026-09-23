@@ -96,3 +96,36 @@ def test_bao_loi_goi_dung_TEN_MODEL(monkeypatch):
     with pytest.raises(mdich.DichLoi) as e:
         mdich.LLM().dich(["x"])
     assert "claude-sonnet-5" in str(e.value)
+
+
+def test_hoi_ket_theo_SLUG_CUA_CHINH_APP(monkeypatch):
+    """Đo thật 23/09: cấp phát đúng rồi mà app vẫn báo "chưa cấp" — vì nó đi nhờ
+    `web/ket_v3` của RenderY, module đó ghi cứng `SLUG = "rendery"`. Két trả cấp
+    phát của RenderY, trong đó không có việc `dich` -> rỗng.
+
+    Treatment phải hỏi ĐÚNG slug của nó.
+    """
+    import requests
+
+    from autoedit.treatment import dich as mdich
+
+    da_goi = {}
+
+    class _R:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"dich": {"khoa": [{"key": "sk-mwapi",
+                                       "base_url": "https://api.mwapi.dev/v1"}],
+                             "model": "claude-sonnet-5"}}
+
+    def _get(url, **kw):
+        da_goi["url"] = url
+        return _R()
+
+    monkeypatch.setattr(requests, "get", _get)
+    cd = mdich.doc_ket_viec()
+    assert da_goi["url"].endswith("/api/cau-hinh/api-khoa/treatment"), da_goi["url"]
+    assert cd["key"] == "sk-mwapi" and cd["model"] == "claude-sonnet-5"
+    assert cd["base_url"] == "https://api.mwapi.dev/v1"
