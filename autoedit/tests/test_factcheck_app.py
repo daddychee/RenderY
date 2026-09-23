@@ -415,3 +415,47 @@ def test_xoa_the_citation(bo_kiem):
     b = c.post("/api/tap/SH011/H/kiem", json={"doan": "The WHI found a higher risk."}).json()
     assert c.request("DELETE", f"/api/tap/SH011/H/citation/{b['chu_ky']}").status_code == 200
     assert c.get("/api/tap/SH011/H/citation").json() == []
+
+
+# --------------------------- sức khoẻ sâu (hợp đồng app) ---------------------
+def test_suc_khoe_sau_dung_khuon_cua_cum(bo):
+    """`apps.json` khai `suc_khoe` thì PHẢI GIỮ LỜI: gateway đọc `trang_thai` +
+    `mo_dun`, khai mà không trả lời được là bảng giám sát báo đỏ."""
+    c, _, _ = bo
+    b = c.get("/api/suc-khoe").json()
+    assert b["trang_thai"] in ("ok", "canh_bao", "loi")
+    ten = {m["ten"] for m in b["mo_dun"]}
+    assert {"kho", "khoa_llm", "khoa_serper"} <= ten
+    assert all(m["trang_thai"] in ("ok", "canh_bao", "loi") for m in b["mo_dun"])
+
+
+def test_suc_khoe_bao_CANH_BAO_khi_thieu_khoa(tmp_path, monkeypatch):
+    """Thiếu khoá thì tool vẫn mở được (nhập/chia dòng/copy vẫn chạy) — đó là
+    CẢNH BÁO, không phải LỖI. Báo đỏ oan thì lần sau không ai nhìn bảng nữa.
+
+    Phải BỊT CẢ HAI đường khoá: máy chạy test này có két thật của cụm, không bịt
+    thì nó tìm ra khoá và test "thiếu khoá" xanh vì lý do sai.
+    """
+    from autoedit.factcheck import dich as mdich
+    from autoedit.factcheck import tra as mtra
+
+    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("", ""))
+    monkeypatch.setattr(mtra, "_khoa", lambda *a, **k: "")
+    monkeypatch.delenv("GLM_API_KEY", raising=False)
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+
+    kho = Kho(tmp_path / "k.db")
+    c = TestClient(tao_app(kho))
+    b = c.get("/api/suc-khoe").json()
+    assert b["trang_thai"] == "canh_bao"
+    loi = [m for m in b["mo_dun"] if m["trang_thai"] == "loi"]
+    assert not loi, loi
+
+
+def test_suc_khoe_bao_LOI_khi_kho_hong(tmp_path):
+    kho = Kho(tmp_path / "k.db")
+    kho.cn.close()                      # mô phỏng kho không đọc được
+    c = TestClient(tao_app(kho))
+    b = c.get("/api/suc-khoe").json()
+    assert b["trang_thai"] == "loi"
+    assert any(m["ten"] == "kho" and m["trang_thai"] == "loi" for m in b["mo_dun"])

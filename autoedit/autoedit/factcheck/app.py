@@ -118,6 +118,55 @@ def tao_app(kho: Kho, dich=None, kiem=None, thu_llm=None) -> FastAPI:
                             httponly=False, samesite="lax")
         return {"nguoi": ten}
 
+    @app.get("/api/suc-khoe")
+    def suc_khoe():
+        """Sức khoẻ SÂU theo khuôn của cụm (`nen/common/suc_khoe.py`): gateway đọc
+        `trang_thai` + `mo_dun` để vẽ bảng giám sát.
+
+        Thiếu khoá là **cảnh báo**, không phải lỗi: tool vẫn nhập/chia dòng/copy
+        được, chỉ mất phần dịch và kiểm chứng. Báo đỏ oan thì lần sau không ai
+        nhìn bảng nữa — chỉ kho hỏng mới là đỏ, vì lúc đó mất chữ của người viết.
+        """
+        mo_dun = []
+        try:
+            n = len(kho.ds_tap())
+            mo_dun.append({"ten": "kho", "trang_thai": "ok",
+                           "chi_tiet": f"{n} tập · {kho.duong}"})
+        except Exception as exc:  # noqa: BLE001
+            mo_dun.append({"ten": "kho", "trang_thai": "loi", "chi_tiet": str(exc)[:120]})
+
+        try:
+            cd = kho.doc_cai_dat()
+        except Exception:  # noqa: BLE001
+            cd = {}
+        from autoedit.factcheck.dich import DichGLM
+
+        try:
+            m = DichGLM(cai_dat=cd)
+            co_khoa, ten_model = bool(m.key), m.model
+        except Exception:  # noqa: BLE001
+            co_khoa, ten_model = False, "?"
+        mo_dun.append({
+            "ten": "khoa_llm",
+            "trang_thai": "ok" if co_khoa else "canh_bao",
+            "chi_tiet": (f"model {ten_model}" if co_khoa
+                         else "chưa có khoá — tab ⚙ trong app, hoặc két khoá")})
+
+        from autoedit.factcheck.tra import _khoa as _khoa_serper
+
+        co_serper = bool(cd.get("serper_key") or _khoa_serper("tim_tu_lieu", "serper")
+                         or os.getenv("SERPER_API_KEY", ""))
+        mo_dun.append({
+            "ten": "khoa_serper",
+            "trang_thai": "ok" if co_serper else "canh_bao",
+            "chi_tiet": "tra Google" if co_serper
+            else "thiếu — chỉ còn Europe PMC, mất kênh điều tra báo chí"})
+
+        muc = ("loi" if any(m["trang_thai"] == "loi" for m in mo_dun)
+               else "canh_bao" if any(m["trang_thai"] == "canh_bao" for m in mo_dun)
+               else "ok")
+        return {"trang_thai": muc, "mo_dun": mo_dun}
+
     @app.get("/api/toi")
     def toi(request: Request):
         """Trang cần biết MÌNH là ai để biết chương nào là khoá của mình, chương
