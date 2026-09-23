@@ -397,7 +397,8 @@ function veScript(){
       var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">🔖</span>' : "";
       h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
            (mau ? ' style="border-left-color:' + mau + ';background:' + mau + '1f"' : "") +
-           ' data-ch="' + ma + '" data-i="' + i + '" onclick="chonDong(\'' + ma + '\',' + i + ')">' +
+           ' data-ch="' + ma + '" data-i="' + i +
+           '" onclick="chonDong(\'' + ma + '\',' + i + ',event.shiftKey)">' +
            '<div class="en"><span class="noi" data-ch="' + ma + '" data-i="' + i + '"' + sua + '>' +
            thoat(d.en) + '</span>' + dau_citation + '</div>' +
            '<div class="vi"><span class="noi">' +

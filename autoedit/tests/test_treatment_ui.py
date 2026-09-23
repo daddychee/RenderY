@@ -86,3 +86,10 @@ def test_co_gom_cum_va_bang_mau(html):
     assert "gomCum" in html and "boCum" in html
     for m in ("#d9a94c", "#3fae63", "#4c8fe0", "#a274d6", "#e08b4c", "#dd6b9a"):
         assert m in html, m
+
+
+def test_bam_dong_co_truyen_phim_shift(html):
+    """Gom cụm nhiều dòng = bấm dòng đầu, giữ Shift bấm dòng cuối. Đo trên Chrome
+    23/09: quên truyền `event.shiftKey` thì Shift vô tác dụng và chỉ tô được MỘT
+    dòng — nhìn qua tưởng chạy đúng."""
+    assert "event.shiftKey" in html
