@@ -42,12 +42,6 @@ CREATE TABLE IF NOT EXISTS ban_cu(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tap TEXT NOT NULL, chuong TEXT NOT NULL, luc REAL NOT NULL, boi TEXT,
   dong TEXT NOT NULL, outline TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS citation(
-  tap TEXT NOT NULL, chuong TEXT NOT NULL, chu_ky TEXT NOT NULL,
-  doan TEXT NOT NULL, ket TEXT NOT NULL, ly_do TEXT NOT NULL DEFAULT '',
-  truy_van TEXT NOT NULL DEFAULT '', nguon TEXT NOT NULL DEFAULT '[]',
-  luc REAL NOT NULL, boi TEXT,
-  PRIMARY KEY (tap, chuong, chu_ky));
 CREATE TABLE IF NOT EXISTS cai_dat(khoa TEXT PRIMARY KEY, gia_tri TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS khoa(
   tap TEXT NOT NULL, chuong TEXT NOT NULL, nguoi TEXT NOT NULL, den REAL NOT NULL,
@@ -166,8 +160,7 @@ class Kho:
     # Khoá LLM của phần kiểm chứng để TẠM trong app (user chốt 16/09, cuối tuần
     # ghép vào két OUTLIERY). Whitelist chặt: ô cài đặt không được biến thành
     # chỗ ghi gì cũng được.
-    KHOA_CAI_DAT = ("llm_url", "llm_key", "llm_model", "dich_model",
-                    "serper_key")
+    KHOA_CAI_DAT = ("llm_url", "llm_key", "llm_model", "dich_model")
 
     def luu_cai_dat(self, d: dict) -> None:
         la = [k for k in d if k not in self.KHOA_CAI_DAT]
@@ -187,44 +180,6 @@ class Kho:
             if r["khoa"] in d:
                 d[r["khoa"]] = r["gia_tri"]
         return d
-
-    # ------------------------------------------------------------- citation
-    def luu_citation(self, tap: str, chuong: str, kq: dict, nguoi: str) -> None:
-        """Ghi kết luận kiểm chứng của MỘT đoạn.
-
-        Khoá chính là (tập, chương, CHỮ KÝ ĐOẠN) nên bấm "Kiểm lại" mấy lần cũng
-        chỉ có một thẻ — chồng thẻ cho cùng một đoạn thì người đọc không biết tin
-        cái nào. Neo theo chữ ký (nội dung) chứ không theo số dòng: chẻ/gộp dòng
-        không đổi chữ nên thẻ phải sống sót.
-        """
-        self.cn.execute(
-            "INSERT INTO citation(tap, chuong, chu_ky, doan, ket, ly_do, truy_van, "
-            "nguon, luc, boi) VALUES(?,?,?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(tap, chuong, chu_ky) DO UPDATE SET "
-            "doan=excluded.doan, ket=excluded.ket, ly_do=excluded.ly_do, "
-            "truy_van=excluded.truy_van, nguon=excluded.nguon, luc=excluded.luc, "
-            "boi=excluded.boi",
-            (tap, chuong, kq.get("chu_ky", ""), kq.get("doan", ""), kq.get("ket", ""),
-             kq.get("ly_do", ""), kq.get("truy_van", ""),
-             json.dumps(kq.get("nguon") or [], ensure_ascii=False),
-             time.time(), nguoi))
-        self.cn.commit()
-
-    def ds_citation(self, tap: str, chuong: str) -> list[dict]:
-        ra = []
-        for r in self.cn.execute(
-                "SELECT chu_ky, doan, ket, ly_do, truy_van, nguon, luc, boi "
-                "FROM citation WHERE tap=? AND chuong=? ORDER BY luc DESC",
-                (tap, chuong)):
-            d = dict(r)
-            d["nguon"] = json.loads(d["nguon"] or "[]")
-            ra.append(d)
-        return ra
-
-    def xoa_citation(self, tap: str, chuong: str, chu_ky: str) -> None:
-        self.cn.execute("DELETE FROM citation WHERE tap=? AND chuong=? AND chu_ky=?",
-                        (tap, chuong, chu_ky))
-        self.cn.commit()
 
     # ----------------------------------------------------------------- khoá
     def ai_giu(self, tap: str, chuong: str) -> Optional[str]:

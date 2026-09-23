@@ -94,8 +94,8 @@ def _ghi_duoc(request: Request) -> str:
     return ai
 
 
-def tao_app(kho: Kho, dich=None, kiem=None, thu_llm=None) -> FastAPI:
-    """`kho`, `dich`, `kiem` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
+def tao_app(kho: Kho, dich=None, thu_llm=None) -> FastAPI:
+    """`kho`, `dich` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -152,16 +152,6 @@ def tao_app(kho: Kho, dich=None, kiem=None, thu_llm=None) -> FastAPI:
             "chi_tiet": (f"model {ten_model}" if co_khoa
                          else "chưa có khoá — tab ⚙ trong app, hoặc két khoá")})
 
-        from autoedit.treatment.tra import _khoa as _khoa_serper
-
-        co_serper = bool(cd.get("serper_key") or _khoa_serper("tim_tu_lieu", "serper")
-                         or os.getenv("SERPER_API_KEY", ""))
-        mo_dun.append({
-            "ten": "khoa_serper",
-            "trang_thai": "ok" if co_serper else "canh_bao",
-            "chi_tiet": "tra Google" if co_serper
-            else "thiếu — chỉ còn Europe PMC, mất kênh điều tra báo chí"})
-
         muc = ("loi" if any(m["trang_thai"] == "loi" for m in mo_dun)
                else "canh_bao" if any(m["trang_thai"] == "canh_bao" for m in mo_dun)
                else "ok")
@@ -184,7 +174,6 @@ def tao_app(kho: Kho, dich=None, kiem=None, thu_llm=None) -> FastAPI:
     def doc_cai_dat():
         d = kho.doc_cai_dat()
         d["llm_key"] = _che(d.get("llm_key", ""))
-        d["serper_key"] = _che(d.get("serper_key", ""))
         d["co_ket"] = bool(_khoa_ket_co())
         return d
 
@@ -314,42 +303,6 @@ def tao_app(kho: Kho, dich=None, kiem=None, thu_llm=None) -> FastAPI:
             raise HTTPException(409, str(exc)) from exc
         return {"dich": len(can)}
 
-    # ---------------------------------------------------------- citation
-    @app.post("/api/tap/{tap}/{chuong}/kiem")
-    def kiem_doan_api(tap: str, chuong: str, request: Request, than: dict = Body(...)):
-        """Kiểm chứng ĐOẠN người dùng bôi đen — chỉ chạy khi có người bấm.
-
-        Gác khoá chương như mọi đường ghi: thẻ citation là dữ liệu của chương,
-        người khác đang giữ thì không được chen vào. Và mỗi lượt là tiền thật
-        (1 lượt Serper + 2 lượt GLM) nên phải biết ai bấm.
-        """
-        ai = _ghi_duoc(request)
-        if kiem is None:
-            raise HTTPException(503, "Chưa bật bộ kiểm chứng (thiếu khoá Serper/GLM).")
-        doan = (than.get("doan") or "").strip()
-        if not doan:
-            raise HTTPException(400, "Chưa chọn đoạn nào để kiểm.")
-        dang = kho.ai_giu(tap, chuong)
-        if dang and dang != ai:
-            raise HTTPException(409, f"{dang} đang sửa chương này.")
-        try:
-            kq = kiem(doan)
-        except Exception as exc:  # noqa: BLE001 — chữ của người viết phải còn nguyên
-            raise HTTPException(502, f"Kiểm hỏng: {exc}") from exc
-        d = kq.ra_dict()
-        kho.luu_citation(tap, chuong, d, ai)
-        return d
-
-    @app.get("/api/tap/{tap}/{chuong}/citation")
-    def ds_citation(tap: str, chuong: str):
-        return kho.ds_citation(tap, chuong)
-
-    @app.delete("/api/tap/{tap}/{chuong}/citation/{chu_ky}")
-    def xoa_citation(tap: str, chuong: str, chu_ky: str, request: Request):
-        _ghi_duoc(request)
-        kho.xoa_citation(tap, chuong, chu_ky)
-        return {"ok": True}
-
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")
     def ban_cu(tap: str, chuong: str):
@@ -391,29 +344,6 @@ def _dich_mac_dinh(kho: Kho):
     return _Dich(kho)
 
 
-def _kiem_mac_dinh(kho: Kho):
-    """Bộ kiểm chứng thật: Serper tra -> Python tải -> GLM đọc -> Python soi lại.
-
-    Bản chụp trang nằm CẠNH kho (`<thư mục db>/bangchung/`) — bằng chứng lúc kiểm,
-    vì link chết sau 6-12 tháng là chuyện thường.
-    """
-    from functools import partial
-
-    from autoedit.treatment.kiem import kiem_doan
-    from autoedit.treatment.tra import LlmKiem, tai_thong_minh, tim_gop
-
-    def _chay(doan, **kw):
-        from functools import partial as _p
-
-        cd = kho.doc_cai_dat()                       # đọc cài đặt mỗi lượt kiểm
-        llm = LlmKiem(cai_dat=cd)
-        return kiem_doan(doan, tim=_p(tim_gop, cai_dat=cd), tai=tai_thong_minh, llm=llm,
-                         thu_muc_chup=kho.duong.parent / "bangchung", **kw)
-
-    _ = partial
-    return _chay
-
-
 def _thu_llm(cai_dat: dict) -> dict:
     """Bấm Thử: gọi đúng cấu hình đang lưu bằng một câu ngắn nhất có thể."""
     from autoedit.treatment.dich import DichGLM
@@ -432,8 +362,7 @@ def tao_app_mac_dinh() -> FastAPI:
     thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
     kho = _kho_mac_dinh()
-    return tao_app(kho, dich=_dich_mac_dinh(kho), kiem=_kiem_mac_dinh(kho),
-                   thu_llm=_thu_llm)
+    return tao_app(kho, dich=_dich_mac_dinh(kho), thu_llm=_thu_llm)
 
 
 def main() -> None:

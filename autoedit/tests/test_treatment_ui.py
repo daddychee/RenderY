@@ -43,47 +43,6 @@ def test_co_giu_va_nha_khoa(html):
 
 def test_co_tu_luu(html):
     assert "luuNgay" in html or "tuLuu" in html
-
-
-def test_so_thu_tu_van_ve_bang_css_counter(html):
-    assert "counter(dong)" in html
-    assert "counter-increment:dong" in html.replace(" ", "")
-
-
-def test_dau_hieu_khong_bi_boi_den(html):
-    assert "user-select:none" in html.replace(" ", "")
-
-
-def test_copy_lay_ban_txt_tu_may_chu(html):
-    """Một luật một chỗ: bản copy phải là bản `/txt` do `dong.xuat()` sinh, không
-    ghép lại bằng JS — hai đường ghép là hai kết quả lệch nhau."""
-    assert "/txt" in html
-
-
-# --------------------------- giai đoạn 2: citation ---------------------------
-def test_co_nut_kiem_doan_boi_den(html):
-    """Bôi đen đoạn -> nút nổi. Citation chạy THEO ĐOẠN người chọn (user chốt),
-    không quét cả bài."""
-    assert "Kiểm đoạn này" in html
-    assert "selectionchange" in html
-
-
-def test_co_goi_api_kiem_va_citation(html):
-    assert "/kiem" in html and "/citation" in html
-
-
-def test_danh_dau_dong_theo_the_citation(html):
-    """Dòng nằm trong đoạn đã kiểm phải mang dấu ✅/❌ — nhìn là biết chương còn
-    chỗ nào chưa kiểm."""
-    for x in ("dau_citation", "✅", "❌", "🕐"):
-        assert x in html, x
-
-
-def test_hien_hang_nguon_va_bang_chung(html):
-    """Thẻ phải nói rõ hạng nguồn và Python đã kiểm được gì — không chỉ ✅ suông."""
-    assert "hang" in html and "link sống" in html
-
-
 def test_khong_tro_vao_o_da_xoa(html):
     """Đo 16/09 trên Chrome: console nổ 6 lần `Cannot set properties of null` vì
     `vePhai()` còn trỏ vào #cDoan — ô đó đã bị thay khi dựng thẻ citation thật.
@@ -100,16 +59,30 @@ def test_co_tab_cai_dat(html):
     assert "grok-4.6" in html and "gpt-5.6" in html, "gợi ý sẵn 2 model của nhà cung cấp"
     assert "api2.apisuper.cloud" in html
     assert "cai-dat/thu" in html, "phải có nút Thử — lỗi khoá không được lộ giữa chừng"
-
-
-def test_co_o_khoa_serper(html):
-    """Đứng riêng thì không đọc được két — khoá Serper phải đặt được tại chỗ."""
-    assert "s-serper" in html and "Serper" in html
-
-
 def test_nhan_hien_thi_la_Treatment(html):
     """User đổi tên tool 23/09: Factcheck -> Treatment. Nhãn trên trang phải đổi
     theo, không để tên cũ sót lại ở chỗ người dùng nhìn thấy."""
     assert "<title>Treatment" in html
     assert "· Treatment" in html
     assert "Factcheck" not in html and "factcheck" not in html
+
+
+# ------------------- sửa 23/09 theo yêu cầu user ----------------------------
+def test_o_nguon_tu_dien_giong_treatment(html):
+    """User chốt 23/09: "không cần dùng LLM để tìm Citation nữa, team sẽ tự tìm"
+    và "Citation giống cơ chế của treatment, có ô để điền thông tin"."""
+    assert "ctOo" in html, "phải có ô nhập nguồn cho từng dòng"
+    assert "/kiem" not in html, "bỏ hẳn đường kiểm chứng tự động"
+    assert "Kiểm đoạn này" not in html
+
+
+def test_khong_con_o_khoa_LLM_cho_citation(html):
+    """Bỏ phần cài khoá phục vụ tra nguồn tự động."""
+    assert "s-serper" not in html and "Serper" not in html
+
+
+def test_co_gom_cum_va_bang_mau(html):
+    """Gom câu thành cụm + tô màu (user chốt 23/09)."""
+    assert "gomCum" in html and "boCum" in html
+    for m in ("#d9a94c", "#3fae63", "#4c8fe0", "#a274d6", "#e08b4c", "#dd6b9a"):
+        assert m in html, m

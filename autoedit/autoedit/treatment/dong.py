@@ -82,6 +82,42 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
     return ra
 
 
+# Bảng màu CỤM (user chốt 23/09: "gom các câu thành 1 cụm, dùng màu đánh dấu").
+# CỐ ĐỊNH, không cho nhập mã màu tự do: nhập bậy là UI vẽ ra thứ không đọc được
+# trên nền tối. 6 màu — nhiều hơn thì mắt không phân biệt nổi trên một chương.
+MAU_CUM = {
+    1: ("Vàng", "#d9a94c"),
+    2: ("Xanh lá", "#3fae63"),
+    3: ("Xanh dương", "#4c8fe0"),
+    4: ("Tím", "#a274d6"),
+    5: ("Cam", "#e08b4c"),
+    6: ("Hồng", "#dd6b9a"),
+}
+
+
+def gom_cum(dong: list[dict], tu: int, den: int, mau: int) -> list[dict]:
+    """Gán các dòng [tu..den] vào một cụm màu. Hàm thuần.
+
+    Cụm ghi THẲNG trên từng dòng (`cum` = số màu) chứ không giữ một bảng vùng
+    riêng: chẻ/gộp dòng là chuyện xảy ra suốt, mà bảng vùng theo chỉ số thì lần
+    nào chẻ cũng lệch. Ghi trên dòng thì chẻ ra hai nửa vẫn mang theo cụm.
+    """
+    if mau not in MAU_CUM:
+        raise ValueError(f"Màu cụm '{mau}' không có trong bảng — "
+                         f"chỉ nhận {', '.join(map(str, MAU_CUM))}.")
+    ra = copy.deepcopy(dong)
+    for i in range(max(0, tu), min(den, len(ra) - 1) + 1):
+        ra[i]["cum"] = mau
+    return ra
+
+
+def bo_cum(dong: list[dict], tu: int, den: int) -> list[dict]:
+    ra = copy.deepcopy(dong)
+    for i in range(max(0, tu), min(den, len(ra) - 1) + 1):
+        ra[i].pop("cum", None)
+    return ra
+
+
 def xuat(dong: list[dict], cot: str = "en") -> str:
     """Bản .txt đem đi ren voice: đúng các dòng đang thấy, ranh đoạn thành dòng
     trống, đã dọn rác `""`. Không có số thứ tự — số chỉ tồn tại trên UI (vẽ bằng

@@ -108,6 +108,12 @@ select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;p
 .dong.cu{background:var(--warn-soft)}
 .dong.chon{background:var(--accent-soft);border-left-color:var(--accent)}
 .dau_citation{user-select:none;-webkit-user-select:none;font-size:12px;margin-left:5px}
+.cum-thanh{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:9px;
+  background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.o-mau{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.25);
+  cursor:pointer;padding:0}
+.o-mau:hover{outline:2px solid var(--accent);outline-offset:1px}
+.o-mau.bo{background:var(--bg);color:var(--muted);font-weight:800;font-size:11px}
 #noi{position:fixed;display:none;z-index:40;background:var(--accent);color:#fff;border:0;
   border-radius:8px;padding:7px 13px;font-weight:700;cursor:pointer;
   box-shadow:0 6px 20px rgba(0,0,0,.35)}
@@ -200,6 +206,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 
   <div class="cot" id="cotScript">
     <div id="khoaHop"></div>
+    <div id="bangMau"></div>
     <div class="dau" id="dauCot" hidden>
       <div><p class="nhan">English Script</p>
            <button class="cp phai" onclick="chep('en')">⧉ Copy .txt</button></div>
@@ -214,7 +221,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <div class="tabs">
       <button id="tb-t" class="on" onclick="doiTab('t')">Treatment</button>
       <button id="tb-c" onclick="doiTab('c')">Citation</button>
-      <button id="tb-s" onclick="doiTab('s')" title="Khoá LLM cho phần kiểm chứng">⚙</button>
+      <button id="tb-s" onclick="doiTab('s')" title="Khoá LLM cho cột dịch tiếng Việt">⚙</button>
     </div>
     <div id="pane-t">
       <div class="the">
@@ -230,24 +237,28 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
         <button class="chinh" onclick="luiBan()">↶ Lùi về bản này</button>
       </div>
     </div>
-    <div id="pane-c" hidden></div>
+    <div id="pane-c" hidden>
+      <div class="the">
+        <div class="doan" id="cDoan">Bấm một dòng ở cột giữa.</div>
+        <div class="tt" id="ctOo" contenteditable></div>
+        <div class="ghi">Nguồn của riêng dòng đang chọn — dán link, tên nghiên cứu,
+          ghi chú. Tự lưu như phần kịch bản.</div>
+      </div>
+    </div>
     <div id="pane-s" hidden>
       <div class="the">
-        <p class="nhan">Cài đặt LLM — tạm trong app</p>
-        <div class="ghi" style="margin:6px 0 10px">Khoá để ở đây, <b>chưa dính</b> két
-          khoá của hệ production. Cuối tuần ghép vào két thì bỏ trống ô Khoá là tự
-          dùng khoá của hệ.</div>
+        <p class="nhan">Cài đặt — khoá LLM cho cột DỊCH</p>
+        <div class="ghi" style="margin:6px 0 10px">Chỉ dùng cho <b>cột dịch tiếng Việt</b>. Phần
+          nguồn/citation do team tự điền, không gọi LLM. Bỏ trống ô Khoá thì dùng
+          khoá của hệ production.</div>
         <label class="nhan">Địa chỉ</label>
         <input id="s-url" class="ban-cu" placeholder="https://api2.apisuper.cloud">
         <label class="nhan">Khoá</label>
         <input id="s-key" class="ban-cu" type="password" placeholder="dán khoá, để trống = giữ nguyên">
-        <label class="nhan">Model — kiểm chứng</label>
+        <label class="nhan">Model</label>
         <input id="s-model" class="ban-cu" list="ds-model" placeholder="grok-4.6">
         <label class="nhan">Model — dịch (để trống = dùng chung)</label>
         <input id="s-dich" class="ban-cu" list="ds-model" placeholder="gpt-5.6">
-        <label class="nhan">Khoá Serper (tra Google)</label>
-        <input id="s-serper" class="ban-cu" type="password"
-               placeholder="để trống = giữ nguyên · thiếu thì chỉ còn Europe PMC">
         <datalist id="ds-model">
           <option value="grok-4.6"></option><option value="gpt-5.6"></option>
           <option value="glm-5.3"></option>
@@ -267,7 +278,6 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <span id="chanKho"></span>
 </footer>
 
-<button id="noi" onclick="kiemDoan()">🔍 Kiểm đoạn này</button>
 <div id="toast"></div>
 
 <script>
@@ -323,7 +333,6 @@ async function doiMan(m){
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   if(m !== "TONG"){ chonCh = m; chonD = 0; }
   lichSu = []; lamLaiDuoc = [];
-  await napCitation();
   veChuong(); ve(); napBanCu();
 }
 
@@ -354,7 +363,7 @@ function giuBoiNguoiKhac(ma){
 }
 
 /* ═══════════ vẽ ═══════════ */
-function ve(){ dangVe = true; hienThi().forEach(theMoCoi); veScript(); veTrai(); vePhai();
+function ve(){ dangVe = true; veScript(); veTrai(); vePhai();
                setTimeout(function(){ dangVe = false; }, 0); }
 
 function veScript(){
@@ -384,12 +393,10 @@ function veScript(){
     h += '<div class="tap-ch' + (khac ? " ro" : "") + '">';
     cua(ma).dong.forEach(function(d, i){
       var sua = khac ? "" : " contenteditable";
-      var t = theCuaDong(ma, d.en);
-      var dau_citation = t ? (t.moi ? '<span class="dau_citation">🕐</span>'
-                            : t.ket === "dung" ? '<span class="dau_citation">✅</span>'
-                            : '<span class="dau_citation">❌</span>') : "";
-      h += '<div class="dong ' + (t ? (t.moi ? "cu" : t.ket === "dung" ? "dung" : "sai") : "") +
-           ' ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
+      var mau = MAU_CUM[d.cum] || "";
+      var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">🔖</span>' : "";
+      h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
+           (mau ? ' style="border-left-color:' + mau + ';background:' + mau + '1f"' : "") +
            ' data-ch="' + ma + '" data-i="' + i + '" onclick="chonDong(\'' + ma + '\',' + i + ')">' +
            '<div class="en"><span class="noi" data-ch="' + ma + '" data-i="' + i + '"' + sua + '>' +
            thoat(d.en) + '</span>' + dau_citation + '</div>' +
@@ -435,158 +442,76 @@ function veTrai(){
 }
 
 function vePhai(){
-  veCitation();
   var d = (cua(chonCh).dong || [])[chonD];
+  document.getElementById("cDoan").textContent = d ? d.en : "Bấm một dòng ở cột giữa.";
+  document.getElementById("ctOo").textContent = d ? (d.ct || "") : "";
+  document.getElementById("bangMau").innerHTML = d ? veBangMau() : "";
   var txt = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("tDoan").textContent = txt;
   document.getElementById("tOo").textContent = d ? (d.tr || "") : "";
 }
 
-function chonDong(ma, i){
+function chonDong(ma, i, sk){
+  if(!sk) chonTu = i;
   // KHÔNG vẽ lại cột giữa: ô đang bấm sẽ bị thay thế và mất con trỏ.
   chonCh = ma; chonD = i;
-  var ds = document.querySelectorAll(".dong");
+  var v = vungChon(), ds = document.querySelectorAll(".dong");
   for(var k = 0; k < ds.length; k++) ds[k].classList.remove("chon");
-  var el = document.querySelector('.dong[data-ch="' + ma + '"][data-i="' + i + '"]');
-  if(el) el.classList.add("chon");
+  for(var x = v[0]; x <= v[1]; x++){
+    var el = document.querySelector('.dong[data-ch="' + ma + '"][data-i="' + x + '"]');
+    if(el) el.classList.add("chon");
+  }
   vePhai();
 }
 
-/* ═══════════ citation (giai đoạn 2) ═══════════ */
-var THE = {};          // THE[mã chương] = [thẻ citation]
+/* ═══════════ CỤM — gom câu, tô màu (user chốt 23/09) ═══════════ */
+var MAU_CUM = {1:"#d9a94c", 2:"#3fae63", 3:"#4c8fe0", 4:"#a274d6", 5:"#e08b4c", 6:"#dd6b9a"};
+var chonTu = -1;                    // dòng đầu của vùng đang chọn (shift+bấm)
 
-function gon(x){ return String(x || "").replace(/\s+/g, " ").trim().toLowerCase(); }
-
-async function napCitation(){
-  var ds = (MAN === "TONG") ? DS_CHUONG.map(function(c){ return c.ma; }) : (MAN ? [MAN] : []);
-  for(var i = 0; i < ds.length; i++){
-    try { THE[ds[i]] = await api("/api/tap/" + TAP_MA + "/" + ds[i] + "/citation"); }
-    catch(e){ THE[ds[i]] = []; }
-  }
+function vungChon(){
+  if(chonTu < 0) return [chonD, chonD];
+  return [Math.min(chonTu, chonD), Math.max(chonTu, chonD)];
 }
 
-// Thẻ phủ dòng này. Neo theo NỘI DUNG chứ không theo số dòng: chẻ một dòng
-// thành hai thì cả hai nửa vẫn nằm trong đoạn đã kiểm -> kết luận giữ nguyên.
-// Sửa chữ thì không nửa nào khớp nữa -> thẻ thành "mồ côi" = cần kiểm lại.
-function theCuaDong(ma, chu){
-  var ds = THE[ma] || [], g = gon(chu);
-  if(!g) return null;
-  for(var i = 0; i < ds.length; i++){
-    if(gon(ds[i].doan).indexOf(g) >= 0){ ds[i].moi = false; return ds[i]; }
-  }
-  // Khớp MỘT PHẦN = dòng này từng được kiểm rồi bị SỬA CHỮ -> 🕐 cần kiểm lại.
-  // Trước đó dấu ✅ lặng lẽ biến mất (đo trên Chrome 16/09), người viết tưởng
-  // đoạn chưa từng kiểm — đúng kiểu hỏng im lặng tệ nhất.
-  var w = g.split(" ");
-  for(var i = 0; i < ds.length; i++){
-    var d = gon(ds[i].doan);
-    for(var k = 0; k + 6 <= w.length; k++){
-      if(d.indexOf(w.slice(k, k + 6).join(" ")) >= 0){ ds[i].moi = true; return ds[i]; }
-    }
-  }
-  return null;
-}
-
-function theMoCoi(ma){
-  var ds = THE[ma] || [], dong = cua(ma).dong || [], ra = [];
-  for(var i = 0; i < ds.length; i++){
-    var co = false;
-    for(var k = 0; k < dong.length; k++)
-      if(gon(ds[i].doan).indexOf(gon(dong[k].en)) >= 0){ co = true; break; }
-    if(!co){ ds[i].moi = true; ra.push(ds[i]); }
-  }
-  return ra;
-}
-
-function veCitation(){
-  var d = (cua(chonCh).dong || [])[chonD];
-  var t = d ? theCuaDong(chonCh, d.en) : null;
-  var p = document.getElementById("pane-c");
-  if(!d){ p.innerHTML = '<div class="the"><div class="ghi">Bấm một dòng ở cột giữa, hoặc bôi đen một đoạn rồi bấm “Kiểm đoạn này”.</div></div>'; return; }
-  if(!t){
-    p.innerHTML = '<div class="the"><div class="doan">' + thoat(d.en) + '</div>' +
-      '<div class="ly">Đoạn này chưa được kiểm.</div>' +
-      '<div class="nut"><button onclick="kiemDong()">🔍 Kiểm dòng này</button></div>' +
-      '<div class="gia">1 lượt ≈ 1 tra Google + 2 lượt GLM · chỉ chạy khi bạn bấm</div></div>';
-    return;
-  }
-  var ng = (t.nguon || []).map(function(n){
-    var h = n.hang || 0;
-    var bc = n.bang_chung
-      ? '<div class="song">✓ link sống · trích đoạn có thật trong trang · kiểm ' + (n.luc || "") +
-        (n.ban_chup ? ' · đã lưu bản chụp' : '') + '</div>'
-      : '<div class="hong">✗ ' + (!n.song ? 'link chết' : !n.khop ? 'không tìm thấy trích đoạn trong trang'
-                                   : 'hạng nguồn không đủ làm bằng chứng') + '</div>';
-    return '<div class="ng"><div class="ten">' + thoat(n.ten || n.url) + '</div>' +
-      '<div class="meta"><span class="tier' + (h >= 2 ? ' t' + h : '') + '">T' + (h || '?') + '</span>' +
-      '<a href="' + thoat(n.url) + '" target="_blank" rel="noopener" style="color:var(--accent)">⧉ mở</a></div>' +
-      '<div class="trich">' + thoat(n.trich) + '</div>' + bc + '</div>';
-  }).join("");
-  var nhan = t.moi ? '<div class="ket c">🕐 CẦN KIỂM LẠI</div>'
-           : t.ket === "dung" ? '<div class="ket d">✅ ĐÚNG</div>'
-           : '<div class="ket s">❌ SAI / CHƯA KẾT LUẬN ĐƯỢC</div>';
-  p.innerHTML = '<div class="the"><div class="doan">' + thoat(t.doan) + '</div>' + nhan +
-    '<div class="ly">' + thoat(t.ly_do) + '</div>' + ng +
-    '<div class="ghi">Tra bằng: ' + thoat(t.truy_van || "") + '</div>' +
-    '<div class="nut"><button onclick="kiemLai(\'' + t.chu_ky + '\')">↻ Kiểm lại</button>' +
-    '<button onclick="xoaThe(\'' + t.chu_ky + '\')">Xoá thẻ</button></div></div>';
-}
-
-async function chayKiem(doan){
-  if(!doan || !doan.trim()) return bao("Chưa chọn đoạn nào.", true);
+function gomCum(mau){
   var ma = (MAN === "TONG") ? chonCh : MAN;
-  if(!ma) return;
-  await luuNgay();
-  if(!(await giuKhoa(ma))) return;
-  tt("Đang kiểm chứng…");
-  bao("Đang tra nguồn cho đoạn đã chọn — mất khoảng 20-40 giây.");
-  try { await api("/api/tap/" + TAP_MA + "/" + ma + "/kiem", "POST", {doan: doan}); }
-  catch(e){ tt("✗ kiểm hỏng", "loi"); return bao(e.message, true); }
-  await napCitation(); ve(); doiTab("c");
-  tt("✓ Đã lưu " + gio(), "xong");
+  var ds = cua(ma).dong, v = vungChon();
+  if(!ds.length) return;
+  ghiNho();
+  for(var i = v[0]; i <= v[1]; i++) if(ds[i]) ds[i].cum = mau;
+  henLuu(ma); ve();
+  bao("Đã gom <b>" + (v[1] - v[0] + 1) + " dòng</b> thành một cụm.");
 }
 
-function kiemDoan(){
-  var s = document.getSelection();
-  var t = s ? s.toString() : "";
-  document.getElementById("noi").style.display = "none";
-  chayKiem(t);
-}
-function kiemDong(){
-  var d = (cua(chonCh).dong || [])[chonD];
-  if(d) chayKiem(d.en);
-}
-function kiemLai(ck){
-  var ds = THE[(MAN === "TONG") ? chonCh : MAN] || [];
-  for(var i = 0; i < ds.length; i++) if(ds[i].chu_ky === ck) return chayKiem(ds[i].doan);
-}
-async function xoaThe(ck){
+function boCum(){
   var ma = (MAN === "TONG") ? chonCh : MAN;
-  try { await api("/api/tap/" + TAP_MA + "/" + ma + "/citation/" + ck, "DELETE"); }
-  catch(e){ return bao(e.message, true); }
-  await napCitation(); ve(); bao("Đã xoá thẻ.");
+  var ds = cua(ma).dong, v = vungChon();
+  ghiNho();
+  for(var i = v[0]; i <= v[1]; i++) if(ds[i]) delete ds[i].cum;
+  henLuu(ma); ve(); bao("Đã bỏ cụm.");
 }
 
-document.addEventListener("selectionchange", function(){
-  var s = document.getSelection(), n = document.getElementById("noi");
-  if(!s || s.isCollapsed || !s.toString().trim() ||
-     !document.getElementById("cotScript").contains(s.anchorNode)){ n.style.display = "none"; return; }
-  var r = s.getRangeAt(0).getBoundingClientRect();
-  n.style.display = "block";
-  n.style.top = Math.max(8, r.top - 44) + "px";
-  n.style.left = Math.max(8, r.left + r.width / 2 - 80) + "px";
-});
+function veBangMau(){
+  var v = vungChon(), n = v[1] - v[0] + 1;
+  var h = '<div class="cum-thanh"><span class="nhan" style="margin:0">Cụm' +
+          (n > 1 ? " · " + n + " dòng" : "") + '</span>';
+  for(var m in MAU_CUM)
+    h += '<button class="o-mau" style="background:' + MAU_CUM[m] + '" title="Gom thành cụm" ' +
+         'onclick="gomCum(' + m + ')"></button>';
+  h += '<button class="o-mau bo" onclick="boCum()" title="Bỏ cụm">✕</button>' +
+       '<span class="ghi" style="margin:0">Bấm dòng đầu, giữ Shift bấm dòng cuối rồi chọn màu</span></div>';
+  return h;
+}
 
+/* ═══════════ Cài đặt (khoá LLM cho cột dịch) ═══════════ */
 async function napCaiDat(){
   try { var d = await api("/api/cai-dat"); } catch(e){ return; }
   document.getElementById("s-url").value = d.llm_url || "";
   document.getElementById("s-model").value = d.llm_model || "";
   document.getElementById("s-dich").value = d.dich_model || "";
-  document.getElementById("s-serper").placeholder =
-    d.serper_key ? ("đang dùng khoá " + d.serper_key)
-                 : "chưa có — thiếu thì chỉ tra được Europe PMC, mất kênh báo chí";
   document.getElementById("s-key").placeholder =
-    d.llm_key ? ("đang dùng khoá " + d.llm_key) : (d.co_ket ? "đang dùng khoá của hệ (két)" : "chưa có khoá");
+    d.llm_key ? ("đang dùng khoá " + d.llm_key)
+              : (d.co_ket ? "đang dùng khoá của hệ (két)" : "chưa có khoá");
   document.getElementById("s-tt").textContent =
     d.llm_key ? "Đang dùng khoá đặt trong app này." :
     d.co_ket ? "Chưa đặt trong app — đang dùng khoá của hệ production." : "Chưa có khoá nào.";
@@ -598,12 +523,9 @@ async function luuCaiDat(){
               dich_model: document.getElementById("s-dich").value.trim()};
   var k = document.getElementById("s-key").value;
   if(k !== "") than.llm_key = k.trim();      // để trống = giữ khoá cũ
-  var sp = document.getElementById("s-serper").value;
-  if(sp !== "") than.serper_key = sp.trim();
   try { await api("/api/cai-dat", "POST", than); }
   catch(e){ return bao(e.message, true); }
   document.getElementById("s-key").value = "";
-  document.getElementById("s-serper").value = "";
   await napCaiDat(); bao("Đã lưu cài đặt.");
 }
 
@@ -775,6 +697,13 @@ document.getElementById("outline").addEventListener("blur", function(e){
   if(cua(ma).outline === el.textContent) return;
   DU[ma].outline = el.textContent; henLuu(ma);
 }, true);
+
+document.getElementById("ctOo").addEventListener("blur", function(){
+  var d = (cua(chonCh).dong || [])[chonD]; if(!d) return;
+  var v = document.getElementById("ctOo").textContent;
+  if((d.ct || "") === v) return;
+  d.ct = v; henLuu((MAN === "TONG") ? chonCh : MAN);
+});
 
 document.getElementById("tOo").addEventListener("blur", function(){
   var d = (cua(chonCh).dong || [])[chonD]; if(!d) return;

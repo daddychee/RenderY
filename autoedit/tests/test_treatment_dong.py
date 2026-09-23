@@ -15,7 +15,7 @@ Sheet để lại (đo thật: 16 chỗ trong 5/51 kịch bản trên NAS).
 
 from __future__ import annotations
 
-from autoedit.treatment.dong import che, gop, nap, ranh, xuat
+from autoedit.treatment.dong import bo_cum, che, gom_cum, gop, nap, ranh, xuat
 
 MAU = """Number two is the one people switch to thinking they are doing the healthy thing.
 Diet soda and zero-sugar drinks.
@@ -178,3 +178,46 @@ def test_xuat_ket_thuc_bang_dung_mot_xuong_dong():
 def test_nap_xuat_khu_hoi():
     d = nap(MAU)
     assert nap(xuat(d)) == d
+
+
+# ------------------------- CỤM (user chốt 23/09) ----------------------------
+def test_gom_may_dong_thanh_mot_cum():
+    """Gom các câu thành CỤM và tô màu — để người viết nhìn ra mảng ý, và người
+    dựng biết đoạn nào đi liền một mạch."""
+    d = nap("A\nB\nC\nD\n")
+    r = gom_cum(d, 1, 2, 3)
+    assert [x.get("cum") for x in r] == [None, 3, 3, None]
+
+
+def test_mau_cum_chi_nhan_trong_bang_mau_co_san():
+    """Màu là BẢNG CỐ ĐỊNH, không cho nhập mã màu tự do: nhập bậy thì UI vẽ ra
+    thứ không đọc được trên nền tối."""
+    d = nap("A\nB\n")
+    import pytest
+
+    with pytest.raises(ValueError):
+        gom_cum(d, 0, 1, 99)
+
+
+def test_bo_cum():
+    d = gom_cum(nap("A\nB\nC\n"), 0, 2, 1)
+    assert [x.get("cum") for x in bo_cum(d, 1, 1)] == [1, None, 1]
+
+
+def test_gom_cum_khong_dung_vao_ban_goc():
+    d = nap("A\nB\n")
+    gom_cum(d, 0, 1, 2)
+    assert all(x.get("cum") is None for x in d), "hàm thuần: không mutate"
+
+
+def test_che_dong_trong_cum_thi_ca_hai_nua_van_thuoc_cum():
+    """Chẻ một câu trong cụm: cả hai nửa vẫn nằm trong cụm đó — chẻ dòng không
+    phải là tách ý."""
+    d = gom_cum(nap("A B\nC\n"), 0, 0, 2)
+    r = che(d, 0, 1)
+    assert [x.get("cum") for x in r] == [2, 2, None]
+
+
+def test_gop_giu_cum_cua_dong_tren():
+    d = gom_cum(nap("A\nB\n"), 0, 0, 4)
+    assert gop(d, 1)[0].get("cum") == 4
