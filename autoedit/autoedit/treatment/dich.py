@@ -1,20 +1,29 @@
-r"""Dịch cột tiếng Việt — CHỈ để team đọc hiểu, không đi xuống dây chuyền dựng.
+r"""Dịch cột tiếng Việt — CHỈ để đội đọc hiểu, không đi xuống dây chuyền dựng.
 
 Bản tiếng Anh mới là kịch bản thật (đem đi ren voice, đem đi align). Bản dịch là
 cột phụ, nên ở đây fail thì báo lỗi rồi thôi — tuyệt đối không được đụng vào cột
 tiếng Anh (test `test_dich_hong_thi_khong_mat_chu` khoá điều đó).
 
-Dịch THEO DÒNG, giữ đúng số dòng: hai cột phải nằm ngang hàng nhau thì mới chỉ
-vào dòng nào ra citation dòng đó. LLM trả thiếu/thừa dòng là hỏng cả màn hình,
-nên `DichGLM` kiểm số lượng trước khi trả.
+KHOÁ LẤY TỪ KÉT CỦA GENERAL, app KHÔNG giữ sổ khoá riêng (user chốt 23/09, luật
+`docs/APPS.md` bước 5): Owner nhập khoá ở **General › API Keys**, cấp cho việc
+`dich` của app `treatment`, chọn nhà cung cấp + model ở đó. Két trả kèm cả
+`base_url` (đường A, 23/09) nên đổi nhà (glm → grok → mwapi/Claude) là app gọi
+đúng địa chỉ mới, không phải sửa một dòng code nào.
+
+Dịch THEO DÒNG, giữ đúng số dòng: hai cột phải nằm ngang hàng thì chỉ vào dòng
+nào mới ra đúng nguồn/treatment của dòng đó. LLM trả thiếu/thừa dòng là hỏng cả
+màn hình, nên kiểm số lượng trước khi trả.
 """
 
 from __future__ import annotations
 
 import json
 
-_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36')
+SLUG = "treatment"
+VIEC = "dich"
+
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36")
 
 _CAU_LENH = """Bạn dịch kịch bản video sang tiếng Việt cho ĐỘI DỰNG ĐỌC HIỂU.
 
@@ -26,13 +35,51 @@ Luật:
 Trả về JSON: {"dong": ["bản dịch dòng 1", "bản dịch dòng 2", ...]}"""
 
 
+class DichLoi(RuntimeError):
+    """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
+
+
+def doc_ket_viec() -> dict:
+    """{key, model, base_url} mà Owner đã cấp cho việc `dich` của app này.
+
+    Chưa cấp / gateway chết -> {} và người dùng nhận câu lỗi chỉ thẳng chỗ bấm.
+    Đây là ngoại lệ DUY NHẤT của luật cách ly: `web/ket_v3` chỉ gọi HTTP tới
+    gateway, không kéo theo tầng dựng nào.
+    """
+    try:
+        from autoedit.web.ket_v3 import doc_ket
+    except ImportError:
+        return {}
+    try:
+        ds = (doc_ket().get(VIEC) or {}).get("khoa") or []
+    except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
+        return {}
+    if not ds:
+        return {}
+    k = ds[0]
+    return {"key": k.get("key", ""), "base_url": k.get("base_url", ""),
+            "model": (doc_ket().get(VIEC) or {}).get("model", "")}
+
+
+def dia_chi_chat(url: str) -> str:
+    """Địa chỉ gốc của nhà -> endpoint chat kiểu OpenAI.
+
+    Két trả gốc (`https://api.mwapi.dev/v1`); ai đã dán sẵn đường đầy đủ thì giữ.
+    """
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if u.endswith("/chat/completions"):
+        return u
+    return u + "/chat/completions"
+
+
 def than_goi(model: str, he: str, than: str) -> dict:
     """Thân request kiểu OpenAI, kèm tham số RIÊNG của từng nhà.
 
     `reasoning_effort` là của GLM và với GLM là BẮT BUỘC (không đặt thì nó nuốt
-    trọn max_tokens vào phần suy nghĩ rồi trả JSON cụt — bài học đã ghi trong
-    `director/glm_client.py`). Nhưng gửi sang cổng trung gian chạy grok/gpt thì
-    nhiều cổng trả 400. Nên chỉ gửi khi model là glm.
+    trọn max_tokens vào phần suy nghĩ rồi trả JSON cụt — bài học ghi trong
+    `director/glm_client.py`). Cổng khác thì trả 400, nên chỉ gửi khi là glm.
     """
     d = {"model": model,
          "messages": [{"role": "system", "content": he},
@@ -42,96 +89,25 @@ def than_goi(model: str, he: str, than: str) -> dict:
     return d
 
 
-class DichLoi(RuntimeError):
-    """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
+class LLM:
+    """Một lượt gọi LLM kiểu OpenAI, cấu hình lấy từ két mỗi lần khởi tạo."""
 
-
-def _khoa_tu_ket() -> tuple[str, str]:
-    """(khoá, model) GLM từ két OUTLIERY — MỘT CỬA KHOÁ của cụm.
-
-    Luật `docs/APPS.md` bước 5: khoá do Owner nhập ở **General › API Keys**, app
-    hỏi qua loopback; app KHÔNG giữ sổ khoá riêng, KHÔNG đọc `.env`. Bàn kịch bản
-    dùng lại đúng cấp phát của RenderY (việc `cham_footage`, nhà glm) vì nó LÀ
-    công cụ của RenderY — chép khoá sang chỗ khác là đẻ ra sổ thứ hai, đổi khoá
-    một nơi thì nơi kia chết lặng.
-
-    Đây là ngoại lệ DUY NHẤT của luật cách ly (test `test_khong_dinh_gi_toi_day
-    _chuyen_dung`): `web/ket_v3` chỉ gọi HTTP, không kéo theo tầng dựng nào.
-    """
-    # Import ĐÚNG module con (không `from autoedit.web import ket_v3`) để test
-    # cách ly còn soi được tên đầy đủ — nó chặn theo tiền tố chuỗi.
-    from autoedit.web.ket_v3 import khoa_cua_viec
-
-    return khoa_cua_viec("cham_footage")
-
-
-def dia_chi_chat(url: str) -> str:
-    """Địa chỉ gốc -> endpoint chat kiểu OpenAI.
-
-    User đưa `https://api2.apisuper.cloud` — đó là GỐC. Tự nối đuôi thay vì bắt
-    người dùng nhớ `/v1/chat/completions`; ai dán sẵn đường đầy đủ thì giữ nguyên.
-    """
-    u = (url or "").strip().rstrip("/")
-    if not u:
-        return ""
-    if u.endswith("/chat/completions"):
-        return u
-    if u.endswith("/v1") or u.endswith("/v4"):
-        return u + "/chat/completions"
-    return u + "/v1/chat/completions"
-
-
-class DichGLM:
-    """Một lượt gọi LLM kiểu OpenAI. Tiêm được nên test không chạm mạng.
-
-    Không dùng `director.glm_client` để `kichban` khỏi kéo cả tầng dựng vào —
-    đường gọi là một lượt HTTP, chép 20 dòng rẻ hơn là buộc hai tầng vào nhau.
-
-    THỨ TỰ LẤY CẤU HÌNH: cài đặt trong app -> két OUTLIERY -> biến môi trường.
-    Tab cài đặt là đường TẠM (user chốt 16/09, cuối tuần ghép vào két); bỏ trống
-    ô đó là tự rơi về két, không phải sửa code.
-    """
-
-    def __init__(self, url: str | None = None, key: str | None = None,
-                 model: str = "", cai_dat: dict | None = None,
-                 viec: str = "kiem") -> None:
-        import os
-
-        cd = cai_dat or {}
-        # ĐỊA CHỈ VÀ KHOÁ ĐI CÙNG MỘT NGUỒN. Đo 16/09: khai địa chỉ nhà cung cấp
-        # mới mà chưa dán khoá thì nó mượn khoá GLM của két gửi sang cổng đó ->
-        # `403 Forbidden`, người dùng tưởng cổng hỏng. Đã khai địa chỉ riêng thì
-        # thiếu khoá phải báo thẳng "chưa có khoá".
-        rieng = bool(cd.get("llm_url") or cd.get("llm_key"))
-        khoa_ket, model_ket = "", ""
-        if not (key or cd.get("llm_key") or rieng):
-            try:
-                khoa_ket, model_ket = _khoa_tu_ket()
-            except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
-                pass
-        # Dịch chạy nhiều lần và rẻ; kiểm chứng cần model khoẻ -> hai ô riêng,
-        # để trống ô dịch thì dùng chung model kiểm.
-        model_app = (cd.get("dich_model") if viec == "dich" else "") or cd.get("llm_model")
-
-        self.url = (dia_chi_chat(url or cd.get("llm_url", "")) or
-                    os.getenv("GLM_API_URL",
-                              "https://api.z.ai/api/paas/v4/chat/completions"))
-        self.key = (key or cd.get("llm_key") or
-                    ("" if rieng else (khoa_ket or os.getenv("GLM_API_KEY", ""))))
-        self.model = model or model_app or model_ket or "glm-5.3"
+    def __init__(self) -> None:
+        cd = doc_ket_viec() or {}
+        self.key = cd.get("key", "")
+        self.model = cd.get("model") or "claude-sonnet-5"
+        self.url = dia_chi_chat(cd.get("base_url", ""))
 
     def goi(self, he: str, than: str) -> dict:
-        """Một lượt chat, trả JSON đã bóc — dùng cho CẢ dịch lẫn kiểm chứng.
-
-        Đi bằng `requests`, KHÔNG phải urllib. Đo 16/09 trên chính máy này, cùng
-        khoá cùng thân: `requests` -> **200**, urllib -> **403 "error code: 1010"**
-        (Cloudflare trước apisuper chặn User-Agent của urllib). Đây đúng là thứ
-        làm user tưởng "đã dán khoá mà vẫn nhận GLM làm chính".
-        """
+        """Đi bằng `requests`, KHÔNG phải urllib. Đo 16/09 trên máy chủ này:
+        cùng khoá cùng thân, `requests` -> 200, urllib -> 403 `error code 1010`
+        (Cloudflare chặn User-Agent của urllib). Trước đó máy còn chết
+        `CERTIFICATE_VERIFY_FAILED` vì nằm sau lớp chặn TLS."""
         import requests
 
-        if not self.key:
-            raise DichLoi("Chưa có khoá — dán vào tab ⚙ Cài đặt rồi Lưu.")
+        if not self.key or not self.url:
+            raise DichLoi("Chưa có khoá cho việc dịch — Owner cấp ở "
+                          "General › API Keys › tab Theo app › Treatment.")
         try:
             r = requests.post(self.url, timeout=180,
                               json=than_goi(self.model, he, than),

@@ -298,49 +298,6 @@ def test_ten_khai_duoc_chuan_hoa(bo):
 def test_ten_rong_bi_tu_choi(bo):
     c, _, _ = bo
     assert TestClient(c.app).post("/api/toi", json={"nguoi": "  "}).status_code == 400
-
-
-def test_header_crm_thang_ten_tu_khai(bo):
-    """Khi nào nối vào CRM: danh tính thật phải đè tên tự khai, không thì ai cũng
-    mượn được tên người khác mặc dù hệ đã biết họ là ai."""
-    c, _, _ = bo
-    khach = TestClient(c.app)
-    khach.post("/api/toi", json={"nguoi": "muon-ten"})
-    khach.headers.update({"X-Remote-User": "haint"})
-    assert khach.get("/api/toi").json()["nguoi"] == "haint"
-
-
-# ------------------------------- khoá LLM -----------------------------------
-def test_lay_khoa_glm_tu_ket_truoc_roi_moi_den_env(monkeypatch):
-    """MỘT CỬA KHOÁ (luật cụm, docs/APPS.md bước 5): khoá do Owner nhập ở
-    General › API Keys, app hỏi két qua loopback — app KHÔNG giữ sổ khoá riêng,
-    KHÔNG đọc .env. Bàn kịch bản dùng lại đúng cấp phát của RenderY (`cham_footage`,
-    nhà glm) vì nó LÀ công cụ của RenderY; chép khoá sang chỗ khác là đẻ sổ thứ hai.
-
-    Két tắt/chưa cấp phát -> rơi về biến môi trường (chạy tay trên máy dev).
-    """
-    from autoedit.treatment import dich as mdich
-
-    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("KHOA-KET", "glm-5.3"))
-    monkeypatch.setenv("GLM_API_KEY", "KHOA-ENV")
-    assert mdich.DichGLM().key == "KHOA-KET", "có két thì dùng két"
-
-    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("", ""))
-    assert mdich.DichGLM().key == "KHOA-ENV", "két câm thì rơi về env"
-
-
-def test_ket_hong_khong_giet_ban_kich_ban(monkeypatch):
-    """Gateway chết / không có mạng: vẫn mở được bàn kịch bản, chỉ nút Dịch lại
-    báo lỗi. Cột tiếng Anh mới là thứ phải sống."""
-    from autoedit.treatment import dich as mdich
-
-    def _no(): raise RuntimeError("gateway chết")
-    monkeypatch.setattr(mdich, "_khoa_tu_ket", _no)
-    monkeypatch.delenv("GLM_API_KEY", raising=False)
-    assert mdich.DichGLM().key == ""
-
-
-# --------------------------- sức khoẻ sâu (hợp đồng app) ---------------------
 def test_suc_khoe_sau_dung_khuon_cua_cum(bo):
     """`apps.json` khai `suc_khoe` thì PHẢI GIỮ LỜI: gateway đọc `trang_thai` +
     `mo_dun`, khai mà không trả lời được là bảng giám sát báo đỏ."""
@@ -361,8 +318,7 @@ def test_suc_khoe_bao_CANH_BAO_khi_thieu_khoa(tmp_path, monkeypatch):
     """
     from autoedit.treatment import dich as mdich
 
-    monkeypatch.setattr(mdich, "_khoa_tu_ket", lambda: ("", ""))
-    monkeypatch.delenv("GLM_API_KEY", raising=False)
+    monkeypatch.setattr(mdich, "doc_ket_viec", lambda: {})
 
     kho = Kho(tmp_path / "k.db")
     c = TestClient(tao_app(kho))

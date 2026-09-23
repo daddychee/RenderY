@@ -27,16 +27,6 @@ from autoedit.treatment.kho import Kho, KhoaBiGiu
 TRANG = Path(__file__).parent / "static" / "treatment.html"
 
 
-def _khoa_ket_co() -> bool:
-    """Két OUTLIERY đã có khoá chưa — để UI nói rõ đang dùng đường nào."""
-    try:
-        from autoedit.treatment.dich import _khoa_tu_ket
-
-        return bool(_khoa_tu_ket()[0])
-    except Exception:  # noqa: BLE001
-        return False
-
-
 def _loopback(request: Request) -> bool:
     host = (request.client.host if request.client else "") or ""
     return host in ("127.0.0.1", "::1", "localhost")
@@ -94,7 +84,7 @@ def _ghi_duoc(request: Request) -> str:
     return ai
 
 
-def tao_app(kho: Kho, dich=None, thu_llm=None) -> FastAPI:
+def tao_app(kho: Kho, dich=None) -> FastAPI:
     """`kho`, `dich` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
@@ -135,22 +125,18 @@ def tao_app(kho: Kho, dich=None, thu_llm=None) -> FastAPI:
         except Exception as exc:  # noqa: BLE001
             mo_dun.append({"ten": "kho", "trang_thai": "loi", "chi_tiet": str(exc)[:120]})
 
-        try:
-            cd = kho.doc_cai_dat()
-        except Exception:  # noqa: BLE001
-            cd = {}
-        from autoedit.treatment.dich import DichGLM
+        from autoedit.treatment.dich import LLM
 
         try:
-            m = DichGLM(cai_dat=cd)
-            co_khoa, ten_model = bool(m.key), m.model
+            m = LLM()
+            co_khoa, ten_model = bool(m.key and m.url), m.model
         except Exception:  # noqa: BLE001
             co_khoa, ten_model = False, "?"
         mo_dun.append({
             "ten": "khoa_llm",
             "trang_thai": "ok" if co_khoa else "canh_bao",
             "chi_tiet": (f"model {ten_model}" if co_khoa
-                         else "chưa có khoá — tab ⚙ trong app, hoặc két khoá")})
+                         else "chưa cấp — General › API Keys › Theo app › Treatment")})
 
         muc = ("loi" if any(m["trang_thai"] == "loi" for m in mo_dun)
                else "canh_bao" if any(m["trang_thai"] == "canh_bao" for m in mo_dun)
@@ -163,40 +149,6 @@ def tao_app(kho: Kho, dich=None, thu_llm=None) -> FastAPI:
         nào của người khác. Không có header thì trả rỗng — trang tự chuyển sang
         chế độ chỉ xem thay vì để người ta gõ cả buổi rồi 401 lúc lưu."""
         return {"nguoi": _nguoi(request)}
-
-    # ------------------------------------------------------------- cài đặt
-    def _che(k: str) -> str:
-        """Khoá đọc ra luôn CHE. Mạng nội bộ + danh tính mới là tên tự khai, nên
-        không API nào được trả khoá thật."""
-        return f"…{k[-4:]}" if k else ""
-
-    @app.get("/api/cai-dat")
-    def doc_cai_dat():
-        d = kho.doc_cai_dat()
-        d["llm_key"] = _che(d.get("llm_key", ""))
-        d["co_ket"] = bool(_khoa_ket_co())
-        return d
-
-    @app.post("/api/cai-dat")
-    def luu_cai_dat(request: Request, than: dict = Body(...)):
-        _ghi_duoc(request)
-        try:
-            kho.luu_cai_dat(than or {})
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        return {"ok": True}
-
-    @app.post("/api/cai-dat/thu")
-    def thu_cai_dat(request: Request):
-        """Dán khoá xong bấm THỬ được ngay — không thì lỗi chỉ lộ lúc đang kiểm
-        chứng giữa chừng, sau khi đã tốn một lượt tra Google."""
-        _ghi_duoc(request)
-        if thu_llm is None:
-            raise HTTPException(503, "Chưa bật đường thử.")
-        try:
-            return {"ok": True, **(thu_llm(kho.doc_cai_dat()) or {})}
-        except Exception as exc:  # noqa: BLE001 — báo lỗi ra UI, không nổ 500
-            return {"ok": False, "loi": str(exc)}
 
     # --------------------------------------------------------------- tập
     @app.get("/api/tap")
@@ -328,31 +280,18 @@ def _kho_mac_dinh() -> Kho:
 
 
 class _Dich:
-    """Đọc cài đặt MỖI LẦN dịch: đổi khoá/model trong tab Cài đặt là ăn ngay,
+    """Đọc KÉT mỗi lượt dịch: Owner đổi khoá/model/nhà ở General là ăn ngay,
     không phải khởi động lại máy chủ."""
 
-    def __init__(self, kho: Kho) -> None:
-        self.kho = kho
-
     def dich(self, cau):
-        from autoedit.treatment.dich import DichGLM
+        from autoedit.treatment.dich import LLM
 
-        return DichGLM(cai_dat=self.kho.doc_cai_dat(), viec="dich").dich(cau)
+        return LLM().dich(cau)
 
 
 def _dich_mac_dinh(kho: Kho):
-    return _Dich(kho)
-
-
-def _thu_llm(cai_dat: dict) -> dict:
-    """Bấm Thử: gọi đúng cấu hình đang lưu bằng một câu ngắn nhất có thể."""
-    from autoedit.treatment.dich import DichGLM
-
-    m = DichGLM(cai_dat=cai_dat)
-    if not m.key:
-        raise RuntimeError("Chưa có khoá — dán vào ô Khoá rồi Lưu.")
-    tra = m.dich(["Hello."])
-    return {"model": m.model, "dia_chi": m.url, "tra_loi": (tra or [""])[0][:80]}
+    _ = kho
+    return _Dich()
 
 
 def tao_app_mac_dinh() -> FastAPI:
@@ -362,7 +301,7 @@ def tao_app_mac_dinh() -> FastAPI:
     thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
     kho = _kho_mac_dinh()
-    return tao_app(kho, dich=_dich_mac_dinh(kho), thu_llm=_thu_llm)
+    return tao_app(kho, dich=_dich_mac_dinh(kho))
 
 
 def main() -> None:

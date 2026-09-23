@@ -51,14 +51,6 @@ def test_khong_tro_vao_o_da_xoa(html):
     co = set(_re.findall(r'id="([\w-]+)"', html))
     goi = set(_re.findall(r'getElementById\("([\w-]+)"\)', html))
     assert goi <= co, f"trang gọi id không tồn tại: {sorted(goi - co)}"
-
-
-def test_co_tab_cai_dat(html):
-    """User chốt 16/09: tab cài đặt nằm TRONG app, chưa dính hệ production."""
-    assert "Cài đặt" in html and "/api/cai-dat" in html
-    assert "grok-4.6" in html and "gpt-5.6" in html, "gợi ý sẵn 2 model của nhà cung cấp"
-    assert "api2.apisuper.cloud" in html
-    assert "cai-dat/thu" in html, "phải có nút Thử — lỗi khoá không được lộ giữa chừng"
 def test_nhan_hien_thi_la_Treatment(html):
     """User đổi tên tool 23/09: Factcheck -> Treatment. Nhãn trên trang phải đổi
     theo, không để tên cũ sót lại ở chỗ người dùng nhìn thấy."""
@@ -93,3 +85,10 @@ def test_bam_dong_co_truyen_phim_shift(html):
     23/09: quên truyền `event.shiftKey` thì Shift vô tác dụng và chỉ tô được MỘT
     dòng — nhìn qua tưởng chạy đúng."""
     assert "event.shiftKey" in html
+
+
+def test_khong_con_tab_cai_dat_khoa(html):
+    """Luật General (user chốt 23/09): khoá do Owner đặt ở General › API Keys,
+    app KHÔNG có cửa sửa khoá — kể cả vai cao nhất."""
+    for x in ("pane-s", "tb-s", "napCaiDat", "luuCaiDat", "s-key", "/api/cai-dat"):
+        assert x not in html, x
