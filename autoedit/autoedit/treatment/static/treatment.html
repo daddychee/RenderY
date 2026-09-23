@@ -608,6 +608,14 @@ function datCaret(ma, i, off){
   r.setStart(tn, Math.min(off, (tn.textContent || "").length)); r.collapse(true);
   var s = getSelection(); s.removeAllRanges(); s.addRange(r);
 }
+function docChu(el){
+  // Enter trong ô contenteditable đẻ ra <div>, và `textContent` nối text các thẻ
+  // lại mà KHÔNG chèn "\n" -> chữ cuối dòng trên dính luôn vào chữ đầu dòng dưới
+  // (đo Chrome 23/09: textContent "Dong motDong haiDong ba",
+  //  innerText "Dong mot\nDong hai\nDong ba"). innerText đọc theo cái MẮT THẤY.
+  return (el.innerText || "").replace(/\r\n/g, "\n").replace(/\n+$/, "");
+}
+
 function ghiNho(){
   lichSu.push(JSON.stringify(DU));
   if(lichSu.length > 20) lichSu.shift();
@@ -649,6 +657,48 @@ document.getElementById("script").addEventListener("keydown", function(e){
   }
 }, false);
 
+document.getElementById("script").addEventListener("paste", function(e){
+  // Dán mặc định nhét <div> vào ô rồi `textContent` nối liền hai dòng lại
+  // ("Alpha oneBravo two" — đo Chrome 23/09), và cục chữ đó đi THẲNG vào bản
+  // .txt đem ren voice. Nên trang tự nhận việc dán: lấy chữ trơn, cắt theo
+  // xuống dòng, đẻ ra đúng số DÒNG — một dòng là một nhịp.
+  var el = oNoi(e); if(!el) return;
+  var ma = el.dataset.ch, i = +el.dataset.i, ds = cua(ma).dong, d = ds[i];
+  if(!d) return;
+  e.preventDefault();
+  var tho = ((e.clipboardData || window.clipboardData).getData("text/plain") || "");
+  var manh = tho.split(/\r?\n/).map(function(x){ return x.trim(); });
+  var off = viTriCaret(el), cu = docChu(el);
+  var truoc = cu.slice(0, off), sau = cu.slice(off);
+
+  // dòng trống giữa hai đoạn = RANH ĐOẠN của dòng trên (cùng luật với nạp cả chương)
+  var moi = [];
+  manh.forEach(function(x){
+    if(!x){ if(moi.length) moi[moi.length - 1].het = 1; return; }
+    moi.push({en: x, het: 0});
+  });
+  if(!moi.length) return;
+
+  ghiNho();
+  var duoi = d.het;
+  d.en = truoc + moi[0].en;
+  if(moi.length === 1){
+    var cho = d.en.length; d.en += sau;
+    henLuu(ma); ve(); datCaret(ma, i, cho);
+    return;
+  }
+  d.het = moi[0].het;
+  var them = moi.slice(1).map(function(x){
+    return {en: x.en, vi: "", het: x.het, tr: ""};
+  });
+  var cuoi = them[them.length - 1], dat = cuoi.en.length;
+  cuoi.en += sau;
+  cuoi.het = duoi || cuoi.het;
+  ds.splice.apply(ds, [i + 1, 0].concat(them));
+  henLuu(ma); ve(); datCaret(ma, i + them.length, dat);
+  bao("Đã dán <b>" + (them.length + 1) + " dòng</b>.");
+}, false);
+
 document.getElementById("script").addEventListener("blur", function(e){
   var el = oNoi(e); if(!el || dangVe) return;
   var ma = el.dataset.ch, d = cua(ma).dong[+el.dataset.i];
@@ -658,21 +708,21 @@ document.getElementById("script").addEventListener("blur", function(e){
 
 document.getElementById("outline").addEventListener("blur", function(e){
   var el = e.target; if(!el.dataset || !el.dataset.ol || dangVe) return;
-  var ma = el.dataset.ol;
-  if(cua(ma).outline === el.textContent) return;
-  DU[ma].outline = el.textContent; henLuu(ma);
+  var ma = el.dataset.ol, v = docChu(el);
+  if(cua(ma).outline === v) return;
+  DU[ma].outline = v; henLuu(ma);
 }, true);
 
 document.getElementById("ctOo").addEventListener("blur", function(){
   var d = (cua(chonCh).dong || [])[chonD]; if(!d) return;
-  var v = document.getElementById("ctOo").textContent;
+  var v = docChu(document.getElementById("ctOo"));
   if((d.ct || "") === v) return;
   d.ct = v; henLuu((MAN === "TONG") ? chonCh : MAN);
 });
 
 document.getElementById("tOo").addEventListener("blur", function(){
   var d = (cua(chonCh).dong || [])[chonD]; if(!d) return;
-  var v = document.getElementById("tOo").textContent;
+  var v = docChu(document.getElementById("tOo"));
   if((d.tr || "") === v) return;
   d.tr = v; henLuu(chonCh);
 });

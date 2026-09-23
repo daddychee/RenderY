@@ -129,3 +129,52 @@ def test_bang_mau_nam_o_COT_PHAI_canh_treatment(html):
     i_mau = html.index('id="bangMau"')
     assert i_mau > i_cot3, "bảng màu phải nằm TRONG cột phải"
     assert i_mau < i_tab, "và nằm trên khối tab — cụm công cụ đọc từ trên xuống"
+
+
+# ---------------------- xuống dòng trong ô nhiều dòng ------------------------
+# Đo thật 23/09 trong Chrome: gõ 3 dòng vào ô Treatment rồi thoát ra vào lại thì
+# thành "Dong motDong haiDong ba" — DÍNH CHỮ, mất cả chỗ xuống dòng.
+# Gốc: Enter trong contenteditable đẻ ra <div>, và `textContent` nối text các thẻ
+# lại KHÔNG chèn "\n" (đo: textContent -> "Dong motDong haiDong ba",
+# innerText -> "Dong mot\nDong hai\nDong ba"). Ba ô nhiều dòng đều đọc sai kiểu
+# đó, nên canh cả ba.
+_O_NHIEU_DONG = ("tOo", "ctOo", "outline")
+
+
+def _than_blur(html: str, ma_o: str) -> str:
+    """Đoạn JS trong listener blur của ô đó."""
+    mo = html.index('getElementById("%s").addEventListener("blur"' % ma_o)
+    return html[mo:html.index("});", mo)]
+
+
+@pytest.mark.parametrize("ma_o", _O_NHIEU_DONG)
+def test_o_nhieu_dong_doc_bang_innerText(html, ma_o):
+    than = _than_blur(html, ma_o)
+    assert "textContent" not in than, (
+        f"ô {ma_o} còn đọc bằng textContent — Enter đẻ ra <div> và textContent "
+        "nối liền chữ, người gõ xong thoát ra là dính dòng")
+    assert "docChu(" in than, f"ô {ma_o} phải đọc qua docChu() để giữ xuống dòng"
+
+
+def test_co_ham_docChu_giu_xuong_dong(html):
+    """Một chỗ duy nhất biết cách đọc chữ nhiều dòng — ba ô dùng chung."""
+    assert "function docChu(" in html
+    i = html.index("function docChu(")
+    than = html[i:i + 700]
+    assert "innerText" in than, "docChu phải dùng innerText (textContent mất \n)"
+
+
+def test_dan_nhieu_dong_vao_mot_dong_thi_CHE_RA(html):
+    """Đo Chrome 23/09: dán 3 dòng từ Word vào một dòng kịch bản thì trình duyệt
+    nhét <div> vào ô, `textContent` nối liền -> "Alpha oneBravo twoCharlie three"
+    ĐI THẲNG vào bản .txt đem ren voice. Đúng thứ tool này sinh ra để chữa.
+
+    Nên trang phải TỰ nhận việc dán: chặn dán mặc định, cắt theo xuống dòng, đẻ
+    ra đúng số DÒNG — một dòng là một nhịp, không phải một cục chữ.
+    """
+    neo = 'getElementById("script").addEventListener("paste"'
+    assert neo in html, "cột kịch bản chưa nhận việc dán"
+    than = html[html.index(neo):]
+    than = than[:than.index("}, false);")]
+    assert "preventDefault()" in than, "phải chặn dán mặc định (nó đẻ ra <div>)"
+    assert "splice" in than, "dán nhiều dòng phải đẻ ra dòng mới, không dồn một cục"
