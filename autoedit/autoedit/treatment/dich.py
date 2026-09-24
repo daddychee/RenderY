@@ -55,6 +55,37 @@ toàn thân, 3 góc (chính diện, bên hông, sau lưng), nền trắng, photo
 Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "chu": "...", "pr": "..."}]}"""
 
 
+# Ngữ pháp cỡ cảnh và luật chống sai nghĩa lấy từ `director/prompts.py` — bộ
+# đạo diễn của padoma đã chạy thật, không viết lại từ đầu.
+_LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
+
+Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
+bằng tiếng Việt do biên kịch viết, và vị trí của nó trong phân cảnh.
+
+Với MỖI cảnh, trả về:
+- `pa`: prompt TIẾNG ANH tả khung hình tĩnh của cảnh đó. Tả cái NHÌN THẤY: chủ \
+thể, hành động, bối cảnh, ánh sáng, chất liệu. KHÔNG thêm câu về phong cách hay \
+mood — phần đó hệ thống tự ghép.
+- `pv`: prompt TIẾNG ANH tả CHUYỂN ĐỘNG cho một clip liền mạch 5 giây, không \
+chuyển cảnh. Chuyển động ĐƠN GIẢN thôi.
+- `co`: cỡ cảnh, chỉ nhận WS | MS | CU | ECU | AERIAL
+- `goc`: góc máy, tiếng Anh ngắn (eye level, low angle, top down…)
+- `cd`: chuyển động camera, tiếng Anh ngắn (static, slow push in, pan left…)
+- `sfx`: gợi ý tiếng động, tiếng Anh ngắn
+- `ts`: danh sách MÃ tài sản xuất hiện trong cảnh, lấy từ sổ được đưa bên dưới. \
+Không có thì để danh sách rỗng. TUYỆT ĐỐI không bịa mã.
+
+Luật:
+- Cỡ cảnh: wide mở đầu/tả bối cảnh · medium kể chuyện · close-up nhấn cảm xúc. \
+KHÔNG cho 3 cảnh liền nhau cùng một cỡ.
+- Lời đọc mang ẩn dụ thì ĐỪNG quay chữ bề mặt của ẩn dụ — bám chủ thể thật của \
+câu chuyện. Đây là lỗi sai nghĩa nặng nhất.
+- Trả ĐÚNG số mục, ĐÚNG thứ tự như nhận vào. Không gộp, không bỏ.
+
+Trả về JSON: {"canh": [{"id": "...", "pa": "...", "pv": "...", "co": "...", \
+"goc": "...", "cd": "...", "sfx": "...", "ts": []}]}"""
+
+
 class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
@@ -152,6 +183,19 @@ class LLM:
             return json.loads(noi[noi.index("{"):noi.rindex("}") + 1])
         except (KeyError, IndexError, ValueError) as exc:
             raise DichLoi(f"{self.model} trả về không đọc được: {exc}") from exc
+
+    def ky_thuat(self, muc: list[dict], tai_san: list[dict]) -> list[dict]:
+        """Một lô cảnh -> cột kỹ thuật + prompt tiếng Anh. Kiểm SỐ LƯỢNG trước
+        khi trả: lệch một mục là lệch hết phần còn lại của chương."""
+        so = "\n".join("- %s (%s): %s" % (t["ma"], t["ten"], t.get("chu", ""))
+                        for t in tai_san) or "(sổ tài sản trống)"
+        than = "SỔ TÀI SẢN:\n" + so + "\n\nCÁC CẢNH:\n" + json.dumps(
+            muc, ensure_ascii=False, indent=1)
+        # KHÔNG chốt số lượng ở đây: đo thật 24/09 trên C1, claude-sonnet-5 gửi 8
+        # trả 7 — chốt số lượng thì cả chương dừng vì một mục bị nuốt. Tầng app
+        # khớp theo MÃ, mục nào thiếu thì cảnh đó để trống, bấm lại chạy tiếp.
+        ra = self.goi(_LENH_KY_THUAT, than).get("canh") or []
+        return [x for x in ra if isinstance(x, dict)]
 
     def goi_y(self, canh: list[str]) -> list[dict]:
         """Một lô cảnh -> danh sách tài sản. Trả sai hình dạng thì bỏ mục đó,

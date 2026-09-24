@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Treatment — RenderY</title>
+<title>AI Generation — RenderY</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2726%27 font-size=%2726%27%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
 <style>
 :root{
@@ -216,6 +216,7 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .chip{font-size:9px;font-weight:700;border-radius:5px;padding:1px 5px;
   background:var(--line);color:var(--muted)}
 .chip.trong{opacity:.55}
+.chip.thieu{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
 .cham{width:9px;height:9px;border-radius:50%;display:inline-block}
 .canh-bao{color:var(--warn);font-weight:700}
 .nen{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;
@@ -283,7 +284,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 <body>
 
 <header>
-  <div class="logo">RenderY <span>· Treatment</span></div>
+  <div class="logo">RenderY <span>· AI Generation</span></div>
   <select class="tap" id="dsTap" onchange="doiTap(this.value)"></select>
   <button class="icon-btn" id="nutTap" onclick="taoTap()" title="Tạo tập mới">+ Tập</button>
   <div class="man">
@@ -362,6 +363,9 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <select id="locNhanSu" onchange="veSb()" title="Cụm màu = phân nhân sự">
       <option value="0">Nhân sự: tất cả</option>
     </select>
+    <button class="icon-btn" id="nutKyThuat" onclick="sinhKyThuat()"
+      title="Dịch nội dung cảnh sang prompt tiếng Anh và điền cỡ cảnh, góc máy, chuyển động, SFX"
+      >✨ Sinh prompt</button>
     <button class="icon-btn" id="nutTaiSan" onclick="moSo('ts')">Tài sản</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tông</button>
   </div>
@@ -410,6 +414,8 @@ function batNutGhi(){
   if(n) n.hidden = !SUA_DUOC;
   var tc = document.getElementById("themCanh");
   if(tc) tc.hidden = !SUA_DUOC;
+  var kt = document.getElementById("nutKyThuat");
+  if(kt) kt.hidden = !SUA_DUOC;
   document.querySelectorAll(".cp").forEach(function(b){
     if(/Dịch lại/.test(b.textContent)) b.hidden = !SUA_DUOC;
   });
@@ -815,11 +821,16 @@ function moTaTaiSan(x){
   if(!ds.length) return "";
   return ds.map(function(t){ return t.ten + ": " + t.chu; }).join("\n") + "\n\n";
 }
+/* Đội viết treatment bằng TIẾNG VIỆT, prompt gửi nhà AI phải TIẾNG ANH. `pa`/
+   `pv` là bản LLM đã dịch; chưa sinh thì tạm dùng chữ Việt và BÁO RÕ, đừng để
+   người ta copy nhầm một prompt nửa Việt nửa Anh rồi trách nhà AI. */
+function chuaDich(x){ return !(x.pa || "").trim(); }
 function promptAnh(x){
-  return "16:9 ratio. " + x.t + "\n\n" + moTaTaiSan(x) + boiler(x.tong);
+  return "16:9 ratio. " + (x.pa || x.t) + "\n\n" + moTaTaiSan(x) + boiler(x.tong);
 }
 function promptVideo(x){
-  return x.t + "\nSimple camera motion only, one continuous shot, no cuts.\n\n" +
+  return (x.pv || x.t) +
+         "\nSimple camera motion only, one continuous shot, no cuts.\n\n" +
          moTaTaiSan(x) + boiler(x.tong) + " No background music.";
 }
 
@@ -841,7 +852,9 @@ function dungCanhTap(){
       docCanh(d).forEach(function(cn, j){
         ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
                  en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "can",
-                 co: cn.co || "", ts: cn.ts || [], n: docCanh(d).length});
+                 co: cn.co || "", ts: cn.ts || [], pa: cn.pa || "",
+                 pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
+                 sfx: cn.sfx || "", n: docCanh(d).length});
       });
     });
   });
@@ -856,6 +869,39 @@ function canhTrongPham(ds){
 }
 function giayCua(en){
   return (en || "").split(/\s+/).filter(Boolean).length / TU_MOI_GIAY;
+}
+
+function chip(gt, nhan){
+  return gt ? '<span class="chip">' + thoat(gt) + '</span>'
+            : '<span class="chip trong">' + nhan + ' —</span>';
+}
+
+/* Điền cột kỹ thuật cho PHẠM VI đang xem. Chạy theo chương một để mỗi lượt còn
+   nhìn thấy tiến độ — cả tập một lượt thì người dùng ngồi nhìn màn hình đứng
+   im vài phút. */
+async function sinhKyThuat(){
+  if(!SUA_DUOC) return;
+  var ds = MAN === "TONG" ? DS_CHUONG.map(function(c){ return c.ma; }) : [MAN];
+  var n = document.getElementById("nutKyThuat");
+  n.disabled = true;
+  var tong = 0;
+  for(var i = 0; i < ds.length; i++){
+    n.textContent = "Đang sinh " + ds[i] + "…";
+    try {
+      var r = await api("/api/tap/" + TAP_MA + "/" + ds[i] + "/ky-thuat", "POST");
+      DU[ds[i]] = await api("/api/tap/" + TAP_MA + "/" + ds[i]);
+      tong += r.xong;
+      veSb();
+      if(r.loi) bao("Sinh được <b>" + r.xong + " cảnh</b> ở " + ds[i] + ", còn " +
+                    r.con_thieu + " — bấm lại để chạy tiếp. (" + r.loi + ")", true);
+    } catch(e){
+      n.disabled = false; n.textContent = "✨ Sinh prompt";
+      return bao(e.message, true);
+    }
+  }
+  n.disabled = false; n.textContent = "✨ Sinh prompt";
+  bao("Đã sinh prompt tiếng Anh + cột kỹ thuật cho <b>" + tong + " cảnh</b>.");
+  if(canhDangMo) moCanh(canhDangMo);
 }
 
 function veVetTap(){
@@ -896,8 +942,10 @@ function veTheCanh(){
          '<div class="hinh ' + x.tong + '"><span class="ma">' + x.ma + '</span>' +
          '16:9 · ảnh ở đợt 2</div>' +
          '<div class="chu">' + thoat(x.t) + '</div>' +
-         '<div class="chan"><span class="chip trong">góc máy —</span>' +
-         '<span class="chip trong">SFX —</span></div></div>';
+         '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
+         chip(x.sfx, "SFX") +
+         (chuaDich(x) ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
+         '</div></div>';
   });
   if(pcCu !== -1) h += '</div></div>';
   // Rỗng vì CHƯƠNG NÀY chưa có cảnh, hay vì cả tập chưa có? Hai chuyện khác
@@ -932,9 +980,11 @@ function moCanh(ma){
       '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
       thoat(x.t) + '</div>' +
       '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' +
-      '<span class="chip trong">cỡ cảnh —</span><span class="chip trong">góc máy —</span>' +
-      '<span class="chip trong">chuyển động —</span><span class="chip trong">SFX —</span>' +
-      '</div>' +
+      chip(x.co, "cỡ cảnh") + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
+      chip(x.sfx, "SFX") + '</div>' +
+      (chuaDich(x) ? '<div class="khoa" style="margin-top:8px">Prompt bên phải ' +
+        'còn là <b>chữ Việt</b> — bấm <b>✨ Sinh prompt</b> ở thanh trên để LLM ' +
+        'dịch sang tiếng Anh và điền các cột.</div>' : '') +
       '<p class="nhan">Tài sản dùng trong cảnh</p>' + veTaiSanCanh(x) +
       '<p class="nhan">Tông</p><div class="hai">' +
       '<button class="' + (x.tong === "nuoc" ? "on" : "") + '"' +
@@ -1188,7 +1238,12 @@ async function chotSo(nhom){
   dongCanh(); veLocNhanSu(); veSb();
 }
 
-function dongCanh(){ document.getElementById("nenCanh").classList.remove("mo"); }
+function dongCanh(){
+  // Quên luôn cảnh đang mở: giữ lại thì chỗ nào vẽ theo biến đó cũng dựng hộp
+  // dậy sau khi người ta đã bấm Esc (đo Chrome 24/09).
+  canhDangMo = "";
+  document.getElementById("nenCanh").classList.remove("mo");
+}
 
 function canhCuaDong(ch, di){
   return docCanh(((DU[ch] || {}).dong || [])[di]);

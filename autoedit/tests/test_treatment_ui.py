@@ -51,12 +51,20 @@ def test_khong_tro_vao_o_da_xoa(html):
     co = set(_re.findall(r'id="([\w-]+)"', html))
     goi = set(_re.findall(r'getElementById\("([\w-]+)"\)', html))
     assert goi <= co, f"trang gọi id không tồn tại: {sorted(goi - co)}"
-def test_nhan_hien_thi_la_Treatment(html):
-    """User đổi tên tool 23/09: Factcheck -> Treatment. Nhãn trên trang phải đổi
-    theo, không để tên cũ sót lại ở chỗ người dùng nhìn thấy."""
-    assert "<title>Treatment" in html
-    assert "· Treatment" in html
+def test_nhan_hien_thi_la_AI_Generation(html):
+    """Tên tool: Factcheck (23/09) -> Treatment (23/09) -> AI Generation (24/09).
+    Nhãn trên trang phải đổi theo, không để tên cũ sót ở chỗ người dùng nhìn."""
+    assert "<title>AI Generation" in html
+    assert "· AI Generation" in html
     assert "Factcheck" not in html and "factcheck" not in html
+
+
+def test_tab_TREATMENT_o_cot_phai_GIU_NGUYEN_ten(html):
+    """Đổi tên TOOL, không đổi tên CỘT. "Treatment" ở cột phải là tên một trong
+    bốn cột UI gốc của user (Outline | English Script | Vietnamese | Treatment)
+    — đổi nó là đội mất chỗ bám."""
+    i = html.index('id="tb-t"')
+    assert "Treatment" in html[i:i + 120]
 
 
 # ------------------- sửa 23/09 theo yêu cầu user ----------------------------
@@ -482,3 +490,46 @@ def test_goi_y_phai_qua_buoc_DUYET(html):
     i = html.index("async function goiYTaiSan(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "luuSoLen()" not in than, "gợi ý xong không được tự lưu vào sổ"
+
+
+# ═══════════ việc 4: LLM điền cột kỹ thuật + prompt tiếng Anh ════════════════
+def test_prompt_dung_BAN_TIENG_ANH_khi_da_co(html):
+    """Đội viết treatment tiếng Việt; prompt gửi nhà AI phải tiếng Anh. Có `pa`
+    thì dùng `pa`, chưa có thì tạm dùng `t` và phải BÁO cho người dùng biết."""
+    i = html.index("function promptAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.pa" in than, "prompt ảnh phải ưu tiên bản tiếng Anh"
+    j = html.index("function promptVideo(")
+    assert "x.pv" in html[j:html.index(chr(10) + "}", j)]
+
+
+def test_bao_ro_khi_prompt_CHUA_DICH(html):
+    """"chưa dịch" vốn đã nằm ở cột tiếng Việt nên kiểm chuỗi đó là XANH GIẢ.
+    Canh đúng chỗ: hộp cảnh phải có cờ báo prompt còn là tiếng Việt."""
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chuaDich" in than, "hộp cảnh phải báo prompt chưa qua LLM"
+    j = html.index("function chuaDich(")
+    assert "pa" in html[j:html.index(chr(10) + "}", j)]
+
+
+def test_co_nut_sinh_cot_ky_thuat(html):
+    assert 'id="nutKyThuat"' in html
+    assert "async function sinhKyThuat(" in html
+
+
+def test_the_canh_hien_cot_ky_thuat_da_dien(html):
+    """Chip trên thẻ phải đổi từ 'góc máy —' sang giá trị thật, không thì điền
+    xong nhìn vẫn y như chưa điền."""
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.goc" in than and "x.sfx" in than
+
+
+def test_dong_hop_thi_QUEN_canh_dang_mo(html):
+    """Đo Chrome 24/09: Esc đóng hộp rồi bấm "Sinh prompt" thì hộp TỰ BẬT LẠI —
+    `dongCanh()` chỉ ẩn lớp phủ mà không quên `canhDangMo`, nên chỗ nào vẽ lại
+    theo biến đó cũng dựng hộp dậy."""
+    i = html.index("function dongCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert 'canhDangMo = ""' in than

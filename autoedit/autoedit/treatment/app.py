@@ -166,8 +166,8 @@ def _ma_sach(ten: str, da_co: dict) -> str:
     return t
 
 
-def tao_app(kho: Kho, dich=None, goi_y=None) -> FastAPI:
-    """`kho`, `dich`, `goi_y` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
+def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None) -> FastAPI:
+    """`kho`, `dich`, `goi_y`, `ky_thuat` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -474,6 +474,83 @@ def tao_app(kho: Kho, dich=None, goi_y=None) -> FastAPI:
         return {"dich": xong, "con_thieu": len(can) - xong,
                 "loi": f"Dừng ở dòng {xong + 1}: {loi}" if loi else ""}
 
+    # ---------------------------------------------------------- kỹ thuật
+    CO_HOP_LE = ("WS", "MS", "CU", "ECU", "AERIAL")
+    CO_LO_KT = 8        # mỗi mục trả 7 trường -> JSON dài gấp mấy lần bản dịch
+
+    @app.post("/api/tap/{tap}/{chuong}/ky-thuat")
+    def dien_ky_thuat(tap: str, chuong: str, request: Request):
+        """Dịch nội dung cảnh sang prompt TIẾNG ANH và điền cột kỹ thuật.
+
+        Chỉ đụng cảnh CÒN THIẾU (chưa có `pa`) — cùng luật với bản dịch: bấm lại
+        là chạy tiếp chỗ dở, không đè lên chữ người đã sửa tay.
+
+        LLM KHÔNG đụng `t` và KHÔNG chọn `tong`: hai thứ đó user giữ quyền.
+        """
+        ai = _ghi_duoc(request)
+        if ky_thuat is None:
+            raise HTTPException(503, "Chưa bật bộ sinh kỹ thuật.")
+        d = kho.doc(tap, chuong)["dong"]
+        ma_ts = {x["ma"] for x in kho.ds_so(tap)
+                 if x["loai"] in ("nhan_vat", "dao_cu", "boi_canh")}
+        so = [x for x in kho.ds_so(tap) if x["ma"] in ma_ts]
+
+        can = []                        # (chỉ số dòng, chỉ số cảnh)
+        for i, dg in enumerate(d):
+            for j, c in enumerate(mdong.doc_canh(dg)):
+                if not (c.get("pa") or "").strip():
+                    can.append((i, j))
+        if not can:
+            return {"xong": 0, "con_thieu": 0, "loi": ""}
+
+        xong, loi = 0, ""
+        for k in range(0, len(can), CO_LO_KT):
+            phan = can[k:k + CO_LO_KT]
+            muc = []
+            for i, j in phan:
+                cs = mdong.doc_canh(d[i])
+                muc.append({"id": f"{i}.{j}", "voice": d[i].get("en", ""),
+                            "canh": cs[j]["t"], "thu_tu": f"{j + 1}/{len(cs)}"})
+            try:
+                ra = ky_thuat.ky_thuat(muc, so)
+            except Exception as exc:  # noqa: BLE001 — giữ phần đã xong
+                loi = str(exc)
+                break
+            # Khớp theo MÃ, không theo vị trí. ĐO THẬT 24/09 trên C1:
+            # claude-sonnet-5 gửi 8 trả 7 — khớp theo vị trí thì cảnh 2 nhận
+            # prompt của cảnh 3, sai câm không ai thấy. Khớp theo mã thì mục nó
+            # nuốt chỉ làm cảnh đó để trống, bấm lại là chạy tiếp.
+            theo_ma = {str(x.get("id")): x for x in ra if x.get("id") is not None}
+            lam = [(i, j) for i, j in phan if f"{i}.{j}" in theo_ma]
+            if not lam:
+                loi = (f"trả {len(ra)} mục nhưng không mục nào mang mã cảnh "
+                       "hợp lệ — không khớp được vào đâu")
+                break
+            for i, j in lam:
+                x = theo_ma[f"{i}.{j}"]
+                cs = mdong.doc_canh(d[i])
+                c = cs[j]
+                for khoa in ("pa", "pv", "goc", "cd", "sfx"):
+                    if (x.get(khoa) or "").strip():
+                        c[khoa] = str(x[khoa]).strip()
+                if (x.get("co") or "").upper() in CO_HOP_LE:
+                    c["co"] = x["co"].upper()
+                ts = [m for m in (x.get("ts") or [])
+                      if isinstance(m, str) and m in ma_ts]
+                if ts:
+                    c["ts"] = ts
+                d[i] = mdong.ghi_canh(d[i], cs)
+            xong += len(lam)
+            try:                        # lưu sau MỖI lô, lô sau ngã không mất
+                kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
+            except KhoaBiGiu as exc:
+                raise HTTPException(409, str(exc)) from exc
+
+        if loi and not xong:
+            raise HTTPException(502, f"Sinh kỹ thuật hỏng: {loi}")
+        return {"xong": xong, "con_thieu": len(can) - xong,
+                "loi": f"Dừng ở cảnh {xong + 1}: {loi}" if loi else ""}
+
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")
     def ban_cu(tap: str, chuong: str):
@@ -508,6 +585,20 @@ class _Dich:
         return LLM().dich(cau)
 
 
+class _KyThuat:
+    """Đọc KÉT mỗi lượt — Owner đổi khoá/model ở General là ăn ngay."""
+
+    def ky_thuat(self, muc, tai_san):
+        from autoedit.treatment.dich import LLM
+
+        return LLM().ky_thuat(muc, tai_san)
+
+
+def _ky_thuat_mac_dinh(kho: Kho):
+    _ = kho
+    return _KyThuat()
+
+
 class _GoiY:
     """Đọc KÉT mỗi lượt như bộ dịch — Owner đổi khoá/model ở General là ăn ngay.
 
@@ -539,7 +630,8 @@ def tao_app_mac_dinh() -> FastAPI:
     """
     kho = _kho_mac_dinh()
     return tao_app(kho, dich=_dich_mac_dinh(kho),
-                   goi_y=_goi_y_mac_dinh(kho))
+                   goi_y=_goi_y_mac_dinh(kho),
+                   ky_thuat=_ky_thuat_mac_dinh(kho))
 
 
 def main() -> None:

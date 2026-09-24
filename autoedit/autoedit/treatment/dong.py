@@ -99,7 +99,10 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # `cum`: chẻ/gộp là chuyện xảy ra suốt, bảng theo chỉ số thì lần nào cũng lệch.
 # `ts` = danh sách MÃ tài sản dùng trong cảnh (trỏ vào sổ của tập). Sổ chỉ
 # thay được bước "ném ref vào, ghi nhớ đặc điểm" nếu cảnh chỉ được vào sổ.
-KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong", "ts")
+# `pa` / `pv` = prompt ẢNH và prompt VIDEO bằng TIẾNG ANH. Đội viết treatment
+# bằng tiếng Việt, mà prompt gửi nhà AI phải tiếng Anh — ghép thẳng chữ Việt
+# vào là nhà AI đọc lõm bõm rồi ra ảnh sai.
+KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong", "ts", "pa", "pv")
 
 
 def doc_canh(d: dict) -> list[dict]:
