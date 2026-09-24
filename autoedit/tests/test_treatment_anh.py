@@ -143,32 +143,11 @@ def test_sinh_lai_anh_thi_BO_DUYET(tmp_path):
 
 
 # ------------------------------------------------------------ cả chương
-def test_sinh_ca_chuong_bo_qua_canh_DA_CO_ANH(tmp_path):
-    ve = VeGia()
-    c, kho = _bo(tmp_path, ve)
-    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
-    ve.goi.clear()
-    r = c.post("/api/tap/SE001/H/anh").json()
-    assert r["xong"] == 1 and len(ve.goi) == 1
-
-
-def test_mot_canh_hong_thi_GIU_phan_da_xong(tmp_path):
-    class Lung:
-        def __init__(self):
-            self.n = 0
-
-        def gen_anh(self, prompt, dich):
-            self.n += 1
-            if self.n > 1:
-                raise RuntimeError("ARK ngã")
-            dich.parent.mkdir(parents=True, exist_ok=True)
-            dich.write_bytes(PNG)
-            return dich
-
-    c, kho = _bo(tmp_path, Lung())
-    r = c.post("/api/tap/SE001/H/anh").json()
-    assert r["xong"] == 1 and r["loi"]
-    assert c.get(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh").status_code == 200
+def test_KHONG_con_duong_sinh_ca_chuong(tmp_path):
+    """User chốt 25/09: nút tạo ảnh/video CHỈ ở từng cảnh. Bỏ nút mà để đường
+    API lại là một tab cũ vẫn gọi được và đốt tiền cho cả chương — rút hẳn."""
+    c, _ = _bo(tmp_path)
+    assert c.post("/api/tap/SE001/H/anh").status_code == 404
 
 
 # ------------------------------------------------------------ cửa gác
@@ -194,7 +173,10 @@ def test_chua_bat_bo_ve_thi_503(tmp_path):
     c = TestClient(tao_app(kho))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     c.post("/api/tap/SE001/chuong", json={"ma": "H"})
-    assert c.post("/api/tap/SE001/H/anh").status_code == 503
+    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
+        {"en": "V", "vi": "", "het": 0, "canh": [{"t": "A", "pa": "EN A"}]}]})
+    ma = kho.doc("SE001", "H")["dong"][0]["canh"][0]["id"]
+    assert c.post(f"/api/tap/SE001/H/canh/{ma}/anh").status_code == 503
 
 
 # ═══════════ máy chủ CHUẨN HOÁ cảnh ở đường ghi ═════════════════════════════
@@ -289,12 +271,6 @@ def test_nguoi_khac_giu_chuong_thi_409_KHONG_phai_500(tmp_path):
     r = c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
     assert r.status_code == 409
     assert "nguoi_khac" in r.json()["detail"]
-
-
-def test_sinh_ca_chuong_cung_tra_409(tmp_path):
-    c, kho = _bo(tmp_path)
-    kho.giu("SE001", "H", "nguoi_khac")
-    assert c.post("/api/tap/SE001/H/anh").status_code == 409
 
 
 def test_duyet_cung_tra_409(tmp_path):

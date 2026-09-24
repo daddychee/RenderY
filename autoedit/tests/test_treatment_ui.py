@@ -515,9 +515,14 @@ def test_bao_ro_khi_prompt_CHUA_DICH(html):
     assert "pa" in html[j:html.index(chr(10) + "}", j)]
 
 
-def test_co_nut_sinh_cot_ky_thuat(html):
-    assert 'id="nutKyThuat"' in html
-    assert "async function sinhKyThuat(" in html
+def test_create_prompt_theo_TUNG_CANH(html):
+    """User chốt 25/09: "đưa Sinh prompt về từng cảnh luôn. Đổi tên thành
+    Create Prompt"."""
+    assert "nutKyThuat" not in html and "sinhKyThuat" not in html
+    assert "async function createPrompt(" in html
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "Create Prompt" in than
 
 
 def test_the_canh_hien_cot_ky_thuat_da_dien(html):
@@ -542,7 +547,7 @@ def test_so_rong_thi_dung_bao_DU_REF(html):
     ref" — vô lý, và tệ hơn là nó bảo người ta rằng bước lập sổ đã xong."""
     i = html.index("function tienDoSo(")
     than = html[i:html.index(chr(10) + "}", i)]
-    assert "chưa lập sổ" in than
+    assert "chưa lập" in than
 
 
 def test_the_canh_RONG_duoc_danh_dau(html):
@@ -621,15 +626,21 @@ def test_anh_neo_vao_MA_RIENG_cua_canh(html):
 def test_co_nut_sinh_anh_va_duyet(html):
     assert "async function sinhAnh(" in html
     assert "async function duyetAnh(" in html
-    assert 'id="nutAnhChuong"' in html, "phải có nút sinh ảnh cả chương"
 
 
-def test_sinh_anh_ca_chuong_HOI_TRUOC_va_bao_tien(html):
-    """Một chương 30 cảnh là ~$1. Bấm nhầm không được im lặng đốt tiền."""
-    i = html.index("async function sinhAnhChuong(")
+def test_KHONG_co_nut_sinh_hang_loat(html):
+    """User chốt 25/09: "nút tạo ảnh / tạo video CHỈ xuất hiện trong từng cảnh,
+    không phải nút sinh cho tất cả". Sinh hàng loạt là đốt tiền vào những cảnh
+    chưa ai nhìn — mỗi cảnh phải là một quyết định."""
+    assert "nutAnhChuong" not in html
+    assert "sinhAnhChuong" not in html
+
+
+def test_nhan_nut_anh_la_GEN_IMAGE(html):
+    i = html.index("function moCanh(")
     than = html[i:html.index(chr(10) + "}", i)]
-    assert "confirm(" in than
-    assert "$" in than, "phải nói trước tốn bao nhiêu"
+    assert "Gen Image" in than
+    assert "Sinh ảnh" not in than and "Sinh lại ảnh" not in than
 
 
 def test_canh_da_duyet_duoc_danh_dau(html):
@@ -638,10 +649,13 @@ def test_canh_da_duyet_duoc_danh_dau(html):
     assert "duyet" in than
 
 
-def test_L2_khong_thay_nut_sinh_anh(html):
-    i = html.index("function batNutGhi(")
-    than = html[i:html.index(chr(10) + "}", i)]
-    assert "nutAnhChuong" in than
+def test_nhan_TAI_SAN_va_TONG_doi_sang_Asset_Tone(html):
+    """User chốt 25/09: "tài sản đổi thành Asset", "tông đổi thành Tone"."""
+    assert 'id="nutTaiSan"' in html and 'id="nutTong"' in html
+    i = html.index('id="nutTaiSan"')
+    assert "Asset" in html[i:i + 90] and "Tài sản</button>" not in html
+    j = html.index('id="nutTong"')
+    assert "Tone" in html[j:j + 90] and "Tông</button>" not in html
 
 
 def test_dungCanhTap_chep_DU_MOI_KHOA(html):
@@ -677,3 +691,58 @@ def test_hop_canh_sinh_duoc_REF_cua_tai_san_thieu(html):
     i = html.index("function veTaiSanCanh(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "sinhRef(" in than
+
+
+# ═══════════ báo ĐANG LÀM + bắt buộc có asset (user 25/09) ══════════════════
+def test_moi_nut_sinh_deu_BAO_DANG_LAM(html):
+    """User 25/09: "khi ấn nút thì không thấy có thông báo đang làm mà chỉ đến
+    khi ảnh xuất hiện mới biết". Đổi chữ trên dòng trạng thái là quá kín — phải
+    khoá nút và đổi chữ NGAY TRÊN NÚT."""
+    i = html.index("async function banRon(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "disabled = true" in than and "textContent = chu" in than,         "banRon phải khoá nút VÀ đổi chữ trên nút"
+    assert "finally" in than, "hỏng giữa chừng cũng phải mở khoá nút lại"
+    for ten in ("sinhAnh", "createPrompt", "duyetAnh"):
+        j = html.index("async function %s(" % ten)
+        assert "banRon(" in html[j:html.index(chr(10) + "}", j)],             f"{ten} phải đi qua banRon"
+    k = html.index("async function sinhRef(")
+    than_ref = html[k:html.index(chr(10) + "}", k)]
+    assert "Đang vẽ ref" in than_ref and "disabled = true" in than_ref
+
+
+def test_gen_image_CANH_BAO_khi_canh_chua_gan_asset(html):
+    """User 25/09: "vừa sinh thử 2 cảnh và hoàn toàn không khớp mood với kịch
+    bản. Do đó tầm quan trọng của việc sinh asset phải được chú ý hơn và đảm bảo
+    asset luôn được sử dụng trong prompt ảnh và video".
+
+    Cảnh không gắn asset nào thì prompt không có ràng buộc nhất quán — ảnh ra
+    tuỳ hứng. Không cấm (có cảnh thật sự không cần asset), nhưng phải HỎI."""
+    i = html.index("async function sinhAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "confirm(" in than
+    assert "asset" in than.lower()
+
+
+def test_the_canh_danh_dau_CHUA_GAN_ASSET(html):
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa gán asset" in than
+
+
+def test_hop_canh_bao_ro_prompt_THIEU_ASSET(html):
+    """Nhìn vào prompt phải thấy ngay nó có mô tả asset hay không."""
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa gán asset" in than
+
+
+def test_bang_canh_bao_trong_hop_la_KHOI_CHU(html):
+    """Đo Chrome 25/09: băng "chưa gán asset" mượn class `.khoa` (vốn
+    display:flex cho băng khoá chương) nên chữ bị vỡ thành ba cột rời rạc:
+    "Cảnh này | chưa gán asset | — prompt…". Băng chữ thì phải xếp dòng."""
+    assert ".nhac{" in html, "cần class riêng cho băng nhắc trong hộp cảnh"
+    i = html.index(".nhac{")
+    assert "display:flex" not in html[i:i + 200]
+    j = html.index("function moCanh(")
+    than = html[j:html.index(chr(10) + "}", j)]
+    assert 'class="nhac"' in than and 'class="khoa"' not in than

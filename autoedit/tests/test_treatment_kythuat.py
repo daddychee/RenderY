@@ -1,16 +1,19 @@
-"""Treatment — LLM điền CỘT KỸ THUẬT và dịch nội dung cảnh sang prompt tiếng Anh.
+"""Treatment — CREATE PROMPT: dịch cảnh sang prompt tiếng Anh + cột kỹ thuật.
 
-Việc 4/4 của đợt 1. Hai thứ nó phải làm:
+Chạy cho ĐÚNG MỘT CẢNH (user chốt 25/09: *"đưa Sinh prompt về từng cảnh luôn.
+Đổi tên thành Create Prompt"*). Cùng lý do với ảnh: mỗi cảnh là một quyết định,
+không chạy hàng loạt rồi mới ngồi soát.
+
+Hai việc nó làm:
 
 1. **Dịch nội dung cảnh sang prompt tiếng Anh.** Đội viết treatment bằng tiếng
    Việt ("Ảnh vệ tinh Cuba, bệ phóng tên lửa của Nga đang đứng sừng sững"),
-   nhưng prompt gửi Seedream/Gemini phải là tiếng Anh. Trước việc này, prompt
-   ghép thẳng chữ Việt vào — nhà AI đọc được lõm bõm là ra ảnh sai.
-2. **Điền cỡ cảnh · góc máy · chuyển động · SFX · nhân vật.** Đây là các cột
-   trong bảng storyboard user đang xin Gemini làm tay ở bước 5.
+   nhưng prompt gửi Seedream phải là tiếng Anh. Ghép thẳng chữ Việt vào là nhà
+   AI đọc lõm bõm rồi ra ảnh sai.
+2. **Điền cỡ cảnh · góc máy · chuyển động · SFX · asset dùng trong cảnh.**
 
-Luật ghim: LLM KHÔNG đụng `t` (chữ của người viết) và KHÔNG tự chọn tông — đó
-là hai thứ user chốt giữ quyền. Nó chỉ thêm, không sửa.
+Luật ghim: LLM KHÔNG đụng `t` (chữ của người viết) và KHÔNG tự chọn `tong` —
+hai thứ user giữ quyền. Nó chỉ thêm, không sửa.
 """
 
 from __future__ import annotations
@@ -23,188 +26,178 @@ from autoedit.treatment.kho import Kho
 
 
 class KyThuatGia:
-    """Trả về ĐÚNG số mục nhận vào, như LLM thật phải làm."""
-
-    def __init__(self, hong_tu_lo=None):
-        self.lo = []
-        self.hong_tu_lo = hong_tu_lo
+    def __init__(self, tra=None):
+        self.goi = []
+        self.tra = tra
 
     def ky_thuat(self, muc, tai_san):
-        self.lo.append(list(muc))
-        if self.hong_tu_lo is not None and len(self.lo) > self.hong_tu_lo:
-            raise RuntimeError("LLM ngã")
+        self.goi.append((list(muc), list(tai_san)))
+        if self.tra is not None:
+            return self.tra(muc, tai_san)
         return [{"id": m["id"], "co": "CU", "goc": "eye level",
                  "cd": "slow push in", "sfx": "sonar ping", "ts": ["k129"],
                  "pa": "Close-up of a hand flipping a switch, 1968",
                  "pv": "The hand flips the switch, slow push in"} for m in muc]
 
 
-@pytest.fixture()
-def bo(tmp_path):
+def _dung(tmp_path, kt, canh=("Cận bàn tay bật công tắc", "Sonar nhấp nháy"),
+          so=({"ma": "k129", "loai": "dao_cu", "ten": "Tàu K-129",
+               "chu": "Soviet Golf-II"},)):
     kho = Kho(tmp_path / "kho" / "k.db")
     kho.tao_tap("SE001", "K-129")
-    kho.luu_so("SE001", [{"ma": "k129", "loai": "dao_cu", "ten": "Tàu K-129",
-                          "chu": "Soviet Golf-II"}])
-    kt = KyThuatGia()
+    if so:
+        kho.luu_so("SE001", [dict(x) for x in so])
     c = TestClient(tao_app(kho, ky_thuat=kt))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     c.post("/api/tap/SE001/chuong", json={"ma": "H"})
     c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
         {"en": "Voice one.", "vi": "", "het": 0,
-         "canh": [{"t": "Cận bàn tay bật công tắc"}, {"t": "Sonar nhấp nháy"}]},
-        {"en": "Voice two.", "vi": "", "het": 0,
-         "canh": [{"t": "Tàu ngầm lướt đáy biển"}]}]})
+         "canh": [{"t": t} for t in canh]}]})
+    return c, kho
+
+
+@pytest.fixture()
+def bo(tmp_path):
+    kt = KyThuatGia()
+    c, kho = _dung(tmp_path, kt)
     return c, kho, kt
 
 
-def _canh(kho):
-    return [c for d in kho.doc("SE001", "H")["dong"] for c in d.get("canh", [])]
+def _cs(kho):
+    return kho.doc("SE001", "H")["dong"][0]["canh"]
 
 
-# ------------------------------------------------------------- dịch prompt
-def test_dien_prompt_TIENG_ANH_cho_tung_canh(bo):
+def _ma(kho, k=0):
+    return _cs(kho)[k]["id"]
+
+
+def _goi(c, kho, k=0):
+    return c.post(f"/api/tap/SE001/H/canh/{_ma(kho, k)}/ky-thuat")
+
+
+# ------------------------------------------------------- chạy theo TỪNG CẢNH
+def test_chi_dung_dung_canh_duoc_goi(bo):
     c, kho, _ = bo
-    r = c.post("/api/tap/SE001/H/ky-thuat")
-    assert r.status_code == 200, r.text
-    assert all(x["pa"] and x["pv"] for x in _canh(kho))
+    assert _goi(c, kho, 0).status_code == 200
+    cs = _cs(kho)
+    assert cs[0]["pa"] and cs[0]["pv"] and cs[0]["co"]
+    assert not cs[1].get("pa"), "không được đụng cảnh bên cạnh"
+
+
+def test_KHONG_con_duong_chay_ca_chuong(bo):
+    """Bỏ nút mà để đường API lại là một tab cũ vẫn gọi được cho cả chương."""
+    c, _, _ = bo
+    assert c.post("/api/tap/SE001/H/ky-thuat").status_code == 404
+
+
+# ------------------------------------------------------- dịch prompt
+def test_dien_prompt_TIENG_ANH(bo):
+    c, kho, _ = bo
+    _goi(c, kho)
+    assert "flipping a switch" in _cs(kho)[0]["pa"]
 
 
 def test_KHONG_dung_chu_cua_nguoi_viet(bo):
-    """`t` là chữ người viết. LLM chỉ được THÊM, không sửa."""
     c, kho, _ = bo
-    c.post("/api/tap/SE001/H/ky-thuat")
-    assert [x["t"] for x in _canh(kho)] == [
-        "Cận bàn tay bật công tắc", "Sonar nhấp nháy", "Tàu ngầm lướt đáy biển"]
+    _goi(c, kho)
+    assert [x["t"] for x in _cs(kho)] == ["Cận bàn tay bật công tắc",
+                                          "Sonar nhấp nháy"]
 
 
 def test_KHONG_tu_chon_tong(bo):
     """Tông là quyền của user (chốt 24/09)."""
     c, kho, _ = bo
-    c.post("/api/tap/SE001/H/ky-thuat")
-    assert all("tong" not in x for x in _canh(kho))
+    _goi(c, kho)
+    assert "tong" not in _cs(kho)[0]
 
 
-# ------------------------------------------------------------- cột kỹ thuật
 def test_dien_du_cot_ky_thuat(bo):
     c, kho, _ = bo
-    c.post("/api/tap/SE001/H/ky-thuat")
-    x = _canh(kho)[0]
+    _goi(c, kho)
+    x = _cs(kho)[0]
     assert x["co"] == "CU" and x["goc"] and x["cd"] and x["sfx"]
 
 
-def test_ts_la_ma_co_trong_SO(tmp_path):
-    """LLM trả mã tài sản không có trong sổ thì bỏ — không thì prompt đính mô tả
+def test_co_canh_la_bi_bo(tmp_path):
+    """Cỡ cảnh ngoài bảng thì bỏ — chip trên thẻ chỉ nhận WS/MS/CU/ECU/AERIAL."""
+    kt = KyThuatGia(tra=lambda m, t: [{"id": m[0]["id"], "pa": "x", "pv": "y",
+                                       "co": "SIEU_RONG"}])
+    c, kho = _dung(tmp_path, kt, canh=("a",))
+    _goi(c, kho)
+    assert "co" not in _cs(kho)[0]
+
+
+# ------------------------------------------------------- asset
+def test_ts_phai_la_ma_co_trong_SO(tmp_path):
+    """LLM trả mã asset không có trong sổ thì bỏ — không thì prompt đính mô tả
     rỗng, hoặc tệ hơn là trỏ vào thứ không tồn tại."""
-    class Bay:
-        def ky_thuat(self, muc, tai_san):
-            return [{"id": m["id"], "pa": "x", "pv": "y",
-                     "ts": ["k129", "khong_co"]} for m in muc]
-
-    kho = Kho(tmp_path / "kho" / "k.db")
-    kho.tao_tap("SE001", "x")
-    kho.luu_so("SE001", [{"ma": "k129", "loai": "dao_cu", "ten": "T", "chu": ""}])
-    c = TestClient(tao_app(kho, ky_thuat=Bay()))
-    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
-    c.post("/api/tap/SE001/chuong", json={"ma": "H"})
-    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
-        {"en": "A", "vi": "", "het": 0, "canh": [{"t": "x"}]}]})
-    c.post("/api/tap/SE001/H/ky-thuat")
-    assert _canh(kho)[0]["ts"] == ["k129"]
+    kt = KyThuatGia(tra=lambda m, t: [{"id": m[0]["id"], "pa": "x", "pv": "y",
+                                       "ts": ["k129", "khong_co"]}])
+    c, kho = _dung(tmp_path, kt, canh=("a",))
+    _goi(c, kho)
+    assert _cs(kho)[0]["ts"] == ["k129"]
 
 
-# ------------------------------------------------------------- chạy lại
-def test_chi_dien_canh_CON_THIEU(bo):
-    c, kho, kt = bo
-    c.post("/api/tap/SE001/H/ky-thuat")
-    kt.lo.clear()
-    r = c.post("/api/tap/SE001/H/ky-thuat").json()
-    assert kt.lo == [], "cảnh đã có prompt thì đừng gọi LLM lần nữa"
-    assert r["xong"] == 0
-
-
-def test_gui_kem_VOICE_va_SO_TAI_SAN(bo):
+def test_gui_kem_VOICE_va_SO_ASSET(bo):
     """Không có voice thì LLM không biết cảnh đang kể gì; không có sổ thì nó
-    không gắn được nhân vật vào cảnh."""
-    c, _, kt = bo
-    c.post("/api/tap/SE001/H/ky-thuat")
-    dau = kt.lo[0][0]
-    assert "Voice one." in str(dau)
+    không gắn được asset vào cảnh — mà asset là thứ giữ mood khớp kịch bản."""
+    c, kho, kt = bo
+    _goi(c, kho)
+    muc, so = kt.goi[0]
+    assert muc[0]["voice"] == "Voice one."
+    assert [x["ma"] for x in so] == ["k129"]
 
 
-# ------------------------------------------------------------- hỏng giữa chừng
-def test_lo_hong_thi_GIU_phan_da_xong(tmp_path):
-    kho = Kho(tmp_path / "kho" / "k.db")
-    kho.tao_tap("SE001", "x")
-    kt = KyThuatGia(hong_tu_lo=1)
-    c = TestClient(tao_app(kho, ky_thuat=kt))
-    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
-    c.post("/api/tap/SE001/chuong", json={"ma": "H"})
-    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
-        {"en": "A", "vi": "", "het": 0,
-         "canh": [{"t": "c%d" % i} for i in range(20)]}]})
-    r = c.post("/api/tap/SE001/H/ky-thuat").json()
-    assert 0 < r["xong"] < 20 and r["con_thieu"] > 0 and r["loi"]
-    assert sum(1 for x in _canh(kho) if x.get("pa")) == r["xong"], \
-        "lô nào xong phải được lưu ngay, đừng để lô sau ngã là mất sạch"
+def test_tra_ve_so_asset_da_gan(bo):
+    """Trang cần con số này để báo ngay "gắn 1 asset" hay "chưa gắn asset nào"."""
+    c, kho, _ = bo
+    assert _goi(c, kho).json()["gan_asset"] == 1
 
 
-def _bo(tmp_path, may, canh):
-    kho = Kho(tmp_path / "kho" / "k.db")
-    kho.tao_tap("SE001", "x")
-    c = TestClient(tao_app(kho, ky_thuat=may))
-    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
-    c.post("/api/tap/SE001/chuong", json={"ma": "H"})
-    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
-        {"en": "A", "vi": "", "het": 0, "canh": [{"t": t} for t in canh]}]})
-    return c, kho
+# ------------------------------------------------------- hỏng
+def test_LLM_nga_thi_502(tmp_path):
+    def no(m, t):
+        raise RuntimeError("LLM ngã")
+
+    c, kho = _dung(tmp_path, KyThuatGia(tra=no), canh=("a",))
+    assert _goi(c, kho).status_code == 502
 
 
-def test_LLM_NUOT_mot_muc_thi_khong_lech_hang(tmp_path):
-    """ĐO THẬT 24/09 trên C1 bằng claude-sonnet-5: gửi 8 cảnh, nó trả 7. Khớp
-    theo VỊ TRÍ thì cảnh 2 nhận prompt của cảnh 3 — sai câm. Nên mỗi cảnh mang
-    MÃ và khớp theo mã: mục nào nó nuốt thì cảnh đó để trống, bấm lại chạy tiếp.
-    """
-    class Nuot:
-        def ky_thuat(self, muc, tai_san):
-            return [{"id": m["id"], "pa": "EN " + m["canh"], "pv": "mv"}
-                    for m in muc if m["canh"] != "b"]
-
-    c, kho = _bo(tmp_path, Nuot(), ["a", "b", "c"])
-    r = c.post("/api/tap/SE001/H/ky-thuat").json()
-    cs = [x for d in kho.doc("SE001", "H")["dong"] for x in d["canh"]]
-    assert cs[0]["pa"] == "EN a" and cs[2]["pa"] == "EN c", "không được lệch hàng"
-    assert "pa" not in cs[1], "mục bị nuốt để trống, không nhận nhầm của cảnh khác"
-    assert r["con_thieu"] == 1
+def test_LLM_tra_RONG_thi_502(tmp_path):
+    c, kho = _dung(tmp_path, KyThuatGia(tra=lambda m, t: []), canh=("a",))
+    assert _goi(c, kho).status_code == 502
 
 
-def test_ma_la_tu_LLM_bi_bo(tmp_path):
-    class Bay:
-        def ky_thuat(self, muc, tai_san):
-            return [{"id": "khong-co-that", "pa": "x", "pv": "y"}]
-
-    c, kho = _bo(tmp_path, Bay(), ["a"])
-    assert c.post("/api/tap/SE001/H/ky-thuat").status_code == 502
-
-
-def test_ca_lo_khong_khop_gi_thi_bao_loi(tmp_path):
-    class Rong:
-        def ky_thuat(self, muc, tai_san):
-            return []
-
-    c, _ = _bo(tmp_path, Rong(), ["a", "b"])
-    assert c.post("/api/tap/SE001/H/ky-thuat").status_code == 502
+def test_canh_RONG_thi_tu_choi(bo):
+    c, kho, _ = bo
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"].append({"t": ""})
+    c.put("/api/tap/SE001/H", json={"dong": d, "outline": ""})
+    ma = _cs(kho)[-1]["id"]
+    assert c.post(f"/api/tap/SE001/H/canh/{ma}/ky-thuat").status_code == 400
 
 
-# ------------------------------------------------------------- cửa gác
+def test_ma_canh_la_thi_404(bo):
+    c, _, _ = bo
+    assert c.post("/api/tap/SE001/H/canh/khong-co/ky-thuat").status_code == 404
+
+
+def test_nguoi_khac_giu_chuong_thi_409(bo):
+    c, kho, _ = bo
+    kho.giu("SE001", "H", "nguoi_khac")
+    assert _goi(c, kho).status_code == 409
+
+
+# ------------------------------------------------------- cửa gác
 def test_L2_khong_chay_duoc(bo):
     _, kho, kt = bo
     xem = TestClient(tao_app(kho, ky_thuat=kt))
     xem.headers.update({"X-Remote-User": "nhanvien"})
-    assert xem.post("/api/tap/SE001/H/ky-thuat").status_code == 403
+    assert xem.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/ky-thuat").status_code == 403
 
 
 def test_chua_bat_LLM_thi_503(bo):
     _, kho, _ = bo
     c = TestClient(tao_app(kho))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
-    assert c.post("/api/tap/SE001/H/ky-thuat").status_code == 503
+    assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/ky-thuat").status_code == 503

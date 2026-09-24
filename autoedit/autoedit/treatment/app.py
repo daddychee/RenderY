@@ -532,82 +532,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     CO_HOP_LE = ("WS", "MS", "CU", "ECU", "AERIAL")
     CO_LO_KT = 8        # mỗi mục trả 7 trường -> JSON dài gấp mấy lần bản dịch
 
-    @app.post("/api/tap/{tap}/{chuong}/ky-thuat")
-    def dien_ky_thuat(tap: str, chuong: str, request: Request):
-        """Dịch nội dung cảnh sang prompt TIẾNG ANH và điền cột kỹ thuật.
-
-        Chỉ đụng cảnh CÒN THIẾU (chưa có `pa`) — cùng luật với bản dịch: bấm lại
-        là chạy tiếp chỗ dở, không đè lên chữ người đã sửa tay.
-
-        LLM KHÔNG đụng `t` và KHÔNG chọn `tong`: hai thứ đó user giữ quyền.
-        """
-        ai = _ghi_duoc(request)
-        if ky_thuat is None:
-            raise HTTPException(503, "Chưa bật bộ sinh kỹ thuật.")
-        d = kho.doc(tap, chuong)["dong"]
-        ma_ts = {x["ma"] for x in kho.ds_so(tap)
-                 if x["loai"] in ("nhan_vat", "dao_cu", "boi_canh")}
-        so = [x for x in kho.ds_so(tap) if x["ma"] in ma_ts]
-
-        can = []                        # (chỉ số dòng, chỉ số cảnh)
-        for i, dg in enumerate(d):
-            for j, c in enumerate(mdong.doc_canh(dg)):
-                # Cảnh rỗng là ô người vừa mở, chưa viết gì — gửi cho LLM thì nó
-                # bịa nội dung ra khỏi hư không.
-                if c.get("t", "").strip() and not (c.get("pa") or "").strip():
-                    can.append((i, j))
-        if not can:
-            return {"xong": 0, "con_thieu": 0, "loi": ""}
-
-        xong, loi = 0, ""
-        for k in range(0, len(can), CO_LO_KT):
-            phan = can[k:k + CO_LO_KT]
-            muc = []
-            for i, j in phan:
-                cs = mdong.doc_canh(d[i])
-                muc.append({"id": f"{i}.{j}", "voice": d[i].get("en", ""),
-                            "canh": cs[j]["t"], "thu_tu": f"{j + 1}/{len(cs)}"})
-            try:
-                ra = ky_thuat.ky_thuat(muc, so)
-            except Exception as exc:  # noqa: BLE001 — giữ phần đã xong
-                loi = str(exc)
-                break
-            # Khớp theo MÃ, không theo vị trí. ĐO THẬT 24/09 trên C1:
-            # claude-sonnet-5 gửi 8 trả 7 — khớp theo vị trí thì cảnh 2 nhận
-            # prompt của cảnh 3, sai câm không ai thấy. Khớp theo mã thì mục nó
-            # nuốt chỉ làm cảnh đó để trống, bấm lại là chạy tiếp.
-            theo_ma = {str(x.get("id")): x for x in ra if x.get("id") is not None}
-            lam = [(i, j) for i, j in phan if f"{i}.{j}" in theo_ma]
-            if not lam:
-                loi = (f"trả {len(ra)} mục nhưng không mục nào mang mã cảnh "
-                       "hợp lệ — không khớp được vào đâu")
-                break
-            for i, j in lam:
-                x = theo_ma[f"{i}.{j}"]
-                cs = mdong.doc_canh(d[i])
-                c = cs[j]
-                for khoa in ("pa", "pv", "goc", "cd", "sfx"):
-                    if (x.get(khoa) or "").strip():
-                        c[khoa] = str(x[khoa]).strip()
-                if (x.get("co") or "").upper() in CO_HOP_LE:
-                    c["co"] = x["co"].upper()
-                ts = [m for m in (x.get("ts") or [])
-                      if isinstance(m, str) and m in ma_ts]
-                if ts:
-                    c["ts"] = ts
-                d[i] = mdong.ghi_canh(d[i], cs)
-            xong += len(lam)
-            try:                        # lưu sau MỖI lô, lô sau ngã không mất
-                kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
-            except KhoaBiGiu as exc:
-                raise HTTPException(409, str(exc)) from exc
-
-        if loi and not xong:
-            raise HTTPException(502, f"Sinh kỹ thuật hỏng: {loi}")
-        return {"xong": xong, "con_thieu": len(can) - xong,
-                "loi": f"Dừng ở cảnh {xong + 1}: {loi}" if loi else ""}
-
     # ------------------------------------------------------------- ảnh
+    CO_HOP_LE = ("WS", "MS", "CU", "ECU", "AERIAL")
+
     def _luu_canh(tap: str, chuong: str, d: list, ai: str) -> None:
         """Mọi đường ghi của phần ảnh đi qua đây. Không bắt `KhoaBiGiu` thì
         chương đang bị người khác giữ sẽ nổ 500 và trang chỉ hiện "HTTP 500"
@@ -646,6 +573,49 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         cs[j].pop("duyet", None)      # ảnh đổi thì con dấu duyệt cũ hết nghĩa
         d[i] = mdong.ghi_canh(d[i], cs)
 
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/ky-thuat")
+    def create_prompt(tap: str, chuong: str, ma: str, request: Request):
+        """Dịch nội dung cảnh sang prompt TIẾNG ANH + điền cột kỹ thuật, cho
+        ĐÚNG MỘT CẢNH (user chốt 25/09: "đưa Sinh prompt về từng cảnh luôn").
+
+        Cùng lý do với ảnh: mỗi cảnh là một quyết định, không chạy hàng loạt.
+        LLM KHÔNG đụng `t` và KHÔNG chọn `tong` — hai thứ đó user giữ quyền.
+        """
+        ai = _ghi_duoc(request)
+        if ky_thuat is None:
+            raise HTTPException(503, "Chưa bật bộ sinh prompt.")
+        d, i, j, c = _tim_canh(tap, chuong, ma)
+        if not (c.get("t") or "").strip():
+            raise HTTPException(400, "Cảnh này chưa có nội dung — viết trước đã.")
+
+        so = [x for x in kho.ds_so(tap)
+              if x["loai"] in ("nhan_vat", "dao_cu", "boi_canh")]
+        ma_ts = {x["ma"] for x in so}
+        cs = mdong.doc_canh(d[i])
+        muc = [{"id": ma, "voice": d[i].get("en", ""), "canh": c["t"],
+                "thu_tu": f"{j + 1}/{len(cs)}"}]
+        try:
+            ra = ky_thuat.ky_thuat(muc, so)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Sinh prompt hỏng: {exc}") from exc
+        x = next((y for y in ra if str(y.get("id")) == ma), None)
+        if x is None and len(ra) == 1:
+            x = ra[0]
+        if x is None:
+            raise HTTPException(502, "LLM không trả về cảnh nào khớp mã.")
+
+        for khoa in ("pa", "pv", "goc", "cd", "sfx"):
+            if (x.get(khoa) or "").strip():
+                cs[j][khoa] = str(x[khoa]).strip()
+        if (x.get("co") or "").upper() in CO_HOP_LE:
+            cs[j]["co"] = x["co"].upper()
+        ts = [m for m in (x.get("ts") or []) if isinstance(m, str) and m in ma_ts]
+        if ts:
+            cs[j]["ts"] = ts
+        d[i] = mdong.ghi_canh(d[i], cs)
+        _luu_canh(tap, chuong, d, ai)
+        return {"ok": True, "gan_asset": len(ts)}
+
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
         ai = _ghi_duoc(request)
@@ -660,31 +630,6 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(502, f"Vẽ ảnh hỏng: {exc}") from exc
         _luu_canh(tap, chuong, d, ai)
         return {"ok": True}
-
-    @app.post("/api/tap/{tap}/{chuong}/anh")
-    def sinh_anh_ca_chuong(tap: str, chuong: str, request: Request):
-        """Cảnh nào ĐÃ CÓ ảnh thì bỏ qua — bấm lại là vẽ tiếp chỗ thiếu, không
-        đốt tiền vẽ lại thứ đã có."""
-        ai = _ghi_duoc(request)
-        if ve_anh is None:
-            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
-        d = kho.doc(tap, chuong)["dong"]
-        can = [(i, j) for i, dg in enumerate(d)
-               for j, c in enumerate(mdong.doc_canh(dg))
-               if (c.get("pa") or "").strip() and c.get("id")
-               and not kho.duong_anh(tap, c["id"]).exists()]
-        xong, loi = 0, ""
-        for i, j in can:
-            try:
-                _ve_mot_canh(tap, chuong, d, i, j, ai)
-            except Exception as exc:  # noqa: BLE001 — giữ phần đã vẽ
-                loi = str(exc)
-                break
-            xong += 1
-            _luu_canh(tap, chuong, d, ai)
-        if loi and not xong:
-            raise HTTPException(502, f"Vẽ ảnh hỏng: {loi}")
-        return {"xong": xong, "con_thieu": len(can) - xong, "loi": loi}
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def xem_anh(tap: str, chuong: str, ma: str):
