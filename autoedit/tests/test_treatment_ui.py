@@ -329,8 +329,12 @@ def test_prompt_ghep_boilerplate_THEO_TONG(html):
     """Hai đoạn boilerplate của user: cảnh dưới nước có thêm câu về ánh sáng tự
     nhiên dưới nước, cảnh trên cạn thì không."""
     assert "function promptAnh(" in html and "function promptVideo(" in html
-    assert "dim natural underwater lighting" in html
-    assert "strictly no artificial light" in html
+    # Hai đoạn tông nay sống ở SỔ của tập (máy chủ đưa mặc định) — nội dung của
+    # chúng canh ở test_treatment_so.py. Ở trang chỉ canh chỗ GHÉP.
+    for ten in ("promptAnh", "promptVideo"):
+        i = html.index("function %s(" % ten)
+        than = html[i:html.index(chr(10) + "}", i)]
+        assert "boiler(x.tong)" in than, f"{ten} phải ghép tông của CHÍNH cảnh đó"
     assert "No background music" in html, "prompt video phải cấm nhạc nền"
     assert "16:9" in html
 
@@ -376,3 +380,105 @@ def test_doi_man_phai_dat_display_chu_khong_phai_hidden(html):
     than = html[i:html.index(chr(10) + "}", i)]
     assert "style.display" in than, "đổi màn phải đặt thẳng style.display"
     assert ".hidden =" not in than, "hidden bị display:flex đè, không ẩn được màn"
+
+
+# ═══════════ việc 3: sổ tài sản · hồ sơ tông · phân nhân sự ══════════════════
+def test_co_nut_mo_so_tai_san_va_tong(html):
+    assert 'id="nutTaiSan"' in html and 'id="nutTong"' in html
+    assert "function moSo(" in html
+
+
+def test_boiler_doc_tu_SO_khong_ghi_cung_trong_trang(html):
+    """Owner sửa tông trong sổ của tập thì mọi prompt phải ăn theo. Ghi cứng
+    đoạn boilerplate trong trang nghĩa là đổi mood phải sửa code."""
+    i = html.index("function boiler(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "soTheoMa(" in than, "boiler phải tra trong sổ của tập"
+    assert "TONG_MAC_DINH" not in html, "boilerplate không được ghi cứng trong trang — nó sống ở sổ"
+
+
+def test_prompt_dinh_MO_TA_TAI_SAN_cua_canh(html):
+    """Đây là thứ thay hẳn bước 6 của user (ném ref vào Gemini rồi bảo nó ghi
+    nhớ): API không có trí nhớ giữa các lượt, nên mô tả phải đi kèm mỗi prompt."""
+    i = html.index("function promptAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "moTaTaiSan(" in than
+    j = html.index("function moTaTaiSan(")
+    assert "x.ts" in html[j:html.index(chr(10) + "}", j)]
+
+
+def test_loc_theo_nhan_su_va_hien_ten_nguoi(html):
+    """Cụm màu = phân nhân sự (user chốt 24/09)."""
+    assert 'id="locNhanSu"' in html, "phải có bộ lọc nhân sự"
+    assert "function tenNhanSu(" in html, "chấm màu phải kèm tên người"
+
+
+def test_hop_canh_co_hang_gan_tai_san(html):
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "taiSanCuaCanh(" in than or "veTaiSanCanh(" in than
+
+
+def test_dungCanhTap_mang_theo_TS(html):
+    """Đo Chrome 24/09: gán tài sản vào cảnh thì `ts` xuống kho đúng, nhưng
+    prompt KHÔNG đổi — vì `dungCanhTap()` dựng object cho màn storyboard mà quên
+    chép `ts` sang, nên `moTaTaiSan` nhận undefined. Sổ thành quyển vở vô dụng."""
+    i = html.index("function dungCanhTap(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "ts:" in than, "dungCanhTap phải chép `ts` sang, không thì prompt mất tài sản"
+
+
+def test_luu_so_xong_thi_ve_lai_BO_LOC_nhan_su(html):
+    """Đặt tên người cho cụm xong mà bộ lọc vẫn trống là không ai lọc được."""
+    i = html.index("async function chotSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "veLocNhanSu()" in than
+
+
+# ═══════════ ảnh ref của tài sản (user chốt 24/09: "tôi sẽ upload ref") ══════
+def test_so_tai_san_co_cho_TAI_REF_LEN(html):
+    assert 'type="file"' in html, "phải có ô chọn file ref"
+    assert "function taiRef(" in html and "function xoaRef(" in html
+
+
+def test_tai_san_co_HAI_o_chu_tach_bach(html):
+    """`pr` = prompt TẠO ref (dùng một lần) · `chu` = mô tả nhận dạng (đính vào
+    mọi prompt cảnh). Gộp làm một là dán nhầm cả đoạn 3-góc-nền-trắng vào từng
+    cảnh."""
+    assert 'data-pr="' in html, "phải có ô prompt tạo ref riêng"
+    assert 'data-chu="' in html, "và ô mô tả riêng"
+    i = html.index("function moTaTaiSan(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert ".chu" in than and ".pr" not in than,         "prompt cảnh chỉ đính MÔ TẢ, không đính prompt tạo ref"
+
+
+def test_co_thanh_tien_do_cua_so(html):
+    """Bước lập sổ phải có vạch đích, không thì người ta quên mình đang dở."""
+    assert "function tienDoSo(" in html
+    i = html.index("function tienDoSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "ref" in than, "phải đếm tài sản chưa có ref"
+
+
+def test_hop_canh_hien_anh_ref_cua_tai_san_da_gan(html):
+    """Đính ref vào lượt gen là việc tay ở đợt 1 — tool ít nhất phải chỉ rõ
+    ẢNH NÀO, không bắt người ta nhớ."""
+    i = html.index("function veTaiSanCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "duongRef(" in than, "hàng tài sản trong hộp cảnh phải hiện ảnh ref"
+    assert "<img" in than, "hiện thật cái ảnh, không phải chỉ cái tên"
+
+
+def test_so_co_nut_goi_ten_du_tai_san(html):
+    """User chốt 24/09: "ông call đủ các asset, tôi sẽ upload ref"."""
+    assert "function goiYTaiSan(" in html
+    assert 'id="nutGoiY"' in html
+
+
+def test_goi_y_phai_qua_buoc_DUYET(html):
+    """Luật cứng #5: tool đề xuất, người duyệt. Tự nhận hết là sổ đầy rác sau
+    một lần bấm nhầm."""
+    assert "function nhanGoiY(" in html
+    i = html.index("async function goiYTaiSan(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "luuSoLen()" not in than, "gợi ý xong không được tự lưu vào sổ"

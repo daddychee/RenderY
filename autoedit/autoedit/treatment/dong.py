@@ -97,7 +97,9 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 #
 # Metadata gắn TRÊN TỪNG CẢNH, không giữ bảng theo chỉ số — cùng bài học của
 # `cum`: chẻ/gộp là chuyện xảy ra suốt, bảng theo chỉ số thì lần nào cũng lệch.
-KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong")
+# `ts` = danh sách MÃ tài sản dùng trong cảnh (trỏ vào sổ của tập). Sổ chỉ
+# thay được bước "ném ref vào, ghi nhớ đặc điểm" nếu cảnh chỉ được vào sổ.
+KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong", "ts")
 
 
 def doc_canh(d: dict) -> list[dict]:
@@ -117,7 +119,12 @@ def doc_canh(d: dict) -> list[dict]:
         for x in tho:
             if not isinstance(x, dict):
                 continue
-            c = {k: str(x[k]) for k in KHOA_CANH if x.get(k)}
+            c = {k: str(x[k]) for k in KHOA_CANH if k != "ts" and x.get(k)}
+            ts = x.get("ts")
+            if isinstance(ts, list):        # chuỗi lọt vào đây là str() ra rác
+                sach = [str(m).strip() for m in ts if isinstance(m, str) and m.strip()]
+                if sach:
+                    c["ts"] = sach
             if c.get("t", "").strip():
                 c["t"] = c["t"].strip()
                 ra.append(c)

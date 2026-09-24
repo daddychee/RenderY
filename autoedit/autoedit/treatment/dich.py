@@ -35,6 +35,26 @@ Luật:
 Trả về JSON: {"dong": ["bản dịch dòng 1", "bản dịch dòng 2", ...]}"""
 
 
+_LENH_TAI_SAN = """Bạn là trợ lý dựng storyboard. Dưới đây là danh sách CẢNH \
+của một video (mỗi dòng một cảnh).
+
+Hãy liệt kê MỌI nhân vật, đạo cụ và bối cảnh xuất hiện trong các cảnh đó.
+
+Luật:
+- Chỉ liệt kê thứ THỰC SỰ có trong các cảnh. Không bịa thêm.
+- Gộp các cách gọi khác nhau của cùng một thứ làm MỘT mục.
+- `loai` chỉ nhận: nhan_vat | dao_cu | boi_canh
+- `ten`: tiếng Việt, ngắn, đúng cách đội gọi trong cảnh.
+- `chu`: mô tả nhận dạng bằng TIẾNG ANH, ngắn gọn, nêu đặc điểm giữ cho ảnh \
+nhất quán (chất liệu, màu, niên đại, dáng). Đây là đoạn sẽ được đính vào MỌI \
+prompt cảnh dùng nó.
+- `pr`: prompt TIẾNG ANH để sinh ảnh tham chiếu, dùng một lần. Với nhân vật: \
+toàn thân, 3 góc (chính diện, bên hông, sau lưng), nền trắng, photorealistic, \
+đúng niên đại. Với đạo cụ/bối cảnh: một khung hình sạch, photorealistic.
+
+Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "chu": "...", "pr": "..."}]}"""
+
+
 class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
@@ -132,6 +152,13 @@ class LLM:
             return json.loads(noi[noi.index("{"):noi.rindex("}") + 1])
         except (KeyError, IndexError, ValueError) as exc:
             raise DichLoi(f"{self.model} trả về không đọc được: {exc}") from exc
+
+    def goi_y(self, canh: list[str]) -> list[dict]:
+        """Một lô cảnh -> danh sách tài sản. Trả sai hình dạng thì bỏ mục đó,
+        không giết cả lượt: mất một mục còn hơn mất cả bảng đề xuất."""
+        than = "\n".join("- " + c for c in canh)
+        ra = self.goi(_LENH_TAI_SAN, than).get("tai_san") or []
+        return [x for x in ra if isinstance(x, dict) and (x.get("ten") or "").strip()]
 
     def dich(self, cau: list[str]) -> list[str]:
         than = "\n".join(f"[{i}] {c}" for i, c in enumerate(cau))

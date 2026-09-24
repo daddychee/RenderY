@@ -124,3 +124,19 @@ def test_gop_dong_thi_canh_NOI_LAI_dung_thu_tu():
          {"en": "Dưới", "vi": "", "het": 0, "canh": [{"t": "B"}, {"t": "C"}]}]
     ra = mdong.gop(d, 1)
     assert [c["t"] for c in ra[0]["canh"]] == ["A", "B", "C"]
+
+
+# ----------------------------- tài sản gán vào cảnh -------------------------
+def test_canh_gan_duoc_TAI_SAN():
+    """Sổ tài sản chỉ thay được bước "ném ref vào, ghi nhớ đặc điểm" nếu CẢNH
+    chỉ được vào sổ. `ts` là danh sách mã tài sản, không phải chuỗi."""
+    assert "ts" in mdong.KHOA_CANH
+    d = {"canh": [{"t": "Cận tàu ngầm", "ts": ["k129", "day_bien"]}]}
+    assert mdong.doc_canh(d)[0]["ts"] == ["k129", "day_bien"]
+
+
+def test_ts_rac_thi_bo_di():
+    d = {"canh": [{"t": "A", "ts": "k129"}, {"t": "B", "ts": [1, "", "ok"]}]}
+    ra = mdong.doc_canh(d)
+    assert "ts" not in ra[0], "ts không phải danh sách thì bỏ"
+    assert ra[1]["ts"] == ["ok"], "phần tử rỗng/không phải chữ thì bỏ"

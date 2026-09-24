@@ -15,6 +15,7 @@ luật đã có, đã có test riêng; chép lại là đẻ ra hai luật lệc
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -42,6 +43,11 @@ CREATE TABLE IF NOT EXISTS ban_cu(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tap TEXT NOT NULL, chuong TEXT NOT NULL, luc REAL NOT NULL, boi TEXT,
   dong TEXT NOT NULL, outline TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS so(
+  tap TEXT NOT NULL, ma TEXT NOT NULL, loai TEXT NOT NULL,
+  ten TEXT NOT NULL DEFAULT '', chu TEXT NOT NULL DEFAULT '',
+  pr TEXT NOT NULL DEFAULT '', thu_tu INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (tap, ma));
 CREATE TABLE IF NOT EXISTS khoa(
   tap TEXT NOT NULL, chuong TEXT NOT NULL, nguoi TEXT NOT NULL, den REAL NOT NULL,
   PRIMARY KEY (tap, chuong));
@@ -55,6 +61,11 @@ class Kho:
         self.cn = sqlite3.connect(self.duong, check_same_thread=False)
         self.cn.row_factory = sqlite3.Row
         self.cn.executescript(_SCHEMA)
+        # Cột thêm sau: `CREATE TABLE IF NOT EXISTS` không đụng bảng đã có, nên
+        # kho cũ phải vá tại chỗ. Rẻ và chạy mỗi lần mở, không cần sổ phiên bản.
+        co = {r["name"] for r in self.cn.execute("PRAGMA table_info(so)")}
+        if co and "pr" not in co:
+            self.cn.execute("ALTER TABLE so ADD COLUMN pr TEXT NOT NULL DEFAULT ''")
         self.cn.commit()
 
     # ------------------------------------------------------------------ tập
@@ -104,6 +115,94 @@ class Kho:
             d["ai_giu"] = self.ai_giu(tap, d["ma"])
             ra.append(d)
         return ra
+
+    # ---------------------------------------------------------------- sổ
+    # Ba thứ cùng một hình dạng (mã · tên · một đoạn chữ) nên dùng CHUNG một
+    # bảng với cột `loai`, không đẻ ba bảng ba bộ endpoint:
+    #   tong     — đoạn boilerplate ghép cuối prompt, `canh[i].tong` trỏ tới
+    #   nhan_vat / dao_cu / boi_canh — mô tả tiếng Anh của tài sản
+    #   nhan_su  — cụm màu 1..6 là ai (user chốt: "cụm màu để phân nhân sự")
+    LOAI_SO = ("tong", "nhan_vat", "dao_cu", "boi_canh", "nhan_su")
+    # Ảnh ref giữ THÀNH FILE cạnh kho, không giữ cái link (user chốt 24/09):
+    # link Drive chết là mất cả sổ, và đợt 2 gọi API thì phải có BYTES mới đính
+    # ref vào lượt gọi được.
+    # CHỈ ẢNH (user chốt 24/09). Ref là bản mặt của nhân vật/đạo cụ để giữ nhất
+    # quán — clip không phục vụ việc đó, mà mở cửa cho video là kho phình bằng
+    # file nặng và đợt 2 phải xử hai kiểu đầu vào.
+    DUOI_REF = (".png", ".jpg", ".jpeg", ".webp")
+    REF_TOI_DA = 25 * 1024 * 1024        # 25MB: rộng gấp nhiều lần một bản ref 4K
+
+    def duong_ref(self, tap: str, ma: str, duoi: str) -> Path:
+        """Đường file ref. `ma` và `tap` đi THẲNG vào tên file nên phải chặn ở
+        đây: không chặn là ghi đè được file bất kỳ trên ổ bằng `ma=../../...`."""
+        for x in (tap, ma):
+            if not x or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x):
+                raise ValueError(f"Mã '{x}' có ký tự không dùng được cho tên file.")
+        if duoi.lower() not in self.DUOI_REF:
+            raise ValueError(f"Đuôi '{duoi}' không nhận — chỉ "
+                             f"{', '.join(self.DUOI_REF)}.")
+        return self.duong.parent / "tai_san" / tap / (ma + duoi.lower())
+
+    def ref_dang_co(self, tap: str, ma: str) -> Optional[Path]:
+        for d in self.DUOI_REF:
+            try:
+                t = self.duong_ref(tap, ma, d)
+            except ValueError:
+                return None
+            if t.exists():
+                return t
+        return None
+
+    def xoa_ref(self, tap: str, ma: str) -> bool:
+        """Xoá HẾT đuôi: tải .png rồi tải .jpg cùng mã mà để lại cả hai thì lần
+        sau lấy nhầm bản cũ."""
+        xoa = False
+        for d in self.DUOI_REF:
+            try:
+                t = self.duong_ref(tap, ma, d)
+            except ValueError:
+                return False
+            if t.exists():
+                t.unlink()
+                xoa = True
+        return xoa
+
+    def ds_so(self, tap: str) -> list[dict]:
+        ra = []
+        for r in self.cn.execute(
+                "SELECT ma, loai, ten, chu, pr FROM so WHERE tap=? "
+                "ORDER BY thu_tu, ma", (tap,)):
+            d = dict(r)
+            # Sổ phải biết tài sản nào ĐÃ có ref — để đếm được việc còn dở.
+            d["ref"] = bool(self.ref_dang_co(tap, d["ma"]))
+            ra.append(d)
+        return ra
+
+    def luu_so(self, tap: str, so: list[dict]) -> None:
+        """Ghi CẢ danh sách: sổ nhỏ và sửa thưa, nên bỏ một mục là nó biến mất
+        thật chứ không để lại rác.
+
+        Đổi lại: hai người sửa sổ cùng lúc thì người sau đè người trước. Chấp
+        nhận — sổ không phải chỗ gõ cả buổi như kịch bản, và kịch bản mới là
+        thứ có khoá chương.
+        """
+        sach = []
+        for i, x in enumerate(so or []):
+            loai = (x.get("loai") or "").strip()
+            if loai not in self.LOAI_SO:
+                raise ValueError(
+                    f"Loại '{loai}' không có trong sổ — chỉ nhận "
+                    f"{', '.join(self.LOAI_SO)}.")
+            ma, ten = (x.get("ma") or "").strip(), (x.get("ten") or "").strip()
+            if not ma or not ten:       # thiếu mã hoặc tên thì không tra được
+                continue
+            sach.append((tap, ma, loai, ten, (x.get("chu") or "").strip(),
+                         (x.get("pr") or "").strip(), i))
+        self.cn.execute("DELETE FROM so WHERE tap=?", (tap,))
+        self.cn.executemany(
+            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, thu_tu) "
+            "VALUES(?,?,?,?,?,?,?)", sach)
+        self.cn.commit()
 
     # ------------------------------------------------------------- lưu / đọc
     def doc(self, tap: str, chuong: str) -> dict:

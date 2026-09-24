@@ -18,8 +18,8 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from fastapi import Body, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi import Body, FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from autoedit.treatment import dong as mdong
 from autoedit.treatment.kho import Kho, KhoaBiGiu
@@ -131,8 +131,43 @@ def _ban_trang() -> str:
         return "0"
 
 
-def tao_app(kho: Kho, dich=None) -> FastAPI:
-    """`kho`, `dich` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
+# Hai tông user đang dùng (24/09). Đây là GIÁ TRỊ KHỞI ĐIỂM, không phải chỗ
+# chốt: Owner sửa trong sổ của tập thì bản sửa thắng. Ghi cứng đoạn này trong
+# code nghĩa là mỗi lần đổi mood phải sửa code — nên nó chỉ đứng ở đây làm mồi.
+TONG_MAC_DINH = [
+    {"ma": "nuoc", "loai": "tong", "ten": "dưới nước",
+     "pr": "",
+     "chu": "Photorealistic. Mood and tone: Dark & mysterious mood, "
+            "dim natural underwater lighting, no harsh shadows, "
+            "strictly no artificial light. "
+            "Consistent mood, tone, and graphic style across all shots."},
+    {"ma": "can", "loai": "tong", "ten": "trên cạn",
+     "pr": "",
+     "chu": "Photorealistic. Mood and tone: Dark & mysterious mood. "
+            "Consistent mood, tone, and graphic style across all shots."},
+]
+
+
+def _ma_sach(ten: str, da_co: dict) -> str:
+    """Tên tiếng Việt -> mã dùng được làm TÊN FILE ref.
+
+    `duong_ref` chỉ nhận [A-Za-z0-9_-]; tên có dấu và dấu cách mà đưa thẳng vào
+    là tải ref lên nhận 400 — lỗi chỉ lòi ra lúc người dùng bấm, không phải lúc
+    sinh đề xuất.
+    """
+    t = unicodedata.normalize("NFD", ten.strip().lower())
+    t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn").replace("đ", "d")
+    t = re.sub(r"[^a-z0-9]+", "_", t).strip("_")[:40] or "ts"
+    goc, n = t, 2
+    while t in da_co:
+        t = f"{goc}_{n}"
+        n += 1
+    da_co[t] = 1
+    return t
+
+
+def tao_app(kho: Kho, dich=None, goi_y=None) -> FastAPI:
+    """`kho`, `dich`, `goi_y` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -227,6 +262,121 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
             return {"ma": kho.tao_chuong(tap, (than.get("ma") or "").strip())}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    # ----------------------------------------------------------------- sổ
+    @app.get("/api/tap/{tap}/so")
+    def doc_so(tap: str):
+        """Sổ dùng chung cả tập. Sổ rỗng thì đưa sẵn HAI TÔNG mặc định user
+        đang dùng: prompt nào cũng phải có đoạn tông ghép ở cuối, trả rỗng là
+        prompt đầu tiên của mọi tập đều cụt. Chưa ghi xuống — sửa mới ghi."""
+        ds = kho.ds_so(tap)
+        if not any(x["loai"] == "tong" for x in ds):
+            ds = TONG_MAC_DINH + ds
+        return ds
+
+    @app.put("/api/tap/{tap}/so")
+    def luu_so(tap: str, request: Request, than: dict = Body(...)):
+        _ghi_duoc(request)
+        try:
+            kho.luu_so(tap, than.get("so") or [])
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"ok": True}
+
+    CO_LO_CANH = 25        # cảnh mỗi lượt gọi — JSON dài là cụt (bài học 23/09)
+
+    @app.post("/api/tap/{tap}/so/goi-y")
+    def goi_y_tai_san(tap: str, request: Request):
+        """Quét CẢ TẬP rồi gọi tên đủ nhân vật / đạo cụ / bối cảnh.
+
+        Đúng bước 2 trong quy trình tay của user, nhưng khác hai chỗ — và cả
+        hai là lý do tool tồn tại: chat quét một lần rồi quên, còn đây quét cả
+        tập và GỘP TRÙNG; và đề xuất KHÔNG tự ghi vào sổ, người duyệt mới nhận
+        (luật cứng #5: không tự quyết hộ user).
+        """
+        _ghi_duoc(request)
+        if goi_y is None:
+            raise HTTPException(503, "Chưa bật bộ gợi ý.")
+        canh: list[str] = []
+        for c in kho.ds_chuong(tap):
+            for d in kho.doc(tap, c["ma"])["dong"]:
+                canh += [x["t"] for x in mdong.doc_canh(d)]
+        if not canh:
+            raise HTTPException(400, "Tập này chưa có cảnh nào — viết treatment trước.")
+
+        ra: list[dict] = []
+        thay: dict[str, int] = {}
+        loi = ""
+        for k in range(0, len(canh), CO_LO_CANH):
+            try:
+                phan = goi_y.goi_y(canh[k:k + CO_LO_CANH])
+            except Exception as exc:  # noqa: BLE001 — giữ phần đã quét
+                loi = str(exc)
+                break
+            for x in phan or []:
+                if (x.get("loai") or "") not in ("nhan_vat", "dao_cu", "boi_canh"):
+                    continue
+                ten = (x.get("ten") or "").strip()
+                khoa = ten.lower()
+                if not ten or khoa in thay:
+                    continue
+                thay[khoa] = 1
+                ra.append({"ma": _ma_sach(ten, thay), "loai": x["loai"], "ten": ten,
+                           "chu": (x.get("chu") or "").strip(),
+                           "pr": (x.get("pr") or "").strip(), "ref": False})
+        if loi and not ra:
+            raise HTTPException(502, f"Gợi ý hỏng: {loi}")
+        return {"goi_y": ra, "quet": len(canh), "loi": loi}
+
+    # ------------------------------------------------------------ ref
+    @app.post("/api/tap/{tap}/so/{ma}/ref")
+    async def tai_ref(tap: str, ma: str, request: Request, tep: UploadFile = File(...)):
+        """Nhận file ref của một tài sản. Đọc THEO KHÚC và đếm dọc đường: đọc
+        cả file vào bộ nhớ rồi mới kiểm cỡ là mở cửa cho một lần tải 10GB."""
+        _ghi_duoc(request)
+        duoi = Path(tep.filename or "").suffix.lower()
+        try:
+            dich = kho.duong_ref(tap, ma, duoi)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        dich.parent.mkdir(parents=True, exist_ok=True)
+        tam = dich.with_suffix(dich.suffix + ".dang-tai")
+        n = 0
+        try:
+            with tam.open("wb") as f:
+                while True:
+                    khuc = await tep.read(1 << 20)
+                    if not khuc:
+                        break
+                    n += len(khuc)
+                    if n > kho.REF_TOI_DA:
+                        raise HTTPException(
+                            413, f"File quá {kho.REF_TOI_DA // (1024 * 1024)}MB.")
+                    f.write(khuc)
+        except HTTPException:
+            tam.unlink(missing_ok=True)
+            raise
+        if not n:
+            tam.unlink(missing_ok=True)
+            raise HTTPException(400, "File rỗng.")
+        kho.xoa_ref(tap, ma)          # đổi đuôi thì đừng để lại bản cũ
+        tam.replace(dich)
+        return {"ok": True, "cỡ": n}
+
+    @app.get("/api/tap/{tap}/so/{ma}/ref")
+    def xem_ref(tap: str, ma: str):
+        t = kho.ref_dang_co(tap, ma)
+        if t is None:
+            raise HTTPException(404, "Tài sản này chưa có ref.")
+        return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    @app.delete("/api/tap/{tap}/so/{ma}/ref")
+    def xoa_ref(tap: str, ma: str, request: Request):
+        _ghi_duoc(request)
+        if not kho.xoa_ref(tap, ma):
+            raise HTTPException(404, "Tài sản này chưa có ref.")
+        return {"ok": True}
 
     # Khai TRƯỚC `/{tap}/{chuong}`: FastAPI khớp theo THỨ TỰ KHAI BÁO, để sau thì
     # "txt" bị nuốt làm mã chương và trả JSON chương rỗng thay vì bản .txt cả tập
@@ -358,6 +508,24 @@ class _Dich:
         return LLM().dich(cau)
 
 
+class _GoiY:
+    """Đọc KÉT mỗi lượt như bộ dịch — Owner đổi khoá/model ở General là ăn ngay.
+
+    Dùng CHUNG cấp phát `dich` của app: thêm một việc riêng trong apps.json chỉ
+    để đo tiền tách bạch thì làm sau, không chặn đường chạy hôm nay.
+    """
+
+    def goi_y(self, canh):
+        from autoedit.treatment.dich import LLM
+
+        return LLM().goi_y(canh)
+
+
+def _goi_y_mac_dinh(kho: Kho):
+    _ = kho
+    return _GoiY()
+
+
 def _dich_mac_dinh(kho: Kho):
     _ = kho
     return _Dich()
@@ -370,7 +538,8 @@ def tao_app_mac_dinh() -> FastAPI:
     thôi đã mở SQLite, và cả suite test sẽ đẻ ra DB thật trong thư mục nhà.
     """
     kho = _kho_mac_dinh()
-    return tao_app(kho, dich=_dich_mac_dinh(kho))
+    return tao_app(kho, dich=_dich_mac_dinh(kho),
+                   goi_y=_goi_y_mac_dinh(kho))
 
 
 def main() -> None:
