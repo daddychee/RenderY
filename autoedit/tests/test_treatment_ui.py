@@ -138,7 +138,9 @@ def test_bang_mau_nam_o_COT_PHAI_canh_treatment(html):
 # lại KHÔNG chèn "\n" (đo: textContent -> "Dong motDong haiDong ba",
 # innerText -> "Dong mot\nDong hai\nDong ba"). Ba ô nhiều dòng đều đọc sai kiểu
 # đó, nên canh cả ba.
-_O_NHIEU_DONG = ("tOo", "ctOo", "outline")
+# `tOo` đã thành KHỐI (24/09) nên không còn là một ô nhiều dòng;
+# luật đọc-bằng-innerText của nó chuyển sang test_khoi_doc_bang_docChu.
+_O_NHIEU_DONG = ("ctOo", "outline")
 
 
 def _than_blur(html: str, ma_o: str) -> str:
@@ -208,3 +210,86 @@ def test_hoi_lai_dinh_ky_mang_chop_thi_KHONG_ha_quyen(html):
     than = html[i:html.index("async function khaiTen(", i)]
     assert "if(BAN_TRANG) return;" in than, \
         "catch của aiDay phải bỏ qua khi đây là lượt hỏi lại, không hạ quyền"
+
+
+# ═══════════════ Treatment thành KHỐI — mỗi khối một cảnh (24/09) ════════════
+# User chốt: *"ở khối treatment, sau mỗi lần enter thì sẽ tạo ra 1 khối dòng mới
+# để nhập tiếp. Một phân cảnh có 6 cảnh treatment là 6 dòng riêng biệt"*.
+# Và: *"đánh số cảnh dựa trên phân cảnh, ví dụ phân cảnh 4 sẽ có các cảnh
+# 4.1 4.2"*.
+
+def test_o_treatment_mot_cuc_da_thanh_KHOI(html):
+    assert 'id="tOo"' not in html, "ô treatment một cục phải bỏ"
+    assert 'id="tKhoi"' in html, "phải có chỗ chứa các khối cảnh"
+
+
+def test_moi_khoi_la_mot_canh_va_co_ham_ve(html):
+    assert "function veKhoi(" in html, "chưa có hàm vẽ các khối cảnh"
+    assert "function docCanh(" in html, \
+        "trang phải đọc được CẢ dữ liệu cũ (tr chuỗi) lẫn mới (canh)"
+
+
+def test_ma_canh_danh_theo_PHAN_CANH(html):
+    """Phân cảnh 4 -> cảnh 4.1, 4.2. Số phân cảnh là số câu chạy liền H→E, nên
+    phải lấy qua `dongTruoc` chứ không phải chỉ số trong chương."""
+    i = html.index("function veKhoi(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "soPhanCanh()" in than, "mã cảnh phải neo vào số phân cảnh"
+    assert '"."' in than or "'.'" in than, "mã cảnh phải là <phân cảnh>.<thứ tự>"
+    j = html.index("function soPhanCanh(")
+    assert "dongTruoc(" in html[j:html.index(chr(10) + "}", j)],         "số phân cảnh phải chạy liền cả tập, không đếm lại mỗi chương"
+
+
+def test_enter_trong_khoi_de_ra_khoi_moi(html):
+    """Enter chẻ khối tại con trỏ; Backspace ở đầu khối gộp lên khối trên —
+    cùng cơ chế với cột kịch bản đã chạy, người dùng không phải học cái mới."""
+    i = html.index('getElementById("tKhoi").addEventListener("keydown"')
+    than = html[i:html.index("}, false);", i)]
+    assert '"Enter"' in than, "chưa bắt phím Enter trong khối"
+    assert '"Backspace"' in than, "chưa bắt Backspace đầu khối"
+    assert "preventDefault()" in than, "phải chặn hành vi mặc định của trình duyệt"
+    assert "function cheKhoi(" in html and "function gopKhoi(" in html
+
+
+def test_khoi_doc_bang_docChu(html):
+    """Luật cũ vẫn đứng: đọc chữ trong ô contenteditable bằng innerText, không
+    phải textContent — dán nhiều dòng vào một khối thì chữ không được dính."""
+    i = html.index("function docKhoi(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "docChu(" in than and "textContent" not in than
+
+
+def test_gui_len_may_chu_bang_khoa_canh(html):
+    """Ghi kiểu mới (`canh`), không ghi lại `tr` — nếu không thì mỗi lần lưu là
+    một lần tụt về mô hình cũ."""
+    assert ".canh =" in html or '["canh"]' in html, "trang phải ghi khoá `canh`"
+    assert "d.tr =" not in html, "không được ghi lại `tr` kiểu cũ nữa"
+
+
+def test_nut_them_canh_chi_hien_khi_sua_duoc(html):
+    assert "themCanh" in html, "phải có nút thêm cảnh"
+    assert "SUA_DUOC" in html
+
+
+def test_che_khoi_ve_lai_bang_DANH_SACH_VUA_DUNG(html):
+    """Đo Chrome 24/09: Enter ở cuối khối không đẻ ra khối mới. Khối mới rỗng,
+    mà `luuCanh` lọc bỏ cảnh rỗng (đúng — kho không nên chứa cảnh trống), nên
+    khi `veKhoi` đọc LẠI từ kho thì khối vừa đẻ đã biến mất; con trỏ rơi về khối
+    cũ và chữ gõ tiếp dính vào đó.
+
+    Nên chỗ đang gõ phải vẽ bằng danh sách VỪA DỰNG, không phải bản đã lọc.
+    """
+    for ten in ("cheKhoi", "themCanh"):
+        i = html.index("function %s(" % ten)
+        than = html[i:html.index(chr(10) + "}", i)]
+        assert "veKhoi(dongDangChon(), ds)" in than, (
+            f"{ten} phải vẽ lại bằng danh sách vừa dựng — vẽ từ kho thì khối "
+            "rỗng đang gõ dở biến mất")
+
+
+def test_tro_khoi_vao_o_RONG_van_dat_duoc_con_tro(html):
+    """Khối vừa đẻ chưa có text node nào. Không tạo thì `setStart` ném lỗi và
+    con trỏ ở lại chỗ cũ — cùng cái bẫy `datCaret` đã xử."""
+    i = html.index("function troKhoi(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "createTextNode" in than

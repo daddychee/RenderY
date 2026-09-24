@@ -162,6 +162,17 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   margin-bottom:10px}
 .doan{font-size:12.5px;color:var(--muted);border-left:2px solid var(--accent);padding-left:9px;
   margin-bottom:10px;max-height:110px;overflow:auto}
+.khoi{display:flex;gap:7px;align-items:flex-start;background:var(--bg);
+  border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px}
+.khoi:focus-within{border-color:var(--accent)}
+.khoi .k{font-size:9.5px;font-weight:800;color:#fff;background:var(--accent);
+  border-radius:5px;padding:1px 6px;margin-top:2px;white-space:nowrap;
+  user-select:none}
+.khoi .c{flex:1;min-width:0;font-size:12.5px;line-height:1.55;outline:0;
+  white-space:pre-wrap}
+.khoi.trong .k{background:var(--muted)}
+#tKhoi:empty::before{content:"Chưa có cảnh nào. Bấm + Cảnh hoặc gõ thẳng vào đây.";
+  color:var(--muted);font-size:12px}
 .tt{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;
   min-height:120px;white-space:pre-wrap;font-size:13px;line-height:1.65}
 .tt:focus{outline:2px solid var(--accent);outline-offset:1px}
@@ -230,8 +241,10 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <div id="pane-t">
       <div class="the">
         <div class="doan" id="tDoan">Bấm một dòng ở cột giữa.</div>
-        <div class="tt" id="tOo" contenteditable></div>
-        <div class="ghi">Treatment của riêng dòng đang chọn. Tự lưu như phần kịch bản.</div>
+        <div id="tKhoi"></div>
+        <button class="cp" id="themCanh" onclick="themCanh()">+ Cảnh</button>
+        <div class="ghi">Mỗi khối là một <b>cảnh</b>. <b>Enter</b> sang cảnh mới ·
+          <b>Backspace</b> ở đầu khối gộp lên trên. Tự lưu như phần kịch bản.</div>
       </div>
       <div class="the">
         <p class="nhan">Bản lùi</p>
@@ -288,6 +301,8 @@ async function apiText(duong){
 function batNutGhi(){
   var n = document.getElementById("nutTap");
   if(n) n.hidden = !SUA_DUOC;
+  var tc = document.getElementById("themCanh");
+  if(tc) tc.hidden = !SUA_DUOC;
   document.querySelectorAll(".cp").forEach(function(b){
     if(/Dịch lại/.test(b.textContent)) b.hidden = !SUA_DUOC;
   });
@@ -455,14 +470,14 @@ function vePhai(){
   var d = (cua(chonCh).dong || [])[chonD];
   document.getElementById("cDoan").textContent = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("ctOo").textContent = d ? (d.ct || "") : "";
-  for (var _o of ["ctOo", "tOo"]) {
+  for (var _o of ["ctOo"]) {
     var _e = document.getElementById(_o);
     if (SUA_DUOC) _e.setAttribute("contenteditable", ""); else _e.removeAttribute("contenteditable");
   }
   document.getElementById("bangMau").innerHTML = (d && SUA_DUOC) ? veBangMau() : "";
   var txt = d ? d.en : "Bấm một dòng ở cột giữa.";
   document.getElementById("tDoan").textContent = txt;
-  document.getElementById("tOo").textContent = d ? (d.tr || "") : "";
+  veKhoi(d);
 }
 
 function chonDong(ma, i, sk){
@@ -650,6 +665,122 @@ function ghiNho(){
   lamLaiDuoc.length = 0;
 }
 
+/* ═══════════ KHỐI CẢNH — một khối là một cảnh (user chốt 24/09) ═══════════ */
+/* Gương của `dong.doc_canh` bên máy chủ: nhận CẢ dữ liệu cũ (`tr` là chuỗi) lẫn
+   mới (`canh` là danh sách). Không tự đoán mốc "2)" "3)" để tách hộ — 28 ô đang
+   dính là chữ của người viết, user chốt tự sửa tay. */
+function docCanh(d){
+  if(!d) return [];
+  if(Array.isArray(d.canh))
+    return d.canh.filter(function(c){ return c && String(c.t || "").trim(); })
+                 .map(function(c){ return Object.assign({}, c, {t: String(c.t).trim()}); });
+  return String(d.tr || "").split(/\r?\n/).map(function(x){ return x.trim(); })
+                           .filter(Boolean).map(function(t){ return {t: t}; });
+}
+
+/* Số PHÂN CẢNH = số câu chạy liền H→E, nên lấy qua `dongTruoc` chứ không phải
+   chỉ số trong chương (user chốt: "phân cảnh 4 sẽ có các cảnh 4.1 4.2"). */
+function soPhanCanh(){
+  return dongTruoc(chonCh) + chonD + 1;
+}
+
+function veKhoi(d, ds){
+  // `ds` truyền vào = danh sách ĐANG GÕ. Đọc lại từ kho là mất khối rỗng vừa
+  // đẻ ra (luuCanh lọc cảnh rỗng — đúng, nhưng chỗ đang gõ thì phải giữ).
+  var oo = document.getElementById("tKhoi");
+  if(!d){ oo.innerHTML = ""; return; }
+  if(!ds) ds = docCanh(d);
+  var pc = soPhanCanh();
+  if(!ds.length) ds = [{t: ""}];
+  oo.innerHTML = ds.map(function(c, i){
+    return '<div class="khoi' + (c.t ? '' : ' trong') + '">' +
+           '<span class="k">' + pc + "." + (i + 1) + '</span>' +
+           '<div class="c" data-k="' + i + '"' + (SUA_DUOC ? ' contenteditable' : '') +
+           '>' + thoat(c.t) + '</div></div>';
+  }).join("");
+}
+
+/* Đọc chữ của MỘT khối. Vẫn qua docChu: dán nhiều dòng vào một khối thì
+   textContent nối liền chữ (bài học 23/09). */
+function docKhoi(el){
+  return docChu(el).replace(/\s+/g, " ").trim();
+}
+
+function canhHienTai(){
+  return Array.prototype.map.call(
+    document.querySelectorAll("#tKhoi .c"),
+    function(el, i){
+      var cu = docCanh(dongDangChon())[i] || {};
+      return Object.assign({}, cu, {t: docKhoi(el)});
+    });
+}
+
+function dongDangChon(){
+  return (cua(chonCh).dong || [])[chonD] || null;
+}
+
+/* Ghi kiểu MỚI (`canh`) và dọn `tr` cũ — giữ cả hai thì sớm muộn đọc nhầm. */
+function luuCanh(ds){
+  var d = dongDangChon(); if(!d) return;
+  var sach = ds.filter(function(c){ return (c.t || "").trim(); });
+  delete d.tr;
+  if(sach.length) d.canh = sach; else delete d.canh;
+  henLuu(chonCh);
+}
+
+function cheKhoi(el){
+  var i = +el.dataset.k, off = viTriCaret(el), t = docKhoi(el);
+  var ds = canhHienTai();
+  ds[i] = Object.assign({}, ds[i], {t: t.slice(0, off).trim()});
+  ds.splice(i + 1, 0, {t: t.slice(off).trim()});
+  ghiNho(); luuCanh(ds); veKhoi(dongDangChon(), ds); troKhoi(i + 1, 0);
+}
+
+function gopKhoi(el){
+  var i = +el.dataset.k;
+  if(i <= 0) return;
+  var ds = canhHienTai(), tren = (ds[i - 1].t || "");
+  ds[i - 1] = Object.assign({}, ds[i - 1],
+                            {t: (tren + " " + (ds[i].t || "")).trim()});
+  ds.splice(i, 1);
+  ghiNho(); luuCanh(ds); veKhoi(dongDangChon(), ds); troKhoi(i - 1, tren.length);
+}
+
+function themCanh(){
+  if(!SUA_DUOC) return;
+  var ds = canhHienTai();
+  ds.push({t: ""});
+  luuCanh(ds); veKhoi(dongDangChon(), ds); troKhoi(ds.length - 1, 0);
+}
+
+function troKhoi(i, off){
+  var el = document.querySelectorAll("#tKhoi .c")[i];
+  if(!el) return;
+  el.focus();
+  var tn = el.firstChild || el.appendChild(document.createTextNode(""));
+  var r = document.createRange();
+  r.setStart(tn, Math.min(off, (tn.textContent || "").length)); r.collapse(true);
+  var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+
+document.getElementById("tKhoi").addEventListener("keydown", function(e){
+  var el = e.target;
+  if(!el.classList || !el.classList.contains("c")) return;
+  if(e.key === "Enter"){ e.preventDefault(); return cheKhoi(el); }
+  if(e.key === "Backspace" && viTriCaret(el) === 0){
+    e.preventDefault(); return gopKhoi(el);
+  }
+}, false);
+
+document.getElementById("tKhoi").addEventListener("blur", function(e){
+  var el = e.target;
+  if(!el.classList || !el.classList.contains("c") || dangVe) return;
+  var d = dongDangChon(); if(!d) return;
+  var ds = canhHienTai(), cu = docCanh(d);
+  if(JSON.stringify(ds) === JSON.stringify(cu)) return;
+  ghiNho(); luuCanh(ds);
+}, true);
+
 document.getElementById("script").addEventListener("keydown", function(e){
   var el = oNoi(e); if(!el) return;
   var ma = el.dataset.ch, i = +el.dataset.i, ds = cua(ma).dong, d = ds[i];
@@ -748,12 +879,7 @@ document.getElementById("ctOo").addEventListener("blur", function(){
   d.ct = v; henLuu((MAN === "TONG") ? chonCh : MAN);
 });
 
-document.getElementById("tOo").addEventListener("blur", function(){
-  var d = (cua(chonCh).dong || [])[chonD]; if(!d) return;
-  var v = docChu(document.getElementById("tOo"));
-  if((d.tr || "") === v) return;
-  d.tr = v; henLuu(chonCh);
-});
+
 
 document.addEventListener("keydown", function(e){
   if(!(e.ctrlKey || e.metaKey)) return;

@@ -49,6 +49,10 @@ def che(dong: list[dict], i: int, off: int) -> list[dict]:
     truoc, sau = t[:off].rstrip(), t[off:].lstrip()
     moi = dict(d)
     moi["en"], moi["vi"] = sau, ""     # nửa dưới chưa có bản dịch riêng
+    # Treatment đã viết là của Ý ĐÓ, mà ý đó nằm ở nửa trên. Nhân đôi sang cả
+    # hai nửa là đẻ ra cảnh ma — đếm shot sai, đếm tiền sinh ảnh cũng sai.
+    moi.pop("canh", None)
+    moi.pop("tr", None)
     d["en"] = truoc
     moi["het"], d["het"] = d["het"], 0  # ranh đoạn thuộc về CUỐI đoạn
     ra.insert(i + 1, moi)
@@ -71,6 +75,10 @@ def gop(dong: list[dict], i: int) -> list[dict]:
     tren["vi"] = " ".join(x for x in (tren.get("vi", "").rstrip(),
                                       d.get("vi", "").lstrip()) if x)
     tren["het"] = d["het"]
+    canh = doc_canh(tren) + doc_canh(d)
+    tren.pop("tr", None)
+    if canh:
+        tren["canh"] = canh
     return ra
 
 
@@ -79,6 +87,57 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
     ra = copy.deepcopy(dong)
     if 0 <= i < len(ra):
         ra[i]["het"] = 0 if ra[i]["het"] else 1
+    return ra
+
+
+# ───────────────────────────────── CẢNH ──────────────────────────────────────
+# Một dòng treatment = MỘT CẢNH (user chốt 24/09: *"một phân cảnh có 6 cảnh
+# treatment là 6 dòng riêng biệt"*). Cảnh còn phải đeo cỡ cảnh / góc máy /
+# chuyển động / SFX / tông nên nó là OBJECT, không phải một khúc chuỗi.
+#
+# Metadata gắn TRÊN TỪNG CẢNH, không giữ bảng theo chỉ số — cùng bài học của
+# `cum`: chẻ/gộp là chuyện xảy ra suốt, bảng theo chỉ số thì lần nào cũng lệch.
+KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong")
+
+
+def doc_canh(d: dict) -> list[dict]:
+    """Cảnh của một dòng, nhận CẢ dữ liệu cũ (`tr` là chuỗi) lẫn mới (`canh`).
+
+    Không có bước migration chạy một lần: đang có người dùng thật trên
+    production, đổi kho dưới chân họ là hỏng giữa buổi. Mỗi dòng tự nâng cấp
+    khi được lưu lại.
+
+    Chuỗi cũ tách theo XUỐNG DÒNG, KHÔNG đoán mốc `2)` `3)` để tách hộ: 28 ô
+    đang dính là do lỗi đọc chữ cũ, user chốt tự sửa tay. Máy đoán hộ là sửa
+    chữ của người viết.
+    """
+    tho = d.get("canh")
+    if isinstance(tho, list):
+        ra = []
+        for x in tho:
+            if not isinstance(x, dict):
+                continue
+            c = {k: str(x[k]) for k in KHOA_CANH if x.get(k)}
+            if c.get("t", "").strip():
+                c["t"] = c["t"].strip()
+                ra.append(c)
+        return ra
+    return [{"t": x.strip()} for x in (d.get("tr") or "").split(chr(10)) if x.strip()]
+
+
+def ghi_canh(d: dict, canh: list[dict]) -> dict:
+    """DÒNG MỚI mang danh sách cảnh — hàm thuần, không sửa dòng của người gọi.
+
+    Dọn luôn `tr` cũ: giữ cả hai thì sớm muộn có chỗ đọc nhầm bản cũ.
+    Không cảnh nào thì XOÁ hẳn khoá, đừng để lại `canh: []` cho kho phình.
+    """
+    ra = copy.deepcopy(d)
+    ra.pop("tr", None)
+    sach = [c for c in doc_canh({"canh": canh})]
+    if sach:
+        ra["canh"] = sach
+    else:
+        ra.pop("canh", None)
     return ra
 
 
