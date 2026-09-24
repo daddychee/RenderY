@@ -1020,8 +1020,10 @@ function tienDoSo(){
     return !(c.ts || []).length; }).length;
   var o = document.getElementById("tienDoSo");
   if(!o) return;
-  o.innerHTML = "Sổ: <b>" + ts.length + "</b> tài sản" +
-    (thieu ? ' · <span class="thieu">' + thieu + " chưa có ref</span>" : " · đủ ref") +
+  o.innerHTML = (ts.length
+      ? "Sổ: <b>" + ts.length + "</b> tài sản" +
+        (thieu ? ' · <span class="thieu">' + thieu + " chưa có ref</span>" : " · đủ ref")
+      : '<span class="thieu">Sổ tài sản chưa lập sổ</span>') +
     (chua ? ' · <span class="thieu">' + chua + " cảnh chưa gán</span>" : "");
 }
 

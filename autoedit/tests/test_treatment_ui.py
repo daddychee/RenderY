@@ -533,3 +533,11 @@ def test_dong_hop_thi_QUEN_canh_dang_mo(html):
     i = html.index("function dongCanh(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert 'canhDangMo = ""' in than
+
+
+def test_so_rong_thi_dung_bao_DU_REF(html):
+    """Đo production 24/09: sổ chưa có gì mà thanh tiến độ báo "0 tài sản · đủ
+    ref" — vô lý, và tệ hơn là nó bảo người ta rằng bước lập sổ đã xong."""
+    i = html.index("function tienDoSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa lập sổ" in than
