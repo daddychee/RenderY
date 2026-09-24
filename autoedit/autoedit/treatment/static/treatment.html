@@ -209,6 +209,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   </div>
 
   <div class="cot" id="cotScript">
+    <div id="banMoi"></div>
     <div id="khoaHop"></div>
     <div class="dau" id="dauCot" hidden>
       <div><p class="nhan">English Script</p>
@@ -343,6 +344,20 @@ function hienThi(){
   return MAN ? [MAN] : [];
 }
 function cua(ma){ return DU[ma] || {dong: [], outline: ""}; }
+function dongTruoc(ma){
+  // Số câu chạy LIỀN H -> C1..Cn -> E (user chốt 24/09): mốc đếm của một chương
+  // là TỔNG số dòng của các chương đứng trước nó trong DS_CHUONG (đã đúng thứ
+  // tự dựng). Lấy `so_dong` từ danh sách chương nên mở lẻ một chương vẫn đánh
+  // số đúng, không phải tải cả tập về.
+  var n = 0;
+  for(var i = 0; i < DS_CHUONG.length; i++){
+    if(DS_CHUONG[i].ma === ma) return n;
+    var c = DS_CHUONG[i];
+    n += (DU[c.ma] && DU[c.ma].dong) ? DU[c.ma].dong.length : (c.so_dong || 0);
+  }
+  return n;
+}
+
 function giuBoiNguoiKhac(ma){
   for(var i = 0; i < DS_CHUONG.length; i++)
     if(DS_CHUONG[i].ma === ma) return DS_CHUONG[i].ai_giu && DS_CHUONG[i].ai_giu !== TOI
@@ -370,7 +385,7 @@ function veScript(){
   }
 
   ds.forEach(function(ma){
-    var khac = giuBoiNguoiKhac(ma);
+    var khac = giuBoiNguoiKhac(ma), truoc = dongTruoc(ma);
     if(MAN === "TONG"){
       h += '<div class="mu"><b>' + ma + '</b>' +
            (khac ? '<span class="kh">🔒 ' + khac + ' đang sửa — chỉ xem</span>'
@@ -378,7 +393,8 @@ function veScript(){
            '<span class="spacer"></span>' +
            '<button class="cp" onclick="chep(\'en\',\'' + ma + '\')">⧉ Copy ' + ma + '.txt</button></div>';
     }
-    h += '<div class="tap-ch' + (khac ? " ro" : "") + '">';
+    h += '<div class="tap-ch' + (khac ? " ro" : "") +
+         '" style="counter-reset:dong ' + truoc + '">';
     cua(ma).dong.forEach(function(d, i){
       var sua = (khac || !SUA_DUOC) ? "" : " contenteditable";
       var mau = MAU_CUM[d.cum] || "";
@@ -465,6 +481,7 @@ function chonDong(ma, i, sk){
 /* ═══════════ CỤM — gom câu, tô màu (user chốt 23/09) ═══════════ */
 var MAU_CUM = {1:"#d9a94c", 2:"#3fae63", 3:"#4c8fe0", 4:"#a274d6", 5:"#e08b4c", 6:"#dd6b9a"};
 var SUA_DUOC = false;              // gateway quyết, trang chỉ đọc cờ
+var BAN_TRANG = "";                // số hiệu bản JS trang này đang chạy
 var chonTu = -1;                    // dòng đầu của vùng đang chọn (shift+bấm)
 
 function vungChon(){
@@ -614,6 +631,17 @@ function docChu(el){
   // (đo Chrome 23/09: textContent "Dong motDong haiDong ba",
   //  innerText "Dong mot\nDong hai\nDong ba"). innerText đọc theo cái MẮT THẤY.
   return (el.innerText || "").replace(/\r\n/g, "\n").replace(/\n+$/, "");
+}
+
+function baoBanMoi(){
+  // Tab mở từ trước lúc vá vẫn chạy JS cũ và ghi ra dữ liệu hỏng (đo 24/09:
+  // 14:39 hôm sau vẫn lưu chữ dính). Không tự tải lại: người ta đang gõ dở.
+  var d = document.getElementById("banMoi");
+  if(!d || d.innerHTML) return;
+  d.className = "khoa";
+  d.innerHTML = '⟳ <b>Có bản mới.</b> Tab này đang chạy bản cũ — ' +
+                '<a href="#" onclick="location.reload();return false;">Tải lại</a> ' +
+                'để dùng bản mới nhất.';
 }
 
 function ghiNho(){
@@ -808,10 +836,21 @@ function bao(html, xau){
   clearTimeout(bao._h); bao._h = setTimeout(function(){ t.style.display = "none"; }, 4500);
 }
 async function aiDay(){
+  var me_ban = "";
   try {
     var me = await api("/api/toi");
-    TOI = me.nguoi || ""; SUA_DUOC = !!me.sua_duoc;
-  } catch(e){ TOI = ""; SUA_DUOC = false; }
+    TOI = me.nguoi || ""; SUA_DUOC = !!me.sua_duoc; me_ban = me.ban || "";
+  } catch(e){
+    // Lượt hỏi lại định kỳ mà mạng chớp: GIỮ NGUYÊN. Hạ xuống "chỉ xem" giữa
+    // lúc người ta đang gõ thì nút biến mất, chữ không lưu được — trong khi
+    // quyền chẳng đổi gì. Chỉ lượt ĐẦU mới được kết luận là chưa có danh tính.
+    if(BAN_TRANG) return;
+    TOI = ""; SUA_DUOC = false;
+  }
+  if(me_ban){
+    if(!BAN_TRANG) BAN_TRANG = me_ban;
+    else if(BAN_TRANG !== me_ban) baoBanMoi();
+  }
   var e = document.getElementById("aiToi");
   e.textContent = !TOI ? "⚠ chưa khai tên — chỉ xem"
                 : SUA_DUOC ? "✎ " + TOI : "👁 " + TOI + " — chỉ xem";
@@ -844,6 +883,7 @@ window.addEventListener("beforeunload", function(){
 (async function khoiDong(){
   await aiDay();
   batNutGhi();
+  setInterval(aiDay, 60000);   // bản mới lên máy chủ thì tab đang mở biết ngay
   await napTap();
   if(!TOI) khaiTen();
 })();

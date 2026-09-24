@@ -407,3 +407,22 @@ def test_bam_lai_thi_dich_tiep_phan_con_thieu(tmp_path):
     assert c2.post("/api/tap/SH011/C9/dich").json()["dich"] == 20 - xong
     d = c2.get("/api/tap/SH011/C9").json()["dong"]
     assert all(x["vi"] for x in d)
+
+
+def test_api_toi_kem_SO_HIEU_BAN(bo):
+    """Trang hỏi lại thỉnh thoảng: số hiệu đổi nghĩa là máy chủ đã có bản mới,
+    tab đang mở phải tải lại. Lấy theo giờ sửa file trang nên không phải nhớ
+    tăng tay lần nào."""
+    c, _, _ = bo
+    ban = c.get("/api/toi").json().get("ban")
+    assert ban, "/api/toi phải trả số hiệu bản của trang"
+    assert c.get("/api/toi").json()["ban"] == ban, "cùng một bản thì số hiệu không đổi"
+
+
+def test_ds_chuong_tra_ve_so_dong(bo):
+    c, _, _ = bo
+    c.post("/api/tap", json={"ma": "SO009", "ten": "x"})
+    c.post("/api/tap/SO009/chuong", json={"ma": "H"})
+    c.post("/api/tap/SO009/H/nap", json={"text": "a\nb\nc\n"})
+    ds = c.get("/api/tap/SO009").json()
+    assert [x["so_dong"] for x in ds] == [3]

@@ -146,3 +146,20 @@ def test_kho_mo_lai_van_con_du_lieu(tmp_path):
     k1.tao_tap("SH011", "x"); k1.tao_chuong("SH011", "H")
     k1.luu("SH011", "H", dong=[{"en": "A", "vi": "", "het": 0}], outline="", nguoi="haint")
     assert Kho(duong).doc("SH011", "H")["dong"][0]["en"] == "A"
+
+
+def test_ds_chuong_kem_SO_DONG_cua_tung_chuong(kho):
+    """Số thứ tự câu chạy LIỀN từ H đến E (user chốt 24/09) nên khi chỉ mở một
+    chương, trang vẫn phải biết trước nó có bao nhiêu dòng — nếu không thì mở
+    C2 lại đánh số từ 1, đúng cái đang phải chữa.
+
+    Đếm ở kho chứ không bắt trang tải cả tập về: mở một chương mà phải kéo cả
+    kịch bản thì chương nào cũng chờ.
+    """
+    kho.tao_tap("SO001", "x")
+    for ma in ("H", "C1", "C2", "E"):
+        kho.tao_chuong("SO001", ma)
+    kho.luu("SO001", "H", [{"en": "a", "vi": "", "het": 0}] * 3, "", "ai")
+    kho.luu("SO001", "C1", [{"en": "b", "vi": "", "het": 0}] * 5, "", "ai")
+    ds = {c["ma"]: c["so_dong"] for c in kho.ds_chuong("SO001")}
+    assert ds == {"H": 3, "C1": 5, "C2": 0, "E": 0}

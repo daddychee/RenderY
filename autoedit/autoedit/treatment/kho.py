@@ -88,11 +88,19 @@ class Kho:
         """H -> C1..Cn -> E. Sắp theo TÊN là sai cả hai đầu ('E' trước 'H',
         'C10' trước 'C2')."""
         rows = self.cn.execute(
-            "SELECT ma, thu_tu, sua_luc, sua_boi FROM chuong WHERE tap=? "
+            "SELECT ma, thu_tu, sua_luc, sua_boi, dong FROM chuong WHERE tap=? "
             "ORDER BY thu_tu, ma", (tap,))
         ra = []
         for r in rows:
             d = dict(r)
+            # Số câu chạy LIỀN từ H đến E (user chốt 24/09) nên trang phải biết
+            # mỗi chương dài bao nhiêu để đặt mốc đếm, kể cả khi chỉ mở một
+            # chương. Đếm ở đây, KHÔNG trả cả kịch bản về: mở một chương mà phải
+            # kéo cả tập thì chương nào cũng chờ.
+            try:
+                d["so_dong"] = len(json.loads(d.pop("dong") or "[]"))
+            except (TypeError, ValueError):
+                d["so_dong"] = 0
             d["ai_giu"] = self.ai_giu(tap, d["ma"])
             ra.append(d)
         return ra

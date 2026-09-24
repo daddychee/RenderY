@@ -178,3 +178,33 @@ def test_dan_nhieu_dong_vao_mot_dong_thi_CHE_RA(html):
     than = than[:than.index("}, false);")]
     assert "preventDefault()" in than, "phải chặn dán mặc định (nó đẻ ra <div>)"
     assert "splice" in than, "dán nhiều dòng phải đẻ ra dòng mới, không dồn một cục"
+
+
+def test_so_thu_tu_chay_LIEN_tu_H_den_E(html):
+    """User chốt 24/09: đánh số câu nối tiếp H -> C1..Cn -> E, KHÔNG đánh lại
+    từ 1 mỗi khi sang chương. Số vẽ bằng CSS counter, nên mỗi khối chương phải
+    được đặt mốc đếm = tổng số dòng của các chương ĐỨNG TRƯỚC nó.
+    """
+    goc = html.replace(" ", "").replace(chr(10), "")
+    assert "counter-reset:dong" in goc
+    assert "counter-reset:dong'+truoc+'" in goc or 'counter-reset:dong"+truoc+"' in goc, \
+        "khối chương phải mang mốc đếm riêng, không thì chương nào cũng đếm lại từ 1"
+
+
+def test_trang_cu_dang_mo_biet_co_ban_moi(html):
+    """Đo thật 24/09: bản vá lên máy chủ tối hôm trước, nhưng tab của người dùng
+    mở từ trước đó vẫn chạy JS CŨ — 14:39 hôm sau vẫn ghi ra chữ dính. Trang nạp
+    JS đúng một lần lúc mở, nên phải tự biết mình đã cũ mà bảo người ta tải lại.
+    """
+    assert "BAN_TRANG" in html, "trang chưa giữ số hiệu bản mình đang chạy"
+    assert "Tải lại" in html, "chưa có lời nhắc tải lại khi máy chủ đã có bản mới"
+
+
+def test_hoi_lai_dinh_ky_mang_chop_thi_KHONG_ha_quyen(html):
+    """Trang hỏi lại `/api/toi` mỗi phút để biết có bản mới. Một lượt hỏng mạng
+    KHÔNG được kéo người đang sửa xuống chế độ chỉ xem: nút biến mất giữa lúc gõ
+    trong khi quyền chẳng đổi gì."""
+    i = html.index("async function aiDay(")
+    than = html[i:html.index("async function khaiTen(", i)]
+    assert "if(BAN_TRANG) return;" in than, \
+        "catch của aiDay phải bỏ qua khi đây là lượt hỏi lại, không hạ quyền"

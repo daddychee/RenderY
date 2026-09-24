@@ -117,6 +117,20 @@ def _ghi_duoc(request: Request) -> str:
     return ai
 
 
+def _ban_trang() -> str:
+    """Số hiệu bản của trang = giờ sửa file HTML.
+
+    Vì sao cần (đo thật 24/09): bản vá lên máy chủ tối hôm trước, nhưng tab của
+    người dùng mở từ trước đó vẫn chạy JS CŨ — 14:39 hôm sau vẫn ghi ra chữ
+    dính. Trang nạp JS đúng một lần lúc mở, tool này thì team để tab cả ngày.
+    Lấy theo giờ sửa file nên không ai phải nhớ tăng số bằng tay.
+    """
+    try:
+        return str(int(TRANG.stat().st_mtime))
+    except OSError:
+        return "0"
+
+
 def tao_app(kho: Kho, dich=None) -> FastAPI:
     """`kho`, `dich` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
@@ -124,7 +138,10 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
     # ------------------------------------------------------------- trang
     @app.get("/", response_class=HTMLResponse)
     def trang():
-        return TRANG.read_text(encoding="utf-8")
+        # no-store: lần tải lại nào cũng phải ra bản mới nhất. Không đặt thì
+        # trình duyệt giữ lại bản cũ và người dùng bấm tải lại vẫn thấy y nguyên.
+        return HTMLResponse(TRANG.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store"})
 
     @app.get("/health")
     def health():
@@ -182,7 +199,8 @@ def tao_app(kho: Kho, dich=None) -> FastAPI:
         nào của người khác. Không có header thì trả rỗng — trang tự chuyển sang
         chế độ chỉ xem thay vì để người ta gõ cả buổi rồi 401 lúc lưu."""
         return {"nguoi": _nguoi(request),
-                "sua_duoc": HANH_DONG_SUA in _co_hanh_dong(request)}
+                "sua_duoc": HANH_DONG_SUA in _co_hanh_dong(request),
+                "ban": _ban_trang()}
 
     # --------------------------------------------------------------- tập
     @app.get("/api/tap")
