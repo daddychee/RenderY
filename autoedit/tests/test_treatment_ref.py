@@ -146,3 +146,79 @@ def test_video_bi_tu_choi(c, ten):
 def test_tran_dung_luong_hop_voi_ANH(kho):
     """60MB là cỡ đặt cho clip. Một bản ref ảnh 4K nặng vài MB."""
     assert kho.REF_TOI_DA == 25 * 1024 * 1024
+
+
+# ═══════════ SINH ref bằng Seedream (user báo 25/09: chưa có nút) ════════════
+# Trước đây ref chỉ có đường TẢI LÊN: user gen tay ở Gemini rồi upload. Giờ
+# Seedream đã chạy được, sinh thẳng từ `pr` (prompt tạo ref) là một cú bấm.
+# Đường tải lên GIỮ NGUYÊN — ai có ref đẹp sẵn thì vẫn dùng được.
+
+class VeGiaRef:
+    def __init__(self):
+        self.goi = []
+
+    def gen_anh(self, prompt, dich):
+        self.goi.append(prompt)
+        dich.parent.mkdir(parents=True, exist_ok=True)
+        dich.write_bytes(PNG)
+        return dich
+
+
+def _bo_ve(tmp_path, ve):
+    k = Kho(tmp_path / "kho" / "k.db")
+    k.tao_tap("SE001", "K-129")
+    k.luu_so("SE001", [
+        {"ma": "k129", "loai": "dao_cu", "ten": "Tàu K-129",
+         "chu": "Soviet Golf-II",
+         "pr": "Photorealistic reference sheet of a Soviet Golf-II submarine"},
+        {"ma": "trong", "loai": "dao_cu", "ten": "Chưa có prompt", "chu": "x"}])
+    c = TestClient(tao_app(k, ve_anh=ve))
+    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
+    return c, k
+
+
+def test_sinh_ref_bang_prompt_tao_ref(tmp_path):
+    ve = VeGiaRef()
+    c, _ = _bo_ve(tmp_path, ve)
+    r = c.post("/api/tap/SE001/so/k129/ref-sinh")
+    assert r.status_code == 200, r.text
+    assert "Soviet Golf-II submarine" in ve.goi[0], "phải gửi ĐÚNG prompt tạo ref"
+    assert c.get("/api/tap/SE001/so/k129/ref").content == PNG
+
+
+def test_khong_co_prompt_tao_ref_thi_TU_CHOI(tmp_path):
+    """Không có `pr` mà vẫn gọi thì Seedream vẽ ra thứ vô nghĩa, tốn tiền."""
+    c, _ = _bo_ve(tmp_path, VeGiaRef())
+    r = c.post("/api/tap/SE001/so/trong/ref-sinh")
+    assert r.status_code == 400 and "prompt" in r.json()["detail"].lower()
+
+
+def test_tai_san_la_thi_404(tmp_path):
+    c, _ = _bo_ve(tmp_path, VeGiaRef())
+    assert c.post("/api/tap/SE001/so/khong-co/ref-sinh").status_code == 404
+
+
+def test_sinh_ref_dung_KHONG_dinh_doan_tong_cua_canh(tmp_path):
+    """Ref là bản mặt của nhân vật/đạo cụ — nền trắng, không mood. Ghép đoạn
+    tông "dark & mysterious" vào là ref tối om, dùng làm tham chiếu thì hỏng."""
+    ve = VeGiaRef()
+    c, _ = _bo_ve(tmp_path, ve)
+    c.post("/api/tap/SE001/so/k129/ref-sinh")
+    assert "mysterious" not in ve.goi[0].lower()
+
+
+def test_L2_khong_sinh_ref_duoc(tmp_path):
+    _, kho = _bo_ve(tmp_path, VeGiaRef())
+    xem = TestClient(tao_app(kho, ve_anh=VeGiaRef()))
+    xem.headers.update({"X-Remote-User": "nhanvien"})
+    assert xem.post("/api/tap/SE001/so/k129/ref-sinh").status_code == 403
+
+
+def test_chua_bat_bo_ve_thi_503_ref(tmp_path):
+    k = Kho(tmp_path / "kho" / "k.db")
+    k.tao_tap("SE001", "x")
+    k.luu_so("SE001", [{"ma": "a", "loai": "dao_cu", "ten": "A", "chu": "",
+                        "pr": "x"}])
+    c = TestClient(tao_app(k))
+    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
+    assert c.post("/api/tap/SE001/so/a/ref-sinh").status_code == 503

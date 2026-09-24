@@ -365,6 +365,40 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         tam.replace(dich)
         return {"ok": True, "cỡ": n}
 
+    @app.post("/api/tap/{tap}/so/{ma}/ref-sinh")
+    def sinh_ref(tap: str, ma: str, request: Request):
+        """Vẽ ảnh ref cho một tài sản bằng chính `pr` (prompt tạo ref).
+
+        Gửi ĐÚNG `pr`, KHÔNG ghép đoạn tông của cảnh: ref là bản mặt của nhân
+        vật/đạo cụ — nền trắng, không mood. Ghép "dark & mysterious mood" vào là
+        ref tối om, đem làm tham chiếu thì hỏng.
+
+        Đường TẢI LÊN giữ nguyên: ai đã có ref đẹp sẵn thì vẫn dùng được.
+        """
+        _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        muc = [x for x in kho.ds_so(tap) if x["ma"] == ma]
+        if not muc:
+            raise HTTPException(404, f"Không có tài sản mã '{ma}' trong sổ.")
+        pr = (muc[0].get("pr") or "").strip()
+        if not pr:
+            raise HTTPException(
+                400, "Tài sản này chưa có prompt tạo ref — viết vào ô "
+                     "“Prompt tạo ref” trước, không thì Seedream vẽ ra thứ vô nghĩa.")
+        try:
+            dich = kho.duong_ref(tap, ma, ".png")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        try:
+            ve_anh.gen_anh(pr, dich)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Vẽ ref hỏng: {exc}") from exc
+        for d in kho.DUOI_REF:          # đổi đuôi thì đừng để lại bản cũ
+            if d != ".png":
+                kho.duong_ref(tap, ma, d).unlink(missing_ok=True)
+        return {"ok": True}
+
     @app.get("/api/tap/{tap}/so/{ma}/ref")
     def xem_ref(tap: str, ma: str):
         t = kho.ref_dang_co(tap, ma)

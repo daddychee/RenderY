@@ -654,3 +654,26 @@ def test_dungCanhTap_chep_DU_MOI_KHOA(html):
     for k in ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa", "pv",
               "duyet", "anh"):
         assert (k + ":") in than, f"dungCanhTap quên chép khoá `{k}`"
+
+
+def test_co_nut_SINH_REF_trong_so_tai_san(html):
+    """User báo 25/09: "chưa có nút sinh ảnh ref"."""
+    assert "async function sinhRef(" in html
+    i = html.index("function oRef(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "sinhRef(" in than
+
+
+def test_nut_sinh_ref_CHI_HIEN_khi_co_prompt_tao_ref(html):
+    """Không có `pr` thì bấm chỉ tốn một vòng gọi rồi nhận 400."""
+    i = html.index("function oRef(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.pr" in than
+
+
+def test_hop_canh_sinh_duoc_REF_cua_tai_san_thieu(html):
+    """User nói "khi click vào từng cảnh" — hàng tài sản trong hộp cảnh phải
+    sinh được ref ngay tại chỗ, không bắt mở sổ rồi mò lại."""
+    i = html.index("function veTaiSanCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "sinhRef(" in than

@@ -1124,6 +1124,20 @@ async function taiRef(ma, el){
   } catch(e){ tt("✕ ref hỏng", "loi"); return bao(e.message, true); }
   await napSo(); moSo("ts"); tienDoSo();
 }
+/* Vẽ ref bằng chính `pr` của tài sản. Đường TẢI LÊN giữ nguyên — ai đã có ref
+   đẹp sẵn thì vẫn dùng được. */
+async function sinhRef(ma){
+  if(!SUA_DUOC) return;
+  tt("Đang vẽ ref…");
+  try { await api("/api/tap/" + TAP_MA + "/so/" + ma + "/ref-sinh", "POST"); }
+  catch(e){ tt("✕ vẽ ref hỏng", "loi"); return bao(e.message, true); }
+  tt("✓ Đã vẽ ref", "xong");
+  await napSo(); tienDoSo();
+  if(document.getElementById("nutGoiY")) moSo("ts");
+  else if(canhDangMo) moCanh(canhDangMo);
+  veSb();
+}
+
 async function xoaRef(ma){
   try { await api(duongRef(ma), "DELETE"); }
   catch(e){ return bao(e.message, true); }
@@ -1148,7 +1162,12 @@ function veTaiSanCanh(x){
              '>' + (co && t.ref
                       ? '<img class="ref-nho" src="' + duongRef(t.ma) + '">' : '') +
              (co ? '✓ ' : '+ ') + thoat(t.ten) +
-             (co && !t.ref ? ' <span class="thieu">(chưa có ref)</span>' : '') +
+             (co && !t.ref
+                ? (t.pr && SUA_DUOC
+                     ? ' <a href="#" onclick="event.stopPropagation();sinhRef(\'' +
+                       t.ma + '\');return false" class="thieu">sinh ref</a>'
+                     : ' <span class="thieu">(chưa có ref)</span>')
+                : '') +
              '</span>';
     }).join("") + '</div>';
 }
@@ -1239,6 +1258,8 @@ function oRef(x){
       ? 'Đã có ref — bấm chuột phải vào ảnh để lưu rồi kéo sang Gemini/Veo.'
       : 'Gen ref bằng <b>prompt tạo ref</b> bên dưới, rồi tải lên đây.') + '</div>' +
     (SUA_DUOC ? '<div class="ts-nut">' +
+      (x.pr ? '<label onclick="sinhRef(\'' + x.ma + '\')">' +
+              (co ? 'Vẽ lại ref' : 'Sinh ref') + '</label>' : '') +
       '<label>' + (co ? 'Thay ref' : 'Tải ref lên') +
       '<input type="file" accept="image/png,image/jpeg,image/webp" hidden ' +
       'onchange="taiRef(\'' + x.ma + '\', this)"></label>' +
