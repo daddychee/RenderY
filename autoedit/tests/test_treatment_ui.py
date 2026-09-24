@@ -293,3 +293,86 @@ def test_tro_khoi_vao_o_RONG_van_dat_duoc_con_tro(html):
     i = html.index("function troKhoi(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "createTextNode" in than
+
+
+# ═════════════ màn STORYBOARD — bảng thẻ (user duyệt UI 24/09) ═══════════════
+# User chốt: *"chỉ cần bảng thẻ. click vào trong sẽ hiện ra prompt. đánh số cảnh
+# dựa trên phân cảnh, ví dụ phân cảnh 4 sẽ có các cảnh 4.1 4.2"*.
+# Bảng biểu là thứ đội đang chạy trốn khỏi Google Sheet, nên storyboard phải là
+# TẤM BẢNG THẺ — và cái thẻ chính là vật chứa ảnh ở đợt 2.
+
+def test_co_man_storyboard_rieng(html):
+    assert 'id="manSb"' in html, "phải có màn storyboard"
+    assert 'id="manKb"' in html, "màn kịch bản phải tách ra để đổi qua lại"
+    assert "function doiMan(" in html
+
+
+def test_the_canh_mang_ma_phan_canh(html):
+    """Thẻ ghi 4.1, 4.2 — không phải S41."""
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.ma" in than, "thẻ phải in mã cảnh"
+    j = html.index("function dungCanhTap(")
+    assert '"." +' in html[j:html.index(chr(10) + "}", j)], \
+        "mã cảnh phải là <phân cảnh>.<thứ tự trong phân cảnh>"
+
+
+def test_bam_the_thi_bung_hop_prompt(html):
+    assert 'id="hopCanh"' in html, "phải có hộp bung ra khi bấm thẻ"
+    assert "function moCanh(" in html and "function dongCanh(" in html
+    assert "Escape" in html, "Esc phải đóng hộp"
+    assert "ArrowLeft" in html and "ArrowRight" in html, \
+        "phím mũi tên đi giữa các cảnh — không phải đóng mở từng thẻ"
+
+
+def test_prompt_ghep_boilerplate_THEO_TONG(html):
+    """Hai đoạn boilerplate của user: cảnh dưới nước có thêm câu về ánh sáng tự
+    nhiên dưới nước, cảnh trên cạn thì không."""
+    assert "function promptAnh(" in html and "function promptVideo(" in html
+    assert "dim natural underwater lighting" in html
+    assert "strictly no artificial light" in html
+    assert "No background music" in html, "prompt video phải cấm nhạc nền"
+    assert "16:9" in html
+
+
+def test_doi_tong_ghi_vao_CHINH_CANH(html):
+    """Tông là thuộc tính của CẢNH (`canh[i].tong`), không phải biến rời — chẻ
+    gộp cảnh thì nó phải đi theo, cùng bài học của `cum`."""
+    i = html.index("function datTong(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert ".tong =" in than
+    assert "ghiCanhVao(" in than, "đổi tông phải đi qua đường ghi cảnh"
+    j = html.index("function ghiCanhVao(")
+    assert "henLuu(" in html[j:html.index(chr(10) + "}", j)],         "đường ghi cảnh phải hẹn lưu — một đường ghi duy nhất cho cả hai màn"
+
+
+def test_storyboard_ton_trong_quyen_chi_xem(html):
+    """L2 mở được storyboard để đọc, nhưng không đổi được gì."""
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "SUA_DUOC" in than, "hộp cảnh phải đọc cờ quyền"
+
+
+def test_vet_ca_tap_de_soat_tong(html):
+    """Vệt cả tập: mỗi cảnh một ô, bấm là nhảy tới — chỗ soát mood/tone mà bảng
+    98 dòng không làm được."""
+    assert 'id="vetTap"' in html
+    assert "function veVetTap(" in html
+
+
+def test_canh_bao_voice_dai_hon_mot_clip(html):
+    """Tool biết voice dài bao nhiêu (2,6 từ/giây) — Gemini thì không. Phân cảnh
+    38 giây chia 5 cảnh là 7,6s/cảnh, dài hơn một clip i2v 5 giây."""
+    assert "GIAY_CLIP" in html, "phải có hằng số độ dài một clip"
+    i = html.index("GIAY_CLIP")
+    assert "5" in html[i:i + 40]
+
+
+def test_doi_man_phai_dat_display_chu_khong_phai_hidden(html):
+    """Đo Chrome 24/09: bấm Storyboard mà màn Kịch bản vẫn nằm nguyên phía trên.
+    Cả hai màn đều có display:flex (một cái inline, một cái trong CSS) nên thuộc
+    tính  bị display đè — quy tắc [hidden]{display:none} thua."""
+    i = html.index("async function doiMan(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "style.display" in than, "đổi màn phải đặt thẳng style.display"
+    assert ".hidden =" not in than, "hidden bị display:flex đè, không ẩn được màn"

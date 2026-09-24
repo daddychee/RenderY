@@ -162,6 +162,74 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   margin-bottom:10px}
 .doan{font-size:12.5px;color:var(--muted);border-left:2px solid var(--accent);padding-left:9px;
   margin-bottom:10px;max-height:110px;overflow:auto}
+/* ─── màn storyboard: bảng thẻ (user chốt 24/09) ─── */
+.man{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  overflow:hidden}
+.man button{background:transparent;border:0;padding:5px 12px;cursor:pointer;
+  font-weight:700;font-size:13px;color:var(--muted)}
+.man button.on{background:var(--accent);color:#fff}
+#manSb{flex:1;min-height:0;display:flex;flex-direction:column}
+.vet-hop{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 14px;
+  display:flex;gap:10px;align-items:center;flex:0 0 auto}
+.vet{display:flex;gap:2px;flex:1;min-width:0;flex-wrap:wrap}
+.vet i{width:9px;height:15px;border-radius:2px;background:var(--line);cursor:pointer;
+  display:block}
+.vet i.nuoc{background:var(--accent)}
+.vet i.can{background:var(--warn)}
+.sb-canvas{flex:1;min-height:0;overflow:auto;padding:14px}
+.lo{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:11px 13px 13px;margin-bottom:13px;border-left:4px solid var(--line)}
+.lo-dau{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:3px}
+.lo-dau b{font-size:14px}
+.lo-dau .meta{font-size:11.5px;color:var(--muted)}
+.lo-voice{font-size:12.5px;color:var(--muted);font-style:italic;line-height:1.55;
+  margin-bottom:10px}
+.hang{display:flex;gap:10px;flex-wrap:wrap}
+.tc{width:198px;background:var(--bg);border:1px solid var(--line);border-radius:11px;
+  overflow:hidden;cursor:pointer}
+.tc:hover{border-color:var(--accent);transform:translateY(-2px)}
+.tc .hinh{height:111px;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:10.5px;font-weight:700;border-bottom:1px solid var(--line);
+  position:relative;background:repeating-linear-gradient(45deg,
+  var(--line) 0 7px,transparent 7px 14px)}
+.tc .hinh.nuoc{background:linear-gradient(160deg,var(--accent-soft),transparent)}
+.tc .hinh.can{background:linear-gradient(160deg,var(--warn-soft),transparent)}
+.tc .ma{position:absolute;top:6px;left:6px;background:var(--text);color:var(--bg);
+  border-radius:5px;padding:1px 7px;font-size:11px;font-weight:800}
+.tc .chu{padding:8px 9px;font-size:11.5px;line-height:1.45;height:62px;overflow:hidden}
+.tc .chan{padding:0 9px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.chip{font-size:9px;font-weight:700;border-radius:5px;padding:1px 5px;
+  background:var(--line);color:var(--muted)}
+.chip.trong{opacity:.55}
+.cham{width:9px;height:9px;border-radius:50%;display:inline-block}
+.canh-bao{color:var(--warn);font-weight:700}
+.nen{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;
+  justify-content:center;padding:24px;z-index:9}
+.nen.mo{display:flex}
+.hop{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  width:min(1040px,100%);max-height:100%;overflow:auto}
+.hop-dau{display:flex;align-items:center;gap:11px;padding:11px 15px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+.hop-dau b{font-size:16px}
+.hop-dau .nho{font-size:12px;color:var(--muted)}
+.hop-than{display:grid;grid-template-columns:336px minmax(0,1fr);gap:15px;padding:15px}
+.to{width:100%;aspect-ratio:16/9;border-radius:11px;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;color:var(--muted);
+  font-size:12px;font-weight:700;text-align:center;padding:9px}
+.to.nuoc{background:linear-gradient(160deg,var(--accent-soft),transparent)}
+.to.can{background:linear-gradient(160deg,var(--warn-soft),transparent)}
+.o-sua{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px;
+  font-size:12.5px;line-height:1.55;white-space:pre-wrap;outline:0}
+.o-sua:focus{border-color:var(--accent)}
+.hai{display:flex;gap:7px}
+.hai button{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:7px;cursor:pointer;font-size:12.5px}
+.hai button.on{border-color:var(--accent);background:var(--accent-soft);font-weight:700}
+.prompt{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;
+  font:11.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+.dau-pr{display:flex;align-items:center;gap:9px}
+.x{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 10px;
+  cursor:pointer;font-weight:700}
 .khoi{display:flex;gap:7px;align-items:flex-start;background:var(--bg);
   border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px}
 .khoi:focus-within{border-color:var(--accent)}
@@ -203,6 +271,10 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <div class="logo">RenderY <span>· Treatment</span></div>
   <select class="tap" id="dsTap" onchange="doiTap(this.value)"></select>
   <button class="icon-btn" id="nutTap" onclick="taoTap()" title="Tạo tập mới">+ Tập</button>
+  <div class="man">
+    <button id="mKb" class="on" onclick="doiMan('kb')">Kịch bản</button>
+    <button id="mSb" onclick="doiMan('sb')">Storyboard</button>
+  </div>
   <div class="chuong" id="chuong"></div>
   <div class="spacer"></div>
   <span class="ai-toi" id="aiToi"></span>
@@ -210,6 +282,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <button class="icon-btn" onclick="doiNen()" title="Đổi nền sáng/tối">◐</button>
 </header>
 
+<div id="manKb" style="display:flex;flex-direction:column;flex:1;min-height:0">
 <div class="khung">
   <div class="cot">
     <p class="nhan" id="nhanOutline">Outline</p>
@@ -263,6 +336,22 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
       </div>
     </div>
   </div>
+</div>
+</div>
+
+<div id="manSb" style="display:none">
+  <div class="vet-hop">
+    <span class="nhan" style="margin:0">Cả tập</span>
+    <div class="vet" id="vetTap"></div>
+    <span class="nhan" style="margin:0;text-align:right">
+      <span style="color:var(--accent)">■</span> dưới nước
+      <span style="color:var(--warn)">■</span> trên cạn</span>
+  </div>
+  <div class="sb-canvas" id="sbCanvas"></div>
+</div>
+
+<div class="nen" id="nenCanh" onclick="if(event.target===this) dongCanh()">
+  <div class="hop" id="hopCanh"></div>
 </div>
 
 <footer>
@@ -323,10 +412,10 @@ async function doiTap(ma){
   TAP_MA = ma; DU = {}; MAN = ""; chonCh = "";
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   veChuong();
-  if(DS_CHUONG.length) await doiMan(DS_CHUONG[0].ma); else ve();
+  if(DS_CHUONG.length) await doiMan_chuong(DS_CHUONG[0].ma); else ve();
 }
 
-async function doiMan(m){
+async function doiMan_chuong(m){
   await luuNgay();                       // đừng bỏ lại thay đổi ở chương vừa rời
   if(MAN && MAN !== "TONG") nhaKhoa(MAN);
   MAN = m;
@@ -342,12 +431,12 @@ async function doiMan(m){
 
 function veChuong(){
   var h = '<button class="ch tong ' + (MAN === "TONG" ? "on" : "") +
-          '" onclick="doiMan(\'TONG\')">Toàn bộ</button><span class="vach"></span>';
+          '" onclick="doiMan_chuong(\'TONG\')">Toàn bộ</button><span class="vach"></span>';
   h += DS_CHUONG.map(function(c){
     var ai = (c.ai_giu && c.ai_giu !== TOI)
       ? '<span class="ai" title="' + c.ai_giu + ' đang sửa">' + c.ai_giu.slice(0, 2) + '</span>' : '';
     return '<button class="ch ' + (MAN === c.ma ? "on" : "") +
-           '" onclick="doiMan(\'' + c.ma + '\')">' + c.ma + ai + '</button>';
+           '" onclick="doiMan_chuong(\'' + c.ma + '\')">' + c.ma + ai + '</button>';
   }).join("");
   if(SUA_DUOC) h += '<button class="ch them" onclick="taoChuong()">+ Chương</button>';
   document.getElementById("chuong").innerHTML = h;
@@ -382,6 +471,7 @@ function giuBoiNguoiKhac(ma){
 
 /* ═══════════ vẽ ═══════════ */
 function ve(){ dangVe = true; veScript(); veTrai(); vePhai();
+               if(MAN_HINH === "sb") veSb();
                setTimeout(function(){ dangVe = false; }, 0); }
 
 function veScript(){
@@ -436,7 +526,7 @@ function veScript(){
   }
   kh.innerHTML = khac
     ? '<div class="khoa"><span>🔒 <b>' + khac + '</b> đang sửa chương này — bạn ở chế độ chỉ xem.</span>' +
-      '<button onclick="doiMan(\'' + MAN + '\')">Kiểm tra lại</button></div>' : "";
+      '<button onclick="doiMan_chuong(\'' + MAN + '\')">Kiểm tra lại</button></div>' : "";
 }
 
 function thoat(s){
@@ -561,7 +651,7 @@ async function taoChuong(){
   try { await api("/api/tap/" + TAP_MA + "/chuong", "POST", {ma: ma.trim()}); }
   catch(e){ return bao(e.message, true); }
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
-  veChuong(); await doiMan(ma.trim().toUpperCase());
+  veChuong(); await doiMan_chuong(ma.trim().toUpperCase());
 }
 
 async function napKichBan(){
@@ -665,6 +755,226 @@ function ghiNho(){
   lamLaiDuoc.length = 0;
 }
 
+/* ═══════════════════ MÀN STORYBOARD — bảng thẻ ═══════════════════════════ */
+/* Một clip image-to-video là 5 giây (Seedance). Tool biết voice dài bao nhiêu
+   nên nó nói được "phân cảnh này 38 giây chia 5 cảnh = 7,6s/cảnh, dài hơn một
+   clip" — thứ chat AI không biết vì nó không giữ kịch bản. */
+var GIAY_CLIP = 5;
+var TU_MOI_GIAY = 2.6;
+
+/* Boilerplate mặc định của user (24/09). Việc 3 đưa vào "hồ sơ tông" sửa được;
+   ở đây là giá trị khởi điểm, không phải chỗ chốt cuối cùng. */
+var TONG_MAC_DINH = {
+  nuoc: "Photorealistic. Mood and tone: Dark & mysterious mood, " +
+        "dim natural underwater lighting, no harsh shadows, " +
+        "strictly no artificial light. " +
+        "Consistent mood, tone, and graphic style across all shots.",
+  can:  "Photorealistic. Mood and tone: Dark & mysterious mood. Consistent mood, " +
+        "tone, and graphic style across all shots."
+};
+function boiler(tong){ return TONG_MAC_DINH[tong] || TONG_MAC_DINH.can; }
+function promptAnh(x){ return "16:9 ratio. " + x.t + "\n\n" + boiler(x.tong); }
+function promptVideo(x){
+  return x.t + "\nSimple camera motion only, one continuous shot, no cuts.\n\n" +
+         boiler(x.tong) + " No background music.";
+}
+
+/* Toàn bộ cảnh của TẬP, mã = <phân cảnh>.<thứ tự>. Phân cảnh là số câu chạy
+   liền H→E nên đi qua dongTruoc, không đếm lại mỗi chương. */
+function dungCanhTap(){
+  var ra = [];
+  DS_CHUONG.forEach(function(c){
+    var truoc = dongTruoc(c.ma), ds = (DU[c.ma] || {}).dong;
+    if(!ds) return;
+    ds.forEach(function(d, i){
+      var pc = truoc + i + 1;
+      docCanh(d).forEach(function(cn, j){
+        ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
+                 en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "can",
+                 co: cn.co || "", n: docCanh(d).length});
+      });
+    });
+  });
+  return ra;
+}
+function canhTrongPham(ds){
+  return ds.filter(function(x){ return MAN === "TONG" || x.ch === MAN; });
+}
+function giayCua(en){
+  return (en || "").split(/\s+/).filter(Boolean).length / TU_MOI_GIAY;
+}
+
+function veVetTap(){
+  var ds = dungCanhTap();
+  document.getElementById("vetTap").innerHTML = ds.map(function(x){
+    return '<i class="' + x.tong + '" title="Cảnh ' + x.ma + ' · chương ' + x.ch +
+           '" onclick="nhayCanh(\'' + x.ma + '\')"></i>';
+  }).join("") || '<span class="ghi">Chưa có cảnh nào trong tập.</span>';
+}
+function nhayCanh(ma){
+  var x = dungCanhTap().filter(function(c){ return c.ma === ma; })[0];
+  if(!x) return;
+  if(MAN !== "TONG" && x.ch !== MAN) return doiMan2(x.ch, ma);
+  moCanh(ma);
+}
+async function doiMan2(ch, ma){ await doiMan_chuong(ch); moCanh(ma); }
+
+function veTheCanh(){
+  var ds = canhTrongPham(dungCanhTap()), h = "", pcCu = -1, chCu = "";
+  ds.forEach(function(x){
+    if(x.pc !== pcCu){
+      if(pcCu !== -1) h += '</div></div>';
+      if(MAN === "TONG" && x.ch !== chCu){
+        h += '<div class="ol-ten">CHƯƠNG ' + x.ch + '</div>'; chCu = x.ch;
+      }
+      var g = giayCua(x.en), moi = g / x.n, mau = MAU_CUM[x.cum];
+      h += '<div class="lo" style="' + (mau ? "border-left-color:" + mau : "") + '">' +
+           '<div class="lo-dau"><b>Phân cảnh ' + x.pc + '</b><span class="meta">' +
+           x.n + ' cảnh · voice ~' + Math.round(g) + 's' +
+           (mau ? ' · <span class="cham" style="background:' + mau + '"></span>' : '') +
+           (moi > GIAY_CLIP ? ' · <span class="canh-bao">~' + moi.toFixed(1) +
+             's/cảnh › dài hơn 1 clip ' + GIAY_CLIP + 's</span>' : '') +
+           '</span></div><div class="lo-voice">' + thoat(x.en) + '</div><div class="hang">';
+      pcCu = x.pc;
+    }
+    h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
+         '<div class="hinh ' + x.tong + '"><span class="ma">' + x.ma + '</span>' +
+         '16:9 · ảnh ở đợt 2</div>' +
+         '<div class="chu">' + thoat(x.t) + '</div>' +
+         '<div class="chan"><span class="chip trong">góc máy —</span>' +
+         '<span class="chip trong">SFX —</span></div></div>';
+  });
+  if(pcCu !== -1) h += '</div></div>';
+  // Rỗng vì CHƯƠNG NÀY chưa có cảnh, hay vì cả tập chưa có? Hai chuyện khác
+  // nhau — báo chung một câu là người dùng tưởng mất dữ liệu.
+  var caTap = dungCanhTap().length;
+  document.getElementById("sbCanvas").innerHTML = h || (caTap
+    ? '<div class="ghi">Chương <b>' + MAN + '</b> chưa có cảnh nào. Cả tập đang có <b>' +
+      caTap + ' cảnh</b> — bấm <b>Toàn bộ</b> hoặc chọn chương khác.</div>'
+    : '<div class="ghi">Tập này chưa có cảnh nào — viết treatment ở màn Kịch bản trước.</div>');
+}
+
+var canhDangMo = "";
+function moCanh(ma){
+  var ds = canhTrongPham(dungCanhTap());
+  var k = -1;
+  for(var i = 0; i < ds.length; i++) if(ds[i].ma === ma) k = i;
+  if(k < 0) return;
+  var x = ds[k], g = giayCua(x.en), moi = g / x.n;
+  canhDangMo = ma;
+  document.getElementById("hopCanh").innerHTML =
+    '<div class="hop-dau"><b>Cảnh ' + x.ma + '</b><span class="nho">phân cảnh ' +
+    x.pc + ' · cảnh ' + (x.ci + 1) + '/' + x.n + ' · chương ' + x.ch + '</span>' +
+    '<span class="spacer"></span>' +
+    '<button class="x"' + (k <= 0 ? ' disabled' : '') + ' onclick="moCanh(\'' +
+      (ds[k-1] ? ds[k-1].ma : "") + '\')">‹ trước</button>' +
+    '<button class="x"' + (k >= ds.length-1 ? ' disabled' : '') + ' onclick="moCanh(\'' +
+      (ds[k+1] ? ds[k+1].ma : "") + '\')">sau ›</button>' +
+    '<button class="x" onclick="dongCanh()">✕</button></div>' +
+    '<div class="hop-than"><div>' +
+      '<div class="to ' + x.tong + '">16:9<br>ảnh sinh ở đợt 2</div>' +
+      '<p class="nhan">Nội dung / hành động</p>' +
+      '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
+      thoat(x.t) + '</div>' +
+      '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' +
+      '<span class="chip trong">cỡ cảnh —</span><span class="chip trong">góc máy —</span>' +
+      '<span class="chip trong">chuyển động —</span><span class="chip trong">SFX —</span>' +
+      '</div>' +
+      '<p class="nhan">Tông</p><div class="hai">' +
+      '<button class="' + (x.tong === "nuoc" ? "on" : "") + '"' +
+      (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'nuoc\')">● dưới nước</button>' +
+      '<button class="' + (x.tong === "can" ? "on" : "") + '"' +
+      (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'can\')">○ trên cạn</button>' +
+      '</div></div><div>' +
+      '<p class="nhan">Voice của phân cảnh ' + x.pc + '</p>' +
+      '<div class="o-sua" style="font-style:italic">' + thoat(x.en) + '</div>' +
+      '<div class="ghi" style="margin-top:5px">~' + Math.round(g) + ' giây · ' + x.n +
+      ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
+      (moi > GIAY_CLIP ? ' <span class="canh-bao">› dài hơn 1 clip ' + GIAY_CLIP +
+        's</span>' : '') + '</div>' +
+      '<p class="nhan dau-pr">Prompt ảnh<span class="spacer"></span>' +
+      '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
+      '<div class="prompt" id="prAnh">' + thoat(promptAnh(x)) + '</div>' +
+      '<p class="nhan dau-pr">Prompt video<span class="spacer"></span>' +
+      '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
+      '<div class="prompt" id="prVid">' + thoat(promptVideo(x)) + '</div>' +
+    '</div></div>';
+  document.getElementById("nenCanh").classList.add("mo");
+  var oc = document.getElementById("oCanh");
+  if(oc) oc.addEventListener("blur", function(){ luuNoiCanh(x, docChu(oc)); });
+}
+function dongCanh(){ document.getElementById("nenCanh").classList.remove("mo"); }
+
+function canhCuaDong(ch, di){
+  return docCanh(((DU[ch] || {}).dong || [])[di]);
+}
+function ghiCanhVao(ch, di, ds){
+  var d = ((DU[ch] || {}).dong || [])[di]; if(!d) return;
+  var sach = (ds || []).filter(function(c){ return (c.t || "").trim(); });
+  delete d.tr;                       // dọn kiểu cũ, đừng giữ hai bản
+  if(sach.length) d.canh = sach; else delete d.canh;
+  henLuu(ch);
+}
+function luuNoiCanh(x, chu){
+  if(!SUA_DUOC) return;
+  var ds = canhCuaDong(x.ch, x.di);
+  if(!ds[x.ci] || ds[x.ci].t === chu.trim()) return;
+  ghiNho();
+  ds[x.ci] = Object.assign({}, ds[x.ci], {t: chu.trim()});
+  ghiCanhVao(x.ch, x.di, ds);
+  veSb();
+}
+/* Tông thuộc về CHÍNH CẢNH (canh[i].tong) chứ không phải một bảng rời — chẻ,
+   gộp, đổi thứ tự thì nó đi theo. Cùng bài học của `cum`. */
+function datTong(t){
+  if(!SUA_DUOC) return;
+  var x = canhTrongPham(dungCanhTap()).filter(function(c){
+    return c.ma === canhDangMo; })[0];
+  if(!x) return;
+  var ds = canhCuaDong(x.ch, x.di);
+  if(!ds[x.ci]) return;
+  ghiNho();
+  ds[x.ci].tong = t;
+  ghiCanhVao(x.ch, x.di, ds);
+  veSb(); moCanh(canhDangMo);
+}
+function chepPrompt(b){
+  var o = b.closest("p").nextElementSibling;
+  navigator.clipboard.writeText(o.innerText || "");
+  b.textContent = "✓ đã copy";
+  setTimeout(function(){ b.textContent = "⧉ Copy"; }, 1400);
+}
+document.addEventListener("keydown", function(e){
+  if(!document.getElementById("nenCanh").classList.contains("mo")) return;
+  if(e.key === "Escape") return dongCanh();
+  var ds = canhTrongPham(dungCanhTap()), k = -1;
+  for(var i = 0; i < ds.length; i++) if(ds[i].ma === canhDangMo) k = i;
+  if(e.key === "ArrowLeft" && ds[k-1]){ e.preventDefault(); moCanh(ds[k-1].ma); }
+  if(e.key === "ArrowRight" && ds[k+1]){ e.preventDefault(); moCanh(ds[k+1].ma); }
+});
+
+function veSb(){ veVetTap(); veTheCanh(); }
+
+var MAN_HINH = "kb";
+async function doiMan(m){
+  MAN_HINH = m;
+  document.getElementById("mKb").className = m === "kb" ? "on" : "";
+  document.getElementById("mSb").className = m === "sb" ? "on" : "";
+  // Đặt THẲNG style.display: cả hai màn đều display:flex nên thuộc tính
+  // `hidden` bị đè, bấm Storyboard mà màn Kịch bản vẫn nằm nguyên phía trên
+  // (đo Chrome 24/09).
+  document.getElementById("manKb").style.display = m === "kb" ? "flex" : "none";
+  document.getElementById("manSb").style.display = m === "sb" ? "flex" : "none";
+  if(m === "sb"){
+    // Storyboard nhìn cả tập nên phải có đủ chương trong tay.
+    for(var i = 0; i < DS_CHUONG.length; i++){
+      var ma = DS_CHUONG[i].ma;
+      if(!DU[ma]) DU[ma] = await api("/api/tap/" + TAP_MA + "/" + ma);
+    }
+    veSb();
+  }
+}
+
 /* ═══════════ KHỐI CẢNH — một khối là một cảnh (user chốt 24/09) ═══════════ */
 /* Gương của `dong.doc_canh` bên máy chủ: nhận CẢ dữ liệu cũ (`tr` là chuỗi) lẫn
    mới (`canh` là danh sách). Không tự đoán mốc "2)" "3)" để tách hộ — 28 ô đang
@@ -721,11 +1031,8 @@ function dongDangChon(){
 
 /* Ghi kiểu MỚI (`canh`) và dọn `tr` cũ — giữ cả hai thì sớm muộn đọc nhầm. */
 function luuCanh(ds){
-  var d = dongDangChon(); if(!d) return;
-  var sach = ds.filter(function(c){ return (c.t || "").trim(); });
-  delete d.tr;
-  if(sach.length) d.canh = sach; else delete d.canh;
-  henLuu(chonCh);
+  // Một đường ghi cảnh duy nhất cho cả hai màn (kịch bản + storyboard).
+  ghiCanhVao(chonCh, chonD, ds);
 }
 
 function cheKhoi(el){
