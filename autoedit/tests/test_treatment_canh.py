@@ -85,8 +85,11 @@ def test_ghi_canh_ghi_kieu_moi_va_DON_tr_cu():
     assert ra["en"] == "x" and ra["vi"] == "y"      # không đụng phần kịch bản
 
 
-def test_ghi_canh_bo_canh_RONG():
-    ra = mdong.ghi_canh({}, [{"t": "Cảnh một"}, {"t": "  "}, {"t": "Cảnh hai"}])
+def test_ghi_canh_CHUAN_HOA_khoang_trang():
+    """Luật CŨ ở đây là bỏ cảnh rỗng. Đổi 24/09 sau khi user báo: bỏ nó thì màn
+    Kịch bản thấy 4 khối mà Storyboard thấy 3. Nay cảnh rỗng được giữ (xem
+    test_giu_canh_rong_khi_con_canh_co_chu), chỉ khoảng trắng bị chuẩn hoá."""
+    ra = mdong.ghi_canh({}, [{"t": "  Cảnh một  "}, {"t": "	Cảnh hai"}])
     assert [c["t"] for c in ra["canh"]] == ["Cảnh một", "Cảnh hai"]
 
 
@@ -140,3 +143,40 @@ def test_ts_rac_thi_bo_di():
     ra = mdong.doc_canh(d)
     assert "ts" not in ra[0], "ts không phải danh sách thì bỏ"
     assert ra[1]["ts"] == ["ok"], "phần tử rỗng/không phải chữ thì bỏ"
+
+
+# ------------------------- cảnh RỖNG người vừa tạo --------------------------
+# ĐO THẬT 24/09 (user báo): bấm Enter ở cuối khối treatment để mở một cảnh mới
+# thì màn Kịch bản thấy 4 khối, Storyboard chỉ thấy 3 — vì cảnh rỗng bị lọc lúc
+# lưu. Hai màn nói hai chuyện khác nhau, người dùng tưởng tool không cập nhật.
+#
+# Luật mới: GIỮ cảnh rỗng khi danh sách còn ít nhất một cảnh có chữ. Dòng chưa
+# viết treatment thì tất cả đều rỗng -> xoá hẳn khoá, không đẻ cảnh ma cho mọi
+# dòng trong tập.
+
+def test_giu_canh_rong_khi_con_canh_co_chu():
+    ra = mdong.ghi_canh({}, [{"t": "Cảnh một"}, {"t": ""}, {"t": "Cảnh hai"}])
+    assert [c["t"] for c in ra["canh"]] == ["Cảnh một", "", "Cảnh hai"]
+
+
+def test_canh_rong_o_CUOI_cung_duoc_giu():
+    """Đây chính là ca người dùng gặp: Enter ở cuối để mở cảnh kế."""
+    ra = mdong.ghi_canh({}, [{"t": "Cảnh một"}, {"t": "  "}])
+    assert [c["t"] for c in ra["canh"]] == ["Cảnh một", ""]
+
+
+def test_TAT_CA_rong_thi_xoa_han_khoa():
+    """Dòng chưa viết treatment: UI vẫn vẽ một khối trống để gõ vào, nhưng nó
+    KHÔNG được thành cảnh ma trong kho."""
+    ra = mdong.ghi_canh({"en": "x"}, [{"t": ""}, {"t": "   "}])
+    assert "canh" not in ra
+
+
+def test_doc_lai_van_thay_canh_rong():
+    d = {"canh": [{"t": "A"}, {"t": ""}]}
+    assert [c["t"] for c in mdong.doc_canh(d)] == ["A", ""]
+
+
+def test_chuoi_cu_van_BO_dong_trong():
+    """Dòng trống giữa một đoạn dán vào không phải là cảnh."""
+    assert [c["t"] for c in mdong.doc_canh({"tr": "A" + chr(10)*3 + "B"})] == ["A", "B"]

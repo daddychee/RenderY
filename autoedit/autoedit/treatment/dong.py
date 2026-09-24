@@ -128,9 +128,11 @@ def doc_canh(d: dict) -> list[dict]:
                 sach = [str(m).strip() for m in ts if isinstance(m, str) and m.strip()]
                 if sach:
                     c["ts"] = sach
-            if c.get("t", "").strip():
-                c["t"] = c["t"].strip()
-                ra.append(c)
+            # GIỮ cả cảnh rỗng: người bấm Enter ở cuối là đang mở một cảnh mới,
+            # lọc nó đi thì màn Kịch bản thấy 4 khối mà Storyboard thấy 3 (user
+            # báo 24/09). `ghi_canh` mới là chỗ quyết có xuống kho hay không.
+            c["t"] = c.get("t", "").strip()
+            ra.append(c)
         return ra
     return [{"t": x.strip()} for x in (d.get("tr") or "").split(chr(10)) if x.strip()]
 
@@ -143,8 +145,11 @@ def ghi_canh(d: dict, canh: list[dict]) -> dict:
     """
     ra = copy.deepcopy(d)
     ra.pop("tr", None)
-    sach = [c for c in doc_canh({"canh": canh})]
-    if sach:
+    sach = doc_canh({"canh": canh})
+    # Còn ÍT NHẤT MỘT cảnh có chữ thì giữ nguyên cả danh sách, kể cả ô rỗng người
+    # vừa mở. TẤT CẢ rỗng nghĩa là dòng chưa viết treatment — xoá hẳn khoá, đừng
+    # đẻ cảnh ma cho mọi dòng trong tập (UI luôn vẽ sẵn một ô trống để gõ vào).
+    if any(c["t"] for c in sach):
         ra["canh"] = sach
     else:
         ra.pop("canh", None)

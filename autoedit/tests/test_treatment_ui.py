@@ -51,11 +51,13 @@ def test_khong_tro_vao_o_da_xoa(html):
     co = set(_re.findall(r'id="([\w-]+)"', html))
     goi = set(_re.findall(r'getElementById\("([\w-]+)"\)', html))
     assert goi <= co, f"trang gọi id không tồn tại: {sorted(goi - co)}"
-def test_nhan_hien_thi_la_AI_Generation(html):
-    """Tên tool: Factcheck (23/09) -> Treatment (23/09) -> AI Generation (24/09).
-    Nhãn trên trang phải đổi theo, không để tên cũ sót ở chỗ người dùng nhìn."""
-    assert "<title>AI Generation" in html
-    assert "· AI Generation" in html
+def test_nhan_hien_thi_la_Treatment(html):
+    """Tên tool: Factcheck -> Treatment (23/09) -> AI Generation -> TREATMENT
+    (user trả lại 24/09: "Treatment và AI generation là 2 app riêng... yêu cầu
+    anh trả lại tên cũ là treatment"). Gộp một app thì tên là Treatment."""
+    assert "<title>Treatment" in html
+    assert "· Treatment" in html
+    assert "AI Generation" not in html
     assert "Factcheck" not in html and "factcheck" not in html
 
 
@@ -541,3 +543,34 @@ def test_so_rong_thi_dung_bao_DU_REF(html):
     i = html.index("function tienDoSo(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "chưa lập sổ" in than
+
+
+def test_the_canh_RONG_duoc_danh_dau(html):
+    """Cảnh rỗng vẫn hiện thành thẻ (để hai màn khớp nhau), nhưng phải nhìn ra
+    ngay là chưa có nội dung — không thì người ta tưởng thẻ hỏng."""
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa có nội dung" in than
+
+
+def test_sinh_prompt_KHONG_dem_canh_rong(html):
+    """Nút sinh prompt bỏ qua cảnh rỗng — gửi cho LLM thì nó bịa nội dung."""
+    i = html.index("function tienDoSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "c.t" in than, "đếm cảnh chưa gán phải bỏ qua cảnh rỗng"
+
+
+def test_JS_va_PYTHON_cung_mot_luat_ve_canh_rong(html):
+    """Vá tầng Python mà quên tầng JS thì DU trên trình duyệt vẫn lọc cảnh rỗng
+    — đúng lỗi user báo vẫn còn (đo 24/09). Hai bên phải cùng luật: giữ cảnh
+    rỗng khi còn ít nhất một cảnh có chữ."""
+    for ten in ("docCanh", "ghiCanhVao"):
+        i = html.index("function %s(" % ten)
+        than = html[i:html.index(chr(10) + "}", i)]
+        # cấm LỌC theo nội dung cảnh; TRIM nội dung thì vẫn đúng
+        for k in range(len(than)):
+            if than.startswith(".filter(", k):
+                than_loc = than[k:k + 160]
+                assert "c.t" not in than_loc.split(")")[0] + ")",                     f"{ten} còn lọc bỏ cảnh rỗng"
+    i = html.index("function ghiCanhVao(")
+    assert "some(" in html[i:html.index(chr(10) + "}", i)],         "ghiCanhVao phải kiểm CÒN cảnh nào có chữ không, thay vì lọc từng cảnh"

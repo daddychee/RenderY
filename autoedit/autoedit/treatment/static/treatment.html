@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Generation — RenderY</title>
+<title>Treatment — RenderY</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ctext y=%2726%27 font-size=%2726%27%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
 <style>
 :root{
@@ -284,7 +284,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 <body>
 
 <header>
-  <div class="logo">RenderY <span>· AI Generation</span></div>
+  <div class="logo">RenderY <span>· Treatment</span></div>
   <select class="tap" id="dsTap" onchange="doiTap(this.value)"></select>
   <button class="icon-btn" id="nutTap" onclick="taoTap()" title="Tạo tập mới">+ Tập</button>
   <div class="man">
@@ -941,10 +941,11 @@ function veTheCanh(){
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
          '<div class="hinh ' + x.tong + '"><span class="ma">' + x.ma + '</span>' +
          '16:9 · ảnh ở đợt 2</div>' +
-         '<div class="chu">' + thoat(x.t) + '</div>' +
+         '<div class="chu">' + (x.t ? thoat(x.t) :
+           '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
          '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
          chip(x.sfx, "SFX") +
-         (chuaDich(x) ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
+         (x.t && chuaDich(x) ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
          '</div></div>';
   });
   if(pcCu !== -1) h += '</div></div>';
@@ -1017,7 +1018,7 @@ function tienDoSo(){
     return x.loai === "nhan_vat" || x.loai === "dao_cu" || x.loai === "boi_canh"; });
   var thieu = ts.filter(function(x){ return !x.ref; }).length;
   var canh = dungCanhTap(), chua = canh.filter(function(c){
-    return !(c.ts || []).length; }).length;
+    return c.t && !(c.ts || []).length; }).length;
   var o = document.getElementById("tienDoSo");
   if(!o) return;
   o.innerHTML = (ts.length
@@ -1252,9 +1253,12 @@ function canhCuaDong(ch, di){
 }
 function ghiCanhVao(ch, di, ds){
   var d = ((DU[ch] || {}).dong || [])[di]; if(!d) return;
-  var sach = (ds || []).filter(function(c){ return (c.t || "").trim(); });
+  var sach = (ds || []).map(function(c){
+    return Object.assign({}, c, {t: (c.t || "").trim()}); });
   delete d.tr;                       // dọn kiểu cũ, đừng giữ hai bản
-  if(sach.length) d.canh = sach; else delete d.canh;
+  // Còn ÍT NHẤT MỘT cảnh có chữ thì giữ nguyên cả danh sách, kể cả ô rỗng vừa
+  // mở. TẤT CẢ rỗng = dòng chưa viết treatment -> xoá hẳn, đừng đẻ cảnh ma.
+  if(sach.some(function(c){ return c.t; })) d.canh = sach; else delete d.canh;
   henLuu(ch);
 }
 function luuNoiCanh(x, chu){
@@ -1335,9 +1339,12 @@ async function doiMan(m){
    dính là chữ của người viết, user chốt tự sửa tay. */
 function docCanh(d){
   if(!d) return [];
+  // GIỮ cả cảnh rỗng — người bấm Enter là đang mở một cảnh mới. Cùng luật với
+  // `dong.doc_canh` bên máy chủ; lệch nhau là hai màn nói hai chuyện khác nhau.
   if(Array.isArray(d.canh))
-    return d.canh.filter(function(c){ return c && String(c.t || "").trim(); })
-                 .map(function(c){ return Object.assign({}, c, {t: String(c.t).trim()}); });
+    return d.canh.filter(function(c){ return c && typeof c === "object"; })
+                 .map(function(c){ return Object.assign({}, c,
+                                    {t: String(c.t || "").trim()}); });
   return String(d.tr || "").split(/\r?\n/).map(function(x){ return x.trim(); })
                            .filter(Boolean).map(function(t){ return {t: t}; });
 }

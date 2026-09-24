@@ -498,7 +498,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None) -> FastAPI:
         can = []                        # (chỉ số dòng, chỉ số cảnh)
         for i, dg in enumerate(d):
             for j, c in enumerate(mdong.doc_canh(dg)):
-                if not (c.get("pa") or "").strip():
+                # Cảnh rỗng là ô người vừa mở, chưa viết gì — gửi cho LLM thì nó
+                # bịa nội dung ra khỏi hư không.
+                if c.get("t", "").strip() and not (c.get("pa") or "").strip():
                     can.append((i, j))
         if not can:
             return {"xong": 0, "con_thieu": 0, "loi": ""}
