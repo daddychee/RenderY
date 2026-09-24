@@ -162,6 +162,12 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   margin-bottom:10px}
 .doan{font-size:12.5px;color:var(--muted);border-left:2px solid var(--accent);padding-left:9px;
   margin-bottom:10px;max-height:110px;overflow:auto}
+.tc .hinh img{width:100%;height:100%;object-fit:cover;display:block}
+.tc .duyet{position:absolute;bottom:6px;right:6px;background:var(--good);color:#fff;
+  border-radius:5px;padding:1px 6px;font-size:9.5px;font-weight:800}
+.to img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.to{overflow:hidden;padding:0}
+.to.trong{padding:9px}
 .ts-hang{display:flex;gap:11px;align-items:flex-start;margin-top:8px}
 .ts-anh{width:92px;height:92px;flex:0 0 auto;border-radius:9px;border:1px dashed var(--line);
   background:var(--bg);display:flex;align-items:center;justify-content:center;
@@ -363,9 +369,12 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <select id="locNhanSu" onchange="veSb()" title="Cụm màu = phân nhân sự">
       <option value="0">Nhân sự: tất cả</option>
     </select>
+    <button class="icon-btn" id="nutAnhChuong" onclick="sinhAnhChuong()"
+      title="Sinh ảnh Seedream cho mọi cảnh đã có prompt tiếng Anh trong phạm vi đang xem"
+      >Sinh ảnh</button>
     <button class="icon-btn" id="nutKyThuat" onclick="sinhKyThuat()"
       title="Dịch nội dung cảnh sang prompt tiếng Anh và điền cỡ cảnh, góc máy, chuyển động, SFX"
-      >✨ Sinh prompt</button>
+      >Sinh prompt</button>
     <button class="icon-btn" id="nutTaiSan" onclick="moSo('ts')">Tài sản</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tông</button>
   </div>
@@ -416,6 +425,8 @@ function batNutGhi(){
   if(tc) tc.hidden = !SUA_DUOC;
   var kt = document.getElementById("nutKyThuat");
   if(kt) kt.hidden = !SUA_DUOC;
+  var na = document.getElementById("nutAnhChuong");
+  if(na) na.hidden = !SUA_DUOC;
   document.querySelectorAll(".cp").forEach(function(b){
     if(/Dịch lại/.test(b.textContent)) b.hidden = !SUA_DUOC;
   });
@@ -518,8 +529,8 @@ function veScript(){
     var khac = giuBoiNguoiKhac(ma), truoc = dongTruoc(ma);
     if(MAN === "TONG"){
       h += '<div class="mu"><b>' + ma + '</b>' +
-           (khac ? '<span class="kh">🔒 ' + khac + ' đang sửa — chỉ xem</span>'
-                 : '<span class="kh" style="color:var(--good)">✎ sửa được</span>') +
+           (khac ? '<span class="kh">' + khac + ' đang sửa — chỉ xem</span>'
+                 : '<span class="kh" style="color:var(--good)">sửa được</span>') +
            '<span class="spacer"></span>' +
            '<button class="cp" onclick="chep(\'en\',\'' + ma + '\')">⧉ Copy ' + ma + '.txt</button></div>';
     }
@@ -528,7 +539,7 @@ function veScript(){
     cua(ma).dong.forEach(function(d, i){
       var sua = (khac || !SUA_DUOC) ? "" : " contenteditable";
       var mau = MAU_CUM[d.cum] || "";
-      var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">🔖</span>' : "";
+      var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">※</span>' : "";
       h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
            (mau ? ' style="border-left-color:' + mau + ';background:' + mau + '1f"' : "") +
            ' data-ch="' + ma + '" data-i="' + i +
@@ -545,12 +556,12 @@ function veScript(){
 
   var kh = document.getElementById("khoaHop"), khac = MAN !== "TONG" ? giuBoiNguoiKhac(MAN) : null;
   if(!SUA_DUOC){
-    kh.innerHTML = '<div class="khoa">👁 <b>Chế độ chỉ xem.</b> Quyền thêm/sửa dành cho ' +
+    kh.innerHTML = '<div class="khoa"><b>Chế độ chỉ xem.</b> Quyền thêm/sửa dành cho ' +
       'Manager trở lên — Owner cấp ở General › Permissions.</div>';
     return;
   }
   kh.innerHTML = khac
-    ? '<div class="khoa"><span>🔒 <b>' + khac + '</b> đang sửa chương này — bạn ở chế độ chỉ xem.</span>' +
+    ? '<div class="khoa"><span><b>' + khac + '</b> đang sửa chương này — bạn ở chế độ chỉ xem.</span>' +
       '<button onclick="doiMan_chuong(\'' + MAN + '\')">Kiểm tra lại</button></div>' : "";
 }
 
@@ -722,7 +733,7 @@ async function luuNgay(){
       delete canLuu[ma];
       tt("✓ Đã lưu " + gio(), "xong");
     } catch(e){
-      tt("✗ " + e.message, "loi"); bao(e.message, true);
+      tt("✕ " + e.message, "loi"); bao(e.message, true);
       delete canLuu[ma];
     }
   }
@@ -853,6 +864,8 @@ function dungCanhTap(){
         ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
                  en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "can",
                  co: cn.co || "", ts: cn.ts || [], pa: cn.pa || "",
+                 id: cn.id || "", duyet: cn.duyet || "",
+                 anh: cn.anh || "",
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
                  sfx: cn.sfx || "", n: docCanh(d).length});
       });
@@ -895,11 +908,11 @@ async function sinhKyThuat(){
       if(r.loi) bao("Sinh được <b>" + r.xong + " cảnh</b> ở " + ds[i] + ", còn " +
                     r.con_thieu + " — bấm lại để chạy tiếp. (" + r.loi + ")", true);
     } catch(e){
-      n.disabled = false; n.textContent = "✨ Sinh prompt";
+      n.disabled = false; n.textContent = "Sinh prompt";
       return bao(e.message, true);
     }
   }
-  n.disabled = false; n.textContent = "✨ Sinh prompt";
+  n.disabled = false; n.textContent = "Sinh prompt";
   bao("Đã sinh prompt tiếng Anh + cột kỹ thuật cho <b>" + tong + " cảnh</b>.");
   if(canhDangMo) moCanh(canhDangMo);
 }
@@ -939,8 +952,11 @@ function veTheCanh(){
       pcCu = x.pc;
     }
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
-         '<div class="hinh ' + x.tong + '"><span class="ma">' + x.ma + '</span>' +
-         '16:9 · ảnh ở đợt 2</div>' +
+         '<div class="hinh ' + x.tong + '">' +
+         (x.anh ? '<img src="' + duongAnh(x) + '">' : "") +
+         '<span class="ma">' + x.ma + '</span>' +
+         (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
+                : '16:9 · chưa có ảnh') + '</div>' +
          '<div class="chu">' + (x.t ? thoat(x.t) :
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
          '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
@@ -956,6 +972,66 @@ function veTheCanh(){
     ? '<div class="ghi">Chương <b>' + MAN + '</b> chưa có cảnh nào. Cả tập đang có <b>' +
       caTap + ' cảnh</b> — bấm <b>Toàn bộ</b> hoặc chọn chương khác.</div>'
     : '<div class="ghi">Tập này chưa có cảnh nào — viết treatment ở màn Kịch bản trước.</div>');
+}
+
+/* ─── ĐỢT 2: ảnh Seedream ─────────────────────────────────────────────────
+   File ảnh neo vào MÃ RIÊNG của cảnh (`id`), không neo vào số thứ tự hiển thị:
+   chèn một cảnh phía trên là mọi số dịch hết, ảnh sẽ trỏ sang cảnh khác. */
+var TIEN_ANH = 0.03;        // $/tấm — tra 03/09, ghi trong aigen/client.py
+function duongAnh(x){
+  return "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/anh?v=" + (x.anh || "");
+}
+function canhTheoMa(ma){
+  return dungCanhTap().filter(function(c){ return c.ma === ma; })[0];
+}
+async function sinhAnh(){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  tt("Đang vẽ ảnh…");
+  try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/anh", "POST"); }
+  catch(e){ tt("✕ vẽ hỏng", "loi"); return bao(e.message, true); }
+  tt("✓ Đã vẽ ảnh", "xong");
+  await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
+}
+async function duyetAnh(){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/duyet", "POST"); }
+  catch(e){ return bao(e.message, true); }
+  await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
+}
+async function taiLaiChuong(ch){
+  DU[ch] = await api("/api/tap/" + TAP_MA + "/" + ch);
+}
+/* Một chương 30 cảnh là ~$1. Bấm nhầm không được im lặng đốt tiền. */
+async function sinhAnhChuong(){
+  if(!SUA_DUOC) return;
+  var ds = canhTrongPham(dungCanhTap()).filter(function(c){
+    return c.pa && !c.anh; });
+  if(!ds.length) return bao("Không cảnh nào cần vẽ — hoặc chưa có prompt tiếng Anh, "
+                            + "hoặc đã có ảnh cả rồi.", true);
+  if(!confirm("Vẽ ảnh cho " + ds.length + " cảnh.\nƯớc tính ~$" +
+              (ds.length * TIEN_ANH).toFixed(2) + ". Chạy chứ?")) return;
+  var chuong = MAN === "TONG" ? DS_CHUONG.map(function(c){ return c.ma; }) : [MAN];
+  var n = document.getElementById("nutAnhChuong");
+  n.disabled = true;
+  var tong = 0;
+  for(var i = 0; i < chuong.length; i++){
+    n.textContent = "Đang vẽ " + chuong[i] + "…";
+    try {
+      var r = await api("/api/tap/" + TAP_MA + "/" + chuong[i] + "/anh", "POST");
+      await taiLaiChuong(chuong[i]);
+      tong += r.xong; veSb();
+      if(r.loi) bao("Vẽ được <b>" + r.xong + " ảnh</b> ở " + chuong[i] + ", còn " +
+                    r.con_thieu + " — bấm lại để vẽ tiếp. (" + r.loi + ")", true);
+    } catch(e){
+      n.disabled = false; n.textContent = "Sinh ảnh";
+      return bao(e.message, true);
+    }
+  }
+  n.disabled = false; n.textContent = "Sinh ảnh";
+  bao("Đã vẽ <b>" + tong + " ảnh</b>. Xem rồi bấm <b>Duyệt ảnh</b> — video chỉ " +
+      "dựng từ ảnh đã duyệt.");
 }
 
 var canhDangMo = "";
@@ -976,7 +1052,15 @@ function moCanh(ma){
       (ds[k+1] ? ds[k+1].ma : "") + '\')">sau ›</button>' +
     '<button class="x" onclick="dongCanh()">✕</button></div>' +
     '<div class="hop-than"><div>' +
-      '<div class="to ' + x.tong + '">16:9<br>ảnh sinh ở đợt 2</div>' +
+      '<div class="to ' + x.tong + (x.anh ? '' : ' trong') + '">' +
+      (x.anh ? '<img src="' + duongAnh(x) + '">' : '16:9<br>chưa có ảnh') + '</div>' +
+      (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
+        '<button onclick="sinhAnh()">' + (x.anh ? 'Sinh lại ảnh' : 'Sinh ảnh') +
+        '</button>' +
+        (x.anh ? '<button class="' + (x.duyet ? 'on' : '') +
+                 '" onclick="duyetAnh()">' +
+                 (x.duyet ? '✓ đã duyệt' : 'Duyệt ảnh') + '</button>' : '') +
+        '</div>' : '') +
       '<p class="nhan">Nội dung / hành động</p>' +
       '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
       thoat(x.t) + '</div>' +
@@ -984,7 +1068,7 @@ function moCanh(ma){
       chip(x.co, "cỡ cảnh") + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
       chip(x.sfx, "SFX") + '</div>' +
       (chuaDich(x) ? '<div class="khoa" style="margin-top:8px">Prompt bên phải ' +
-        'còn là <b>chữ Việt</b> — bấm <b>✨ Sinh prompt</b> ở thanh trên để LLM ' +
+        'còn là <b>chữ Việt</b> — bấm <b>Sinh prompt</b> ở thanh trên để LLM ' +
         'dịch sang tiếng Anh và điền các cột.</div>' : '') +
       '<p class="nhan">Tài sản dùng trong cảnh</p>' + veTaiSanCanh(x) +
       '<p class="nhan">Tông</p><div class="hai">' +
@@ -1037,7 +1121,7 @@ async function taiRef(ma, el){
     var r = await fetch(duongRef(ma), {method: "POST", body: fd});
     if(!r.ok) throw new Error((await r.json()).detail || ("HTTP " + r.status));
     tt("✓ Đã tải ref", "xong");
-  } catch(e){ tt("✗ ref hỏng", "loi"); return bao(e.message, true); }
+  } catch(e){ tt("✕ ref hỏng", "loi"); return bao(e.message, true); }
   await napSo(); moSo("ts"); tienDoSo();
 }
 async function xoaRef(ma){
@@ -1140,7 +1224,7 @@ function moSo(nhom){
     });
     if(nhom !== "tong")
       h += '<button class="cp" id="nutGoiY" style="margin-top:9px" ' +
-           'onclick="goiYTaiSan()">✨ Gọi tên đủ tài sản trong tập</button>';
+           'onclick="goiYTaiSan()">Gọi tên đủ tài sản trong tập</button>';
     h += '</div><button class="chinh" id="luuSo" style="margin-top:9px" onclick="chotSo(\'' +
          nhom + '\')">Lưu sổ</button>';
   }
@@ -1177,7 +1261,7 @@ async function goiYTaiSan(){
       return dang.indexOf((x.ten || "").toLowerCase()) < 0; });
     veGoiY(r);
   } catch(e){
-    if(n){ n.disabled = false; n.textContent = "✨ Gọi tên đủ tài sản trong tập"; }
+    if(n){ n.disabled = false; n.textContent = "Gọi tên đủ tài sản trong tập"; }
     bao(e.message, true);
   }
 }
@@ -1594,7 +1678,7 @@ async function dichLai(){
       if(r.loi) bao("Dịch được <b>" + r.dich + " dòng</b> ở " + ds[i] + ", còn " +
                     r.con_thieu + " dòng — bấm ⟳ lần nữa để dịch tiếp. (" + r.loi + ")", true);
       else bao("Đã dịch <b>" + r.dich + " dòng</b> ở " + ds[i] + ".");
-    } catch(e){ tt("✗ dịch hỏng", "loi"); return bao(e.message, true); }
+    } catch(e){ tt("✕ dịch hỏng", "loi"); return bao(e.message, true); }
   }
   tt("✓ Đã lưu " + gio(), "xong"); ve();
 }
@@ -1646,8 +1730,8 @@ async function aiDay(){
     else if(BAN_TRANG !== me_ban) baoBanMoi();
   }
   var e = document.getElementById("aiToi");
-  e.textContent = !TOI ? "⚠ chưa khai tên — chỉ xem"
-                : SUA_DUOC ? "✎ " + TOI : "👁 " + TOI + " — chỉ xem";
+  e.textContent = !TOI ? "chưa khai tên · chỉ xem"
+                : SUA_DUOC ? TOI : TOI + " · chỉ xem";
   e.style.cursor = "pointer";
   e.title = "Bấm để đổi tên";
   e.onclick = khaiTen;

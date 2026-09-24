@@ -202,14 +202,20 @@ def test_lui_ve_ban_cu_qua_api(bo):
 def test_khong_dinh_gi_toi_day_chuyen_dung():
     """Treatment là MỘT THƯ MỤC RIÊNG TRONG RenderY (user chốt 18/09) — không phải
     tool tách hẳn. Nó được dùng lại đồ của RenderY, nhưng CHỈ hai thứ đã khai:
-    luật tên chương và két khoá. Đụng tới tầng dựng (`web.server`, `offline`,
-    `packager`…) là sai: sập bên này không được kéo theo 9118.
+    luật tên chương, két khoá, và client gọi API ảnh/video. Đụng tới TẦNG DỰNG
+    (`web.server`, `offline`, `packager`, `director`, `sourcer`…) là sai: sập
+    bên này không được kéo theo 9118.
+
+    `aigen.client` được mở cửa 24/09 khi user chốt "sinh ảnh và video bằng API
+    seedance có sẵn trong kho": nó là một client HTTP mỏng gọi ARK, không phải
+    tầng dựng — import nó không kéo theo ffmpeg, pycapcut hay hàng đợi job.
     """
     import pathlib
     import re
 
     goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "treatment"
-    cho_phep = ("autoedit.treatment", "autoedit.web.chapters", "autoedit.web.ket_v3")
+    cho_phep = ("autoedit.treatment", "autoedit.web.chapters",
+                "autoedit.web.ket_v3", "autoedit.aigen.client")
     xau = []
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",

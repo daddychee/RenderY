@@ -90,7 +90,7 @@ class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
 
-def doc_ket_viec() -> dict:
+def doc_ket_viec(viec: str = VIEC) -> dict:
     """{key, model, base_url} mà Owner đã cấp cho việc `dich` của app NÀY.
 
     Hỏi thẳng két bằng SLUG CỦA CHÍNH MÌNH, không đi nhờ `web/ket_v3` của RenderY:
@@ -111,7 +111,7 @@ def doc_ket_viec() -> dict:
                          headers={"X-Noi-Bo": tnb} if tnb else {}, timeout=5)
         if r.status_code != 200:
             return {}
-        muc = r.json().get(VIEC) or {}
+        muc = r.json().get(viec) or {}
     except Exception:  # noqa: BLE001 — gateway chết thì vẫn phải mở được bàn
         return {}
     ds = muc.get("khoa") or []

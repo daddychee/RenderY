@@ -574,3 +574,83 @@ def test_JS_va_PYTHON_cung_mot_luat_ve_canh_rong(html):
                 assert "c.t" not in than_loc.split(")")[0] + ")",                     f"{ten} còn lọc bỏ cảnh rỗng"
     i = html.index("function ghiCanhVao(")
     assert "some(" in html[i:html.index(chr(10) + "}", i)],         "ghiCanhVao phải kiểm CÒN cảnh nào có chữ không, thay vì lọc từng cảnh"
+
+
+# ═══════════════════ icon: chỉ dấu hình học đơn sắc ═════════════════════════
+# User chốt 24/09: "các icon chưa về đúng chuẩn minimalist". Emoji được hệ điều
+# hành vẽ thành hình MÀU, mỗi máy một kiểu — nó phá bảng màu của tool và trông
+# như dán sticker. Dấu hình học đơn sắc ăn theo `currentColor` nên luôn hợp nền.
+
+_CAM = "✨⚠✎✗🔒👁🔖"
+
+
+def test_trang_khong_dung_EMOJI_mau(html):
+    thay = sorted({c for c in html if c in _CAM or 0x1F000 <= ord(c) <= 0x1FAFF})
+    assert not thay, ("còn emoji màu trong trang: " +
+                      " ".join("%s (U+%04X)" % (c, ord(c)) for c in thay))
+
+
+def test_dau_X_dung_MOT_kieu(html):
+    """✗ và ✕ trông gần giống nhau nhưng khác nét — dùng lẫn là trang nhìn lệch."""
+    assert "✗" not in html
+
+
+def test_dau_CO_NGUON_la_dau_tham_chieu(html):
+    """Dòng có nguồn đánh dấu bằng ※ (reference mark) — đúng nghĩa, đơn sắc."""
+    i = html.index('title="có nguồn"')
+    assert "※" in html[i:i + 40]
+
+
+# ═══════════════════ đợt 2: ảnh trên thẻ + cổng duyệt ═══════════════════════
+def test_the_canh_HIEN_ANH_khi_da_sinh(html):
+    """Ô 16:9 trên thẻ vốn để trống chờ đợt 2 — giờ đổ ảnh vào đúng chỗ đó."""
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "duongAnh(" in than and "<img" in than
+
+
+def test_anh_neo_vao_MA_RIENG_cua_canh(html):
+    """Neo vào số thứ tự thì chèn một cảnh phía trên là ảnh trỏ sang cảnh khác."""
+    i = html.index("function duongAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.id" in than or "id" in than
+    j = html.index("function dungCanhTap(")
+    assert "id: cn.id" in html[j:html.index(chr(10) + "}", j)]
+
+
+def test_co_nut_sinh_anh_va_duyet(html):
+    assert "async function sinhAnh(" in html
+    assert "async function duyetAnh(" in html
+    assert 'id="nutAnhChuong"' in html, "phải có nút sinh ảnh cả chương"
+
+
+def test_sinh_anh_ca_chuong_HOI_TRUOC_va_bao_tien(html):
+    """Một chương 30 cảnh là ~$1. Bấm nhầm không được im lặng đốt tiền."""
+    i = html.index("async function sinhAnhChuong(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "confirm(" in than
+    assert "$" in than, "phải nói trước tốn bao nhiêu"
+
+
+def test_canh_da_duyet_duoc_danh_dau(html):
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "duyet" in than
+
+
+def test_L2_khong_thay_nut_sinh_anh(html):
+    i = html.index("function batNutGhi(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "nutAnhChuong" in than
+
+
+def test_dungCanhTap_chep_DU_MOI_KHOA(html):
+    """Hai lần liên tiếp `dungCanhTap()` quên chép một khoá sang: `ts` (gán tài
+    sản mà prompt không đổi) rồi `anh` (sinh ảnh xong mà thẻ vẫn trống). Cả hai
+    đều im lặng — không lỗi console, chỉ là màn hình không đổi. Canh CẢ BỘ khoá
+    thay vì thêm từng test một sau mỗi lần vấp."""
+    i = html.index("function dungCanhTap(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    for k in ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa", "pv",
+              "duyet", "anh"):
+        assert (k + ":") in than, f"dungCanhTap quên chép khoá `{k}`"

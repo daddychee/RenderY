@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from autoedit.treatment.dong import doc_canh, ghi_canh
 from autoedit.web.chapters import phan_tich_ten
 
 SO_BAN_LUI = 12      # user chốt: giữ 12 bản gần nhất
@@ -66,6 +67,37 @@ class Kho:
         co = {r["name"] for r in self.cn.execute("PRAGMA table_info(so)")}
         if co and "pr" not in co:
             self.cn.execute("ALTER TABLE so ADD COLUMN pr TEXT NOT NULL DEFAULT ''")
+        self.cn.commit()
+        self._va_ma_canh()
+
+    def _va_ma_canh(self) -> None:
+        """Đặt MÃ RIÊNG cho cảnh của dữ liệu cũ, một lần, lúc mở kho.
+
+        Đo thật 24/09 trên bản sao kho production: bấm "Sinh ảnh" nhận 404, vì
+        chương lưu TRƯỚC lúc có luật mã riêng nên cảnh không mang `id` và trang
+        gọi `/canh//anh`. Mã chỉ được đặt khi chương được LƯU LẠI — mà người
+        dùng có thể bấm sinh ảnh trước khi sửa gì.
+
+        Ghi thẳng bằng UPDATE, KHÔNG qua `luu`: đây là vá dữ liệu, không phải
+        người sửa — không được đẻ bản lùi, không được đụng `sua_luc`/`sua_boi`,
+        và không được vướng khoá chương của ai.
+        """
+        try:
+            rows = list(self.cn.execute("SELECT tap, ma, dong FROM chuong"))
+        except sqlite3.Error:
+            return
+        for r in rows:
+            try:
+                ds = json.loads(r["dong"] or "[]")
+            except (TypeError, ValueError):
+                continue
+            if not any(c.get("id") is None
+                       for d in ds if isinstance(d, dict)
+                       for c in (d.get("canh") or [])):
+                continue
+            moi = [ghi_canh(d, doc_canh(d)) if isinstance(d, dict) else d for d in ds]
+            self.cn.execute("UPDATE chuong SET dong=? WHERE tap=? AND ma=?",
+                            (json.dumps(moi, ensure_ascii=False), r["tap"], r["ma"]))
         self.cn.commit()
 
     # ------------------------------------------------------------------ tập
@@ -143,6 +175,19 @@ class Kho:
                              f"{', '.join(self.DUOI_REF)}.")
         return self.duong.parent / "tai_san" / tap / (ma + duoi.lower())
 
+    def duong_anh(self, tap: str, ma_canh: str) -> Path:
+        """Ảnh sinh cho một cảnh. Neo vào MÃ RIÊNG của cảnh (`canh[i].id`) chứ
+        không neo vào số thứ tự hiển thị: chèn một cảnh phía trên là mọi số sau
+        đó dịch hết, ảnh sẽ trỏ sang cảnh khác mà không ai thấy gì bất thường.
+
+        Ổ F, tạm thời (user chốt 24/09: "ảnh lưu trong ổ F tạm thời, tôi sẽ xem
+        xét vị trí lưu sau"). Đổi chỗ sau này chỉ phải sửa đúng hàm này.
+        """
+        for x in (tap, ma_canh):
+            if not x or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x):
+                raise ValueError(f"Mã '{x}' có ký tự không dùng được cho tên file.")
+        return self.duong.parent / "anh" / tap / (ma_canh + ".png")
+
     def ref_dang_co(self, tap: str, ma: str) -> Optional[Path]:
         for d in self.DUOI_REF:
             try:
@@ -218,6 +263,11 @@ class Kho:
 
     def luu(self, tap: str, chuong: str, dong: list[dict], outline: str,
             nguoi: str) -> None:
+        # CHUẨN HOÁ ở BIÊN GHI, không trông vào trang tự làm đúng: đặt mã riêng
+        # cho cảnh chưa có (ảnh neo vào mã), loại khoá lạ một tab hỏng đẩy lên,
+        # và áp luật cảnh rỗng. Một chỗ duy nhất, mọi đường ghi đều qua đây.
+        dong = [ghi_canh(d, doc_canh(d)) if isinstance(d, dict) else d
+                for d in (dong or [])]
         giu = self.ai_giu(tap, chuong)
         if giu and giu != nguoi:
             raise KhoaBiGiu(f"{giu} đang sửa chương {chuong}.")

@@ -166,8 +166,9 @@ def _ma_sach(ten: str, da_co: dict) -> str:
     return t
 
 
-def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None) -> FastAPI:
-    """`kho`, `dich`, `goi_y`, `ky_thuat` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
+def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
+            ve_anh=None) -> FastAPI:
+    """`kho`, `dich`, `goi_y`, `ky_thuat`, `ve_anh` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -392,7 +393,26 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None) -> FastAPI:
     # ------------------------------------------------------------ chương
     @app.get("/api/tap/{tap}/{chuong}")
     def doc(tap: str, chuong: str):
-        return kho.doc(tap, chuong)
+        """Gắn kèm cờ `anh` cho cảnh đã có ảnh trên đĩa.
+
+        SUY RA TỪ ĐĨA, không lưu xuống kho: lưu là sớm muộn lệch với file thật
+        (xoá file bằng tay, chép kho sang máy khác…). Giá trị lấy theo GIỜ SỬA
+        FILE nên vừa làm cờ, vừa làm mã chống cache — vẽ lại ảnh cùng tên mà
+        không đổi mã thì trình duyệt vẫn hiện tấm cũ.
+        """
+        ra = kho.doc(tap, chuong)
+        for dg in ra["dong"]:
+            for c in dg.get("canh") or []:
+                ma = c.get("id")
+                if not ma:
+                    continue
+                try:
+                    t = kho.duong_anh(tap, ma)
+                except ValueError:
+                    continue
+                if t.exists():
+                    c["anh"] = str(int(t.stat().st_mtime))
+        return ra
 
     @app.put("/api/tap/{tap}/{chuong}")
     def luu(tap: str, chuong: str, request: Request, than: dict = Body(...)):
@@ -553,6 +573,109 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None) -> FastAPI:
         return {"xong": xong, "con_thieu": len(can) - xong,
                 "loi": f"Dừng ở cảnh {xong + 1}: {loi}" if loi else ""}
 
+    # ------------------------------------------------------------- ảnh
+    def _luu_canh(tap: str, chuong: str, d: list, ai: str) -> None:
+        """Mọi đường ghi của phần ảnh đi qua đây. Không bắt `KhoaBiGiu` thì
+        chương đang bị người khác giữ sẽ nổ 500 và trang chỉ hiện "HTTP 500"
+        (đo thật 24/09) — trong khi mọi đường ghi khác đều trả 409 kèm tên."""
+        try:
+            kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
+        except KhoaBiGiu as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    def _tim_canh(tap: str, chuong: str, ma: str):
+        """(danh sách dòng, chỉ số dòng, chỉ số cảnh, cảnh) theo MÃ RIÊNG."""
+        d = kho.doc(tap, chuong)["dong"]
+        for i, dg in enumerate(d):
+            for j, c in enumerate(mdong.doc_canh(dg)):
+                if c.get("id") == ma:
+                    return d, i, j, c
+        raise HTTPException(404, f"Không có cảnh mã '{ma}' trong chương {chuong}.")
+
+    def _prompt_anh(tap: str, c: dict) -> str:
+        """ĐÚNG cái người dùng thấy trong hộp: nội dung EN + mô tả tài sản +
+        đoạn tông. Gửi mỗi `pa` thì ảnh mất tông, khác hẳn bản họ duyệt."""
+        so = {x["ma"]: x for x in kho.ds_so(tap)}
+        ta = [so[m] for m in (c.get("ts") or []) if m in so and so[m].get("chu")]
+        mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
+        tong = so.get(c.get("tong") or "", {}).get("chu", "")
+        return f"16:9 ratio. {c['pa']}\n\n{mo_ta}\n{tong}".strip()
+
+    def _ve_mot_canh(tap: str, chuong: str, d: list, i: int, j: int, ai: str) -> None:
+        c = mdong.doc_canh(d[i])[j]
+        if not (c.get("pa") or "").strip():
+            raise HTTPException(
+                400, "Cảnh này chưa có prompt tiếng Anh — bấm Sinh prompt trước. "
+                     "Gửi chữ Việt cho Seedream là ra ảnh sai.")
+        ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]))
+        cs = mdong.doc_canh(d[i])
+        cs[j].pop("duyet", None)      # ảnh đổi thì con dấu duyệt cũ hết nghĩa
+        d[i] = mdong.ghi_canh(d[i], cs)
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
+    def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
+        ai = _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        d, i, j, _ = _tim_canh(tap, chuong, ma)
+        try:
+            _ve_mot_canh(tap, chuong, d, i, j, ai)
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Vẽ ảnh hỏng: {exc}") from exc
+        _luu_canh(tap, chuong, d, ai)
+        return {"ok": True}
+
+    @app.post("/api/tap/{tap}/{chuong}/anh")
+    def sinh_anh_ca_chuong(tap: str, chuong: str, request: Request):
+        """Cảnh nào ĐÃ CÓ ảnh thì bỏ qua — bấm lại là vẽ tiếp chỗ thiếu, không
+        đốt tiền vẽ lại thứ đã có."""
+        ai = _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        d = kho.doc(tap, chuong)["dong"]
+        can = [(i, j) for i, dg in enumerate(d)
+               for j, c in enumerate(mdong.doc_canh(dg))
+               if (c.get("pa") or "").strip() and c.get("id")
+               and not kho.duong_anh(tap, c["id"]).exists()]
+        xong, loi = 0, ""
+        for i, j in can:
+            try:
+                _ve_mot_canh(tap, chuong, d, i, j, ai)
+            except Exception as exc:  # noqa: BLE001 — giữ phần đã vẽ
+                loi = str(exc)
+                break
+            xong += 1
+            _luu_canh(tap, chuong, d, ai)
+        if loi and not xong:
+            raise HTTPException(502, f"Vẽ ảnh hỏng: {loi}")
+        return {"xong": xong, "con_thieu": len(can) - xong, "loi": loi}
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
+    def xem_anh(tap: str, chuong: str, ma: str):
+        try:
+            t = kho.duong_anh(tap, ma)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if not t.exists():
+            raise HTTPException(404, "Cảnh này chưa có ảnh.")
+        return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/duyet")
+    def duyet_anh(tap: str, chuong: str, ma: str, request: Request):
+        """Cổng duyệt. Luật của `aigen` (user chốt 03/09): tiền video chỉ đốt
+        SAU cổng này — ảnh ~$0,03/tấm, video đắt gấp năm."""
+        ai = _ghi_duoc(request)
+        d, i, j, _ = _tim_canh(tap, chuong, ma)
+        if not kho.duong_anh(tap, ma).exists():
+            raise HTTPException(400, "Cảnh này chưa có ảnh để duyệt.")
+        cs = mdong.doc_canh(d[i])
+        cs[j]["duyet"] = "1"
+        d[i] = mdong.ghi_canh(d[i], cs)
+        _luu_canh(tap, chuong, d, ai)
+        return {"ok": True}
+
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")
     def ban_cu(tap: str, chuong: str):
@@ -585,6 +708,32 @@ class _Dich:
         from autoedit.treatment.dich import LLM
 
         return LLM().dich(cau)
+
+
+class _VeAnh:
+    """Seedream qua ArkClient, khoá lấy từ KÉT bằng SLUG CỦA TREATMENT.
+
+    KHÔNG để ArkClient tự đi tìm: nó đi qua `web/ket_v3` ghi cứng
+    `SLUG = "rendery"` nên cấp phát của Treatment không bao giờ thấy — đúng lỗi
+    đã phải sửa một lần cho `dich.py` ngày 23/09 (cấp phát đúng rồi mà app vẫn
+    báo "chưa cấp"). Truyền khoá vào tận tay.
+    """
+
+    def gen_anh(self, prompt, dich):
+        from autoedit.aigen.client import ArkClient
+        from autoedit.treatment.dich import doc_ket_viec
+
+        khoa = (doc_ket_viec("gen_canh") or {}).get("key", "")
+        if not khoa:
+            raise RuntimeError(
+                "Chưa có khoá vẽ ảnh — Owner cấp ở General › API Keys › "
+                "Theo app › Treatment › gen_canh.")
+        return ArkClient(api_key=khoa).gen_anh(prompt, dich)
+
+
+def _ve_anh_mac_dinh(kho: Kho):
+    _ = kho
+    return _VeAnh()
 
 
 class _KyThuat:
@@ -633,7 +782,8 @@ def tao_app_mac_dinh() -> FastAPI:
     kho = _kho_mac_dinh()
     return tao_app(kho, dich=_dich_mac_dinh(kho),
                    goi_y=_goi_y_mac_dinh(kho),
-                   ky_thuat=_ky_thuat_mac_dinh(kho))
+                   ky_thuat=_ky_thuat_mac_dinh(kho),
+                   ve_anh=_ve_anh_mac_dinh(kho))
 
 
 def main() -> None:

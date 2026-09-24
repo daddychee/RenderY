@@ -16,6 +16,7 @@ tác (Ctrl+Z) chụp trạng thái trước mỗi thao tác, mutate ngầm là h
 from __future__ import annotations
 
 import copy
+import uuid
 
 # Rác escape CSV của Google Sheet. Đo thật 15/09 trên NAS: 16 chỗ trong 5/51 kịch
 # bản (`So the ""diet"" label`). Chỉ dọn ở bản XUẤT — bản gốc giữ nguyên để người
@@ -102,7 +103,25 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # `pa` / `pv` = prompt ẢNH và prompt VIDEO bằng TIẾNG ANH. Đội viết treatment
 # bằng tiếng Việt, mà prompt gửi nhà AI phải tiếng Anh — ghép thẳng chữ Việt
 # vào là nhà AI đọc lõm bõm rồi ra ảnh sai.
-KHOA_CANH = ("t", "co", "goc", "cd", "sfx", "tong", "ts", "pa", "pv")
+# `id` = MÃ RIÊNG BẤT BIẾN của cảnh. Mã hiển thị `13.2` là số thứ tự theo VỊ
+# TRÍ — chèn một cảnh phía trên là mọi mã sau đó dịch hết, và ảnh đã sinh sẽ
+# trỏ sang cảnh khác mà không ai thấy gì bất thường cho tới lúc dựng. Nên file
+# ảnh neo vào `id`, không neo vào vị trí.
+# `duyet` = con dấu duyệt ẢNH. Luật `aigen`: tiền video chỉ đốt SAU cổng này.
+KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa",
+             "pv", "duyet")
+
+
+def _ma_canh_moi(da_co: set[str]) -> str:
+    """Mã ngắn, ngẫu nhiên, DÙNG ĐƯỢC LÀM TÊN FILE.
+
+    Không đánh số tăng dần: hai người sửa hai chương cùng lúc sẽ ra trùng số.
+    Không lấy theo nội dung: sửa chữ là đổi mã, ảnh mất neo.
+    """
+    while True:
+        ma = "c" + uuid.uuid4().hex[:10]
+        if ma not in da_co:
+            return ma
 
 
 def doc_canh(d: dict) -> list[dict]:
@@ -146,6 +165,15 @@ def ghi_canh(d: dict, canh: list[dict]) -> dict:
     ra = copy.deepcopy(d)
     ra.pop("tr", None)
     sach = doc_canh({"canh": canh})
+    da_co: set[str] = set()
+    for c in sach:
+        ma = c.get("id", "")
+        # Mã trùng (chép/dán một cảnh) thì đặt lại — hai cảnh cùng mã là hai
+        # cảnh dùng chung một file ảnh, đè lên nhau.
+        if not ma or ma in da_co:
+            ma = _ma_canh_moi(da_co)
+            c["id"] = ma
+        da_co.add(ma)
     # Còn ÍT NHẤT MỘT cảnh có chữ thì giữ nguyên cả danh sách, kể cả ô rỗng người
     # vừa mở. TẤT CẢ rỗng nghĩa là dòng chưa viết treatment — xoá hẳn khoá, đừng
     # đẻ cảnh ma cho mọi dòng trong tập (UI luôn vẽ sẵn một ô trống để gõ vào).
