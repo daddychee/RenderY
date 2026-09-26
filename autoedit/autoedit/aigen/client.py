@@ -108,20 +108,37 @@ class ArkClient:
         raise AigenError(f"ModelArk lỗi sau {self.retries} lần: {loi}")
 
     # ------------------------------------------------------------- ảnh
-    def gen_anh(self, prompt: str, dich: Path, size: str = "2560x1440") -> Path:
+    def gen_anh(self, prompt: str, dich: Path, size: str = "2560x1440",
+                ref: "list[Path] | None" = None) -> Path:
         """Sinh 1 ảnh -> ghi file. 2560x1440 (16:9): seedream-4-5 đòi ảnh
         ≥3,69M pixel (probe 03/09 nhận 400 InvalidParameter với 2048x1152).
 
         Trả b64 thay vì URL: URL ModelArk có hạn dùng, tải ngay tránh bẫy
         assetUrl-hết-hạn kiểu Epidemic (đo 18/07).
+
+        `ref` = ảnh THAM CHIẾU đính vào lượt vẽ. Đo 26/09: endpoint nhận `image`
+        dạng data URL, cả chuỗi đơn lẫn MẢNG nhiều ảnh, và giữ đúng danh tính —
+        thử hai ref (tàu K-129 + thuyền trưởng Kobzar) thì ảnh ra đúng khuôn mặt
+        ấy đứng cạnh đúng con tàu ấy.
+
+        Đây là thứ CHỮ KHÔNG LÀM ĐƯỢC: mô tả dù hay đến đâu cũng chỉ thu hẹp
+        vùng chọn chứ không chỉ vào một điểm, nên hai lượt gọi độc lập ra hai vật
+        khác nhau (user bắt được trên hai cảnh liền nhau 10.1 / 10.2 — cùng một
+        cái thang máy, hai hình khác hẳn).
         """
         cac_model = (self.model_anh,) if self.model_anh else THU_MODEL_ANH
         loi_cuoi: Exception | None = None
         for model in cac_model:
             try:
-                r = self._goi("/images/generations", {
-                    "model": model, "prompt": prompt, "size": size,
-                    "response_format": "b64_json", "watermark": False})
+                than = {"model": model, "prompt": prompt, "size": size,
+                        "response_format": "b64_json", "watermark": False}
+                anh_ref = [p for p in (ref or []) if Path(p).exists()]
+                if anh_ref:
+                    than["image"] = [
+                        "data:image/png;base64," +
+                        base64.b64encode(Path(p).read_bytes()).decode()
+                        for p in anh_ref]
+                r = self._goi("/images/generations", than)
                 b64 = r["data"][0]["b64_json"]
                 dich = Path(dich)
                 dich.parent.mkdir(parents=True, exist_ok=True)

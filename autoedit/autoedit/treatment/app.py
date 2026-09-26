@@ -160,6 +160,27 @@ CO_CHU = {"WS": "wide shot", "MS": "medium shot", "CU": "close-up",
 CO_HOP_LE = tuple(CO_CHU)
 
 
+def khung_cuoi(video: Path, dich: Path) -> Path:
+    """Trích KHUNG CUỐI của một clip ra file ảnh.
+
+    `-sseof -0.2` = tua từ CUỐI ngược lại 0,2 giây rồi lấy một khung. Lấy đúng
+    khung cuối cùng thì hay trúng chỗ bộ giải mã chưa có dữ liệu; lùi một nhịp
+    ngắn là chắc ăn mà mắt không phân biệt được.
+
+    ffmpeg gọi từ PATH — máy chủ này có sẵn (8.1.2 ở C:/OutlierY/tools/ffmpeg).
+    """
+    import subprocess
+
+    dich.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-sseof", "-0.2",
+         "-i", str(video), "-frames:v", "1", "-y", str(dich)],
+        capture_output=True, text=True, errors="replace")
+    if not dich.exists():
+        raise RuntimeError("không trích được khung cuối: " + (r.stderr or "")[:200])
+    return dich
+
+
 def _ma_sach(ten: str, da_co: dict) -> str:
     """Tên tiếng Việt -> mã dùng được làm TÊN FILE ref.
 
@@ -709,7 +730,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(
                 400, "Cảnh này chưa có prompt tiếng Anh — bấm Sinh prompt trước. "
                      "Gửi chữ Việt cho Seedream là ra ảnh sai.")
-        ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]))
+        # Ảnh ref của asset đã gán đi KÈM lượt vẽ. Asset chưa vẽ ref thì bỏ
+        # qua, không chặn — gán rồi mà chưa kịp vẽ ref là chuyện thường giữa
+        # chừng, lúc đó rơi về đúng hành vi cũ: chỉ có chữ.
+        ref = [t for t in (kho.ref_dang_co(tap, m) for m in (c.get("ts") or []))
+               if t is not None]
+        ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]), ref=ref)
         cs = mdong.doc_canh(d[i])
         cs[j].pop("duyet", None)      # ảnh đổi thì con dấu duyệt cũ hết nghĩa
         d[i] = mdong.ghi_canh(d[i], cs)
@@ -800,8 +826,21 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     # ------------------------------------------------------------ video
     GIAY_VIDEO = 15     # trần nhà cung cấp, đo 26/09: 20s bị từ chối
 
+    def _canh_truoc(d: list, i: int, j: int) -> dict | None:
+        """Cảnh liền trước TRONG CHƯƠNG. Lùi trong cùng dòng, hết thì sang dòng
+        trên. Không bắc cầu sang chương khác: nối hai chương là quyết định khác,
+        và ranh giới chương thường cũng là ranh giới cảnh."""
+        if j > 0:
+            return mdong.doc_canh(d[i])[j - 1]
+        for k in range(i - 1, -1, -1):
+            cs = mdong.doc_canh(d[k])
+            if cs:
+                return cs[-1]
+        return None
+
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/video")
-    def sinh_video(tap: str, chuong: str, ma: str, request: Request):
+    def sinh_video(tap: str, chuong: str, ma: str, request: Request,
+                   than: dict = Body(default={})):
         """Tạo TASK dựng video, trả về NGAY kèm mã task.
 
         Không chờ cho xong: đo 26/09 một clip mất 70-150 giây. Giữ request treo
@@ -821,9 +860,25 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not (c.get("pv") or "").strip():
             raise HTTPException(
                 400, "Cảnh này chưa có prompt video — bấm Create Prompt trước.")
+
+        # NỐI: khung cuối clip cảnh trước thành khung đầu clip này (user chốt
+        # 26/09). Đổi lại clip KHÔNG còn bắt đầu từ tấm ảnh đã duyệt của chính
+        # cảnh này — nên chỉ làm khi người dùng bấm, không bao giờ tự động.
+        dau_vao = kho.duong_anh(tap, ma)
+        if than.get("noi"):
+            tr = _canh_truoc(d, i, j)
+            v = kho.duong_video(tap, tr["id"]) if tr and tr.get("id") else None
+            if v is None or not v.exists():
+                raise HTTPException(
+                    400, "Cảnh trước chưa có video để nối — dựng cảnh trước đã.")
+            try:
+                dau_vao = khung_cuoi(v, kho.duong_anh(tap, ma).parent /
+                                     ("noi_" + ma + ".png"))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Trích khung cuối hỏng: {exc}") from exc
         try:
-            tid = ve_video.bat_dau(_prompt_video(tap, c),
-                                   kho.duong_anh(tap, ma), GIAY_VIDEO, False)
+            tid = ve_video.bat_dau(_prompt_video(tap, c), dau_vao,
+                                   GIAY_VIDEO, False)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         cs = mdong.doc_canh(d[i])
@@ -926,7 +981,7 @@ class _VeAnh:
     báo "chưa cấp"). Truyền khoá vào tận tay.
     """
 
-    def gen_anh(self, prompt, dich):
+    def gen_anh(self, prompt, dich, ref=None):
         from autoedit.aigen.client import ArkClient
         from autoedit.treatment.dich import doc_ket_viec
 
@@ -935,7 +990,7 @@ class _VeAnh:
             raise RuntimeError(
                 "Chưa có khoá vẽ ảnh — Owner cấp ở General › API Keys › "
                 "Theo app › Treatment › gen_canh.")
-        return ArkClient(api_key=khoa).gen_anh(prompt, dich)
+        return ArkClient(api_key=khoa).gen_anh(prompt, dich, ref=ref)
 
 
 class _VeVideo:

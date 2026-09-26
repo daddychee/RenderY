@@ -33,7 +33,7 @@ MP4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
 
 
 class VeAnhGia:
-    def gen_anh(self, prompt, dich):
+    def gen_anh(self, prompt, dich, ref=None):
         dich.parent.mkdir(parents=True, exist_ok=True)
         dich.write_bytes(PNG)
         return dich
@@ -285,3 +285,84 @@ def test_prompt_video_may_chu_KHOP_cong_thuc_cua_trang(tmp_path):
                + "\nOne continuous shot, no cuts.\n\n" + mo_ta + tong
                + " Sound: " + x["sfx"] + ". No background music.")
     assert vv.goi[0]["prompt"] == cho_doi
+
+
+# ─────────────────── NỐI cảnh liền nhau: khung cuối clip trước -> khung đầu
+# User chốt 26/09: "các cảnh liên tiếp nhau cho phép lưu sử dụng hình cuối của
+# video trước làm đầu của video sau".
+#
+# Mạnh hơn hẳn việc chỉ dùng chung asset: nó cho NỐI LIỀN thật sự chứ không chỉ
+# giống nhau. Nhưng đổi lại clip mới KHÔNG còn bắt đầu từ tấm ảnh đã duyệt của
+# chính cảnh đó — nên phải là lựa chọn BẤM TAY từng cảnh, không bao giờ tự động.
+
+
+def _hai_canh(tmp_path, vv=None):
+    kho = Kho(tmp_path / "kho" / "k.db")
+    kho.tao_tap("SE001", "K-129")
+    c = TestClient(tao_app(kho, ve_anh=VeAnhGia(), ve_video=vv or VeVideoGia()))
+    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
+    c.post("/api/tap/SE001/chuong", json={"ma": "H"})
+    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
+        {"en": "V.", "vi": "", "het": 0, "canh": [
+            {"t": "Bàn tay đóng cửa xếp", "pa": "EN a", "pv": "EN motion a"},
+            {"t": "Thang máy đi xuống", "pa": "EN b", "pv": "EN motion b"}]}]})
+    cs = kho.doc("SE001", "H")["dong"][0]["canh"]
+    for x in cs:
+        c.post(f"/api/tap/SE001/H/canh/{x['id']}/anh")
+        c.post(f"/api/tap/SE001/H/canh/{x['id']}/duyet")
+    return c, kho, cs[0]["id"], cs[1]["id"]
+
+
+def test_NOI_thi_dung_KHUNG_CUOI_cua_clip_truoc(tmp_path, monkeypatch):
+    import autoedit.treatment.app as mapp
+
+    lay = {}
+
+    def gia(video, dich):
+        lay["tu"] = video
+        dich.parent.mkdir(parents=True, exist_ok=True)
+        dich.write_bytes(b"KHUNG-CUOI")
+        return dich
+
+    monkeypatch.setattr(mapp, "khung_cuoi", gia)
+    vv = VeVideoGia()
+    c, kho, m1, m2 = _hai_canh(tmp_path, vv)
+    c.post(f"/api/tap/SE001/H/canh/{m1}/video")
+    c.post(f"/api/tap/SE001/H/canh/{m1}/video-kiem")      # cảnh 1 có video
+    vv.goi.clear()
+    r = c.post(f"/api/tap/SE001/H/canh/{m2}/video", json={"noi": True})
+    assert r.status_code == 200, r.text
+    assert lay["tu"] == kho.duong_video("SE001", m1), "phải trích từ clip cảnh TRƯỚC"
+    assert vv.goi[0]["anh"].read_bytes() == b"KHUNG-CUOI", (
+        "đầu vào phải là khung cuối, không phải ảnh đã duyệt của cảnh này")
+
+
+def test_noi_ma_canh_truoc_CHUA_CO_VIDEO_thi_tu_choi(tmp_path):
+    c, kho, m1, m2 = _hai_canh(tmp_path)
+    r = c.post(f"/api/tap/SE001/H/canh/{m2}/video", json={"noi": True})
+    assert r.status_code == 400
+    assert "cảnh trước" in r.json()["detail"].lower()
+
+
+def test_noi_o_CANH_DAU_thi_tu_choi(tmp_path):
+    c, kho, m1, m2 = _hai_canh(tmp_path)
+    r = c.post(f"/api/tap/SE001/H/canh/{m1}/video", json={"noi": True})
+    assert r.status_code == 400
+
+
+def test_KHONG_noi_thi_van_dung_anh_da_duyet(tmp_path):
+    """Mặc định không đổi: clip bắt đầu từ đúng tấm ảnh người ta đã duyệt."""
+    vv = VeVideoGia()
+    c, kho, m1, m2 = _hai_canh(tmp_path, vv)
+    c.post(f"/api/tap/SE001/H/canh/{m2}/video")
+    assert vv.goi[0]["anh"] == kho.duong_anh("SE001", m2)
+
+
+def test_khung_cuoi_lay_dung_CUOI_clip():
+    """Lấy khung ở `-sseof` (đếm ngược từ cuối) chứ không phải khung đầu."""
+    import inspect
+
+    import autoedit.treatment.app as mapp
+
+    nguon = inspect.getsource(mapp.khung_cuoi)
+    assert "-sseof" in nguon

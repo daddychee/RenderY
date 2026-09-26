@@ -736,11 +736,13 @@ def test_nut_sinh_ref_CHI_HIEN_khi_co_prompt_tao_ref(html):
 
 
 def test_hop_canh_sinh_duoc_REF_cua_tai_san_thieu(html):
-    """User nói "khi click vào từng cảnh" — hàng tài sản trong hộp cảnh phải
-    sinh được ref ngay tại chỗ, không bắt mở sổ rồi mò lại."""
+    """User nói "khi click vào từng cảnh" — hàng asset trong hộp cảnh phải sinh
+    được ref ngay tại chỗ, không bắt mở sổ rồi mò lại. Dựng lại thành hàng thẻ
+    (26/09) suýt làm rơi mất đường này."""
     i = html.index("function veTaiSanCanh(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "sinhRef(" in than
+    assert "t.pr" in than, "chưa có prompt ref thì bấm chỉ tốn một vòng gọi rồi 400"
 
 
 # ═══════════ báo ĐANG LÀM + bắt buộc có asset (user 25/09) ══════════════════
@@ -1138,3 +1140,74 @@ def test_storyboard_THEO_DOI_moi_canh_dang_dung(html):
     assert "c.vid" in than and "theoDoiVideo(" in than
     j = html.index("function veSb(")
     assert "theoDoiTatCa(" in html[j:html.index(chr(10), j) + 200]
+
+
+# ═══════ 26/09: dựng lại hộp cảnh — ưu tiên HÌNH, không phải chữ ═════════════
+def test_hop_canh_KHUNG_HINH_rong_ca_hop(html):
+    """Đo bố cục cũ: ảnh 336×189, hai ô prompt cao 485px — chữ chiếm gấp 2,6
+    lần hình. Mà prompt là bản máy sinh, ảnh mới là thứ phải phán xét mỗi lần."""
+    assert ".khung-to" in html
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "khung-to" in than
+
+
+def test_hop_canh_co_TAB_anh_video(html):
+    """Ảnh và video dùng CHUNG một khung: nằm chồng nhau trong cột hẹp thì
+    không so được video có giữ đúng ảnh đã duyệt không."""
+    assert "function doiTabHinh(" in html
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "doiTabHinh(" in than
+
+
+def test_hang_the_ASSET_co_anh_ref(html):
+    """User 26/09: "phần asset hiện đang bị nhỏ và khó nhìn quá". Sau việc 1,
+    ảnh ref của asset đã chọn mới là thứ quyết định hình ra đúng hay sai — nên
+    phải chọn bằng MẮT, nhìn đúng tấm sắp đính vào."""
+    assert "function veTaiSanCanh(" in html
+    i = html.index("function veTaiSanCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "the-as" in than
+    assert "duongRef(" in than, "mặt thẻ phải là ảnh ref"
+    assert "chưa có ref" in than, "asset chưa vẽ ref phải nói rõ"
+
+
+def test_CLICK_DUP_the_asset_mo_anh_lon(html):
+    """User chốt 26/09. Cú chọn phải HOÃN lại: click đúp sinh ra hai cú click
+    đơn, không hoãn thì nó bật/tắt hai lần và nhét hai bản vào lịch sử hoàn tác."""
+    i = html.index("function veTaiSanCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "ondblclick" in than
+    j = html.index("function doiTaiSan(")
+    assert "setTimeout" in html[j:html.index(chr(10) + "}", j)], (
+        "hoãn cú chọn để click đúp không bật/tắt hai lần")
+
+
+def test_nut_THEM_VAO_SO_ngay_trong_canh(html):
+    """Việc 2a. Thang máy chỉ có 2/91 cảnh — dưới mọi ngưỡng tự động — nên phải
+    có đường cho người dùng tự quyết ngay tại chỗ tay đang ở."""
+    assert "async function themAssetTuCanh(" in html
+    i = html.index("function veTaiSanCanh(")
+    assert "themAssetTuCanh(" in html[i:html.index(chr(10) + "}", i)]
+
+
+def test_nut_NOI_clip_truoc(html):
+    """Việc 4: khung cuối clip trước thành khung đầu clip này."""
+    i = html.index("async function genVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "noi" in than
+    j = html.index("function moCanh(")
+    assert "genVideo(event, true)" in html[j:html.index(chr(10) + "}", j)]
+
+
+def test_khung_hinh_AN_duoc_ben_khong_chon(html):
+    """Đo Chrome 26/09: bấm tab Video thì ẢNH VẪN HIỆN, hai cái nằm cạnh nhau
+    trong khung. Thuộc tính `hidden` đặt `display:none`, nhưng quy tắc
+    `.khung-to img{display:block}` có độ ưu tiên cao hơn nên đè mất.
+
+    Test tĩnh không bắt được: thuộc tính `hidden` VẪN được đặt đúng, chỉ là nó
+    không có tác dụng."""
+    i = html.index(".khung-to img")
+    assert "[hidden]" in html[i:i + 400], (
+        "phải có luật riêng cho [hidden], không thì display:block đè mất")

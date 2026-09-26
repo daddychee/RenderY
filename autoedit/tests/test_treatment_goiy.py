@@ -244,3 +244,18 @@ def test_lenh_quet_KHONG_xep_phuong_tien_vao_boi_canh():
     assert "không" in t[i:i + 500], "phải nói RÕ cái gì KHÔNG phải bối cảnh"
     j = t.index("`dao_cu`")
     assert "phương tiện" in t[min(i, j):], "phương tiện phải được xếp dứt khoát"
+
+
+def test_lenh_quet_NEU_CA_thu_o_CANH_LIEN_KE():
+    """User bắt được 26/09: thang máy xuất hiện đúng 2/91 cảnh — dưới mọi ngưỡng
+    "lặp lại nhiều lần" — nhưng hai cảnh đó LIỀN NHAU, nên hai hình khác nhau là
+    lộ ngay.
+
+    Ngưỡng theo TẦN SUẤT sai đơn vị: nhất quán cần ở mức ĐỒNG HIỆN. Hai khung
+    hình cạnh nhau chiếu cùng một vật là ca nguy hiểm nhất, phải gọi tên dù nó
+    chỉ xuất hiện đúng hai lần."""
+    from autoedit.treatment.dich import _LENH_TAI_SAN
+
+    t = _LENH_TAI_SAN.lower()
+    assert "liền kề" in t or "liền nhau" in t
+    assert "hai" in t, "phải nói rõ: hai cảnh cạnh nhau cũng đủ để gọi tên"

@@ -23,14 +23,20 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
 
 class VeGia:
-    """Thay Seedream: ghi thẳng ra file như client thật vẫn làm."""
+    """Thay Seedream: ghi thẳng ra file như client thật vẫn làm.
+
+    Giữ lại cả `ref` — từ 26/09 ảnh tham chiếu của asset đi KÈM lượt vẽ, nên
+    test phải soi được nó chứ không chỉ soi prompt.
+    """
 
     def __init__(self, hong=False):
         self.goi = []
+        self.ref = []
         self.hong = hong
 
-    def gen_anh(self, prompt, dich):
+    def gen_anh(self, prompt, dich, ref=None):
         self.goi.append(prompt)
+        self.ref.append(list(ref or []))
         if self.hong:
             raise RuntimeError("ARK ngã")
         dich.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +108,7 @@ def test_sinh_lai_thi_DE_len_ban_cu(tmp_path):
     moi = b"\x89PNG\r\n\x1a\n" + b"\xff" * 32
 
     class Khac(VeGia):
-        def gen_anh(self, prompt, dich):
+        def gen_anh(self, prompt, dich, ref=None):
             dich.parent.mkdir(parents=True, exist_ok=True)
             dich.write_bytes(moi)
             return dich
@@ -434,3 +440,68 @@ def test_canh_khong_co_cot_ky_thuat_thi_prompt_van_sach(tmp_path):
     c, kho = _bo_tran(tmp_path, ve)
     c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
     assert ve.goi[0].startswith("16:9 ratio. EN can ban tay")
+
+
+# ─────────────────────── ẢNH REF đi vào lượt vẽ cảnh (user chốt 26/09)
+# User bắt được lỗi trên hai cảnh liền nhau 10.1 và 10.2 — cùng một cái thang
+# máy, hai hình khác hẳn. Gốc: mỗi cảnh sinh ảnh ĐỘC LẬP, CHỈ TỪ CHỮ. Mô tả dù
+# hay đến đâu cũng chỉ THU HẸP vùng chọn chứ không chỉ vào một điểm, nên hai
+# lượt gọi ra hai vật khác nhau — không viết văn nào chữa được.
+#
+# Đo trên ARK 26/09: `/images/generations` NHẬN `image` (data URL), cả chuỗi
+# đơn lẫn mảng nhiều ảnh, và giữ đúng danh tính — thử hai ref (tàu K-129 +
+# thuyền trưởng Kobzar) thì ảnh ra đúng khuôn mặt ấy đứng cạnh đúng con tàu ấy.
+
+
+def test_ref_cua_ASSET_DI_VAO_luot_ve(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "thang_may", "loai": "dao_cu", "ten": "Thang máy",
+                          "chu": "old industrial cage elevator"}])
+    r = kho.duong_ref("SE001", "thang_may", ".png")
+    r.parent.mkdir(parents=True, exist_ok=True)
+    r.write_bytes(PNG)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["thang_may"]
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.ref[0] == [r], "ảnh ref của asset phải đi kèm lượt vẽ"
+
+
+def test_NHIEU_asset_thi_gui_NHIEU_ref(tmp_path):
+    """Đo thật: ARK nhận mảng và giữ được cả hai danh tính cùng lúc."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [
+        {"ma": "a", "loai": "nhan_vat", "ten": "A", "chu": "a"},
+        {"ma": "b", "loai": "dao_cu", "ten": "B", "chu": "b"}])
+    for m in ("a", "b"):
+        p = kho.duong_ref("SE001", m, ".png")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(PNG)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["a", "b"]
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert len(ve.ref[0]) == 2
+
+
+def test_asset_CHUA_CO_REF_thi_bo_qua_chu_KHONG_chet(tmp_path):
+    """Gán asset nhưng chưa vẽ ref là chuyện thường giữa chừng. Lúc đó rơi về
+    đúng hành vi cũ — chỉ chữ — chứ không được chặn người ta vẽ ảnh."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "x", "loai": "dao_cu", "ten": "X", "chu": "x"}])
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["x"]
+    kho.luu("SE001", "H", d, "", "thu")
+    r = c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert r.status_code == 200
+    assert ve.ref[0] == []
+
+
+def test_canh_khong_gan_asset_thi_khong_co_ref(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.ref[0] == []

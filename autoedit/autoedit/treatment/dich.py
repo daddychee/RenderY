@@ -53,6 +53,10 @@ khiển"). Xếp nhầm là hỏng: mỗi loại đi theo một luật dựng �
 
 Luật:
 - Chỉ nêu thứ THỰC SỰ có trong kịch bản. Không bịa.
+- NGƯỠNG KHÔNG PHẢI LÀ TẦN SUẤT. Một vật chỉ xuất hiện HAI lần nhưng ở hai \
+khoảnh khắc LIỀN KỀ nhau trong mạch kể thì VẪN PHẢI gọi tên — hai khung hình \
+cạnh nhau chiếu cùng một vật mà khác nhau là lộ ngay. Đây là ca nguy hiểm nhất, \
+đừng bỏ qua vì nó "ít lặp lại".
 - Gộp mọi cách gọi khác nhau của cùng một thứ làm MỘT mục.
 - `ten`: tiếng Việt, ngắn, đúng cách đội gọi.
 - `ly_do`: một câu TIẾNG VIỆT nói vì sao thứ này cần nhất quán, dẫn chi tiết \
