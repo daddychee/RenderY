@@ -967,3 +967,18 @@ def test_man_ASSET_xep_doc_nhu_man_STORYBOARD(html):
     thì hai khối con xếp NGANG. `#manSb` có luật CSS riêng nên không lộ."""
     i = html.index("#manSb")
     assert "#manAs" in html[i:i + 60], "màn Asset phải dùng chung luật với #manSb"
+
+
+def test_thanh_ASSET_an_nut_ghi_voi_vai_CHI_XEM(html):
+    """Đo trên production 26/09 ngay sau khi triển khai: vai `nhanvien` (không
+    có quyền `sua`) vẫn thấy đủ `Đọc kịch bản` · `+ nhân vật` · `+ bối cảnh` ·
+    `+ đạo cụ`. Máy chủ vẫn chặn 403 nên không mất dữ liệu, nhưng bày nút cho
+    người không bấm được là đẩy họ vào một thông báo lỗi.
+
+    Phiếu sổ cũ bọc mấy nút này trong `if(SUA_DUOC)`; thanh công cụ mới là HTML
+    tĩnh nên mất lớp đó — phải gác lại ở `batNutGhi`."""
+    i = html.index("function batNutGhi(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chi-sua" in than, "batNutGhi phải ẩn nhóm nút chỉ-dành-cho-người-sửa"
+    assert html.count('class="icon-btn chi-sua"') >= 4, (
+        "bốn nút ghi trên thanh Asset phải mang lớp chi-sua")

@@ -383,10 +383,10 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <span class="nhan" style="margin:0">Asset của tập</span>
     <span class="tien-do" id="tienDoAs"></span>
     <span class="spacer"></span>
-    <button class="icon-btn" id="nutGoiY" onclick="goiYTaiSan()">Đọc kịch bản</button>
-    <button class="icon-btn" onclick="themAsset('nhan_vat')">+ nhân vật</button>
-    <button class="icon-btn" onclick="themAsset('boi_canh')">+ bối cảnh</button>
-    <button class="icon-btn" onclick="themAsset('dao_cu')">+ đạo cụ</button>
+    <button class="icon-btn chi-sua" id="nutGoiY" onclick="goiYTaiSan()">Đọc kịch bản</button>
+    <button class="icon-btn chi-sua" onclick="themAsset('nhan_vat')">+ nhân vật</button>
+    <button class="icon-btn chi-sua" onclick="themAsset('boi_canh')">+ bối cảnh</button>
+    <button class="icon-btn chi-sua" onclick="themAsset('dao_cu')">+ đạo cụ</button>
     <button class="icon-btn" onclick="moSo('tong')">Tone</button>
   </div>
   <div class="sb-canvas" id="asCanvas"></div>
@@ -436,6 +436,12 @@ function batNutGhi(){
   if(tc) tc.hidden = !SUA_DUOC;
   document.querySelectorAll(".cp").forEach(function(b){
     if(/Dịch lại/.test(b.textContent)) b.hidden = !SUA_DUOC;
+  });
+  // Thanh màn Asset là HTML TĨNH, không như phiếu sổ cũ vốn bọc mấy nút này
+  // trong `if(SUA_DUOC)` lúc dựng chuỗi. Mất lớp đó thì vai chỉ-xem vẫn thấy
+  // nút, bấm vào chỉ nhận 403 (đo trên production 26/09).
+  document.querySelectorAll(".chi-sua").forEach(function(b){
+    b.hidden = !SUA_DUOC;
   });
 }
 
