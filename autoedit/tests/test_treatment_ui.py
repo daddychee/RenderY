@@ -1101,3 +1101,40 @@ def test_duong_video_mang_TEM_PHIEN_BAN(html):
     i = html.index("function duongVideo(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "?v=" in than
+
+
+# ═══════ 26/09: xem video cỡ lớn + tìm được cảnh đã có video ═════════════════
+def test_bam_VIDEO_mo_khung_lon(html):
+    """User 26/09: "cần có UI để preview trực tiếp video sinh ra". Trình phát
+    nhét trong cột trái của hộp cảnh chỉ rộng 336px — xem một khung hình 720p
+    trong đó thì không soi được gì."""
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "xemVideo(" in than
+
+
+def test_khung_lon_PHAT_duoc_video(html):
+    assert "function xemVideo(" in html
+    i = html.index("function xemVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "<video" in than and "controls" in than
+    assert "download=" in than, "xem cỡ lớn thì cũng phải tải xuống được"
+
+
+def test_the_canh_danh_dau_DA_CO_VIDEO(html):
+    """Không đánh dấu thì giữa 91 thẻ không ai biết cảnh nào đã dựng xong."""
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.video" in than
+
+
+def test_storyboard_THEO_DOI_moi_canh_dang_dung(html):
+    """Trang chỉ hỏi lại khi hộp cảnh ĐANG MỞ. Bấm Gen Video rồi đóng hộp đi
+    làm việc khác thì clip xong mà không ai biết, phải mở đúng cảnh đó mới thấy.
+    Mở Storyboard là bắt nhịp lại cho MỌI cảnh còn mã task."""
+    assert "function theoDoiTatCa(" in html
+    i = html.index("function theoDoiTatCa(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "c.vid" in than and "theoDoiVideo(" in than
+    j = html.index("function veSb(")
+    assert "theoDoiTatCa(" in html[j:html.index(chr(10), j) + 200]

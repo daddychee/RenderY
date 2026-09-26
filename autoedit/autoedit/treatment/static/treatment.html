@@ -217,6 +217,9 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   var(--line) 0 7px,transparent 7px 14px)}
 .tc .hinh.t1{background:linear-gradient(160deg,var(--accent-soft),transparent)}
 .tc .hinh.t2{background:linear-gradient(160deg,var(--warn-soft),transparent)}
+.tc .co-video{position:absolute;bottom:6px;right:6px;background:var(--good);
+  color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800}
+.tc .co-video.dang{background:var(--warn)}
 .tc .ma{position:absolute;top:6px;left:6px;background:var(--text);color:var(--bg);
   border-radius:5px;padding:1px 7px;font-size:11px;font-weight:800}
 .tc .chu{padding:8px 9px;font-size:11.5px;line-height:1.45;height:62px;overflow:hidden}
@@ -229,8 +232,8 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .canh-bao{color:var(--warn);font-weight:700}
 .hop-anh{max-width:95vw;max-height:94vh;display:flex;flex-direction:column;gap:10px;
   align-items:center}
-.hop-anh img{max-width:95vw;max-height:84vh;object-fit:contain;border-radius:10px;
-  background:var(--panel)}
+.hop-anh img,.hop-anh video{max-width:95vw;max-height:84vh;object-fit:contain;
+  border-radius:10px;background:var(--panel)}
 .hop-anh .thanh{display:flex;gap:9px;align-items:center}
 .hop-anh a.chinh{text-decoration:none;display:inline-block}
 .bam-duoc{cursor:zoom-in}
@@ -994,7 +997,10 @@ function veTheCanh(){
          (x.anh ? '<img src="' + duongAnh(x) + '">' : "") +
          '<span class="ma">' + x.ma + '</span>' +
          (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
-                : '16:9 · chưa có ảnh') + '</div>' +
+                : '16:9 · chưa có ảnh') +
+         (x.video ? '<span class="co-video">▶ video</span>'
+                  : (x.vid ? '<span class="co-video dang">⟳ đang dựng</span>'
+                           : '')) + '</div>' +
          '<div class="chu">' + (x.t ? thoat(x.t) :
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
          '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
@@ -1089,6 +1095,14 @@ async function theoDoiVideo(ch, id){
   if(r.trang_thai === "hong") bao("Dựng video hỏng: " + thoat(r.loi || ""), true);
   else if(r.trang_thai === "xong") bao("Đã dựng xong video.");
 }
+/* Trang chỉ hỏi lại khi hộp cảnh đang mở. Bấm Gen Video rồi đóng hộp đi làm
+   việc khác thì clip xong mà không ai biết — phải mở đúng cảnh đó mới thấy.
+   Mở Storyboard là bắt nhịp lại cho MỌI cảnh còn mã task. */
+function theoDoiTatCa(){
+  dungCanhTap().forEach(function(c){
+    if(c.vid) theoDoiVideo(c.ch, c.id);
+  });
+}
 async function genVideo(ev){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
@@ -1155,8 +1169,11 @@ function moCanh(ma){
       (x.video
         ? '<video controls preload="metadata" src="' + duongVideo(x) +
           '" style="width:100%;margin-top:8px;border-radius:9px"></video>' +
-          '<div class="dau-pr" style="margin-top:4px"><span class="spacer">' +
-          '</span><a class="cp" href="' + duongVideo(x) + '" download="canh-' +
+          '<div class="dau-pr" style="margin-top:4px">' +
+          '<button class="cp" onclick="xemVideo(\'' + duongVideo(x) +
+          '\', \'canh-' + x.ma + '.mp4\')">⛶ Xem cỡ lớn</button>' +
+          '<span class="spacer"></span>' +
+          '<a class="cp" href="' + duongVideo(x) + '" download="canh-' +
           x.ma + '.mp4">↓ Tải video</a></div>'
         : (x.vid
             ? '<div class="nhac" style="margin-top:8px">Đang dựng video — mất ' +
@@ -1669,6 +1686,16 @@ function xemAnh(src, ten){
     '<button class="cp" onclick="dongAnh()">✕ Đóng</button></div>';
   document.getElementById("nenAnh").classList.add("mo");
 }
+/* Trình phát trong hộp cảnh nằm ở cột trái rộng 336px — soi một khung 720p
+   trong đó thì không thấy gì. Dùng chung khung lớn với ảnh (user chốt 26/09). */
+function xemVideo(src, ten){
+  document.getElementById("hopAnh").innerHTML =
+    '<video src="' + src + '" controls autoplay></video>' +
+    '<div class="thanh"><a class="chinh" href="' + src + '" download="' +
+    thoat(ten) + '">↓ Tải xuống</a>' +
+    '<button class="cp" onclick="dongAnh()">✕ Đóng</button></div>';
+  document.getElementById("nenAnh").classList.add("mo");
+}
 function dongAnh(){
   document.getElementById("nenAnh").classList.remove("mo");
   document.getElementById("hopAnh").innerHTML = "";
@@ -1766,7 +1793,7 @@ function veLocNhanSu(){
   o.innerHTML = h; o.value = cu;
 }
 
-function veSb(){ veVetTap(); veTheCanh(); tienDoSo(); }
+function veSb(){ veVetTap(); veTheCanh(); tienDoSo(); theoDoiTatCa(); }
 
 var MAN_HINH = "kb";
 async function doiMan(m){
