@@ -1221,3 +1221,17 @@ def test_tai_ref_LUU_SO_truoc_khi_tai(html):
     than = html[i:html.index(chr(10) + "}", i)]
     assert "luuSoLen(" in than
     assert than.index("luuSoLen(") < than.index("fetch("), "lưu rồi mới tải lên"
+
+
+def test_hang_nut_hop_canh_CO_DINH_KIEU(html):
+    """Đo Chrome 26/09: hàng nút của hộp cảnh dựng lại KHÔNG có luật CSS nào —
+    nền rgb(240,240,240), viền ĐEN, chữ 14px, tức nút gốc của trình duyệt. Lớp
+    `.on` của nút "đã duyệt" cũng không có tác dụng.
+
+    Khi chuyển bố cục từ bản mẫu sang app tôi bê thiếu phần định kiểu nút: chỉ
+    chép luật `.hang-nut` (bố trí) mà bỏ `.hang-nut button` (hình dạng)."""
+    i = html.index(".hang-nut{")
+    khoi = html[i:i + 700]
+    assert ".hang-nut button{" in khoi, "thiếu hẳn luật hình dạng cho nút"
+    assert ".hang-nut button.on{" in khoi, "nút đã duyệt phải khác nút thường"
+    assert ".hang-nut button:disabled{" in khoi, "nút đang chạy phải trông như bị khoá"
