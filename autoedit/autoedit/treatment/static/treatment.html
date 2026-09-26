@@ -1303,6 +1303,16 @@ function tienDoSo(){
 async function taiRef(ma, el){
   var f = el.files && el.files[0];
   if(!f) return;
+  // LƯU SỔ TRƯỚC. Asset vừa tạo chỉ sống trong trình duyệt; tải lên rồi mới
+  // `napSo()` thì sổ máy chủ nạp đè và nuốt mất mục mới — file lên đĩa mà màn
+  // hình trống (user báo 26/09). Cùng bẫy đã vá cho `sinhAsset`, `sinhRef`.
+  if(ASSET_DANG_MO === ma && document.querySelector("#hopCanh [data-yc]")){
+    var x = docHopAsset();
+    if(x && !(x.ten || "").trim())
+      return bao("Đặt tên cho asset này trước đã — chưa có tên thì sổ không " +
+                 "giữ được nó, và ref sẽ thành file mồ côi.", true);
+    await luuSoLen(); await napSo();
+  }
   var fd = new FormData(); fd.append("tep", f);
   tt("Đang tải ref…");
   try {

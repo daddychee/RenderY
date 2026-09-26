@@ -247,3 +247,31 @@ def test_so_tra_kem_TEM_PHIEN_BAN_cua_ref(tmp_path):
 
     os.utime(d, (time.time() + 5, time.time() + 5))
     assert kho.ds_so("SE001")[0]["ref_v"] != v1, "vẽ lại ref thì tem phải đổi"
+
+
+def test_tai_ref_cho_ma_KHONG_CO_TRONG_SO_thi_tu_choi(tmp_path):
+    """Đo thật 26/09: user tạo một bối cảnh mới rồi tải ref lên NGAY, trước khi
+    lưu sổ. Máy chủ nhận 200 và ghi file, nhưng asset chưa bao giờ được lưu —
+    `napSo()` sau đó nạp đè sổ từ máy chủ và nuốt mất mục mới. Kết quả: file mồ
+    côi trên đĩa, màn hình trống, user báo "không tải được ref lên".
+
+    Chặn ở đây thì lỗi lộ ngay với câu nói rõ, thay vì thành công giả rồi mất."""
+    from autoedit.treatment.app import tao_app
+    from autoedit.treatment.kho import Kho
+    from fastapi.testclient import TestClient
+
+    kho = Kho(tmp_path / "k.db")
+    kho.tao_tap("SE001", "x")
+    kho.luu_so("SE001", [{"ma": "co_that", "loai": "dao_cu", "ten": "Có thật"}])
+    c = TestClient(tao_app(kho))
+    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
+    r = c.post("/api/tap/SE001/so/chua_luu/ref",
+               files={"tep": ("a.png", b"\x89PNG" + b"0" * 40, "image/png")})
+    assert r.status_code == 404
+    assert "sổ" in r.json()["detail"].lower()
+    assert not (kho.duong.parent / "tai_san" / "SE001" / "chua_luu.png").exists(), \
+        "từ chối rồi thì đừng để lại file mồ côi"
+
+    r = c.post("/api/tap/SE001/so/co_that/ref",
+               files={"tep": ("a.png", b"\x89PNG" + b"0" * 40, "image/png")})
+    assert r.status_code == 200, r.text

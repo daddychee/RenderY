@@ -1211,3 +1211,13 @@ def test_khung_hinh_AN_duoc_ben_khong_chon(html):
     i = html.index(".khung-to img")
     assert "[hidden]" in html[i:i + 400], (
         "phải có luật riêng cho [hidden], không thì display:block đè mất")
+
+
+def test_tai_ref_LUU_SO_truoc_khi_tai(html):
+    """Cùng bẫy với `sinhAsset` và `sinhRef`: asset vừa tạo chỉ sống trong trình
+    duyệt. Tải ref lên mà chưa lưu sổ thì `napSo()` sau đó nạp đè và nuốt mất
+    mục mới — file lên đĩa mà màn hình trống (user báo 26/09)."""
+    i = html.index("async function taiRef(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "luuSoLen(" in than
+    assert than.index("luuSoLen(") < than.index("fetch("), "lưu rồi mới tải lên"

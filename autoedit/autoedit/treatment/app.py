@@ -457,6 +457,14 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         """Nhận file ref của một tài sản. Đọc THEO KHÚC và đếm dọc đường: đọc
         cả file vào bộ nhớ rồi mới kiểm cỡ là mở cửa cho một lần tải 10GB."""
         _ghi_duoc(request)
+        # Phải CÓ TRONG SỔ mới nhận. Đo 26/09: user tạo một bối cảnh mới rồi
+        # tải ref lên ngay, trước khi lưu sổ. Máy chủ nhận 200 và ghi file,
+        # nhưng mục đó chưa bao giờ được lưu — trang nạp lại sổ là nuốt mất nó.
+        # File thành mồ côi, màn hình trống, user tưởng tải lên hỏng.
+        if not any(x["ma"] == ma for x in kho.ds_so(tap)):
+            raise HTTPException(
+                404, "Asset này chưa có trong sổ — đặt tên và bấm Lưu trước, "
+                     "rồi mới tải ref lên.")
         duoi = Path(tep.filename or "").suffix.lower()
         try:
             dich = kho.duong_ref(tap, ma, duoi)
