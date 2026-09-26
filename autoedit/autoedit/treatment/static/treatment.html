@@ -227,6 +227,13 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .chip.thieu{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
 .cham{width:9px;height:9px;border-radius:50%;display:inline-block}
 .canh-bao{color:var(--warn);font-weight:700}
+.hop-anh{max-width:95vw;max-height:94vh;display:flex;flex-direction:column;gap:10px;
+  align-items:center}
+.hop-anh img{max-width:95vw;max-height:84vh;object-fit:contain;border-radius:10px;
+  background:var(--panel)}
+.hop-anh .thanh{display:flex;gap:9px;align-items:center}
+.hop-anh a.chinh{text-decoration:none;display:inline-block}
+.bam-duoc{cursor:zoom-in}
 .nen{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;
   justify-content:center;padding:24px;z-index:9}
 .nen.mo{display:flex}
@@ -394,6 +401,11 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 
 <div class="nen" id="nenCanh" onclick="if(event.target===this) dongCanh()">
   <div class="hop" id="hopCanh"></div>
+</div>
+
+<div class="nen" id="nenAnh" style="z-index:10"
+     onclick="if(event.target===this) dongAnh()">
+  <div class="hop-anh" id="hopAnh"></div>
 </div>
 
 <footer>
@@ -1085,7 +1097,9 @@ function moCanh(ma){
       (ds[k+1] ? ds[k+1].ma : "") + '\')">sau ›</button>' +
     '<button class="x" onclick="dongCanh()">✕</button></div>' +
     '<div class="hop-than"><div>' +
-      '<div class="to ' + lopTong(x) + (x.anh ? '' : ' trong') + '">' +
+      '<div class="to ' + lopTong(x) + (x.anh ? ' bam-duoc' : ' trong') + '"' +
+      (x.anh ? ' title="Bấm để xem cỡ lớn" onclick="xemAnh(\'' + duongAnh(x) +
+               '\', \'canh-' + x.ma + '.png\')"' : '') + '>' +
       (x.anh ? '<img src="' + duongAnh(x) + '">' : '16:9<br>chưa có ảnh') + '</div>' +
       (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
         '<button onclick="createPrompt(event)">' +
@@ -1428,7 +1442,9 @@ function oTongTap(x){
 }
 function oRef(x){
   var co = x.ref, d = duongRef(x.ma);
-  return '<div class="ts-hang"><div class="ts-anh' + (co ? ' co' : '') + '">' +
+  return '<div class="ts-hang"><div class="ts-anh' + (co ? ' co bam-duoc' : '') +
+    '"' + (co ? ' title="Bấm để xem cỡ lớn" onclick="xemAnh(\'' + d + '\', \'ref-' +
+    x.ma + '.png\')"' : '') + '>' +
     (co ? '<img src="' + d + '">' : 'chưa có<br>ref') + '</div><div>' +
     '<div class="ghi" style="margin:0">' + (co
       ? 'Đã có ref — bấm chuột phải vào ảnh để lưu rồi kéo sang Gemini/Veo.'
@@ -1564,6 +1580,22 @@ async function chotSo(){
   dongCanh(); veLocNhanSu(); veSb();
 }
 
+/* Xem ảnh cỡ lớn + tải xuống (user chốt 26/09). Ref là bảng nhiều góc
+   2560x1440 — nhìn trong ô 92px thì không soi nổi chi tiết nào, mà soi chi
+   tiết chính là việc của một tấm ref. */
+function xemAnh(src, ten){
+  document.getElementById("hopAnh").innerHTML =
+    '<img src="' + src + '">' +
+    '<div class="thanh"><a class="chinh" href="' + src + '" download="' +
+    thoat(ten) + '">↓ Tải xuống</a>' +
+    '<button class="cp" onclick="dongAnh()">✕ Đóng</button></div>';
+  document.getElementById("nenAnh").classList.add("mo");
+}
+function dongAnh(){
+  document.getElementById("nenAnh").classList.remove("mo");
+  document.getElementById("hopAnh").innerHTML = "";
+}
+
 function dongCanh(){
   // Quên luôn cảnh đang mở: giữ lại thì chỗ nào vẽ theo biến đó cũng dựng hộp
   // dậy sau khi người ta đã bấm Esc (đo Chrome 24/09).
@@ -1630,6 +1662,12 @@ function chepPrompt(b){
   setTimeout(function(){ b.textContent = "⧉ Copy"; }, 1400);
 }
 document.addEventListener("keydown", function(e){
+  // Lớp ảnh nằm TRÊN hộp cảnh nên phải xét trước: rơi xuống `dongCanh` là đóng
+  // nhầm lớp, người dùng mất luôn hộp đang xem.
+  if(document.getElementById("nenAnh").classList.contains("mo")){
+    if(e.key === "Escape") dongAnh();
+    return;
+  }
   if(!document.getElementById("nenCanh").classList.contains("mo")) return;
   if(e.key === "Escape") return dongCanh();
   var ds = canhTrongPham(dungCanhTap()), k = -1;

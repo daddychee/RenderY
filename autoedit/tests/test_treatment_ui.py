@@ -1013,3 +1013,35 @@ def test_duong_anh_REF_mang_TEM_PHIEN_BAN(html):
     i = html.index("function duongRef(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "?v=" in than and "ref_v" in than
+
+
+# ═══════ 26/09: bấm ảnh để xem cỡ lớn + tải xuống ════════════════════════════
+def test_co_khung_XEM_ANH_lon(html):
+    """User 26/09. Ref là bảng nhiều góc 2560x1440 — nhìn trong ô 92px thì
+    không soi nổi chi tiết nào, mà soi chi tiết chính là việc của một tấm ref."""
+    assert 'id="nenAnh"' in html
+    assert "function xemAnh(" in html and "function dongAnh(" in html
+
+
+def test_khung_xem_anh_cho_TAI_XUONG(html):
+    i = html.index("function xemAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "download=" in than, "phải có link tải xuống, không bắt chuột phải"
+
+
+def test_bam_duoc_vao_ref_va_anh_canh(html):
+    """Cả hai chỗ đang hiện ảnh nhỏ đều phải mở được cỡ lớn."""
+    i = html.index("function oRef(")
+    assert "xemAnh(" in html[i:html.index(chr(10) + "}", i)], "ô ref phải bấm được"
+    j = html.index("function moCanh(")
+    assert "xemAnh(" in html[j:html.index(chr(10) + "}", j)], "ảnh cảnh phải bấm được"
+
+
+def test_ESC_dong_duoc_khung_anh(html):
+    """Khung ảnh đè lên hộp cảnh; Esc mà rơi xuống `dongCanh` thì đóng nhầm
+    lớp, người dùng mất luôn hộp đang xem."""
+    i = html.index('document.addEventListener("keydown"')
+    than = html[i:html.index(chr(10) + "});", i)]
+    assert "nenAnh" in than
+    assert than.index("nenAnh") < than.index("nenCanh"), (
+        "phải xét lớp ảnh TRƯỚC lớp hộp cảnh")
