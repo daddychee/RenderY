@@ -79,46 +79,63 @@ Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "ly_do": "..."}], \
 
 # Ngữ pháp cỡ cảnh và luật chống sai nghĩa lấy từ `director/prompts.py` — bộ
 # đạo diễn của padoma đã chạy thật, không viết lại từ đầu.
+# Trần nhà cung cấp, đo 26/09: 20 s bị từ chối. MỘT nguồn cho cả máy chủ lẫn
+# trang: đo 27/09 ba nơi hai con số (lệnh LLM 5 s · máy chủ 15 s · trang 5 s)
+# là lý do `pv` viết cho 5 giây rồi 5 giây cuối clip đứng hình.
+GIAY_VIDEO = 15
+
 _LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
 
 Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
-bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, và ASSET người \
-dùng đã gán cho cảnh đó (nếu có).
+bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, KHUNG HÌNH \
+người dựng ĐÃ CHỌN (cỡ cảnh + góc máy, bằng tiếng Anh), và ASSET đã gán cho cảnh \
+(nếu có).
+
+KHUNG LÀ CỦA NGƯỜI DỰNG, BẠN KHÔNG ĐỔI. Đo thật 27/09: để LLM chọn cỡ, góc, máy \
+thì nó chép danh sách ví dụ theo đúng thứ tự liệt kê — đó không phải quyết định \
+dựng hình. Mọi chữ bạn viết phải NHẤT QUÁN với khung đã cho: cỡ cận thì tả chi \
+tiết ở tầm cận, góc từ trên thì mọi thứ nhìn từ trên xuống, POV thì người nhìn \
+không xuất hiện trong khung. Đo 27/09: chữ tả từ dưới nhìn lên ghép với khung \
+"top-down" thì ảnh vẫn từ dưới, 0/3; chữ viết theo khung thì 3/3.
 
 ASSET ĐÃ CÓ CHỖ LO RỒI — ĐỪNG TẢ LẠI. Hệ thống tự ghim asset vào lượt vẽ, bằng \
-ẢNH THAM CHIẾU hoặc bằng chính đoạn mô tả bạn đang đọc. Nên trong `pa` bạn KHÔNG \
-tả lại chúng: không nhắc lại chất liệu, màu sơn, niên đại, kết cấu hay chi tiết \
-ngoại hình của asset. Gọi nó bằng một cụm danh từ ngắn là đủ ("the elevator \
-gate", "the captain"). Chỉ tả HÀNH ĐỘNG, tư thế, vị trí trong khung, và những \
-thứ KHÔNG thuộc asset nào.
-
-Đo thật 26/09 trên tập đang chạy: `pa` tả lại asset trung bình 26%, cao nhất 55% \
-— prompt phình lên 137 từ mà chủ thể thật chỉ chiếm ~12 từ, phần còn lại tả căn \
-phòng. Nhà AI cân theo đúng tỉ lệ đó: nó vẽ căn phòng, chủ thể thành phụ kiện. \
-Cắt phần tả lại đi thì ra đúng khuôn hình ngay lượt đầu.
+ẢNH THAM CHIẾU hoặc bằng chính đoạn mô tả bạn đang đọc. Nên trong `pa` bạn KHÔNG tả lại chúng. Gọi nó bằng một cụm danh \
+từ ngắn ("the captain", "the elevator gate"). Không nhắc lại chất liệu, màu sơn, \
+niên đại, trang phục, tuổi, kết cấu hay chi tiết ngoại hình của asset.
 
 Với MỖI cảnh, trả về:
-- `pa`: prompt TIẾNG ANH tả khung hình tĩnh của cảnh đó. Tả cái NHÌN THẤY: chủ \
-thể, hành động, ánh sáng. Bối cảnh và chất liệu CHỈ tả khi cảnh không có asset \
-nào lo phần đó. KHÔNG thêm câu về phong cách hay mood — phần đó hệ thống tự ghép.
-  · Cảnh CÓ asset: giữ `pa` khoảng 20-40 từ.
-  · Cảnh KHÔNG có asset: tả đủ, khoảng 40-70 từ.
-- `pv`: prompt TIẾNG ANH tả CHUYỂN ĐỘNG cho một clip liền mạch 5 giây, không \
-chuyển cảnh. Chuyển động ĐƠN GIẢN thôi.
-- `co`: cỡ cảnh, chỉ nhận WS | MS | CU | ECU | AERIAL
-- `goc`: góc máy, tiếng Anh ngắn (eye level, low angle, top down…)
-- `cd`: chuyển động camera, tiếng Anh ngắn (static, slow push in, pan left…)
-- `sfx`: gợi ý tiếng động, tiếng Anh ngắn
+- `lap`: CÁI GÌ LẤP KHUNG — tiếng Anh, 8-15 từ, đúng cỡ đã cho. Cỡ cận: "the \
+captain's face and cap, the rung and his gripping hand at the frame edge". Cỡ \
+rộng: "the captain full-length on the ladder, the hatch and compartment above \
+him". Hệ thống ghép thành câu ĐẦU prompt: "{khung}: {lap}."
+- `pa`: BỐN đoạn tiếng Anh nối liền, theo thứ tự, tả khung hình tĩnh:
+  1. chủ thể + HÀNH ĐỘNG cụ thể đang xảy ra — cơ học của động tác (tay nào nắm \
+đâu, chân ở bậc nào, thân nghiêng thế nào), 20-35 từ. Không phải trạng thái \
+chung chung như "climbing" hay "standing".
+  2. VỊ TRÍ chủ thể trong khung và thứ gì quanh nó ở đâu, theo đúng góc máy, \
+8-15 từ. Cỡ cận thì nêu cả thứ ở sau lưng chủ thể (đo 27/09: khung chật mà không \
+nói nền là nền trắng của ảnh tham chiếu rò vào).
+  3. ÁNH SÁNG: NGUỒN sáng ở đâu, chiếu hướng nào, soi vào đâu, 8-15 từ. CẤM mọi \
+từ chỉ màu, bảng màu, nhiệt độ màu, độ tương phản, grade — việc đó của khối tông \
+ghép phía sau. Đo 26/09: "muted cold blue-grey tones" trong `pa` làm hai cảnh \
+cạnh nhau lệch màu hẳn.
+  4. một CHI TIẾT chỉ có ở khoảnh khắc này, 5-12 từ.
+  Không có trần số từ: thà dài mà cụ thể còn hơn ngắn mà rỗng — đo 26/09, `pa` \
+24 từ ra chân dung đặt dáng, 61 từ ra đúng hành động 3/3. Bối cảnh CHỈ tả khi \
+cảnh không có asset nào lo phần đó. KHÔNG câu nào về phong cách hay mood.
+- `pv`: chuyển động của CHỦ THỂ cho một clip liền mạch __GIAY__ giây, chia 2-3 \
+nhịp CÓ MỐC GIÂY ("0-5 s: … 5-10 s: … 10-15 s: …"), hành động phải còn tới giây \
+cuối — đo 27/09, viết cho 5 s thì 5 s cuối clip đứng hình. KHÔNG tả chuyển động \
+MÁY: người dựng chọn riêng, hệ thống ghép vào đầu prompt.
+- `sfx`: gợi ý tiếng động, tiếng Anh ngắn.
 
 Luật:
-- Cỡ cảnh: wide mở đầu/tả bối cảnh · medium kể chuyện · close-up nhấn cảm xúc. \
-KHÔNG cho 3 cảnh liền nhau cùng một cỡ.
 - Lời đọc mang ẩn dụ thì ĐỪNG quay chữ bề mặt của ẩn dụ — bám chủ thể thật của \
 câu chuyện. Đây là lỗi sai nghĩa nặng nhất.
 - Trả ĐÚNG số mục, ĐÚNG thứ tự như nhận vào. Không gộp, không bỏ.
 
-Trả về JSON: {"canh": [{"id": "...", "pa": "...", "pv": "...", "co": "...", \
-"goc": "...", "cd": "...", "sfx": "..."}]}"""
+Trả về JSON: {"canh": [{"id": "...", "lap": "...", "pa": "...", "pv": "...", \
+"sfx": "..."}]}""".replace("__GIAY__", str(GIAY_VIDEO))
 
 
 _LENH_ASSET = """Bạn viết HỒ SƠ NHẬN DẠNG cho một tài sản trong storyboard.

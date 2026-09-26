@@ -439,7 +439,9 @@ def test_canh_khong_co_cot_ky_thuat_thi_prompt_van_sach(tmp_path):
     ve = VeGia()
     c, kho = _bo_tran(tmp_path, ve)
     c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
-    assert ve.goi[0].startswith("16:9 ratio. EN can ban tay")
+    assert ve.goi[0].startswith("EN can ban tay"), (
+        "chưa có khung thì prompt bắt đầu thẳng bằng `pa`, không dấu lạc, "
+        "không '16:9 ratio.' — cỡ khung đã đi bằng tham số size")
 
 
 # ─────────────────────── ẢNH REF đi vào lượt vẽ cảnh (user chốt 26/09)
@@ -639,3 +641,43 @@ def test_prompt_tay_LUU_XUONG_KHO_va_doc_lai_duoc(tmp_path):
     kho.luu("SE001", "H", d, "", "thu")
     x = kho.doc("SE001", "H")["dong"][0]["canh"][0]
     assert x.get("pat") == "AAA" and x.get("pvt") == "BBB"
+
+
+# ═══════ 27/09: câu KHUNG đứng đầu — "{cỡ}, {góc}: {cái gì lấp khung}" ═══════
+# Đo (trang ⑬): prompt hôm nay "16:9 ratio. Close-up, eye level." + pa: WS/MS/ECU
+# ra 9 tấm một cỡ (0/9). Câu KHUNG đứng đầu kèm "cái gì lấp khung": EWS 3/3,
+# WS 3/3; khi LLM viết đoạn 2–5 theo khung: CU 3/3, ECU 3/3, top 3/3, POV 3/3.
+
+def test_KHUNG_dung_DAU_prompt_kem_cai_gi_lap_khung(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0].update({"co": "CU", "goc": "low",
+                            "lap": "the captain's face and cap"})
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    p = ve.goi[0]
+    assert p.startswith("Close-up, low angle, camera below the subject looking up: "
+                        "the captain's face and cap. EN can ban tay"), p
+    assert "16:9 ratio" not in p
+
+
+def test_goc_may_MA_dich_ra_CHU_da_do_va_goc_CU_tu_do_van_qua(tmp_path):
+    """Mã mới (`low`, `top`…) dịch ra đúng câu đã đo 3/3. Dữ liệu cũ ghi chữ
+    tự do ("eye level, straight-on") thì đi nguyên — không migrate."""
+    from autoedit.treatment.app import GOC_CHU
+    for ma in ("eye", "low", "high", "bird", "top", "ots", "pov"):
+        assert ma in GOC_CHU
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0].update({"co": "MS", "goc": "top"})
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.goi[0].startswith("Medium shot, top-down shot, camera directly overhead")
+
+
+def test_co_canh_co_them_MCU_va_EWS(tmp_path):
+    from autoedit.treatment.app import CO_CHU, CO_HOP_LE
+    assert CO_CHU["MCU"] == "medium close-up" and CO_CHU["EWS"] == "extreme wide shot"
+    assert "MCU" in CO_HOP_LE and "EWS" in CO_HOP_LE

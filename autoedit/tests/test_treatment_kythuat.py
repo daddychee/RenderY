@@ -80,7 +80,7 @@ def test_chi_dung_dung_canh_duoc_goi(bo):
     c, kho, _ = bo
     assert _goi(c, kho, 0).status_code == 200
     cs = _cs(kho)
-    assert cs[0]["pa"] and cs[0]["pv"] and cs[0]["co"]
+    assert cs[0]["pa"] and cs[0]["pv"]
     assert not cs[1].get("pa"), "không được đụng cảnh bên cạnh"
 
 
@@ -111,20 +111,85 @@ def test_KHONG_tu_chon_tong(bo):
     assert "tong" not in _cs(kho)[0]
 
 
-def test_dien_du_cot_ky_thuat(bo):
+def test_dien_sfx_va_lap_khung(bo):
     c, kho, _ = bo
     _goi(c, kho)
     x = _cs(kho)[0]
-    assert x["co"] == "CU" and x["goc"] and x["cd"] and x["sfx"]
+    assert x["sfx"]
 
 
-def test_co_canh_la_bi_bo(tmp_path):
-    """Cỡ cảnh ngoài bảng thì bỏ — chip trên thẻ chỉ nhận WS/MS/CU/ECU/AERIAL."""
+# ═══════ 27/09: NGƯỜI đặt khung, LLM viết chữ theo khung ════════════════════
+# Đo 27/09 (trang ⑩): LLM chọn cỡ/góc/máy thì chép danh sách ví dụ theo thứ tự
+# liệt kê — static 48%, eye level 53%. Đó là mỏ neo, không phải quyết định dựng
+# hình. Đo tiếp (trang ⑬): khi người đặt khung và LLM viết đoạn 2–5 THEO khung,
+# cận/cực cận/từ đỉnh/POV đều 3/3; giữ nguyên đoạn cũ thì 0/3.
+
+def test_LLM_KHONG_duoc_ghi_de_CO_GOC_CD_nguoi_da_chon(tmp_path):
+    """LLM giả cố trả `co`/`goc`/`cd` khác — máy chủ phải LỜ ĐI."""
     kt = KyThuatGia(tra=lambda m, t: [{"id": m[0]["id"], "pa": "x", "pv": "y",
-                                       "co": "SIEU_RONG"}])
+                                       "co": "WS", "goc": "top", "cd": "pan_left",
+                                       "sfx": "s", "lap": "the hand on the rung"}])
+    c, kho = _dung(tmp_path, kt, canh=("a",))
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0].update({"co": "CU", "goc": "low", "cd": "push_in"})
+    kho.luu("SE001", "H", d, "", "thu")
+    _goi(c, kho)
+    x = _cs(kho)[0]
+    assert (x["co"], x["goc"], x["cd"]) == ("CU", "low", "push_in")
+    assert x["lap"] == "the hand on the rung", "`lap` là chữ LLM viết, phải nhận"
+
+
+def test_chua_chon_khung_thi_MAC_DINH_MS_eye_va_LLM_thay_khung_do(tmp_path):
+    """Chưa chọn thì máy đặt MS · eye level (không phải LLM đoán), ghi xuống để
+    nút sáng lên trên hộp cảnh, và LLM viết đoạn 2–5 cho ĐÚNG khung đó."""
+    nhan = []
+    kt = KyThuatGia(tra=lambda m, t: (nhan.append(m), [{"id": m[0]["id"], "pa": "x",
+                                                        "pv": "y"}])[1])
     c, kho = _dung(tmp_path, kt, canh=("a",))
     _goi(c, kho)
-    assert "co" not in _cs(kho)[0]
+    x = _cs(kho)[0]
+    assert x["co"] == "MS" and x["goc"] == "eye"
+    assert "khung" in nhan[0][0] and "medium shot" in nhan[0][0]["khung"].lower()
+
+
+def test_lenh_KHONG_con_luat_3_canh_cung_co():
+    """`create_prompt` gửi ĐÚNG MỘT cảnh — LLM không thấy cảnh bên cạnh, luật
+    "không 3 cảnh liền nhau cùng cỡ" là luật chết. Và LLM không còn chọn cỡ."""
+    from autoedit.treatment.dich import _LENH_KY_THUAT as L
+    assert "3 cảnh liền nhau" not in L and "cùng một cỡ" not in L
+    assert "WS | MS" not in L, "LLM không còn chọn cỡ cảnh"
+
+
+def test_lenh_noi_dung_15_GIAY_khong_phai_5():
+    """Đo 27/09: `pv` viết cho 5 s, clip 15 s → 5 s cuối đứng hình (clip 10.1).
+    Một nguồn: `dich.GIAY_VIDEO`, máy chủ và trang đọc từ đó."""
+    from autoedit.treatment import dich
+    assert dich.GIAY_VIDEO == 15
+    import re
+    assert "15 giây" in dich._LENH_KY_THUAT
+    # "5 giây" đứng riêng (không phải đuôi của "15 giây")
+    assert re.search(r"(?<![0-9])5 giây", dich._LENH_KY_THUAT) is None
+
+
+def test_lenh_CAM_tu_chi_mau_trong_pa_va_doi_4_doan():
+    """10.2 lệch màu với 10.1 vì `pa` tự viết "muted cold blue-grey tones" —
+    việc của tông. Ánh sáng = NGUỒN + HƯỚNG, không phải màu."""
+    from autoedit.treatment.dich import _LENH_KY_THUAT as L
+    assert "màu" in L and ("CẤM" in L or "KHÔNG" in L)
+    for k in ("hành động", "vị trí", "nguồn", "chi tiết"):
+        assert k in L.lower() or k in L
+    assert "20-40" not in L and "40-70" not in L, "bỏ trần từ (đo ⑨: trần bỏ đói prompt)"
+
+
+def test_than_goi_LLM_mang_KHUNG_cua_canh(tmp_path):
+    """Khung phải đi vào thân gọi bằng CHỮ nhà AI hiểu, không phải mã."""
+    from autoedit.treatment import dich
+    llm = dich.LLM()
+    ghi = {}
+    llm.goi = lambda he, than: (ghi.setdefault("than", than), {"canh": []})[1]
+    llm.ky_thuat([{"id": "c1", "voice": "v", "canh": "t", "thu_tu": "1/1",
+                   "khung": "Close-up, low angle: the hand"}], [])
+    assert "Close-up, low angle: the hand" in ghi["than"]
 
 
 # ------------------------------------------------------- asset

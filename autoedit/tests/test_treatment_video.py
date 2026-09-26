@@ -279,9 +279,13 @@ def test_prompt_video_may_chu_KHOP_cong_thuc_cua_trang(tmp_path):
                     for m in (x.get("ts") or []) if so.get(m, {}).get("chu"))
     if mo_ta:
         mo_ta += "\n"
+    # Đo 27/09 (trang ⑬ mục 7): câu máy ở GIỮA thì pan/truck đứng yên 0/1; đặt
+    # LÊN ĐẦU + tả hệ quả trên khung thì truck 3/3, pan 2/3. Dữ liệu cũ `cd` là
+    # chữ tự do -> "Camera: <cd>." vẫn đứng đầu.
     may = "Medium shot, low angle"
     tong = so["toi"]["chu"] + " " + so["toi"]["tb"]
-    cho_doi = (x["pv"] + "\nCamera: " + x["cd"] + ". " + may + "."
+    cho_doi = ("Camera: " + x["cd"] + ". " + may + ". Continue this camera move "
+               "for the full 15 seconds.\n" + x["pv"]
                + "\nOne continuous shot, no cuts.\n\n" + mo_ta + tong
                + " Sound: " + x["sfx"] + ". No background music.")
     assert vv.goi[0]["prompt"] == cho_doi
@@ -408,3 +412,23 @@ def test_canh_chua_co_pv_nhung_co_prompt_tay_thi_VAN_dung_duoc(tmp_path):
     d[0]["canh"][0]["pvt"] = "EN motion tay viet"
     kho.luu("SE001", "H", d, "", "thu")
     assert c.post(f"/api/tap/SE001/H/canh/{ma}/video").status_code == 200
+
+
+# ═══════ 27/09: động tác máy — chỉ bày thứ đo ra chạy, câu máy đứng đầu ═════
+def test_ma_dong_tac_dich_ra_CAU_DA_DO(tmp_path):
+    """`push_in` -> đúng câu đã đo 3/3, đứng ĐẦU prompt video."""
+    from autoedit.treatment.app import CD_CHU
+    for ma in ("static", "push_in", "pull_out", "tilt_up", "tilt_down", "track",
+               "truck_left", "truck_right", "pan_left", "pan_right"):
+        assert ma in CD_CHU, ma
+    for cam in ("handheld", "boom", "dolly_zoom"):
+        assert cam not in CD_CHU, "%s đo 0/2 — không bày nút chết" % cam
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["cd"] = "push_in"
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    p = vv.goi[0]["prompt"]
+    assert p.startswith(CD_CHU["push_in"]), p
+    assert "full 15 seconds" in p

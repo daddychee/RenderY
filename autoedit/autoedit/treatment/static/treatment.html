@@ -887,7 +887,9 @@ function ghiNho(){
 /* Một clip image-to-video là 5 giây (Seedance). Tool biết voice dài bao nhiêu
    nên nó nói được "phân cảnh này 38 giây chia 5 cảnh = 7,6s/cảnh, dài hơn một
    clip" — thứ chat AI không biết vì nó không giữ kịch bản. */
-var GIAY_CLIP = 5;
+// CÙNG SỐ với `dich.GIAY_VIDEO` (canh bằng test tĩnh). Đo 27/09: ba nơi hai
+// con số (5 / 15 / 5) là lý do `pv` viết cho 5 s rồi 5 s cuối clip đứng hình.
+var GIAY_CLIP = 15;
 var TU_MOI_GIAY = 2.6;
 
 /* ─── SỔ dùng chung cả tập: tông · tài sản · phân nhân sự ─── */
@@ -951,21 +953,71 @@ function moTaTaiSan(x){
    `pv` là bản LLM đã dịch; chưa sinh thì tạm dùng chữ Việt và BÁO RÕ, đừng để
    người ta copy nhầm một prompt nửa Việt nửa Anh rồi trách nhà AI. */
 function chuaDich(x){ return !(x.pa || "").trim(); }
-/* Mã cỡ cảnh -> chữ nhà AI hiểu. CÙNG BẢNG với `CO_CHU` bên Python. Gửi "ECU"
-   trần là gửi một mã nội bộ cho nhà AI đoán. */
-var CO_CHU = {WS: "wide shot", MS: "medium shot", CU: "close-up",
-              ECU: "extreme close-up", AERIAL: "aerial shot"};
+/* Ba bảng mã -> chữ nhà AI hiểu. CÙNG BẢNG với `CO_CHU` / `GOC_CHU` / `CD_CHU`
+   bên Python, canh bằng test tĩnh từng chữ — lệch một chữ là hộp cảnh bày một
+   prompt, máy chủ gửi một prompt khác.
+   Đo 27/09 (trang ⑬): câu chữ của góc và động tác là thứ ĐÃ ĐO ra chạy; CD_CHU
+   chỉ có động tác Seedance làm được — không có handheld/boom/dolly zoom (0/2). */
+var CO_CHU = {EWS: "extreme wide shot", WS: "wide shot", MS: "medium shot",
+              MCU: "medium close-up", CU: "close-up", ECU: "extreme close-up",
+              AERIAL: "aerial shot"};
+var GOC_CHU = {
+  eye: "eye level",
+  low: "low angle, camera below the subject looking up",
+  high: "high angle, camera above the subject looking down",
+  bird: "bird's-eye view, from high above at a steep downward angle",
+  top: "top-down shot, camera directly overhead looking straight down",
+  ots: "over-the-shoulder shot, from behind a second person's shoulder in the foreground",
+  pov: "POV shot, first-person view from the subject's own eyes, the subject not visible"
+};
+var CD_CHU = {
+  static: "The camera holds perfectly still.",
+  push_in: "The camera pushes in slowly and steadily toward the subject.",
+  pull_out: "The camera pulls out slowly and steadily away from the subject.",
+  tilt_up: "The camera tilts slowly upward.",
+  tilt_down: "The camera tilts slowly downward.",
+  track: "The camera tracks the subject, following its movement.",
+  truck_left: "The camera trucks to the left: it slides sideways on a rail, the scene drifting rightward across the frame with parallax.",
+  truck_right: "The camera trucks to the right: it slides sideways on a rail, the scene drifting leftward across the frame with parallax.",
+  pan_left: "The camera pans slowly to the left, the whole scene sweeping rightward across the frame.",
+  pan_right: "The camera pans slowly to the right, the whole scene sweeping leftward across the frame.",
+  whip_pan: "A fast whip pan to the right with heavy motion blur, snapping to a new framing.",
+  crash_zoom: "A sudden, very fast zoom in on the subject.",
+  arc: "The camera arcs slowly around the subject.",
+  orbit: "The camera orbits around the subject."
+};
+/* Nhãn tiếng Việt cho nút và chip. Ghi chú của động tác = số đo (trang ⑬). */
+var NHAN_CO = {EWS: "toàn cảnh", WS: "rộng", MS: "trung", MCU: "trung-cận", CU: "cận",
+               ECU: "cực cận", AERIAL: "trên không"};
+var GOI_CO = {EWS: "người rất nhỏ", WS: "cả người", MS: "từ thắt lưng", MCU: "ngang ngực",
+              CU: "mặt / bàn tay", ECU: "mắt, ngón, chi tiết", AERIAL: "từ trên cao"};
+var NHAN_GOC = {eye: "ngang mắt", low: "ngước lên", high: "cúi xuống", bird: "bird view",
+                top: "từ đỉnh", ots: "qua vai", pov: "POV"};
+var NHAN_CD = {static: "tĩnh", push_in: "đẩy vào", pull_out: "kéo ra", tilt_up: "ngước lên",
+               tilt_down: "cúi xuống", track: "theo chủ thể", truck_left: "trượt trái",
+               truck_right: "trượt phải", pan_left: "lia trái", pan_right: "lia phải",
+               whip_pan: "lia giật", crash_zoom: "zoom giật", arc: "vòng cung", orbit: "quay quanh"};
+var GHI_CD = {pan_left: "2/3", pan_right: "2/3", whip_pan: "rồi đứng yên", crash_zoom: "dồn về cuối",
+              arc: "vòng lỏng", orbit: "vòng lỏng"};
 /* Cỡ cảnh + góc máy thành một mệnh đề. Đo 25/09: 49/49 cảnh có prompt EN đều
    đã đủ bốn cột kỹ thuật, hiện rành rành trên thẻ, mà prompt không mang chữ
    nào — LLM tuân thủ luật "không 3 cảnh liền nhau cùng cỡ" để rồi vô ích. */
-function mayQuay(x){
-  var p = [CO_CHU[(x.co || "").toUpperCase()] || "", (x.goc || "").trim()]
+/* Câu KHUNG — "{cỡ}, {góc}: {cái gì lấp khung}." — đứng ĐẦU prompt. CÙNG LUẬT
+   với `_khung()` bên Python. `goc` cũ là chữ tự do thì đi nguyên. Chưa có cột
+   nào thì rỗng: prompt bắt đầu thẳng bằng `pa`. Không còn "16:9 ratio." mở đầu —
+   cỡ khung đi bằng tham số size, và mọi cấu hình đo ra chạy đều không có nó. */
+function khungCanh(x){
+  var g = (x.goc || "").trim();
+  var d = [CO_CHU[(x.co || "").toUpperCase()] || "", GOC_CHU[g] || g]
             .filter(function(o){ return o; }).join(", ");
-  return p ? p.charAt(0).toUpperCase() + p.slice(1) : "";
+  if(!d) return "";
+  d = d.charAt(0).toUpperCase() + d.slice(1);
+  var lap = (x.lap || "").trim();
+  return lap ? d + ": " + lap + "." : d + ".";
 }
 function ghepPromptAnh(x){
-  var m = mayQuay(x);
-  return "16:9 ratio. " + (m ? m + ". " : "") + (x.pa || x.t) +
+  var k = khungCanh(x);
+  return (k ? k + " " : "") + (x.pa || x.t) +
          "\n\n" + moTaTaiSan(x) + boiler(x.tong);
 }
 /* `pat`/`pvt` = bản người dùng SỬA TAY, ĐÈ HẲN bản tự ghép (user chốt 26/09:
@@ -976,11 +1028,14 @@ function promptAnh(x){ return (x.pat || "").trim() || ghepPromptAnh(x); }
 /* Chuyển động máy lấy từ CHÍNH CẢNH. Câu "Simple camera motion only" chỉ còn
    là đường lui khi cảnh chưa có `cd` — trước đây nó ĐÈ LÊN mọi cảnh, nên cảnh
    ghi "slow push in" mất hẳn còn cảnh "static" thành lời khuyên mơ hồ. */
+/* Câu MÁY đứng ĐẦU (đo ⑬ mục 7: ở giữa thì pan/truck đứng yên, lên đầu thì
+   truck 3/3). Mã mới -> câu đã đo; `cd` cũ là chữ tự do -> "Camera: <cd>." vẫn
+   đứng đầu; không có -> câu chung như trước. CÙNG LUẬT với `_prompt_video`. */
 function ghepPromptVideo(x){
-  var m = mayQuay(x), cd = (x.cd || "").trim(), sfx = (x.sfx || "").trim();
-  return (x.pv || x.t) + "\n" +
-         (cd ? "Camera: " + cd + "." : "Simple camera motion only.") +
-         (m ? " " + m + "." : "") +
+  var cd = (x.cd || "").trim(), sfx = (x.sfx || "").trim(), k = khungCanh(x);
+  var m = CD_CHU[cd] || (cd ? "Camera: " + cd + "." : "Simple camera motion only.");
+  return m + " " + (k ? k + " " : "") + "Continue this camera move for the full " +
+         GIAY_CLIP + " seconds.\n" + (x.pv || x.t) +
          "\nOne continuous shot, no cuts.\n\n" +
          moTaTaiSan(x) + boiler(x.tong) +
          (sfx ? " Sound: " + sfx + "." : "") + " No background music.";
@@ -1068,7 +1123,7 @@ function dungCanhTap(){
         // Gác bằng test đối chiếu thẳng với `KHOA_CANH` bên Python.
         ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
                  en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "",
-                 co: cn.co || "", ts: cn.ts || [], td: cn.td || "",
+                 co: cn.co || "", ts: cn.ts || [], td: cn.td || "", lap: cn.lap || "",
                  pa: cn.pa || "", pat: cn.pat || "", pvt: cn.pvt || "",
                  id: cn.id || "", duyet: cn.duyet || "",
                  anh: cn.anh || "",
@@ -1142,7 +1197,8 @@ function veTheCanh(){
                            : '')) + '</div>' +
          '<div class="chu">' + (x.t ? thoat(x.t) :
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
-         '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
+         '<div class="chan">' + chip(NHAN_CO[(x.co || "").toUpperCase()] || x.co, "cỡ") +
+         chip(NHAN_GOC[x.goc] || x.goc, "góc máy") + chip(NHAN_CD[x.cd] || x.cd, "chuyển động") +
          chip(x.sfx, "SFX") +
          (x.t && chuaDich(x)
             ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
@@ -1394,8 +1450,15 @@ function moCanh(ma){
       '<p class="nhan">Nội dung / hành động</p>' +
       '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
       thoat(x.t) + '</div>' +
+      '<p class="nhan">Khung hình<span class="nho" style="font-weight:400;' +
+      'text-transform:none;letter-spacing:0"> — cỡ + góc thành câu đầu prompt; ' +
+      '"cái gì lấp khung" máy gợi khi Create Prompt, sửa được</span></p>' +
+      veKhungCanh(x) +
+      '<p class="nhan">Chuyển động máy<span class="nho" style="font-weight:400;' +
+      'text-transform:none;letter-spacing:0"> — chỉ bày động tác đo ra chạy; ' +
+      'đứng đầu prompt video, kéo suốt ' + GIAY_CLIP + ' s</span></p>' +
+      veMayCanh(x) +
       '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' +
-      chip(x.co, "cỡ cảnh") + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
       chip(x.sfx, "SFX") + '</div>' +
       (chuaDich(x)
         ? '<div class="nhac" style="margin-top:8px">Prompt còn là <b>chữ Việt</b>' +
@@ -2102,6 +2165,57 @@ async function themTruongDoan(){
   bao("Đã tạo trường đoạn <b>" + thoat(ten.trim()) + "</b> và xếp cảnh này vào. " +
       "Giờ <b>vẽ khung master</b> cho nó thì mọi cú máy trong nhóm mới đứng " +
       "chung một không gian.");
+}
+
+/* ── KHUNG HÌNH & MÁY: người dựng chọn, LLM viết chữ theo ─────────────────────
+   Đo 27/09 (trang ⑩): để LLM chọn thì nó chép danh sách ví dụ theo thứ tự —
+   static 48%, eye level 53%. Đo tiếp (trang ⑬): người đặt khung, LLM viết đoạn
+   sau theo khung thì cận/cực cận/từ đỉnh/POV 3/3. Nút ở đây ghi thẳng vào cảnh;
+   Create Prompt đọc khung này, không đổi nó. */
+function nutMa(khoa, x, bang, nhan, goi, ghi){
+  var hien = (x[khoa] || "").trim(), h = "";
+  Object.keys(bang).forEach(function(m){
+    h += '<button class="' + (hien === m ? "on" : "") + '"' +
+         (SUA_DUOC ? '' : ' disabled') + ' onclick="datKhung(\'' + khoa + '\',\'' + m +
+         '\')" title="' + thoat(bang[m]) + '">' + nhan[m] +
+         (goi && goi[m] ? '<span class="nho"> · ' + goi[m] + '</span>' : '') +
+         (ghi && ghi[m] ? '<span class="nho"> ' + ghi[m] + '</span>' : '') + '</button>';
+  });
+  // Dữ liệu cũ: LLM từng ghi chữ tự do ("slow push in"). Vẫn gửi nguyên, bày ra
+  // để người dùng thấy và bấm nút thay.
+  if(hien && !bang[hien])
+    h += '<span class="chip" title="chữ cũ do LLM ghi — vẫn gửi nguyên; bấm nút để thay">cũ: ' +
+         thoat(hien) + '</span>';
+  return '<div class="hai" style="flex-wrap:wrap">' + h + '</div>';
+}
+function veKhungCanh(x){
+  return nutMa("co", x, CO_CHU, NHAN_CO, GOI_CO) +
+         '<div style="height:5px"></div>' +
+         nutMa("goc", x, GOC_CHU, NHAN_GOC) +
+         '<div class="hai" style="margin-top:7px;align-items:center;gap:8px">' +
+         '<span class="nho" style="white-space:nowrap">Cái gì lấp khung</span>' +
+         '<div class="o-sua" id="oLap" style="flex:1;min-height:32px;padding:5px 9px"' +
+         (SUA_DUOC ? ' contenteditable onblur="luuLap(this)"' : '') + '>' +
+         thoat(x.lap || "") + '</div></div>' +
+         '<div class="ghi" style="margin-top:4px">Câu đầu prompt sẽ là: <b>' +
+         thoat(khungCanh(x) || "(chưa chọn cỡ / góc)") + '</b></div>';
+}
+function veMayCanh(x){
+  return nutMa("cd", x, CD_CHU, NHAN_CD, null, GHI_CD);
+}
+function datKhung(khoa, ma){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  datKhoaCanh(x, khoa, (x[khoa] || "") === ma ? "" : ma);   // bấm lại là bỏ chọn
+  moCanh(canhDangMo);
+}
+function luuLap(o){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var moi = docChu(o).trim();
+  if(moi === (x.lap || "").trim()) return;
+  datKhoaCanh(x, "lap", moi);
+  moCanh(canhDangMo);
 }
 
 function veTongCanh(x){

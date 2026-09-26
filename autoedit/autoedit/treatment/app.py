@@ -153,11 +153,50 @@ TONG_MAC_DINH = [
 
 # Mã cỡ cảnh -> chữ nhà AI hiểu. `CO_HOP_LE` là bộ mã hợp lệ LLM được phép
 # trả về; bảng này là bản dịch ra ngôn ngữ của prompt.
-CO_CHU = {"WS": "wide shot", "MS": "medium shot", "CU": "close-up",
-          "ECU": "extreme close-up", "AERIAL": "aerial shot"}
+from autoedit.treatment.dich import GIAY_VIDEO
+
+CO_CHU = {"EWS": "extreme wide shot", "WS": "wide shot", "MS": "medium shot",
+          "MCU": "medium close-up", "CU": "close-up", "ECU": "extreme close-up",
+          "AERIAL": "aerial shot"}
 # Bộ mã hợp lệ suy ra từ chính bảng dịch: thêm một cỡ cảnh mà quên khai bản
 # dịch thì nó lọt vào dữ liệu rồi biến mất ở prompt, không ai thấy.
 CO_HOP_LE = tuple(CO_CHU)
+
+# Góc máy: mã -> câu tiếng Anh ĐÃ ĐO (trang ⑬, 27/09). eye/low 3/3 · high 2/3 ·
+# top/POV 3/3 và bird 2/3 khi đoạn sau viết theo khung · OTS 1/3. Dữ liệu cũ ghi
+# chữ tự do ("eye level, straight-on") thì đi nguyên — không migrate.
+# CÙNG BẢNG với `GOC_CHU` bên trang, canh bằng test tĩnh.
+GOC_CHU = {
+    "eye": "eye level",
+    "low": "low angle, camera below the subject looking up",
+    "high": "high angle, camera above the subject looking down",
+    "bird": "bird's-eye view, from high above at a steep downward angle",
+    "top": "top-down shot, camera directly overhead looking straight down",
+    "ots": "over-the-shoulder shot, from behind a second person's shoulder in the foreground",
+    "pov": "POV shot, first-person view from the subject's own eyes, the subject not visible",
+}
+
+# Động tác máy: CHỈ những thứ Seedance i2v đo ra chạy (trang ⑬, 38 clip 15 s).
+# push/pull/tilt/track/truck 3/3 · pan 2/3 · whip/crash chạy nhưng sai nhịp ·
+# arc/orbit vòng lỏng. KHÔNG có handheld, boom, dolly zoom: 0/2 cả hai cách nói —
+# bày nút máy không làm được là bán nút chết. Câu máy đứng ĐẦU prompt video và tả
+# hệ quả trên khung: ở giữa thì pan/truck đứng yên 0/1, lên đầu thì truck 3/3.
+CD_CHU = {
+    "static": "The camera holds perfectly still.",
+    "push_in": "The camera pushes in slowly and steadily toward the subject.",
+    "pull_out": "The camera pulls out slowly and steadily away from the subject.",
+    "tilt_up": "The camera tilts slowly upward.",
+    "tilt_down": "The camera tilts slowly downward.",
+    "track": "The camera tracks the subject, following its movement.",
+    "truck_left": "The camera trucks to the left: it slides sideways on a rail, the scene drifting rightward across the frame with parallax.",
+    "truck_right": "The camera trucks to the right: it slides sideways on a rail, the scene drifting leftward across the frame with parallax.",
+    "pan_left": "The camera pans slowly to the left, the whole scene sweeping rightward across the frame.",
+    "pan_right": "The camera pans slowly to the right, the whole scene sweeping leftward across the frame.",
+    "whip_pan": "A fast whip pan to the right with heavy motion blur, snapping to a new framing.",
+    "crash_zoom": "A sudden, very fast zoom in on the subject.",
+    "arc": "The camera arcs slowly around the subject.",
+    "orbit": "The camera orbits around the subject.",
+}
 
 
 def khung_cuoi(video: Path, dich: Path) -> Path:
@@ -681,20 +720,25 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     return d, i, j, c
         raise HTTPException(404, f"Không có cảnh mã '{ma}' trong chương {chuong}.")
 
-    def _may(c: dict) -> str:
-        """Cỡ cảnh + góc máy thành MỘT mệnh đề tiếng Anh.
+    def _khung(c: dict) -> str:
+        """Câu KHUNG — "{cỡ}, {góc}: {cái gì lấp khung}." — đứng ĐẦU prompt.
 
-        Đo 25/09: 49/49 cảnh có prompt EN đều đã có đủ `co` và `goc` — LLM
-        điền, người dùng nhìn thấy trên thẻ — mà prompt không mang chữ nào.
-        Cùng họ lỗi với đoạn tông: dữ liệu có sẵn, không tới nơi cần tới.
+        Đo 27/09 (trang ⑬): cỡ cảnh vào bằng ba chữ "Close-up, eye level."
+        trước 134 chữ thì WS/MS/ECU ra 9 tấm một cỡ, 0/9. Câu này đứng đầu
+        kèm "cái gì lấp khung" thì EWS/WS 3/3; khi đoạn sau viết theo khung thì
+        CU/ECU/top/POV 3/3. Thứ ở đầu prompt được nghe to nhất.
 
-        `co` phải DỊCH RA CHỮ: gửi "ECU" trần là gửi một mã nội bộ cho nhà AI
-        đoán.
+        `co` và `goc` DỊCH RA CHỮ đã đo; `goc` cũ là chữ tự do thì đi nguyên.
+        Chưa có cột nào thì trả rỗng — prompt bắt đầu thẳng bằng `pa`.
         """
-        pn = [CO_CHU.get((c.get("co") or "").upper(), ""),
-              (c.get("goc") or "").strip()]
-        t = ", ".join(x for x in pn if x)
-        return t[:1].upper() + t[1:] if t else ""
+        co = CO_CHU.get((c.get("co") or "").upper(), "")
+        g = (c.get("goc") or "").strip()
+        dau = ", ".join(x for x in (co, GOC_CHU.get(g, g)) if x)
+        if not dau:
+            return ""
+        dau = dau[:1].upper() + dau[1:]
+        lap = (c.get("lap") or "").strip()
+        return f"{dau}: {lap}." if lap else f"{dau}."
 
     def _mo_ta_ts(so: list[dict], c: dict) -> str:
         """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
@@ -731,8 +775,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         so = _so_day_du(tap)
         mo_ta = _mo_ta_ts(so, c)
         tong = _tong_chu(so, c.get("tong") or "")
-        may = _may(c)
-        return f"16:9 ratio. {may + '. ' if may else ''}{c['pa']}\n\n{mo_ta}{tong}".strip()
+        # Không còn "16:9 ratio." mở đầu: cỡ khung đi bằng tham số `size`, và
+        # mọi cấu hình đo ra chạy ở trang ⑬ đều không có nó — câu KHUNG phải là
+        # thứ đầu tiên nhà AI đọc.
+        kh = _khung(c)
+        return f"{kh + ' ' if kh else ''}{c['pa']}\n\n{mo_ta}{tong}".strip()
 
     def _prompt_video(tap: str, c: dict) -> str:
         """ĐÚNG cái người dùng thấy ở ô "Prompt video" trong hộp cảnh.
@@ -747,12 +794,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             return tay
         so = _so_day_du(tap)
         mo_ta = _mo_ta_ts(so, c)
-        may, cd = _may(c), (c.get("cd") or "").strip()
-        dau = f"Camera: {cd}." if cd else "Simple camera motion only."
-        if may:
-            dau += f" {may}."
+        cd = (c.get("cd") or "").strip()
+        # Câu MÁY đứng ĐẦU (đo ⑬ mục 7: ở giữa thì pan/truck đứng yên, lên đầu
+        # thì truck 3/3). Mã mới -> câu đã đo; `cd` cũ là chữ tự do -> "Camera:
+        # <cd>." vẫn đứng đầu; không có -> câu chung như trước.
+        may = CD_CHU.get(cd) or (f"Camera: {cd}." if cd else "Simple camera motion only.")
+        kh = _khung(c)
+        dau = (f"{may} {kh + ' ' if kh else ''}Continue this camera move for the full "
+               f"{GIAY_VIDEO} seconds.")
         sfx = (c.get("sfx") or "").strip()
-        return (f"{c['pv']}\n{dau}\nOne continuous shot, no cuts.\n\n"
+        return (f"{dau}\n{c['pv']}\nOne continuous shot, no cuts.\n\n"
                 f"{mo_ta}{_tong_chu(so, c.get('tong') or '')}"
                 + (f" Sound: {sfx}." if sfx else "") + " No background music.")
 
@@ -801,8 +852,15 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         tra = {x["ma"]: x for x in kho.ds_so(tap)}
         so = [tra[m] for m in (c.get("ts") or []) if m in tra]
         cs = mdong.doc_canh(d[i])
+        # KHUNG là của người dựng. Chưa chọn thì máy đặt MS · eye level (ghi
+        # xuống để nút sáng trên hộp cảnh), KHÔNG để LLM đoán — đo 27/09: LLM
+        # chọn thì chép danh sách ví dụ theo thứ tự (static 48%, eye level 53%).
+        if not (cs[j].get("co") or "").strip():
+            cs[j]["co"] = "MS"
+        if not (cs[j].get("goc") or "").strip():
+            cs[j]["goc"] = "eye"
         muc = [{"id": ma, "voice": d[i].get("en", ""), "canh": c["t"],
-                "thu_tu": f"{j + 1}/{len(cs)}"}]
+                "thu_tu": f"{j + 1}/{len(cs)}", "khung": _khung(cs[j]).rstrip(".")}]
         try:
             ra = ky_thuat.ky_thuat(muc, so)
         except Exception as exc:  # noqa: BLE001
@@ -813,11 +871,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if x is None:
             raise HTTPException(502, "LLM không trả về cảnh nào khớp mã.")
 
-        for khoa in ("pa", "pv", "goc", "cd", "sfx"):
+        # LLM chỉ còn viết CHỮ theo khung: `lap`, `pa`, `pv`, `sfx`. `co`/`goc`/
+        # `cd` là của người dựng — LLM có trả cũng LỜ ĐI, không ghi đè.
+        for khoa in ("lap", "pa", "pv", "sfx"):
             if (x.get(khoa) or "").strip():
                 cs[j][khoa] = str(x[khoa]).strip()
-        if (x.get("co") or "").upper() in CO_HOP_LE:
-            cs[j]["co"] = x["co"].upper()
         # KHÔNG đụng `ts`: người dùng chọn asset, không phải LLM (user chốt
         # 25/09 — "Không để LLM tự nhớ"). Bớt một chỗ nó bịa mã, và bấm Create
         # Prompt lần hai không xoá lựa chọn có chủ đích của người dùng.
@@ -865,7 +923,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True}
 
     # ------------------------------------------------------------ video
-    GIAY_VIDEO = 15     # trần nhà cung cấp, đo 26/09: 20s bị từ chối
+    # GIAY_VIDEO: một nguồn ở `dich.py` — trang và lệnh LLM cùng đọc từ đó.
 
     def _canh_truoc(d: list, i: int, j: int) -> dict | None:
         """Cảnh liền trước TRONG CHƯƠNG. Lùi trong cùng dòng, hết thì sang dòng

@@ -777,9 +777,9 @@ def test_bang_canh_bao_trong_hop_la_KHOI_CHU(html):
 def test_prompt_anh_trang_mang_CO_va_GOC(html):
     """49/49 cảnh của SE001 đã có đủ cỡ cảnh và góc máy, hiện rành rành trên
     thẻ — mà prompt thì không mang. Trang phải cùng luật với `_prompt_anh`."""
-    i = html.index("function promptAnh(")
+    i = html.index("function ghepPromptAnh(")
     than = html[i:html.index(chr(10) + "}", i)]
-    assert "mayQuay(" in than
+    assert "khungCanh(" in than
 
 
 def test_prompt_video_dung_CHUYEN_DONG_THAT_khong_de_len(html):
@@ -1394,3 +1394,50 @@ def test_maCanhChac_XA_sua_doi_dang_cho_TRUOC_khi_goi_may_chu(html):
     than = html[i:html.index(chr(10) + "}", i)]
     assert than.index("luuNgay()") < than.index("return"), (
         "phải xả sửa đổi đang chờ TRƯỚC mọi đường thoát sớm")
+
+
+# ═══════ 27/09: người đặt khung — gương JS của bảng cỡ/góc/máy ══════════════
+def test_GIAY_CLIP_bang_GIAY_VIDEO_cua_may_chu(html):
+    """Ba nơi hai con số (5 / 15 / 5) là lý do clip đứng hình 5 s cuối."""
+    import re
+    from autoedit.treatment import dich
+    m = re.search(r"var GIAY_CLIP = (\d+);", html)
+    assert m and int(m.group(1)) == dich.GIAY_VIDEO
+
+
+def _bang_js(html, ten):
+    import re
+    i = html.index("var " + ten + " = {")
+    than = html[i:html.index("};", i)]
+    return dict(re.findall(r'(\w+):\s*"([^"]*)"', than))
+
+
+def test_bang_CO_GOC_CD_cua_trang_TRUNG_KHIT_may_chu(html):
+    """Lệch một chữ là hộp cảnh bày một prompt, máy chủ gửi một prompt khác."""
+    from autoedit.treatment import app
+    assert _bang_js(html, "CO_CHU") == app.CO_CHU
+    assert _bang_js(html, "GOC_CHU") == app.GOC_CHU
+    assert _bang_js(html, "CD_CHU") == app.CD_CHU
+
+
+def test_hop_canh_co_NUT_chon_co_goc_may_va_o_LAP_KHUNG(html):
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}" + chr(10), i)]
+    assert "veKhungCanh(" in than and "veMayCanh(" in than
+    j = html.index("function veKhungCanh(")
+    kh = html[j:html.index(chr(10) + "}", j)]
+    assert "GOC_CHU" in kh and "CO_CHU" in kh and "lap" in kh
+
+
+def test_ghepPromptAnh_KHUNG_truoc_bo_16_9(html):
+    i = html.index("function ghepPromptAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "16:9 ratio" not in than
+    assert than.index("khungCanh(") < than.index("x.pa")
+
+
+def test_ghepPromptVideo_CAU_MAY_dung_dau(html):
+    i = html.index("function ghepPromptVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert than.index("CD_CHU[") < than.index("x.pv"), "câu máy phải đứng trước nhịp"
+    assert "GIAY_CLIP" in than

@@ -118,7 +118,11 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # `td` — mã TRƯỜNG ĐOẠN cảnh này thuộc về (một mã, không phải danh sách:
 # một cú máy chỉ đứng trong một không gian). Khung master của trường đoạn đi
 # kèm mọi lượt vẽ của cảnh.
-KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "td", "pa",
+# `lap` — CÁI GÌ LẤP KHUNG (tiếng Anh, LLM viết theo cỡ đã chọn, người sửa
+# được). Ghép thành câu ĐẦU prompt: "{cỡ}, {góc}: {lap}." Đo 27/09: cỡ cảnh vào
+# prompt bằng ba chữ đứng trước 134 chữ thì 0/9; câu này đứng đầu thì rộng 3/3,
+# và khi đoạn sau viết theo khung thì cận/cực cận/từ đỉnh/POV đều 3/3.
+KHOA_CANH = ("id", "t", "co", "goc", "cd", "lap", "sfx", "tong", "ts", "td", "pa",
              "pv", "pat", "pvt", "duyet", "vid")
 
 
