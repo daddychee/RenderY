@@ -1303,3 +1303,94 @@ def test_create_prompt_BAO_khi_dang_bi_prompt_tay_de_len(html):
     than = html[i:html.index(chr(10) + "}", i)]
     assert "pat" in than and "pvt" in than, (
         "Create Prompt phải báo khi kết quả của nó đang bị prompt sửa tay đè")
+
+# ═══════ 26/09: TRƯỜNG ĐOẠN — nhóm cú máy cùng không gian, một khung master ═══
+def test_man_ASSET_van_chi_bay_BA_loai_doi_tuong(html):
+    """User chốt 26/09: đối tượng chỉ có ba — người, vật, bối cảnh. Trường đoạn
+    đi chung BẢNG sổ nhưng KHÔNG được bò lên màn Asset, y như `tong` và
+    `nhan_su` xưa nay vẫn đứng ngoài."""
+    i = html.index("function veAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "truong_doan" not in than, (
+        "màn Asset phải lọc đúng ba loại đối tượng, không bày trường đoạn")
+    j = html.index("function veTaiSanCanh(")
+    assert "truong_doan" not in html[j:html.index(chr(10) + "}", j)], (
+        "dải chọn asset trong cảnh cũng chỉ ba loại đối tượng")
+
+
+def test_dai_ANH_SE_GUI_xep_MASTER_TRUOC_ref_asset(html):
+    """Cùng thứ tự với `_ve_mot_canh` bên Python — thứ tự này đã ĐO (9 lượt,
+    26/09): [master, ref, ref] giữ được ba nhận dạng cùng lúc. Hai bên lệch
+    nhau thì dải trên màn hình nói dối về thứ sắp gửi đi."""
+    i = html.index("function anhSeGui(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert than.index("x.td") < than.index("x.ts"), (
+        "master của trường đoạn phải đứng trước ref của asset")
+    assert ".ref" in than, "chỉ đếm thứ THỰC SỰ có ảnh, y như ref_dang_co bên Python"
+
+
+def test_canh_bao_khi_gui_TU_BON_ANH_TRO_LEN(html):
+    """Đo 26/09, 9 lượt: 2 ảnh sạch 3/3 · 3 ảnh sạch 3/3 · **4 ảnh vỡ 1/3**
+    (quân phục của nhân vật này dán lên mặt nhân vật kia). Ngưỡng đặt đúng ở ô
+    đã đo thấy vỡ, không đặt theo cảm giác.
+
+    Cảnh báo MỀM: luật cứng #5 — tool đánh dấu chỗ không chắc, người quyết.
+    Tự cắt bớt ref là lặng lẽ vứt asset người ta đã gán."""
+    i = html.index("function veAnhSeGui(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert ">= 4" in than or ">=4" in than, "ngưỡng cảnh báo phải là 4 ảnh"
+    assert "nhac" in than or "canh-bao" in than, "phải có chỗ bày lời cảnh báo"
+    for cam in ("slice(", "splice(", "pop()"):
+        assert cam not in than, "KHÔNG được tự cắt bớt ref — chỉ cảnh báo"
+
+
+def test_hop_canh_co_cho_xep_TRUONG_DOAN(html):
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}" + chr(10), i)]
+    assert "veTruongDoanCanh(" in than, "hộp cảnh phải có chỗ xếp trường đoạn"
+    assert "veAnhSeGui(" in than, "hộp cảnh phải bày ảnh sắp gửi đi"
+
+
+def test_chua_ve_master_thi_BAO_chu_khong_chan(html):
+    """Gán trường đoạn rồi mà chưa vẽ master là chuyện thường giữa chừng —
+    máy chủ không chặn (test_truong_doan_CHUA_co_master_thi_khong_chan), nên
+    màn hình cũng chỉ nhắc."""
+    i = html.index("function veTruongDoanCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa có master" in than or "chưa vẽ master" in than, (
+        "phải nhắc khi trường đoạn chưa có khung master")
+
+# ═══════ 26/09: khung nhìn của trang nuốt khoá thì màn hình NÓI DỐI ══════════
+def test_khung_nhin_cua_trang_CHO_DU_moi_khoa_cua_canh(html):
+    """`dungCanhTap()` dựng khung nhìn bằng một DANH SÁCH KHOÁ CỐ ĐỊNH. Quên
+    một khoá thì `datKhoaCanh` vẫn ghi xuống kho đúng, máy chủ vẫn đọc đúng,
+    nhưng màn hình vẽ lại là mất — và người dùng thấy thứ mình vừa sửa biến đi.
+
+    Đo thật trong Chrome 26/09: khung nhìn thiếu `pat`/`pvt`, nên tính năng
+    "sửa prompt tay" ship hôm trước HỎNG theo cách tệ nhất — máy chủ gửi bản
+    viết tay, còn ô trên màn hình bày bản tự ghép. Và mở ô đó rồi bấm ra ngoài
+    là `luuPromptTay` thấy chữ trùng bản tự ghép nên XOÁ luôn bản sửa tay.
+
+    Test tĩnh cũ không bắt được vì cả hai phía đều "có mã đúng" — chỉ đường nối
+    giữa chúng bị đứt. Nên gác bằng chính danh sách khoá bên Python."""
+    from autoedit.treatment.dong import KHOA_CANH
+
+    i = html.index("function dungCanhTap(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    thieu = [k for k in KHOA_CANH if (k + ":") not in than]
+    assert not thieu, (
+        "khung nhìn `dungCanhTap()` thiếu khoá %s — sửa được, ghi được, "
+        "nhưng vẽ lại màn hình là mất" % ", ".join(thieu))
+
+def test_maCanhChac_XA_sua_doi_dang_cho_TRUOC_khi_goi_may_chu(html):
+    """`henLuu` hoãn ghi 1,2 giây. Gán asset xong bấm ngay Gen Image thì máy
+    chủ đọc bản CŨ trong kho và vẽ bằng ref cũ — trả tiền cho một lượt sai,
+    trong khi dải "Ảnh sẽ gửi đi" trên màn hình bày đúng bản mới.
+
+    Đo trong Chrome 26/09: gán 3 asset rồi vẽ ngay, máy chủ nhận 2 ảnh ref thay
+    vì 4. Cả ba đường tốn tiền (`sinhAnh` · `createPrompt` · `genVideo`) đều đi
+    qua `maCanhChac`, nên xả ở đây là đủ cho cả ba."""
+    i = html.index("async function maCanhChac(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert than.index("luuNgay()") < than.index("return"), (
+        "phải xả sửa đổi đang chờ TRƯỚC mọi đường thoát sớm")

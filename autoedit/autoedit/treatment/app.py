@@ -768,7 +768,13 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         # Ảnh ref của asset đã gán đi KÈM lượt vẽ. Asset chưa vẽ ref thì bỏ
         # qua, không chặn — gán rồi mà chưa kịp vẽ ref là chuyện thường giữa
         # chừng, lúc đó rơi về đúng hành vi cũ: chỉ có chữ.
-        ref = [t for t in (kho.ref_dang_co(tap, m) for m in (c.get("ts") or []))
+        # Khung master của trường đoạn đi ĐẦU, ref asset theo sau — đúng
+        # thứ tự đã đo 26/09 (9 lượt): [master, ref, ref] giữ được ba nhận
+        # dạng cùng lúc. Trường đoạn chưa vẽ master thì bỏ qua như asset chưa
+        # có ref: không chặn, rơi về đúng hành vi cũ.
+        ma_ref = ([c["td"]] if (c.get("td") or "").strip() else []) \
+            + (c.get("ts") or [])
+        ref = [t for t in (kho.ref_dang_co(tap, m) for m in ma_ref)
                if t is not None]
         ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]), ref=ref)
         cs = mdong.doc_canh(d[i])

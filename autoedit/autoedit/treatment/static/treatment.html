@@ -1059,9 +1059,17 @@ function dungCanhTap(){
     ds.forEach(function(d, i){
       var pc = truoc + i + 1;
       docCanh(d).forEach(function(cn, j){
+        // Khung nhìn phải chở ĐỦ mọi khoá của cảnh. Thiếu một khoá thì
+        // `datKhoaCanh` vẫn ghi xuống kho đúng và máy chủ vẫn đọc đúng, nhưng
+        // vẽ lại màn hình là mất — người dùng thấy thứ mình vừa sửa biến đi,
+        // còn máy chủ thì vẫn gửi bản đã sửa. Màn hình nói dối.
+        // Đo trong Chrome 26/09: thiếu `pat`/`pvt` làm hỏng hẳn tính năng sửa
+        // prompt tay, và mở ô đó rồi bấm ra ngoài là XOÁ luôn bản sửa tay.
+        // Gác bằng test đối chiếu thẳng với `KHOA_CANH` bên Python.
         ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
                  en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "",
-                 co: cn.co || "", ts: cn.ts || [], pa: cn.pa || "",
+                 co: cn.co || "", ts: cn.ts || [], td: cn.td || "",
+                 pa: cn.pa || "", pat: cn.pat || "", pvt: cn.pvt || "",
                  id: cn.id || "", duyet: cn.duyet || "",
                  anh: cn.anh || "",
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
@@ -1178,6 +1186,13 @@ function canhTheoMa(ma){
    hai của cùng lỗi. KHÔNG vẽ lại hộp ở đây: vẽ lại là cái nút vừa bấm rời khỏi
    trang, mất luôn chữ "đang làm" trên nó. */
 async function maCanhChac(){
+  // XẢ TRƯỚC mọi thứ đang chờ ghi. `henLuu` hoãn 1,2 giây, nên gán asset xong
+  // bấm ngay Gen Image là máy chủ đọc bản CŨ và vẽ bằng ref cũ — trả tiền cho
+  // một lượt sai, mà dải "Ảnh sẽ gửi đi" trên màn hình lại bày đúng bản mới.
+  // Đo trong Chrome 26/09: gán 3 asset rồi vẽ ngay -> máy chủ nhận 2 ảnh ref.
+  // Cả ba đường tốn tiền đều qua đây nên xả một chỗ là đủ.
+  clearTimeout(hen);
+  await luuNgay();
   var x = canhTheoMa(canhDangMo);
   if(!x || x.id) return x || null;
   canLuu[x.ch] = 1;
@@ -1357,9 +1372,18 @@ function moCanh(ma){
                'khoảng <b>1–3 phút</b>. Đóng tab cũng không sao, quay lại là thấy.' +
                '</div>' : '') +
 
+      '<p class="nhan">Trường đoạn<span class="nho" style="font-weight:400;' +
+      'text-transform:none;letter-spacing:0"> — nhóm cú máy cùng một không ' +
+      'gian; khung master của nhóm đi kèm mọi lượt vẽ</span></p>' +
+      veTruongDoanCanh(x) +
+
       '<p class="nhan">Asset trong cảnh<span class="nho" style="font-weight:400;' +
       'text-transform:none;letter-spacing:0"> — ảnh ref của asset đã chọn đi ' +
       'thẳng vào lượt vẽ; bấm đúp để xem ref</span></p>' + veTaiSanCanh(x) +
+
+      '<p class="nhan">Ảnh sẽ gửi đi<span class="nho" style="font-weight:400;' +
+      'text-transform:none;letter-spacing:0"> — đúng thứ tự Seedream nhận' +
+      '</span></p>' + veAnhSeGui(x) +
 
       '<div class="lo-voice"><span class="nhan" style="margin:0">Voice phân cảnh ' +
       x.pc + '</span><i>' + thoat(x.en) + '</i><span class="nho">~' +
@@ -1537,6 +1561,7 @@ function doiTaiSan(ma, ngay){
 
 /* ─── hộp SỔ: tài sản / tông / nhân sự ─── */
 var LOAI_TEN = {nhan_vat: "nhân vật", dao_cu: "đạo cụ", boi_canh: "bối cảnh",
+                truong_doan: "trường đoạn",
                 tong: "tone", nhan_su: "nhân sự"};
 /* Hồ sơ Tone + phân nhân sự. ASSET đã tách sang MÀN RIÊNG (user chốt 25/09:
    "giao diện tương tự như phân cảnh… thay vì chỉ là một module nhập liệu").
@@ -1644,19 +1669,24 @@ function moAsset(ma){
     '<input class="tap" data-so="' + ma + '" data-loai="' + x.loai + '" value="' +
     thoat(x.ten) + '"' + (SUA_DUOC ? '' : ' disabled') +
     ' style="flex:1;font-weight:700">' +
-    (SUA_DUOC
+    (SUA_DUOC && x.loai !== "truong_doan"
       ? '<select class="tap" onchange="doiLoaiAsset(\'' + ma + '\', this.value)">' +
         ["nhan_vat", "boi_canh", "dao_cu"].map(function(l){
           return '<option value="' + l + '"' + (x.loai === l ? ' selected' : '') +
                  '>' + LOAI_TEN[l] + '</option>'; }).join("") + '</select>'
       : '') + '</div>' + oRef(x) +
+    // Trường đoạn không đi qua `Sinh Asset`: máy chủ chỉ viết hồ sơ nhận
+    // dạng cho ĐỐI TƯỢNG. Dàn cảnh là chữ của người dựng, không phải của LLM.
+    (x.loai === "truong_doan" ? '' :
     '<p class="nhan">Yêu cầu của bạn — LLM viết mô tả theo ĐÚNG cái này</p>' +
     '<div class="prompt" data-yc="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.yc || "") + '</div>' +
     (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
       '<button onclick="sinhAsset(event)">' +
-      (x.chu ? 'Sinh Asset lại' : 'Sinh Asset') + '</button></div>' : '') +
-    '<p class="nhan">Mô tả — đính vào mọi prompt cảnh dùng asset này</p>' +
+      (x.chu ? 'Sinh Asset lại' : 'Sinh Asset') + '</button></div>' : '')) +
+    '<p class="nhan">' + (x.loai === "truong_doan"
+      ? 'Dàn cảnh — ai đứng đâu, máy đứng bên nào (ghi cho mình và cho LLM)'
+      : 'Mô tả — đính vào mọi prompt cảnh dùng asset này') + '</p>' +
     '<div class="prompt" data-chu="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.chu) + '</div>' +
     '<p class="nhan dau-pr">Prompt tạo ref — dùng một lần<span class="spacer">' +
@@ -1966,6 +1996,114 @@ function luuNoiCanh(x, chu){
 /* Tông mặc định nằm ở TẬP; cảnh chỉ giữ phần GHI ĐÈ. Cảnh nào không đè thì
    `tong` để RỖNG — ghi sẵn một mã vào mọi cảnh thì sau này đổi tông của tập sẽ
    không tới được cảnh nào cả (đúng cái `|| "can"` cũ đã làm). */
+/* ── TRƯỜNG ĐOẠN ────────────────────────────────────────────────────────────
+   Một NHÓM CÚ MÁY cùng một không gian. `ref` của nó là khung MASTER, và master
+   đi kèm MỌI lượt vẽ của cảnh trong nhóm.
+
+   Đo 26/09, 21 lượt Seedream: master là thứ ghim được không gian qua nhiều cỡ
+   cảnh — cùng căn phòng, cùng ánh sáng, cùng vòng cung bàn, 21/21 tấm. Còn
+   cách CẮT ref theo góc máy thì không đo ra lợi ích nào (5/6 so với 6/6), nên
+   tool gửi nguyên bảng ref, không cắt.
+
+   KHÔNG phải loại đối tượng thứ tư: đối tượng chỉ có ba — người, vật, bối cảnh
+   (user chốt 26/09). Trường đoạn đi chung BẢNG sổ như `tong` và `nhan_su` đã đi
+   từ trước, nhưng đứng ngoài màn Asset. */
+function truongDoanCua(x){
+  var t = soTheoMa(x.td);
+  return (t && t.loai === "truong_doan") ? t : null;
+}
+
+/* CÙNG THỨ TỰ với `_ve_mot_canh()` bên Python: master trước, ref asset sau —
+   thứ tự này đã đo và giữ được ba nhận dạng cùng lúc. Chỉ đếm thứ THỰC SỰ có
+   ảnh, y như `ref_dang_co` bên kia bỏ qua asset chưa vẽ ref. */
+function anhSeGui(x){
+  var ma = (x.td || "").trim() ? [x.td] : [];
+  return ma.concat(x.ts || []).map(soTheoMa)
+           .filter(function(t){ return t && t.ref; });
+}
+
+function veAnhSeGui(x){
+  var ds = anhSeGui(x);
+  var h = ds.map(function(t){
+    return '<div class="the-as" ondblclick="xemAnh(\'' + duongRef(t.ma) +
+      '\', \'ref-' + t.ma + '.png\')" title="Bấm đúp để xem cỡ lớn">' +
+      '<div class="as-anh"><img src="' + duongRef(t.ma) + '">' +
+      (t.loai === "truong_doan" ? '<span class="as-dau">M</span>' : '') +
+      '</div><div class="as-ten">' + thoat(t.ten) + '</div></div>';
+  }).join("");
+  if(!ds.length)
+    h = '<div class="ghi" style="margin:0">Lượt vẽ này đi <b>chỉ có chữ</b> — ' +
+        'chưa ảnh nào kèm theo.</div>';
+  /* Đo 26/09, 9 lượt: 2 ảnh sạch 3/3 · 3 ảnh sạch 3/3 · 4 ảnh vỡ 1/3 — quân
+     phục của nhân vật này dán lên mặt nhân vật kia, còn người kia thì biến mất.
+     Ngưỡng đặt đúng ở ô ĐÃ ĐO thấy vỡ, không đặt theo cảm giác.
+     Chỉ CẢNH BÁO: luật cứng #5 — tool đánh dấu chỗ không chắc, người quyết.
+     Tự cắt bớt là lặng lẽ vứt asset người ta đã gán. */
+  var nhac = ds.length >= 4
+    ? '<div class="nhac" style="margin-top:8px">Lượt này gửi <b>' + ds.length +
+      ' ảnh</b>. Đo thật 26/09: từ <b>4 ảnh</b> trở lên có <b>1/3 lượt bị trộn ' +
+      'nhận dạng</b> giữa hai nhân vật. Vẫn vẽ được — nhìn kỹ mặt và trang phục; ' +
+      'sai thì bỏ bớt asset rồi vẽ lại.</div>'
+    : "";
+  return '<div class="hang-as">' + h + '</div>' + nhac;
+}
+
+function veTruongDoanCanh(x){
+  var ds = soTheoLoai("truong_doan");
+  var h = '<button class="' + (x.td ? "" : "on") + '"' +
+          (SUA_DUOC ? '' : ' disabled') +
+          ' onclick="datTruongDoan(\'\')">○ chưa xếp</button>';
+  ds.forEach(function(t){
+    h += '<button class="' + (x.td === t.ma ? "on" : "") + '"' +
+         (SUA_DUOC ? '' : ' disabled') + ' onclick="datTruongDoan(\'' + t.ma +
+         '\')">' + (t.ref ? "◆" : "◇") + " " + thoat(t.ten || "(chưa đặt tên)") +
+         '</button>';
+  });
+  if(SUA_DUOC)
+    h += '<button onclick="themTruongDoan()" title="Nhóm các cú máy cùng một ' +
+         'không gian lại, rồi vẽ một khung master cho cả nhóm">+ trường đoạn mới' +
+         '</button>';
+  var t = truongDoanCua(x), phu = "";
+  if(t && t.ref)
+    phu = '<div class="ts-hang" style="margin-top:8px">' +
+      '<div class="ts-anh co bam-duoc" title="Khung master — bấm để xem cỡ lớn" ' +
+      'onclick="xemAnh(\'' + duongRef(t.ma) + '\', \'master-' + t.ma + '.png\')">' +
+      '<img src="' + duongRef(t.ma) + '"></div><div>' +
+      '<div class="ghi" style="margin:0">Khung <b>master</b> của trường đoạn này ' +
+      'đi kèm mọi lượt vẽ của cảnh.</div>' +
+      (SUA_DUOC ? '<div class="ts-nut"><label onclick="moAsset(\'' + t.ma +
+                  '\')">Sửa trường đoạn</label></div>' : '') + '</div></div>';
+  else if(t)
+    phu = '<div class="nhac" style="margin-top:8px">Trường đoạn <b>' +
+      thoat(t.ten || "(chưa đặt tên)") + '</b> <b>chưa có master</b> — lượt vẽ ' +
+      'hiện chưa được ghim không gian. ' +
+      (SUA_DUOC ? '<a href="#" onclick="moAsset(\'' + t.ma +
+                  '\');return false">Vẽ khung master</a>' : '') + '</div>';
+  return '<div class="hai" style="flex-wrap:wrap">' + h + '</div>' + phu;
+}
+
+function datTruongDoan(ma){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  datKhoaCanh(x, "td", ma);
+  moCanh(canhDangMo);
+}
+
+async function themTruongDoan(){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var ten = prompt("Tên trường đoạn — một không gian, một mạch:", "");
+  if(!ten || !ten.trim()) return;
+  var ma = "td_" + Date.now().toString(36);
+  SO.push({ma: ma, loai: "truong_doan", ten: ten.trim(), chu: "", pr: "",
+           tb: "", yc: "", ref: false});
+  await luuSoLen(); await napSo();
+  datTruongDoan(ma);
+  bao("Đã tạo trường đoạn <b>" + thoat(ten.trim()) + "</b> và xếp cảnh này vào. " +
+      "Giờ <b>vẽ khung master</b> cho nó thì mọi cú máy trong nhóm mới đứng " +
+      "chung một không gian.");
+}
+
 function veTongCanh(x){
   var ds = soTheoLoai("tong"), mac = null, i;
   for(i = 0; i < ds.length; i++) if(ds[i].mac_dinh) mac = ds[i];

@@ -176,7 +176,13 @@ class Kho:
     #   tong     — đoạn boilerplate ghép cuối prompt, `canh[i].tong` trỏ tới
     #   nhan_vat / dao_cu / boi_canh — mô tả tiếng Anh của tài sản
     #   nhan_su  — cụm màu 1..6 là ai (user chốt: "cụm màu để phân nhân sự")
-    LOAI_SO = ("tong", "nhan_vat", "dao_cu", "boi_canh", "nhan_su")
+    #   truong_doan — một NHÓM CÚ MÁY cùng không gian; `ref` của nó là khung
+    #     MASTER mà mọi cú trong nhóm bám theo. KHÔNG phải loại đối tượng thứ
+    #     tư: đối tượng chỉ có ba (người/vật/bối cảnh, user chốt 26/09), và nó
+    #     không hiện trên màn Asset. Đi chung bảng vì nó cùng hình dạng (mã ·
+    #     tên · một đoạn chữ · một ảnh) nên dùng lại được cả đường ref.
+    LOAI_SO = ("tong", "nhan_vat", "dao_cu", "boi_canh", "nhan_su",
+               "truong_doan")
     # Ảnh ref giữ THÀNH FILE cạnh kho, không giữ cái link (user chốt 24/09):
     # link Drive chết là mất cả sổ, và đợt 2 gọi API thì phải có BYTES mới đính
     # ref vào lượt gọi được.

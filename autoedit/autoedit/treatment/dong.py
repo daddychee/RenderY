@@ -115,7 +115,10 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # chốt 26/09: "đã sinh lại nhiều lần nhưng vẫn sai... cần tự sửa prompt trước
 # khi gen"). Lưu NGUYÊN VĂN cả bản ghép chứ không lưu phần chênh: ô trên màn
 # hình là bản đã ghép sẵn, sửa một chỗ rồi tách ngược ra `pa` là đoán mò.
-KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa",
+# `td` — mã TRƯỜNG ĐOẠN cảnh này thuộc về (một mã, không phải danh sách:
+# một cú máy chỉ đứng trong một không gian). Khung master của trường đoạn đi
+# kèm mọi lượt vẽ của cảnh.
+KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "td", "pa",
              "pv", "pat", "pvt", "duyet", "vid")
 
 
