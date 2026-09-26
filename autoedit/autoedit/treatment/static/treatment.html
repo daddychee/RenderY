@@ -1126,7 +1126,11 @@ function moCanh(ma){
   var oc = document.getElementById("oCanh");
   if(oc) oc.addEventListener("blur", function(){ luuNoiCanh(x, docChu(oc)); });
 }
-function duongRef(ma){ return "/api/tap/" + TAP_MA + "/so/" + ma + "/ref"; }
+/* Tem phiên bản theo mtime của chính file ref — cùng lý do `duongAnh` có `?v=`. */
+function duongRef(ma){
+  var x = soTheoMa(ma);
+  return "/api/tap/" + TAP_MA + "/so/" + ma + "/ref?v=" + ((x && x.ref_v) || 0);
+}
 
 /* Bước lập sổ phải có VẠCH ĐÍCH — không thì người ta quên mình đang dở. */
 function tienDoSo(){

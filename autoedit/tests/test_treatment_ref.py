@@ -222,3 +222,28 @@ def test_chua_bat_bo_ve_thi_503_ref(tmp_path):
     c = TestClient(tao_app(k))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     assert c.post("/api/tap/SE001/so/a/ref-sinh").status_code == 503
+
+
+def test_so_tra_kem_TEM_PHIEN_BAN_cua_ref(tmp_path):
+    """User báo 26/09: bấm vẽ lại ref Kobzar, máy chủ vẽ xong và ghi file mới
+    (đo: `ref-sinh` 200, file .png 491KB mtime mới, md5 khớp đĩa) nhưng màn hình
+    vẫn hiện ảnh cũ. Đường ảnh ref không đổi nên trình duyệt giữ bản đã tải —
+    đúng chỗ ảnh CẢNH đã có `?v=` mà ảnh REF thì quên."""
+    from autoedit.treatment.kho import Kho
+
+    kho = Kho(tmp_path / "k.db")
+    kho.tao_tap("SE001", "x")
+    kho.luu_so("SE001", [{"ma": "a", "loai": "dao_cu", "ten": "A"}])
+    assert kho.ds_so("SE001")[0]["ref_v"] == 0, "chưa có ref thì tem bằng 0"
+
+    d = kho.duong_ref("SE001", "a", ".png")
+    d.parent.mkdir(parents=True, exist_ok=True)
+    d.write_bytes(b"\x89PNG" + b"1" * 40)
+    v1 = kho.ds_so("SE001")[0]["ref_v"]
+    assert v1 > 0
+
+    import os
+    import time
+
+    os.utime(d, (time.time() + 5, time.time() + 5))
+    assert kho.ds_so("SE001")[0]["ref_v"] != v1, "vẽ lại ref thì tem phải đổi"

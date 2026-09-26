@@ -1005,3 +1005,11 @@ def test_sinh_ref_LUU_prompt_dang_go_truoc_khi_ve(html):
     assert "docHopAsset(" in than
     assert than.index("docHopAsset(") < than.index("ref-sinh")
     assert "luuSoLen(" in than and than.index("luuSoLen(") < than.index("ref-sinh")
+
+
+def test_duong_anh_REF_mang_TEM_PHIEN_BAN(html):
+    """Cùng lý do `duongAnh` phải có `?v=`: đường không đổi thì vẽ lại ref xong
+    trình duyệt vẫn hiện bản cũ, người dùng tưởng nút hỏng (user báo 26/09)."""
+    i = html.index("function duongRef(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "?v=" in than and "ref_v" in than

@@ -241,7 +241,12 @@ class Kho:
                 "ORDER BY thu_tu, ma", (tap,)):
             d = dict(r)
             # Sổ phải biết tài sản nào ĐÃ có ref — để đếm được việc còn dở.
-            d["ref"] = bool(self.ref_dang_co(tap, d["ma"]))
+            # Kèm TEM PHIÊN BẢN (mtime): vẽ lại ref thì đường ảnh phải đổi, không
+            # thì trình duyệt giữ bản đã tải và người dùng tưởng nút hỏng (user
+            # báo 26/09 — máy chủ ghi file mới rồi mà màn hình vẫn ảnh cũ).
+            t = self.ref_dang_co(tap, d["ma"])
+            d["ref"] = t is not None
+            d["ref_v"] = int(t.stat().st_mtime) if t is not None else 0
             ra.append(d)
         return ra
 
