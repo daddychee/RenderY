@@ -39,11 +39,17 @@ _LENH_TAI_SAN = """Bạn là trợ lý dựng storyboard. Dưới đây là TOÀ
 kịch bản tiếng Anh của một tập phim tư liệu.
 
 VIỆC 1 — GỌI TÊN những thứ phải trông GIỐNG NHAU ở mọi cảnh:
-- `nhan_vat`: người, sinh vật, phương tiện xuất hiện nhiều lần.
-- `boi_canh`: nơi chốn / môi trường lặp lại. Ánh sáng và chất của môi trường \
-thuộc về đây, KHÔNG thuộc về mood.
-- `dao_cu`: CHỈ nêu khi một vật lặp qua nhiều cảnh và phải trông giống nhau. \
+- `nhan_vat`: người hoặc sinh vật xuất hiện nhiều lần.
+- `dao_cu`: VẬT có hình dáng cố định, lặp qua nhiều cảnh và phải trông giống \
+nhau — kể cả PHƯƠNG TIỆN và máy móc lớn (tàu, tàu ngầm, máy bay, cần cẩu). \
 Vật xuất hiện đúng một lần thì bỏ qua.
+- `boi_canh`: NƠI CHỐN — chỗ người ta đứng trong đó hoặc nhìn ra từ đó. Ánh \
+sáng và chất của môi trường thuộc về đây, KHÔNG thuộc về mood.
+
+Ranh giới `boi_canh` phải giữ chặt: một con tàu, một cỗ máy, một phương tiện \
+KHÔNG BAO GIỜ là bối cảnh, dù nó to đến đâu — nó là `dao_cu`. BÊN TRONG nó thì \
+mới là bối cảnh, và phải tách thành mục riêng ("khoang tàu", "phòng điều \
+khiển"). Xếp nhầm là hỏng: mỗi loại đi theo một luật dựng ảnh khác hẳn.
 
 Luật:
 - Chỉ nêu thứ THỰC SỰ có trong kịch bản. Không bịa.

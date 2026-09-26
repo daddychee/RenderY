@@ -1349,9 +1349,16 @@ function moAsset(ma){
                 '\')">Xoá</button>' : '') +
     '<button class="x" onclick="dongCanh()">✕</button></div>' +
     '<div style="padding:15px">' +
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
     '<input class="tap" data-so="' + ma + '" data-loai="' + x.loai + '" value="' +
     thoat(x.ten) + '"' + (SUA_DUOC ? '' : ' disabled') +
-    ' style="width:100%;font-weight:700;margin-bottom:10px">' + oRef(x) +
+    ' style="flex:1;font-weight:700">' +
+    (SUA_DUOC
+      ? '<select class="tap" onchange="doiLoaiAsset(\'' + ma + '\', this.value)">' +
+        ["nhan_vat", "boi_canh", "dao_cu"].map(function(l){
+          return '<option value="' + l + '"' + (x.loai === l ? ' selected' : '') +
+                 '>' + LOAI_TEN[l] + '</option>'; }).join("") + '</select>'
+      : '') + '</div>' + oRef(x) +
     '<p class="nhan">Yêu cầu của bạn — LLM viết mô tả theo ĐÚNG cái này</p>' +
     '<div class="prompt" data-yc="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.yc || "") + '</div>' +
@@ -1389,6 +1396,21 @@ function moAsset(ma){
 }
 async function nhayCanhTuAsset(ma){
   dongCanh(); await doiMan("sb"); nhayCanh(ma);
+}
+/* Loại quyết định LUẬT của prompt ref: bối cảnh ra khung tả không gian, còn
+   nhân vật / đạo cụ ra bảng nhiều góc nền trắng. LLM xếp loại phương tiện
+   KHÔNG ổn định — đo 26/09 trên sổ SE001: ba con tàu rơi vào hai nhóm khác
+   nhau, và con nào rơi vào bối cảnh thì ref ra một tấm phong cảnh biển, không
+   dùng được. Nên người dùng phải sửa được ngay tại chỗ. */
+async function doiLoaiAsset(ma, l){
+  if(!SUA_DUOC) return;
+  var x = soTheoMa(ma); if(!x) return;
+  docHopAsset();
+  x.loai = l;
+  await luuSoLen(); await napSo();
+  moAsset(ma); veAsset();
+  bao("Đã đổi sang <b>" + LOAI_TEN[l] + "</b>. Bấm <b>Sinh Asset lại</b> để " +
+      "prompt ref dựng theo luật của loại mới.");
 }
 function themAsset(loai){
   if(!SUA_DUOC) return;

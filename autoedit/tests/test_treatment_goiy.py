@@ -220,3 +220,27 @@ def test_chua_bat_LLM_thi_503(bo):
     c = TestClient(tao_app(kho))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     assert c.post("/api/tap/SE001/so/goi-y").status_code == 503
+
+
+# ─────────────────────── xếp loại PHƯƠNG TIỆN (đo thật 26/09)
+def test_lenh_quet_KHONG_xep_phuong_tien_vao_boi_canh():
+    """Đo trên sổ SE001 thật: ba con tàu rơi vào HAI nhóm khác nhau —
+    `Tàu ngầm K-129` và `Tàu Hughes Glomar Explorer` thành `boi_canh`, còn
+    `Tàu hải quân Liên Xô theo dõi` thành `nhan_vat`.
+
+    Loại không phải chuyện phân loại cho đẹp: nó quyết định LUẬT của prompt ref.
+    Xếp con tàu vào bối cảnh thì ref ra một tấm phong cảnh biển — user báo 26/09
+    "không dùng được, nó cũng không có đủ góc cạnh và fullshot".
+
+    Ranh giới phải viết thành câu dứt khoát: bối cảnh là NƠI CHỐN. Vật có hình
+    dáng cố định — người, sinh vật, phương tiện, máy móc — không bao giờ là bối
+    cảnh; BÊN TRONG nó thì mới là."""
+    from autoedit.treatment.dich import _LENH_TAI_SAN
+
+    t = _LENH_TAI_SAN.lower()
+    assert "nơi chốn" in t
+    assert "phương tiện" in t
+    i = t.index("`boi_canh`")
+    assert "không" in t[i:i + 500], "phải nói RÕ cái gì KHÔNG phải bối cảnh"
+    j = t.index("`dao_cu`")
+    assert "phương tiện" in t[min(i, j):], "phương tiện phải được xếp dứt khoát"

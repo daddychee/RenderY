@@ -1045,3 +1045,22 @@ def test_ESC_dong_duoc_khung_anh(html):
     assert "nenAnh" in than
     assert than.index("nenAnh") < than.index("nenCanh"), (
         "phải xét lớp ảnh TRƯỚC lớp hộp cảnh")
+
+
+def test_hop_asset_DOI_DUOC_LOAI(html):
+    """Loại quyết định luật của prompt ref. LLM xếp loại phương tiện không ổn
+    định (đo 26/09: ba con tàu, hai nhóm khác nhau) nên người dùng phải sửa
+    được ngay tại chỗ — không thì asset đó hỏng vĩnh viễn."""
+    i = html.index("function moAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "doiLoaiAsset(" in than
+    assert "<select" in than
+    assert "function doiLoaiAsset(" in html
+
+
+def test_doi_loai_xong_NHAC_sinh_lai_prompt(html):
+    """Đổi loại mà không sinh lại thì `pr` vẫn là bản của loại cũ — ref vẫn sai
+    y như trước, người dùng tưởng đổi loại không ăn thua."""
+    i = html.index("function doiLoaiAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "Sinh Asset" in than
