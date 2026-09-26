@@ -179,7 +179,7 @@ def _ma_sach(ten: str, da_co: dict) -> str:
 
 
 def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
-            ve_anh=None, sinh_asset=None) -> FastAPI:
+            ve_anh=None, sinh_asset=None, ve_video=None) -> FastAPI:
     """Mọi bộ máy tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
@@ -547,6 +547,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     continue
                 if t.exists():
                     c["anh"] = str(int(t.stat().st_mtime))
+                v = kho.duong_video(tap, ma)
+                if v.exists():
+                    c["video"] = str(int(v.stat().st_mtime))
         return ra
 
     @app.put("/api/tap/{tap}/{chuong}")
@@ -677,6 +680,29 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         may = _may(c)
         return f"16:9 ratio. {may + '. ' if may else ''}{c['pa']}\n\n{mo_ta}{tong}".strip()
 
+    def _prompt_video(tap: str, c: dict) -> str:
+        """ĐÚNG cái người dùng thấy ở ô "Prompt video" trong hộp cảnh.
+
+        CÙNG LUẬT với `promptVideo()` bên trang, từng nhánh một. Đây chính là
+        chỗ đã sinh ra lỗi nặng nhất của cả đợt: prompt ẢNH có hai bản dựng ở
+        hai tầng rồi trôi khỏi nhau, người dùng duyệt một đằng máy gửi một nẻo.
+        Lần này viết kèm phép đo so từng chữ ngay từ đầu.
+        """
+        so = _so_day_du(tap)
+        tra = {x["ma"]: x for x in so}
+        ta = [tra[m] for m in (c.get("ts") or []) if m in tra and tra[m].get("chu")]
+        mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
+        if mo_ta:
+            mo_ta += "\n"
+        may, cd = _may(c), (c.get("cd") or "").strip()
+        dau = f"Camera: {cd}." if cd else "Simple camera motion only."
+        if may:
+            dau += f" {may}."
+        sfx = (c.get("sfx") or "").strip()
+        return (f"{c['pv']}\n{dau}\nOne continuous shot, no cuts.\n\n"
+                f"{mo_ta}{_tong_chu(so, c.get('tong') or '')}"
+                + (f" Sound: {sfx}." if sfx else "") + " No background music.")
+
     def _ve_mot_canh(tap: str, chuong: str, d: list, i: int, j: int, ai: str) -> None:
         c = mdong.doc_canh(d[i])[j]
         if not (c.get("pa") or "").strip():
@@ -771,6 +797,92 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _luu_canh(tap, chuong, d, ai)
         return {"ok": True}
 
+    # ------------------------------------------------------------ video
+    GIAY_VIDEO = 15     # trần nhà cung cấp, đo 26/09: 20s bị từ chối
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/video")
+    def sinh_video(tap: str, chuong: str, ma: str, request: Request):
+        """Tạo TASK dựng video, trả về NGAY kèm mã task.
+
+        Không chờ cho xong: đo 26/09 một clip mất 70-150 giây. Giữ request treo
+        suốt thời gian đó thì đóng tab hay rớt mạng là mất dấu một clip đã trả
+        tiền — mà chính vì thế mã task phải được ghi xuống kho.
+        """
+        ai = _ghi_duoc(request)
+        if ve_video is None:
+            raise HTTPException(503, "Chưa bật bộ dựng video.")
+        d, i, j, c = _tim_canh(tap, chuong, ma)
+        if not kho.duong_anh(tap, ma).exists():
+            raise HTTPException(400, "Cảnh này chưa có ảnh — vẽ ảnh trước đã.")
+        if not c.get("duyet"):
+            raise HTTPException(
+                400, "Ảnh của cảnh này chưa được duyệt. Tiền video chỉ đốt sau "
+                     "cổng duyệt — xem ảnh rồi bấm Duyệt ảnh đã.")
+        if not (c.get("pv") or "").strip():
+            raise HTTPException(
+                400, "Cảnh này chưa có prompt video — bấm Create Prompt trước.")
+        try:
+            tid = ve_video.bat_dau(_prompt_video(tap, c),
+                                   kho.duong_anh(tap, ma), GIAY_VIDEO, False)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        cs = mdong.doc_canh(d[i])
+        cs[j]["vid"] = str(tid)
+        d[i] = mdong.ghi_canh(d[i], cs)
+        _luu_canh(tap, chuong, d, ai)
+        return {"ok": True, "vid": str(tid)}
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/video-kiem")
+    def kiem_video(tap: str, chuong: str, ma: str, request: Request):
+        """Hỏi một lần xem task xong chưa; xong thì tải về và quên mã task.
+
+        Hỏng cũng phải quên mã: giữ lại là trang treo mãi ở "đang dựng". Đo
+        26/09 có task hỏng thật vì bộ lọc bản quyền âm thanh.
+        """
+        ai = _ghi_duoc(request)
+        if ve_video is None:
+            raise HTTPException(503, "Chưa bật bộ dựng video.")
+        d, i, j, c = _tim_canh(tap, chuong, ma)
+        tid = (c.get("vid") or "").strip()
+        if not tid:
+            return {"trang_thai":
+                    "xong" if kho.duong_video(tap, ma).exists() else "chua"}
+        try:
+            r = ve_video.trang_thai(tid) or {}
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Hỏi trạng thái hỏng: {exc}") from exc
+        tt = str(r.get("status") or "").lower()
+
+        def _quen_ma():
+            cs = mdong.doc_canh(d[i])
+            cs[j].pop("vid", None)
+            d[i] = mdong.ghi_canh(d[i], cs)
+            _luu_canh(tap, chuong, d, ai)
+
+        if tt == "succeeded":
+            try:
+                ve_video.tai_ve(r.get("video_url") or "",
+                                kho.duong_video(tap, ma))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Tải video về hỏng: {exc}") from exc
+            _quen_ma()
+            return {"trang_thai": "xong"}
+        if tt in ("failed", "cancelled"):
+            _quen_ma()
+            return {"trang_thai": "hong", "loi": r.get("loi") or tt}
+        return {"trang_thai": "dang"}
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/video")
+    def xem_video(tap: str, chuong: str, ma: str):
+        _ = chuong
+        try:
+            t = kho.duong_video(tap, ma)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if not t.exists():
+            raise HTTPException(404, "Cảnh này chưa có video.")
+        return FileResponse(t, headers={"Cache-Control": "no-store"})
+
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")
     def ban_cu(tap: str, chuong: str):
@@ -824,6 +936,39 @@ class _VeAnh:
                 "Chưa có khoá vẽ ảnh — Owner cấp ở General › API Keys › "
                 "Theo app › Treatment › gen_canh.")
         return ArkClient(api_key=khoa).gen_anh(prompt, dich)
+
+
+class _VeVideo:
+    """Seedance qua ArkClient, khoá lấy từ KÉT bằng slug của Treatment.
+
+    Dùng chung cấp phát `gen_canh` với bộ vẽ ảnh: một khoá ARK chạy cả Seedream
+    lẫn Seedance. Tách việc riêng chỉ để đo tiền tách bạch thì làm sau.
+    """
+
+    def _ark(self):
+        from autoedit.aigen.client import ArkClient
+        from autoedit.treatment.dich import doc_ket_viec
+
+        khoa = (doc_ket_viec("gen_canh") or {}).get("key", "")
+        if not khoa:
+            raise RuntimeError(
+                "Chưa có khoá dựng video — Owner cấp ở General › API Keys › "
+                "Theo app › Treatment › gen_canh.")
+        return ArkClient(api_key=khoa)
+
+    def bat_dau(self, prompt, anh, giay, am):
+        return self._ark().gen_video_i2v(prompt, anh, giay=giay, am=am)
+
+    def trang_thai(self, tid):
+        return self._ark().trang_thai_video(tid)
+
+    def tai_ve(self, url, dich):
+        return self._ark().tai_video(url, dich)
+
+
+def _ve_video_mac_dinh(kho: Kho):
+    _ = kho
+    return _VeVideo()
 
 
 def _ve_anh_mac_dinh(kho: Kho):
@@ -893,7 +1038,8 @@ def tao_app_mac_dinh() -> FastAPI:
                    goi_y=_goi_y_mac_dinh(kho),
                    ky_thuat=_ky_thuat_mac_dinh(kho),
                    ve_anh=_ve_anh_mac_dinh(kho),
-                   sinh_asset=_sinh_asset_mac_dinh(kho))
+                   sinh_asset=_sinh_asset_mac_dinh(kho),
+                   ve_video=_ve_video_mac_dinh(kho))
 
 
 def main() -> None:

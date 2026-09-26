@@ -108,8 +108,11 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # trỏ sang cảnh khác mà không ai thấy gì bất thường cho tới lúc dựng. Nên file
 # ảnh neo vào `id`, không neo vào vị trí.
 # `duyet` = con dấu duyệt ẢNH. Luật `aigen`: tiền video chỉ đốt SAU cổng này.
+# `vid` = mã task Seedance ĐANG chạy. Sinh video mất 70-150 giây (đo 26/09)
+# nên không giữ một request treo suốt: lưu mã lại, trang tự hỏi lại. Xong hoặc
+# hỏng thì xoá — còn mã nghĩa là còn đang chạy.
 KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa",
-             "pv", "duyet")
+             "pv", "duyet", "vid")
 
 
 def _ma_canh_moi(da_co: set[str]) -> str:

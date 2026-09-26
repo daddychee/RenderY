@@ -931,7 +931,8 @@ function dungCanhTap(){
                  id: cn.id || "", duyet: cn.duyet || "",
                  anh: cn.anh || "",
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
-                 sfx: cn.sfx || "", n: docCanh(d).length});
+                 sfx: cn.sfx || "", video: cn.video || "", vid: cn.vid || "",
+                 n: docCanh(d).length});
       });
     });
   });
@@ -1018,6 +1019,10 @@ function veTheCanh(){
    File ảnh neo vào MÃ RIÊNG của cảnh (`id`), không neo vào số thứ tự hiển thị:
    chèn một cảnh phía trên là mọi số dịch hết, ảnh sẽ trỏ sang cảnh khác. */
 var TIEN_ANH = 0.03;        // $/tấm — tra 03/09, ghi trong aigen/client.py
+function duongVideo(x){
+  return "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/video?v=" +
+         (x.video || "");
+}
 function duongAnh(x){
   return "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/anh?v=" + (x.anh || "");
 }
@@ -1065,6 +1070,38 @@ async function createPrompt(ev){
         !r.gan_asset);
   });
 }
+/* Máy chủ trả về NGAY kèm mã task (một clip mất 70-150 giây, đo 26/09), nên
+   trang phải tự hỏi lại. Không hỏi thì người dùng ngồi nhìn màn hình đứng im —
+   đúng lỗi đã gặp với nút đọc kịch bản. */
+var DANG_DUNG = {};
+async function theoDoiVideo(ch, id){
+  if(DANG_DUNG[id]) return;
+  DANG_DUNG[id] = 1;
+  var r;
+  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/canh/" + id +
+                      "/video-kiem", "POST"); }
+  catch(e){ delete DANG_DUNG[id]; return bao(e.message, true); }
+  delete DANG_DUNG[id];
+  if(r.trang_thai === "dang")
+    return setTimeout(function(){ theoDoiVideo(ch, id); }, 10000);
+  await taiLaiChuong(ch); veSb();
+  if(canhDangMo) moCanh(canhDangMo);
+  if(r.trang_thai === "hong") bao("Dựng video hỏng: " + thoat(r.loi || ""), true);
+  else if(r.trang_thai === "xong") bao("Đã dựng xong video.");
+}
+async function genVideo(ev){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  if(x.vid) return bao("Cảnh này đang dựng video rồi — đợi xong đã.", true);
+  await banRon(ev && ev.target, "Đang gửi…", async function(){
+    try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
+                    "/video", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
+    theoDoiVideo(x.ch, x.id);
+  });
+}
+
 async function duyetAnh(ev){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
@@ -1109,7 +1146,23 @@ function moCanh(ma){
         (x.anh ? '<button class="' + (x.duyet ? 'on' : '') +
                  '" onclick="duyetAnh(event)">' +
                  (x.duyet ? '✓ đã duyệt' : 'Duyệt ảnh') + '</button>' : '') +
+        (x.duyet ? '<button onclick="genVideo(event)"' +
+                   (x.vid ? ' disabled' : '') + '>' +
+                   (x.vid ? 'Đang dựng video…'
+                          : (x.video ? 'Gen Video lại' : 'Gen Video')) +
+                   '</button>' : '') +
         '</div>' : '') +
+      (x.video
+        ? '<video controls preload="metadata" src="' + duongVideo(x) +
+          '" style="width:100%;margin-top:8px;border-radius:9px"></video>' +
+          '<div class="dau-pr" style="margin-top:4px"><span class="spacer">' +
+          '</span><a class="cp" href="' + duongVideo(x) + '" download="canh-' +
+          x.ma + '.mp4">↓ Tải video</a></div>'
+        : (x.vid
+            ? '<div class="nhac" style="margin-top:8px">Đang dựng video — mất ' +
+              'khoảng <b>1–3 phút</b>. Đóng tab cũng không sao, quay lại là thấy.' +
+              '</div>'
+            : '')) +
       '<p class="nhan">Nội dung / hành động</p>' +
       '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
       thoat(x.t) + '</div>' +
@@ -1139,6 +1192,9 @@ function moCanh(ma){
   document.getElementById("nenCanh").classList.add("mo");
   var oc = document.getElementById("oCanh");
   if(oc) oc.addEventListener("blur", function(){ luuNoiCanh(x, docChu(oc)); });
+  // Mở lại một cảnh đang dựng dở (kể cả sau khi đã đóng tab) thì bắt nhịp hỏi
+  // tiếp — mã task nằm trong kho nên không mất dấu clip đã trả tiền.
+  if(x.vid) theoDoiVideo(x.ch, x.id);
 }
 /* Tem phiên bản theo mtime của chính file ref — cùng lý do `duongAnh` có `?v=`. */
 function duongRef(ma){

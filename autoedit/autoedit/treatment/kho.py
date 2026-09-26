@@ -210,6 +210,13 @@ class Kho:
                 raise ValueError(f"Mã '{x}' có ký tự không dùng được cho tên file.")
         return self.duong.parent / "anh" / tap / (ma_canh + ".png")
 
+    def duong_video(self, tap: str, ma_canh: str) -> Path:
+        """Clip của một cảnh. Neo vào MÃ RIÊNG như ảnh, cùng lý do."""
+        for x in (tap, ma_canh):
+            if not x or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x):
+                raise ValueError(f"Mã '{x}' có ký tự không dùng được cho tên file.")
+        return self.duong.parent / "video" / tap / (ma_canh + ".mp4")
+
     def ref_dang_co(self, tap: str, ma: str) -> Optional[Path]:
         for d in self.DUOI_REF:
             try:

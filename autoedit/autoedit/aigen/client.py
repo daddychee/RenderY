@@ -138,21 +138,35 @@ class ArkClient:
         raise AigenError(f"Không model ảnh nào chạy được ({loi_cuoi})")
 
     # ------------------------------------------------------------- video i2v
-    def gen_video_i2v(self, prompt: str, anh: Path, giay: int = 5) -> str:
+    def gen_video_i2v(self, prompt: str, anh: Path, giay: int = 5,
+                      am: bool = True) -> str:
         """Tạo TASK sinh video từ ảnh đã duyệt. Trả task_id — video sinh bất đồng
-        bộ, poll bằng cho_video(). Ảnh gửi dạng data URL b64."""
+        bộ, poll bằng cho_video(). Ảnh gửi dạng data URL b64.
+
+        `am=False` tắt `generate_audio`. Đo thật 26/09: cổng mặc định BẬT và đã
+        làm hỏng một task bằng `OutputAudioSensitiveContentDetected.PolicyViolation`
+        (model tự sinh nhạc rồi vướng bộ lọc bản quyền). Tắt KHÔNG rẻ hơn — vẫn
+        108.900 token cho 5 giây — nhưng mất hẳn kiểu hỏng đó. Dây chuyền nào
+        đã có voice riêng thì nên tắt.
+
+        Chỉ gửi trường này khi `am=False`: giữ nguyên thân request của các chỗ
+        gọi cũ, không đụng model không nhận tham số đó.
+        """
         b64 = base64.b64encode(Path(anh).read_bytes()).decode()
         mime = "image/png" if str(anh).lower().endswith("png") else "image/jpeg"
         loi_cuoi: Exception | None = None
         for model in THU_MODEL_VIDEO:
             try:
-                r = self._goi("/contents/generations/tasks", {
+                than = {
                     "model": model,
                     "content": [
                         {"type": "text", "text": f"{prompt} --duration {giay}"},
                         {"type": "image_url",
                          "image_url": {"url": f"data:{mime};base64,{b64}"}},
-                    ]})
+                    ]}
+                if not am:
+                    than["generate_audio"] = False
+                r = self._goi("/contents/generations/tasks", than)
                 return r["id"]
             except AigenError as exc:
                 loi_cuoi = exc
@@ -161,6 +175,30 @@ class ArkClient:
                     continue
                 raise
         raise AigenError(f"Không model video nào chạy được ({loi_cuoi})")
+
+    def trang_thai_video(self, task_id: str) -> dict:
+        """Hỏi MỘT lần, không chặn. Trả hình dạng phẳng cho tầng trên:
+        {status, video_url, loi}.
+
+        `cho_video` bên dưới poll tới 600 giây — hợp cho CLI, nhưng một máy chủ
+        web mà giữ request treo 10 phút thì đóng tab là mất dấu task đã trả tiền.
+        """
+        r = self._goi(f"/contents/generations/tasks/{task_id}", None, method="GET")
+        tt = r.get("status") or ""
+        ra = {"status": tt}
+        if tt == "succeeded":
+            ra["video_url"] = (r.get("content") or {}).get("video_url", "")
+        loi = r.get("error") or {}
+        if loi:
+            ra["loi"] = loi.get("message") or loi.get("code") or str(loi)[:200]
+        return ra
+
+    def tai_video(self, url: str, dich: Path) -> Path:
+        dich = Path(dich)
+        dich.parent.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(url, timeout=300) as vr:
+            dich.write_bytes(vr.read())
+        return dich
 
     def cho_video(self, task_id: str, dich: Path, cho_toi_da: int = 600) -> Path:
         """Poll task tới khi xong -> tải video về `dich`."""

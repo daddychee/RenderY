@@ -1064,3 +1064,40 @@ def test_doi_loai_xong_NHAC_sinh_lai_prompt(html):
     i = html.index("function doiLoaiAsset(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "Sinh Asset" in than
+
+
+# ═══════ 26/09: Gen Video sau cổng duyệt ảnh ═════════════════════════════════
+def test_nut_GEN_VIDEO_chi_hien_khi_ANH_DA_DUYET(html):
+    """Luật ghim từ `aigen`: tiền video chỉ đốt SAU cổng duyệt. Bày nút trước
+    cổng là mời người ta đốt tiền vào tấm ảnh chưa ai nhìn."""
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "genVideo(" in than
+    k = than.index("genVideo(")
+    assert "x.duyet" in than[max(0, k - 260):k], "nút phải nằm trong nhánh đã duyệt"
+
+
+def test_trang_TU_HOI_LAI_trang_thai_video(html):
+    """Dựng một clip mất 70-150 giây (đo 26/09). Máy chủ trả về ngay kèm mã
+    task, nên trang phải tự hỏi lại — không thì người dùng ngồi nhìn màn hình
+    đứng im, đúng lỗi họ đã báo với nút quét kịch bản."""
+    assert "function theoDoiVideo(" in html
+    i = html.index("async function theoDoiVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "video-kiem" in than
+    assert "setTimeout" in than, "phải hẹn hỏi lại, không phải hỏi một lần rồi thôi"
+
+
+def test_hop_canh_PHAT_duoc_video_va_TAI_XUONG(html):
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "<video" in than and "controls" in than
+    assert "download=" in than, "phải tải xuống được, không bắt chuột phải"
+
+
+def test_duong_video_mang_TEM_PHIEN_BAN(html):
+    """Cùng bài học với ảnh ref: đường không đổi thì dựng lại xong vẫn phát bản
+    cũ."""
+    i = html.index("function duongVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "?v=" in than
