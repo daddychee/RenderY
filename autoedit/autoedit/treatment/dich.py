@@ -106,18 +106,26 @@ Trả về:
 - `chu`: mô tả nhận dạng bằng TIẾNG ANH, 1-3 câu. Chỉ nêu đặc điểm NHÌN THẤY \
 giữ cho ảnh nhất quán: hình dáng, chất liệu, màu, niên đại, dấu hiệu riêng. \
 Đoạn này đính vào MỌI prompt cảnh dùng tài sản này, nên phải ngắn và đặc.
-- `pr`: prompt TIẾNG ANH sinh ảnh tham chiếu, dùng một lần. Với nhân vật: toàn \
-thân, 3 góc (chính diện, bên hông, sau lưng), nền trắng trơn, photorealistic, \
-đúng niên đại. Với đạo cụ / bối cảnh: một khung hình sạch, photorealistic, \
-nền trung tính.
+- `pr`: prompt TIẾNG ANH sinh ẢNH THAM CHIẾU, dùng một lần.
+  · Với nhân vật (`nhan_vat`) và đạo cụ (`dao_cu`): MỘT khung hình chứa NHIỀU \
+GÓC đặt cạnh nhau — toàn thân, ba góc: chính diện, bên hông, sau lưng. NỀN \
+TRẮNG trơn liền mạch hoặc NỀN XANH chroma key. Ánh sáng studio đều, không đổ \
+bóng, photorealistic, đúng niên đại.
+  · Với bối cảnh (`boi_canh`): một khung tả không gian, photorealistic. KHÔNG \
+tách nền — bối cảnh phải thấy cả không gian chứ không phải bản cắt rời.
+  · Mọi loại: tả khung hình theo hướng THU NHỎ CHỦ THỂ — chủ thể cao khoảng \
+một nửa khung, chừa nhiều nền trống quanh mép, nhìn từ xa. Đo thật 26/09: câu \
+cấm "nothing cropped" KHÔNG ăn thua, Seedream vẫn cắt cụt đầu càng cẩu; phải \
+bảo nó lùi máy ra thì mới lọt khung.
 
 Luật:
 - BÁM YÊU CẦU CỦA ĐẠO DIỄN. Yêu cầu nói gì thì giữ nguyên cái đó, không thay \
 bằng ý mình, không "cải thiện".
 - Yêu cầu bỏ trống chỗ nào thì tự điền cho hợp lý và hợp mood, nhưng tuyệt đối \
 không bịa chi tiết mâu thuẫn với yêu cầu.
-- `pr` KHÔNG ghép mood tối / ánh sáng của tập. Ref là bản mặt của tài sản, nền \
-sạch. Ghép "dark mood" vào là ref tối om, đem làm tham chiếu thì hỏng.
+- `pr` KHÔNG ghép mood tối / ánh sáng của tập. Ref là bản mặt của tài sản để \
+đem đi tham chiếu, không phải một cảnh trong phim. Ghép "dark mood" vào là ref \
+tối om, tách nền không ra, đem làm tham chiếu thì hỏng.
 
 Trả về JSON: {"chu": "...", "pr": "..."}"""
 

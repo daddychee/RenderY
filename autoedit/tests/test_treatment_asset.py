@@ -139,3 +139,48 @@ def test_chua_bat_LLM_thi_503(bo):
     c = TestClient(tao_app(kho))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     assert c.post("/api/tap/SE001/so/ca_map/sinh").status_code == 503
+
+
+# ────────────────────────── prompt ref: phông trắng/xanh, nhiều góc (26/09)
+def test_lenh_ref_doi_PHONG_TRANG_HOAC_XANH():
+    """User chốt 26/09: "asset cần là phông trắng, hoặc phông xanh, các góc
+    khác nhau". Ref là bản mặt để tách ra dùng lại; nền có cảnh thì kéo theo cả
+    bối cảnh vào mọi cảnh dùng nó."""
+    from autoedit.treatment.dich import _LENH_ASSET
+
+    t = _LENH_ASSET.lower()
+    assert "trắng" in t and "xanh" in t, "phải nêu cả nền trắng lẫn nền xanh"
+
+
+def test_lenh_ref_doi_NHIEU_GOC_cho_nhan_vat_va_dao_cu():
+    """Một góc thì nhà AI chỉ có một mặt để bám; quay sang bên là nó tự bịa."""
+    from autoedit.treatment.dich import _LENH_ASSET
+
+    t = _LENH_ASSET.lower()
+    assert "góc" in t
+    for tu in ("chính diện", "bên hông"):
+        assert tu in t, f"thiếu góc: {tu}"
+    i, j = t.index("nhan_vat"), t.index("boi_canh")
+    assert "đạo cụ" in t[:j] or "dao_cu" in t[:j], (
+        "đạo cụ cũng phải có nhiều góc, không chỉ nhân vật")
+    assert i >= 0
+
+
+def test_boi_canh_KHONG_bi_ep_phong_trang():
+    """Nền trắng cho một bối cảnh là vô nghĩa — bối cảnh cần khung tả không
+    gian, không phải bản cắt rời."""
+    from autoedit.treatment.dich import _LENH_ASSET
+
+    i = _LENH_ASSET.lower().index("boi_canh")
+    assert "nền trắng" not in _LENH_ASSET.lower()[i:i + 400]
+
+
+def test_lenh_ref_doi_KHONG_CAT_CUT():
+    """Đo thật 26/09 với Seedream: bảng ref của nhân vật lọt khung đẹp, nhưng
+    bảng ref của càng cẩu Clementine bị CẮT CỤT phần đầu — nhà AI đóng khung
+    quá sát. Ref cụt thì mất đúng chi tiết cần tham chiếu."""
+    from autoedit.treatment.dich import _LENH_ASSET
+
+    t = _LENH_ASSET.lower()
+    assert "thu nhỏ chủ thể" in t, (
+        "cấm cắt thì Seedream vẫn cắt — phải bảo nó lùi máy ra")

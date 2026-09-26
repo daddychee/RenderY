@@ -719,19 +719,20 @@ def test_dungCanhTap_chep_DU_MOI_KHOA(html):
         assert (k + ":") in than, f"dungCanhTap quên chép khoá `{k}`"
 
 
-def test_co_nut_SINH_REF_trong_so_tai_san(html):
-    """User báo 25/09: "chưa có nút sinh ảnh ref"."""
+def test_co_nut_SINH_REF_trong_hop_asset(html):
+    """User báo 25/09: "chưa có nút sinh ảnh ref". Nút dời khỏi hàng ref xuống
+    ngay dưới ô prompt nó dùng (26/09) — nhưng vẫn phải CÓ."""
     assert "async function sinhRef(" in html
-    i = html.index("function oRef(")
+    i = html.index("function moAsset(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "sinhRef(" in than
 
 
 def test_nut_sinh_ref_CHI_HIEN_khi_co_prompt_tao_ref(html):
     """Không có `pr` thì bấm chỉ tốn một vòng gọi rồi nhận 400."""
-    i = html.index("function oRef(")
+    i = html.index("function moAsset(")
     than = html[i:html.index(chr(10) + "}", i)]
-    assert "x.pr" in than
+    assert '(x.pr || "").trim()' in than
 
 
 def test_hop_canh_sinh_duoc_REF_cua_tai_san_thieu(html):
@@ -756,7 +757,7 @@ def test_moi_nut_sinh_deu_BAO_DANG_LAM(html):
         assert "banRon(" in html[j:html.index(chr(10) + "}", j)],             f"{ten} phải đi qua banRon"
     k = html.index("async function sinhRef(")
     than_ref = html[k:html.index(chr(10) + "}", k)]
-    assert "Đang vẽ ref" in than_ref and "disabled = true" in than_ref
+    assert "Đang vẽ ref" in than_ref and "banRon(" in than_ref,         "sinhRef cũng phải đi qua banRon — nó có finally, tự mở khoá khi hỏng"
 def test_bang_canh_bao_trong_hop_la_KHOI_CHU(html):
     """Đo Chrome 25/09: băng "chưa gán asset" mượn class `.khoa` (vốn
     display:flex cho băng khoá chương) nên chữ bị vỡ thành ba cột rời rạc:
@@ -982,3 +983,25 @@ def test_thanh_ASSET_an_nut_ghi_voi_vai_CHI_XEM(html):
     assert "chi-sua" in than, "batNutGhi phải ẩn nhóm nút chỉ-dành-cho-người-sửa"
     assert html.count('class="icon-btn chi-sua"') >= 4, (
         "bốn nút ghi trên thanh Asset phải mang lớp chi-sua")
+
+
+# ═══════ 26/09: duyệt prompt xong thì VẼ LUÔN ════════════════════════════════
+def test_hop_asset_co_nut_DUYET_PROMPT_roi_ve(html):
+    """User 26/09: "Bước sinh asset này bắt đầu phải sinh ảnh luôn sau khi
+    prompt đã được duyệt". Trước đó nút vẽ nằm lẫn trong hàng ref phía trên,
+    tách rời khỏi ô prompt mà nó dùng — đọc từ trên xuống không ra thứ tự."""
+    i = html.index("function moAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "Duyệt prompt" in than
+    assert than.index("data-pr=") < than.index("Duyệt prompt"), (
+        "nút duyệt phải nằm NGAY DƯỚI ô prompt tạo ref")
+
+
+def test_sinh_ref_LUU_prompt_dang_go_truoc_khi_ve(html):
+    """Cùng bẫy đã vá cho `sinhAsset`: sửa prompt rồi bấm ngay mà không lưu thì
+    máy chủ vẽ theo bản CŨ, người dùng tưởng nhà AI không nghe mình."""
+    i = html.index("async function sinhRef(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "docHopAsset(" in than
+    assert than.index("docHopAsset(") < than.index("ref-sinh")
+    assert "luuSoLen(" in than and than.index("luuSoLen(") < than.index("ref-sinh")

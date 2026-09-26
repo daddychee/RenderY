@@ -1162,20 +1162,21 @@ async function taiRef(ma, el){
    đẹp sẵn thì vẫn dùng được. */
 async function sinhRef(ma, ev){
   if(!SUA_DUOC) return;
-  var nut = ev && ev.target;
-  var cu = nut ? nut.textContent : "";
-  if(nut){ nut.textContent = "Đang vẽ ref…"; nut.style.pointerEvents = "none";
-           nut.disabled = true; }
-  try { await api("/api/tap/" + TAP_MA + "/so/" + ma + "/ref-sinh", "POST"); }
-  catch(e){
-    if(nut){ nut.textContent = cu; nut.style.pointerEvents = ""; nut.disabled = false; }
-    return bao(e.message, true);
-  }
-  await napSo(); tienDoSo();
-  if(ASSET_DANG_MO){ moAsset(ASSET_DANG_MO); veAsset(); }
-  else if(canhDangMo) moCanh(canhDangMo);
-  veSb();
+  // Lưu prompt ĐANG GÕ trước khi vẽ. Cùng bẫy đã vá cho `sinhAsset`: sửa xong
+  // bấm ngay mà không lưu thì máy chủ vẽ theo bản CŨ, người dùng tưởng nhà AI
+  // không nghe mình.
+  var trongHop = ASSET_DANG_MO === ma &&
+                 !!document.querySelector("#hopCanh [data-pr]");
+  if(trongHop){ docHopAsset(); await luuSoLen(); }
+  await banRon(ev && ev.target, "Đang vẽ ref…", async function(){
+    try { await api("/api/tap/" + TAP_MA + "/so/" + ma + "/ref-sinh", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    await napSo(); veAsset(); veSb();
+    if(trongHop) moAsset(ma);
+    else if(canhDangMo) moCanh(canhDangMo);
+  });
 }
+
 
 async function xoaRef(ma){
   try { await api(duongRef(ma), "DELETE"); }
@@ -1346,6 +1347,14 @@ function moAsset(ma){
     '</span><button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
     '<div class="prompt" data-pr="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.pr || "") + '</div>' +
+    // Duyệt prompt là XONG THÌ VẼ LUÔN (user chốt 26/09). Nút đứng ngay dưới ô
+    // prompt nó dùng, không nằm lẫn trong hàng ref phía trên — đọc từ trên
+    // xuống mới ra đúng thứ tự: yêu cầu → sinh asset → prompt → duyệt → vẽ.
+    (SUA_DUOC && (x.pr || "").trim()
+      ? '<div class="hai" style="margin-top:7px"><button onclick="sinhRef(\'' +
+        ma + '\', event)">Duyệt prompt ' + (x.ref ? '→ vẽ lại ref' : '→ vẽ ref') +
+        '</button></div>'
+      : '') +
     '<p class="nhan">Dùng ở ' + dung.length + ' cảnh</p>' +
     (dung.length
       ? '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap">' +
@@ -1421,8 +1430,6 @@ function oRef(x){
       ? 'Đã có ref — bấm chuột phải vào ảnh để lưu rồi kéo sang Gemini/Veo.'
       : 'Gen ref bằng <b>prompt tạo ref</b> bên dưới, rồi tải lên đây.') + '</div>' +
     (SUA_DUOC ? '<div class="ts-nut">' +
-      (x.pr ? '<label onclick="sinhRef(\'' + x.ma + '\', event)">' +
-              (co ? 'Vẽ lại ref' : 'Sinh ref') + '</label>' : '') +
       '<label>' + (co ? 'Thay ref' : 'Tải ref lên') +
       '<input type="file" accept="image/png,image/jpeg,image/webp" hidden ' +
       'onchange="taiRef(\'' + x.ma + '\', this)"></label>' +
