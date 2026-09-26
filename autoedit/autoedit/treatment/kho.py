@@ -34,7 +34,8 @@ class KhoaBiGiu(RuntimeError):
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tap(
-  ma TEXT PRIMARY KEY, ten TEXT NOT NULL, tao_luc REAL NOT NULL);
+  ma TEXT PRIMARY KEY, ten TEXT NOT NULL, tao_luc REAL NOT NULL,
+  tong TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS chuong(
   tap TEXT NOT NULL, ma TEXT NOT NULL, thu_tu INTEGER NOT NULL,
   dong TEXT NOT NULL DEFAULT '[]', outline TEXT NOT NULL DEFAULT '',
@@ -47,7 +48,9 @@ CREATE TABLE IF NOT EXISTS ban_cu(
 CREATE TABLE IF NOT EXISTS so(
   tap TEXT NOT NULL, ma TEXT NOT NULL, loai TEXT NOT NULL,
   ten TEXT NOT NULL DEFAULT '', chu TEXT NOT NULL DEFAULT '',
-  pr TEXT NOT NULL DEFAULT '', thu_tu INTEGER NOT NULL DEFAULT 0,
+  pr TEXT NOT NULL DEFAULT '', tb TEXT NOT NULL DEFAULT '',
+  yc TEXT NOT NULL DEFAULT '',
+  thu_tu INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (tap, ma));
 CREATE TABLE IF NOT EXISTS khoa(
   tap TEXT NOT NULL, chuong TEXT NOT NULL, nguoi TEXT NOT NULL, den REAL NOT NULL,
@@ -65,8 +68,13 @@ class Kho:
         # Cột thêm sau: `CREATE TABLE IF NOT EXISTS` không đụng bảng đã có, nên
         # kho cũ phải vá tại chỗ. Rẻ và chạy mỗi lần mở, không cần sổ phiên bản.
         co = {r["name"] for r in self.cn.execute("PRAGMA table_info(so)")}
-        if co and "pr" not in co:
-            self.cn.execute("ALTER TABLE so ADD COLUMN pr TEXT NOT NULL DEFAULT ''")
+        for ten in ("pr", "tb", "yc"):
+            if co and ten not in co:
+                self.cn.execute(
+                    f"ALTER TABLE so ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
+        ct = {r["name"] for r in self.cn.execute("PRAGMA table_info(tap)")}
+        if ct and "tong" not in ct:
+            self.cn.execute("ALTER TABLE tap ADD COLUMN tong TEXT NOT NULL DEFAULT ''")
         self.cn.commit()
         self._va_ma_canh()
 
@@ -110,7 +118,21 @@ class Kho:
 
     def ds_tap(self) -> list[dict]:
         return [dict(r) for r in
-                self.cn.execute("SELECT ma, ten FROM tap ORDER BY tao_luc DESC")]
+                self.cn.execute("SELECT ma, ten, tong FROM tap ORDER BY tao_luc DESC")]
+
+    def tong_tap(self, tap: str) -> str:
+        """Mã tông dùng cho CẢ TẬP. Cảnh nào không tự chọn thì ăn theo đây.
+
+        Ở cấp tập chứ không phải cấp cảnh (user chốt 25/09): bắt chọn tay từng
+        cảnh thì không ai chọn — đo thật trên SE001, 0/83 cảnh có `tong`, nên
+        mọi ảnh sinh ra đều mất mood.
+        """
+        r = self.cn.execute("SELECT tong FROM tap WHERE ma=?", (tap,)).fetchone()
+        return (r["tong"] if r else "") or ""
+
+    def dat_tong_tap(self, tap: str, ma: str) -> None:
+        self.cn.execute("UPDATE tap SET tong=? WHERE ma=?", (ma or "", tap))
+        self.cn.commit()
 
     # --------------------------------------------------------------- chương
     def tao_chuong(self, tap: str, ma: str) -> str:
@@ -215,7 +237,7 @@ class Kho:
     def ds_so(self, tap: str) -> list[dict]:
         ra = []
         for r in self.cn.execute(
-                "SELECT ma, loai, ten, chu, pr FROM so WHERE tap=? "
+                "SELECT ma, loai, ten, chu, pr, tb, yc FROM so WHERE tap=? "
                 "ORDER BY thu_tu, ma", (tap,)):
             d = dict(r)
             # Sổ phải biết tài sản nào ĐÃ có ref — để đếm được việc còn dở.
@@ -242,11 +264,13 @@ class Kho:
             if not ma or not ten:       # thiếu mã hoặc tên thì không tra được
                 continue
             sach.append((tap, ma, loai, ten, (x.get("chu") or "").strip(),
-                         (x.get("pr") or "").strip(), i))
+                         (x.get("pr") or "").strip(),
+                         (x.get("tb") or "").strip(),
+                         (x.get("yc") or "").strip(), i))
         self.cn.execute("DELETE FROM so WHERE tap=?", (tap,))
         self.cn.executemany(
-            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, thu_tu) "
-            "VALUES(?,?,?,?,?,?,?)", sach)
+            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, tb, yc, "
+            "thu_tu) VALUES(?,?,?,?,?,?,?,?,?)", sach)
         self.cn.commit()
 
     # ------------------------------------------------------------- lưu / đọc

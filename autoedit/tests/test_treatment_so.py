@@ -84,13 +84,47 @@ def test_muc_thieu_ma_hoac_ten_bi_bo(kho):
 # ──────────────────────────────── app ───────────────────────────────────────
 def test_api_so_tra_TONG_MAC_DINH_khi_chua_co_gi(c):
     """Prompt luôn phải có đoạn tông ghép vào cuối. Sổ rỗng mà trả rỗng thì
-    prompt đầu tiên của tập nào cũng cụt — nên máy chủ đưa sẵn hai tông user
-    đang dùng, người sửa thì mới ghi xuống."""
+    prompt đầu tiên của tập nào cũng cụt — nên máy chủ đưa sẵn một tông mồi.
+
+    Trước 25/09 mồi là HAI mục tên "dưới nước" / "trên cạn". User bắt đúng:
+    đó là BỐI CẢNH, không phải tông. Ruột hai mục chỉ khác nhau ở câu ánh sáng
+    dưới nước — mà ánh sáng là thuộc tính của bối cảnh. Mood thật thì y hệt
+    nhau. Nên tông còn đúng MỘT: mood + phong cách + thiết bị."""
     ds = c.get("/api/tap/SE001/so").json()
     tong = [x for x in ds if x["loai"] == "tong"]
-    assert [x["ma"] for x in tong] == ["nuoc", "can"]
-    assert "dim natural underwater lighting" in tong[0]["chu"]
-    assert "underwater" not in tong[1]["chu"]
+    assert len(tong) == 1, "một tập một mood, không chẻ theo môi trường"
+    assert "underwater" not in tong[0]["chu"].lower(), (
+        "ánh sáng môi trường thuộc về bối cảnh, không thuộc tông")
+    assert "nước" not in tong[0]["ten"].lower() and "cạn" not in tong[0]["ten"].lower()
+
+
+def test_tong_mac_dinh_co_O_THIET_BI_rieng(c):
+    """User 25/09: prompt video thiếu hẳn thiết bị (ống kính / máy quay). Để
+    nó thành một ô RIÊNG chứ không chôn trong đoạn mood: chôn thì người ta
+    không biết là phải điền, và LLM đề xuất mood cũng không biết điền vào đâu."""
+    tong = [x for x in c.get("/api/tap/SE001/so").json() if x["loai"] == "tong"]
+    assert "tb" in tong[0], "mục tông phải có ô thiết bị"
+
+
+def test_tap_GIU_tone_mac_dinh(c):
+    """Tone gán ở cấp TẬP (user chốt 25/09), cảnh lệch mới đổi riêng. Bắt chọn
+    tay từng cảnh thì không ai chọn — đo thật trên SE001: 0/83 cảnh có chọn."""
+    moi = [{"ma": "toi", "loai": "tong", "ten": "Tối & bí ẩn", "chu": "DARK LOOK"},
+           {"ma": "sang", "loai": "tong", "ten": "Sáng", "chu": "BRIGHT LOOK"}]
+    assert c.put("/api/tap/SE001/so",
+                 json={"so": moi, "tong": "sang"}).status_code == 200
+    ds = c.get("/api/tap/SE001/so").json()
+    assert [x["ma"] for x in ds if x.get("mac_dinh")] == ["sang"]
+
+
+def test_tone_mac_dinh_song_qua_lan_luu_khac(c):
+    """Lưu sổ lần sau mà không gửi kèm `tong` thì không được im lặng xoá lựa
+    chọn cũ — sổ và tone mặc định là hai thứ, sửa cái này đừng dọn cái kia."""
+    moi = [{"ma": "toi", "loai": "tong", "ten": "Tối", "chu": "DARK"}]
+    c.put("/api/tap/SE001/so", json={"so": moi, "tong": "toi"})
+    c.put("/api/tap/SE001/so", json={"so": moi})
+    ds = c.get("/api/tap/SE001/so").json()
+    assert [x["ma"] for x in ds if x.get("mac_dinh")] == ["toi"]
 
 
 def test_api_so_ghi_roi_doc_lai(c):

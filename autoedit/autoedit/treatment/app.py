@@ -131,21 +131,33 @@ def _ban_trang() -> str:
         return "0"
 
 
-# Hai tông user đang dùng (24/09). Đây là GIÁ TRỊ KHỞI ĐIỂM, không phải chỗ
-# chốt: Owner sửa trong sổ của tập thì bản sửa thắng. Ghi cứng đoạn này trong
-# code nghĩa là mỗi lần đổi mood phải sửa code — nên nó chỉ đứng ở đây làm mồi.
+# Tông MỒI cho tập chưa lập sổ. Đây là GIÁ TRỊ KHỞI ĐIỂM, không phải chỗ chốt:
+# Owner sửa trong sổ của tập thì bản sửa thắng.
+#
+# Trước 25/09 chỗ này có HAI mục tên "dưới nước" / "trên cạn". User bắt đúng:
+# đó là BỐI CẢNH chứ không phải tông. Ruột hai mục chỉ khác nhau đúng câu ánh
+# sáng dưới nước — mà ánh sáng là thuộc tính của bối cảnh, thuộc về sổ Asset.
+# Mood thật thì y hệt nhau, nên tập này thực chất chỉ có MỘT tông bị chẻ nhầm.
+#
+# `tb` (thiết bị) tách thành ô riêng, không chôn trong `chu`: chôn thì người
+# dùng không biết là phải điền — đúng chỗ user báo thiếu (prompt video không hề
+# có ống kính / máy quay).
 TONG_MAC_DINH = [
-    {"ma": "nuoc", "loai": "tong", "ten": "dưới nước",
-     "pr": "",
-     "chu": "Photorealistic. Mood and tone: Dark & mysterious mood, "
-            "dim natural underwater lighting, no harsh shadows, "
-            "strictly no artificial light. "
-            "Consistent mood, tone, and graphic style across all shots."},
-    {"ma": "can", "loai": "tong", "ten": "trên cạn",
-     "pr": "",
-     "chu": "Photorealistic. Mood and tone: Dark & mysterious mood. "
-            "Consistent mood, tone, and graphic style across all shots."},
+    {"ma": "mood", "loai": "tong", "ten": "Tối & bí ẩn", "pr": "",
+     "chu": "Photorealistic. Mood and tone: dark and mysterious, "
+            "restrained contrast, no harsh shadows. "
+            "Consistent mood, tone, and graphic style across all shots.",
+     "tb": ""},
 ]
+
+
+# Mã cỡ cảnh -> chữ nhà AI hiểu. `CO_HOP_LE` là bộ mã hợp lệ LLM được phép
+# trả về; bảng này là bản dịch ra ngôn ngữ của prompt.
+CO_CHU = {"WS": "wide shot", "MS": "medium shot", "CU": "close-up",
+          "ECU": "extreme close-up", "AERIAL": "aerial shot"}
+# Bộ mã hợp lệ suy ra từ chính bảng dịch: thêm một cỡ cảnh mà quên khai bản
+# dịch thì nó lọt vào dữ liệu rồi biến mất ở prompt, không ai thấy.
+CO_HOP_LE = tuple(CO_CHU)
 
 
 def _ma_sach(ten: str, da_co: dict) -> str:
@@ -167,8 +179,8 @@ def _ma_sach(ten: str, da_co: dict) -> str:
 
 
 def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
-            ve_anh=None) -> FastAPI:
-    """`kho`, `dich`, `goi_y`, `ky_thuat`, `ve_anh` tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
+            ve_anh=None, sinh_asset=None) -> FastAPI:
+    """Mọi bộ máy tiêm từ ngoài: test chạy DB tạm + đồ giả, không mạng."""
     app = FastAPI(title="Bàn kịch bản RenderY")
 
     # ------------------------------------------------------------- trang
@@ -265,15 +277,49 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(400, str(exc)) from exc
 
     # ----------------------------------------------------------------- sổ
+    def _so_day_du(tap: str) -> list[dict]:
+        """Sổ như MỌI bên phải thấy: bản trong DB, chêm tông mặc định khi tập
+        chưa có tông nào.
+
+        Một hàm duy nhất, vì lỗi đo được 25/09 sinh ra đúng từ chỗ có hai:
+        endpoint `/so` chêm mặc định nên TRANG thấy tông, còn `_prompt_anh` gọi
+        thẳng `kho.ds_so()` nên MÁY CHỦ không thấy. Hộp cảnh hiện prompt có
+        mood, Seedream nhận prompt trần — người duyệt một đằng, máy gửi một nẻo,
+        và không có gì trên màn hình lộ ra điều đó.
+        """
+        ds = kho.ds_so(tap)
+        if not any(x["loai"] == "tong" for x in ds):
+            # BẢN SAO: dưới đây có gắn cờ `mac_dinh` vào từng mục, gắn thẳng
+            # vào hằng số module là tập này bôi bẩn tập khác.
+            ds = [dict(x) for x in TONG_MAC_DINH] + ds
+        tong = [x for x in ds if x["loai"] == "tong"]
+        mac = kho.tong_tap(tap)
+        if not any(x["ma"] == mac for x in tong):
+            mac = tong[0]["ma"] if tong else ""     # chưa chọn -> tông đầu sổ
+        for x in tong:
+            x["mac_dinh"] = x["ma"] == mac
+        return ds
+
+    def _tong_chu(so: list[dict], ma: str) -> str:
+        """Đoạn tông của một cảnh. CÙNG LUẬT với `boiler()` trong trang, từng
+        nhánh một: cảnh tự chọn thì theo cảnh, không thì theo tông MẶC ĐỊNH CỦA
+        TẬP. Thiếu đường lui này thì cảnh nào quên chọn là prompt cụt — đo thật:
+        0/83 cảnh có chọn."""
+        tong = [y for y in so if y["loai"] == "tong"]
+        x = next((y for y in tong if y["ma"] == ma), None)
+        if x is None:
+            x = next((y for y in tong if y.get("mac_dinh")), None)
+        if x is None:
+            return ""
+        return " ".join(p for p in ((x.get("chu") or "").strip(),
+                                    (x.get("tb") or "").strip()) if p)
+
     @app.get("/api/tap/{tap}/so")
     def doc_so(tap: str):
         """Sổ dùng chung cả tập. Sổ rỗng thì đưa sẵn HAI TÔNG mặc định user
         đang dùng: prompt nào cũng phải có đoạn tông ghép ở cuối, trả rỗng là
         prompt đầu tiên của mọi tập đều cụt. Chưa ghi xuống — sửa mới ghi."""
-        ds = kho.ds_so(tap)
-        if not any(x["loai"] == "tong" for x in ds):
-            ds = TONG_MAC_DINH + ds
-        return ds
+        return _so_day_du(tap)
 
     @app.put("/api/tap/{tap}/so")
     def luu_so(tap: str, request: Request, than: dict = Body(...)):
@@ -282,52 +328,107 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             kho.luu_so(tap, than.get("so") or [])
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        # Chỉ đụng khi trang GỬI: lưu sổ mà không kèm `tong` là sửa nội dung
+        # tông, không phải đổi tông mặc định — im lặng dọn lựa chọn cũ thì
+        # người ta mất nó mà không biết vì sao.
+        if "tong" in than:
+            kho.dat_tong_tap(tap, (than.get("tong") or "").strip())
         return {"ok": True}
-
-    CO_LO_CANH = 25        # cảnh mỗi lượt gọi — JSON dài là cụt (bài học 23/09)
 
     @app.post("/api/tap/{tap}/so/goi-y")
     def goi_y_tai_san(tap: str, request: Request):
-        """Quét CẢ TẬP rồi gọi tên đủ nhân vật / đạo cụ / bối cảnh.
+        """LLM đọc CẢ KỊCH BẢN TIẾNG ANH rồi gọi tên Asset + đề xuất Mood.
 
-        Đúng bước 2 trong quy trình tay của user, nhưng khác hai chỗ — và cả
-        hai là lý do tool tồn tại: chat quét một lần rồi quên, còn đây quét cả
-        tập và GỘP TRÙNG; và đề xuất KHÔNG tự ghi vào sổ, người duyệt mới nhận
-        (luật cứng #5: không tự quyết hộ user).
+        Đọc kịch bản chứ không đọc mô tả cảnh (user chốt 25/09): nguồn sự thật
+        là bản tiếng Anh, đi qua lớp dịch tiếng Việt của biên kịch là trôi tên
+        riêng. Và chương chưa viết treatment thì quét theo cảnh là vô hình — đo
+        thật trên SE001: C6 và E có 0 cảnh nhưng vẫn có kịch bản.
+
+        MỘT lượt gọi: đo 25/09, cả tập là ~9.100 token. Bỏ được vòng chia lô và
+        đoạn gộp trùng giữa các lô. Mood cũng hỏi trong chính lượt này — nó đã
+        đọc hết rồi thì không việc gì phải trả tiền đọc lại.
+
+        Đề xuất KHÔNG tự ghi vào sổ, người duyệt mới nhận (luật cứng #5).
         """
         _ghi_duoc(request)
         if goi_y is None:
             raise HTTPException(503, "Chưa bật bộ gợi ý.")
-        canh: list[str] = []
+        dong: list[str] = []
         for c in kho.ds_chuong(tap):
             for d in kho.doc(tap, c["ma"])["dong"]:
-                canh += [x["t"] for x in mdong.doc_canh(d)]
-        if not canh:
-            raise HTTPException(400, "Tập này chưa có cảnh nào — viết treatment trước.")
+                t = (d.get("en") or "").strip()
+                if t:
+                    dong.append(t)
+        if not dong:
+            raise HTTPException(
+                400, "Tập này chưa có kịch bản tiếng Anh — dán kịch bản vào trước.")
+        try:
+            ra = goi_y.goi_y(chr(10).join(dong)) or {}
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Gợi ý hỏng: {exc}") from exc
 
-        ra: list[dict] = []
+        ds: list[dict] = []
         thay: dict[str, int] = {}
-        loi = ""
-        for k in range(0, len(canh), CO_LO_CANH):
-            try:
-                phan = goi_y.goi_y(canh[k:k + CO_LO_CANH])
-            except Exception as exc:  # noqa: BLE001 — giữ phần đã quét
-                loi = str(exc)
-                break
-            for x in phan or []:
-                if (x.get("loai") or "") not in ("nhan_vat", "dao_cu", "boi_canh"):
-                    continue
-                ten = (x.get("ten") or "").strip()
-                khoa = ten.lower()
-                if not ten or khoa in thay:
-                    continue
-                thay[khoa] = 1
-                ra.append({"ma": _ma_sach(ten, thay), "loai": x["loai"], "ten": ten,
-                           "chu": (x.get("chu") or "").strip(),
-                           "pr": (x.get("pr") or "").strip(), "ref": False})
-        if loi and not ra:
-            raise HTTPException(502, f"Gợi ý hỏng: {loi}")
-        return {"goi_y": ra, "quet": len(canh), "loi": loi}
+        for x in ra.get("tai_san") or []:
+            if not isinstance(x, dict):
+                continue
+            if (x.get("loai") or "") not in ("nhan_vat", "dao_cu", "boi_canh"):
+                continue
+            ten = (x.get("ten") or "").strip()
+            khoa = ten.lower()
+            if not ten or khoa in thay:      # gộp trùng: một thứ một mục
+                continue
+            thay[khoa] = 1
+            # `chu`/`pr` để TRỐNG: mô tả nhận dạng sinh ở bước sau, từ yêu cầu
+            # của chính người dùng. LLM tự đoán ra một mô tả chung chung thì
+            # người ta phải xoá đi gõ lại.
+            ds.append({"ma": _ma_sach(ten, thay), "loai": x["loai"], "ten": ten,
+                       "ly_do": (x.get("ly_do") or "").strip(),
+                       "chu": "", "pr": "", "tb": "", "ref": False})
+
+        md = ra.get("mood")
+        mood: dict = {}
+        if isinstance(md, dict) and ((md.get("ten") or "").strip()
+                                     or (md.get("chu") or "").strip()):
+            mood = {k: str(md.get(k) or "").strip()
+                    for k in ("ten", "chu", "tb", "ly_do")}
+        return {"goi_y": ds, "mood": mood, "quet": len(dong)}
+
+    @app.post("/api/tap/{tap}/so/{ma}/sinh")
+    def sinh_asset_api(tap: str, ma: str, request: Request):
+        """Viết hồ sơ nhận dạng cho MỘT asset, từ YÊU CẦU người dùng đã gõ.
+
+        Bước 2 của luồng user chốt 25/09. Bước 1 (`/so/goi-y`) chỉ gọi tên;
+        mô tả sinh ở đây, sau khi người dùng đã nói họ muốn gì.
+        """
+        _ghi_duoc(request)
+        if sinh_asset is None:
+            raise HTTPException(503, "Chưa bật bộ sinh asset.")
+        so = _so_day_du(tap)
+        muc = next((x for x in so if x["ma"] == ma), None)
+        if muc is None:
+            raise HTTPException(404, f"Không có mã '{ma}' trong sổ.")
+        if muc["loai"] not in ("nhan_vat", "dao_cu", "boi_canh"):
+            raise HTTPException(
+                400, "Mục này không phải asset — tông không có hồ sơ nhận dạng.")
+        if not (muc.get("yc") or "").strip():
+            raise HTTPException(
+                400, "Chưa có yêu cầu cho asset này — viết vào ô “Yêu cầu” "
+                     "trước. Để trống thì LLM lại tự đoán, đúng thứ vừa bỏ đi.")
+        try:
+            ra = sinh_asset.sinh_asset(muc, _tong_chu(so, ""))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Sinh asset hỏng: {exc}") from exc
+
+        # Ghi ĐÈ LÊN BẢN TRONG KHO, không ghi bản `_so_day_du` (bản này có thể
+        # đang mang tông mồi chưa hề nằm trong DB — lưu cả cụm là tự nhiên đẻ
+        # ra một mục tông mà không ai thêm).
+        kho_so = kho.ds_so(tap)
+        for x in kho_so:
+            if x["ma"] == ma:
+                x["chu"], x["pr"] = ra.get("chu", ""), ra.get("pr", "")
+        kho.luu_so(tap, kho_so)
+        return {"ok": True, "chu": ra.get("chu", ""), "pr": ra.get("pr", "")}
 
     # ------------------------------------------------------------ ref
     @app.post("/api/tap/{tap}/so/{ma}/ref")
@@ -528,12 +629,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"dich": xong, "con_thieu": len(can) - xong,
                 "loi": f"Dừng ở dòng {xong + 1}: {loi}" if loi else ""}
 
-    # ---------------------------------------------------------- kỹ thuật
-    CO_HOP_LE = ("WS", "MS", "CU", "ECU", "AERIAL")
-    CO_LO_KT = 8        # mỗi mục trả 7 trường -> JSON dài gấp mấy lần bản dịch
-
     # ------------------------------------------------------------- ảnh
-    CO_HOP_LE = ("WS", "MS", "CU", "ECU", "AERIAL")
 
     def _luu_canh(tap: str, chuong: str, d: list, ai: str) -> None:
         """Mọi đường ghi của phần ảnh đi qua đây. Không bắt `KhoaBiGiu` thì
@@ -553,14 +649,33 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     return d, i, j, c
         raise HTTPException(404, f"Không có cảnh mã '{ma}' trong chương {chuong}.")
 
+    def _may(c: dict) -> str:
+        """Cỡ cảnh + góc máy thành MỘT mệnh đề tiếng Anh.
+
+        Đo 25/09: 49/49 cảnh có prompt EN đều đã có đủ `co` và `goc` — LLM
+        điền, người dùng nhìn thấy trên thẻ — mà prompt không mang chữ nào.
+        Cùng họ lỗi với đoạn tông: dữ liệu có sẵn, không tới nơi cần tới.
+
+        `co` phải DỊCH RA CHỮ: gửi "ECU" trần là gửi một mã nội bộ cho nhà AI
+        đoán.
+        """
+        pn = [CO_CHU.get((c.get("co") or "").upper(), ""),
+              (c.get("goc") or "").strip()]
+        t = ", ".join(x for x in pn if x)
+        return t[:1].upper() + t[1:] if t else ""
+
     def _prompt_anh(tap: str, c: dict) -> str:
         """ĐÚNG cái người dùng thấy trong hộp: nội dung EN + mô tả tài sản +
         đoạn tông. Gửi mỗi `pa` thì ảnh mất tông, khác hẳn bản họ duyệt."""
-        so = {x["ma"]: x for x in kho.ds_so(tap)}
-        ta = [so[m] for m in (c.get("ts") or []) if m in so and so[m].get("chu")]
+        so = _so_day_du(tap)
+        tra = {x["ma"]: x for x in so}
+        ta = [tra[m] for m in (c.get("ts") or []) if m in tra and tra[m].get("chu")]
         mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
-        tong = so.get(c.get("tong") or "", {}).get("chu", "")
-        return f"16:9 ratio. {c['pa']}\n\n{mo_ta}\n{tong}".strip()
+        if mo_ta:
+            mo_ta += "\n"
+        tong = _tong_chu(so, c.get("tong") or "")
+        may = _may(c)
+        return f"16:9 ratio. {may + '. ' if may else ''}{c['pa']}\n\n{mo_ta}{tong}".strip()
 
     def _ve_mot_canh(tap: str, chuong: str, d: list, i: int, j: int, ai: str) -> None:
         c = mdong.doc_canh(d[i])[j]
@@ -588,9 +703,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not (c.get("t") or "").strip():
             raise HTTPException(400, "Cảnh này chưa có nội dung — viết trước đã.")
 
-        so = [x for x in kho.ds_so(tap)
-              if x["loai"] in ("nhan_vat", "dao_cu", "boi_canh")]
-        ma_ts = {x["ma"] for x in so}
+        # Chỉ đưa asset CẢNH NÀY đang dùng, không đưa cả sổ: LLM không còn
+        # việc chọn, nó chỉ cần biết chủ thể trông ra sao để tả cho khớp.
+        tra = {x["ma"]: x for x in kho.ds_so(tap)}
+        so = [tra[m] for m in (c.get("ts") or []) if m in tra]
         cs = mdong.doc_canh(d[i])
         muc = [{"id": ma, "voice": d[i].get("en", ""), "canh": c["t"],
                 "thu_tu": f"{j + 1}/{len(cs)}"}]
@@ -609,12 +725,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 cs[j][khoa] = str(x[khoa]).strip()
         if (x.get("co") or "").upper() in CO_HOP_LE:
             cs[j]["co"] = x["co"].upper()
-        ts = [m for m in (x.get("ts") or []) if isinstance(m, str) and m in ma_ts]
-        if ts:
-            cs[j]["ts"] = ts
+        # KHÔNG đụng `ts`: người dùng chọn asset, không phải LLM (user chốt
+        # 25/09 — "Không để LLM tự nhớ"). Bớt một chỗ nó bịa mã, và bấm Create
+        # Prompt lần hai không xoá lựa chọn có chủ đích của người dùng.
         d[i] = mdong.ghi_canh(d[i], cs)
         _luu_canh(tap, chuong, d, ai)
-        return {"ok": True, "gan_asset": len(ts)}
+        return {"ok": True, "gan_asset": len(c.get("ts") or [])}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
@@ -747,6 +863,20 @@ def _goi_y_mac_dinh(kho: Kho):
     return _GoiY()
 
 
+class _SinhAsset:
+    """Đọc KÉT mỗi lượt, dùng chung cấp phát `dich` như bộ gợi ý."""
+
+    def sinh_asset(self, muc, tong):
+        from autoedit.treatment.dich import LLM
+
+        return LLM().sinh_asset(muc, tong)
+
+
+def _sinh_asset_mac_dinh(kho: Kho):
+    _ = kho
+    return _SinhAsset()
+
+
 def _dich_mac_dinh(kho: Kho):
     _ = kho
     return _Dich()
@@ -762,7 +892,8 @@ def tao_app_mac_dinh() -> FastAPI:
     return tao_app(kho, dich=_dich_mac_dinh(kho),
                    goi_y=_goi_y_mac_dinh(kho),
                    ky_thuat=_ky_thuat_mac_dinh(kho),
-                   ve_anh=_ve_anh_mac_dinh(kho))
+                   ve_anh=_ve_anh_mac_dinh(kho),
+                   sinh_asset=_sinh_asset_mac_dinh(kho))
 
 
 def main() -> None:

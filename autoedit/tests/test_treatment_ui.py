@@ -403,8 +403,57 @@ def test_boiler_doc_tu_SO_khong_ghi_cung_trong_trang(html):
     đoạn boilerplate trong trang nghĩa là đổi mood phải sửa code."""
     i = html.index("function boiler(")
     than = html[i:html.index(chr(10) + "}", i)]
-    assert "soTheoMa(" in than, "boiler phải tra trong sổ của tập"
+    assert 'soTheoLoai("tong")' in than, "boiler phải tra trong sổ của tập"
     assert "TONG_MAC_DINH" not in html, "boilerplate không được ghi cứng trong trang — nó sống ở sổ"
+
+
+def test_boiler_ROI_VE_tong_mac_dinh_cua_TAP(html):
+    """Cảnh không tự chọn thì ăn theo tông mặc định của tập (user chốt 25/09).
+    Trang phải CÙNG LUẬT với `_tong_chu` bên Python — lệch một nhánh là cái
+    người ta duyệt trên màn hình khác cái máy chủ gửi Seedream, đúng lỗi đo
+    được sáng 25/09."""
+    i = html.index("function boiler(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "mac_dinh" in than
+
+
+def test_boiler_ghep_ca_THIET_BI(html):
+    """User 25/09: prompt thiếu hẳn ống kính / máy quay. Thiết bị nằm ở tông
+    (quyết định look của cả tập) nên boiler phải ghép nó vào."""
+    i = html.index("function boiler(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert ".tb" in than
+
+
+def test_trang_KHONG_ghi_cung_ma_tong(html):
+    """Hai mã `nuoc`/`can` từng bị ghim vào ba chỗ: nút chọn tông trong hộp
+    cảnh, lớp CSS tô màu thẻ, và giá trị mặc định của `dungCanhTap`. Ghim thế
+    thì Owner đặt tông tên khác là trang không hiện được — mà user vừa bỏ hẳn
+    hai mã đó vì chúng là BỐI CẢNH, không phải tông."""
+    for xau in ("'nuoc'", '"nuoc"', "=== \"can\"", "datTong('nuoc')",
+                "datTong('can')"):
+        assert xau not in html, f"trang còn ghim mã tông: {xau}"
+
+
+def test_canh_khong_tu_gan_tong_mac_dinh(html):
+    """`tong: cn.tong || "can"` ép MỌI cảnh thành một tông cứng ngay lúc dựng
+    bảng — cảnh chưa chọn thì phải để RỖNG, nghĩa là theo tập."""
+    i = html.index("function dungCanhTap(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert 'cn.tong || "can"' not in than
+
+
+def test_o_THIET_BI_co_trong_ho_so_tone(html):
+    """Thiết bị phải là ô nhập riêng trong hồ sơ Tone, không chôn trong đoạn
+    mood: chôn thì người dùng không biết là phải điền."""
+    assert "data-tb=" in html
+
+
+def test_chot_so_gui_kem_tong_MAC_DINH(html):
+    """Chọn tông cho cả tập mà không gửi lên thì bấm xong reload là mất."""
+    i = html.index("async function chotSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "TONG_TAP" in than or "tong:" in than
 
 
 def test_prompt_dinh_MO_TA_TAI_SAN_cua_canh(html):
@@ -708,34 +757,6 @@ def test_moi_nut_sinh_deu_BAO_DANG_LAM(html):
     k = html.index("async function sinhRef(")
     than_ref = html[k:html.index(chr(10) + "}", k)]
     assert "Đang vẽ ref" in than_ref and "disabled = true" in than_ref
-
-
-def test_gen_image_CANH_BAO_khi_canh_chua_gan_asset(html):
-    """User 25/09: "vừa sinh thử 2 cảnh và hoàn toàn không khớp mood với kịch
-    bản. Do đó tầm quan trọng của việc sinh asset phải được chú ý hơn và đảm bảo
-    asset luôn được sử dụng trong prompt ảnh và video".
-
-    Cảnh không gắn asset nào thì prompt không có ràng buộc nhất quán — ảnh ra
-    tuỳ hứng. Không cấm (có cảnh thật sự không cần asset), nhưng phải HỎI."""
-    i = html.index("async function sinhAnh(")
-    than = html[i:html.index(chr(10) + "}", i)]
-    assert "confirm(" in than
-    assert "asset" in than.lower()
-
-
-def test_the_canh_danh_dau_CHUA_GAN_ASSET(html):
-    i = html.index("function veTheCanh(")
-    than = html[i:html.index(chr(10) + "}", i)]
-    assert "chưa gán asset" in than
-
-
-def test_hop_canh_bao_ro_prompt_THIEU_ASSET(html):
-    """Nhìn vào prompt phải thấy ngay nó có mô tả asset hay không."""
-    i = html.index("function moCanh(")
-    than = html[i:html.index(chr(10) + "}", i)]
-    assert "chưa gán asset" in than
-
-
 def test_bang_canh_bao_trong_hop_la_KHOI_CHU(html):
     """Đo Chrome 25/09: băng "chưa gán asset" mượn class `.khoa` (vốn
     display:flex cho băng khoá chương) nên chữ bị vỡ thành ba cột rời rạc:
@@ -746,3 +767,203 @@ def test_bang_canh_bao_trong_hop_la_KHOI_CHU(html):
     j = html.index("function moCanh(")
     than = html[j:html.index(chr(10) + "}", j)]
     assert 'class="nhac"' in than and 'class="khoa"' not in than
+
+
+# ═══════════ việc 3 (25/09): cột kỹ thuật phải đi vào prompt ═════════════════
+def test_prompt_anh_trang_mang_CO_va_GOC(html):
+    """49/49 cảnh của SE001 đã có đủ cỡ cảnh và góc máy, hiện rành rành trên
+    thẻ — mà prompt thì không mang. Trang phải cùng luật với `_prompt_anh`."""
+    i = html.index("function promptAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "mayQuay(" in than
+
+
+def test_prompt_video_dung_CHUYEN_DONG_THAT_khong_de_len(html):
+    """Nặng nhất trong bốn cột: prompt video ghi đè `cd` bằng một câu chung
+    chung. Cảnh ghi `slow push in` thì mất hẳn, cảnh `static` thì thành lời
+    khuyên mơ hồ. Chỉ được dùng câu chung khi cảnh KHÔNG có `cd`."""
+    i = html.index("function promptVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.cd" in than, "phải dùng chuyển động máy của chính cảnh"
+    assert "Simple camera motion only" not in than or "cd ?" in than or "cd)" in than
+
+
+def test_prompt_video_mang_SFX(html):
+    """`sfx` là gợi ý tiếng động LLM đã sinh cho từng cảnh. Seedance nhận được
+    thì tiếng khớp hình; không nhận thì nó tự bịa hoặc câm."""
+    i = html.index("function promptVideo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "x.sfx" in than
+
+
+def test_ma_co_canh_co_bang_dich_ra_chu(html):
+    """Gửi mã nội bộ "ECU" cho nhà AI là bắt nó đoán."""
+    assert "extreme close-up" in html
+
+
+# ═══════════ việc 4 (25/09): đề xuất Asset + Mood từ kịch bản ════════════════
+def test_bang_de_xuat_hien_LY_DO(html):
+    """Duyệt một danh sách tên trần thì chỉ là bấm đồng ý. Phải thấy VÌ SAO
+    thứ này cần nhất quán, dẫn từ kịch bản."""
+    i = html.index("function veGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "ly_do" in than
+
+
+def test_bang_de_xuat_hien_MOOD(html):
+    """User 25/09 yêu cầu LLM đọc kịch bản và đề xuất mood. Đề xuất mà không
+    hiện ra thì cũng như không có."""
+    i = html.index("function veGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "MOOD.chu" in than, "phải hiện đoạn mood LLM đề xuất"
+    assert "MOOD.ly_do" in than, "và căn cứ nó rút từ kịch bản"
+    assert "MOOD.tb" in than, "và thiết bị nó đề xuất"
+
+
+def test_nhan_MOOD_thi_dat_lam_TONG_CUA_TAP(html):
+    """Nhận mood = thêm một mục tông VÀ đặt nó làm tông mặc định của tập. Thêm
+    mà không đặt thì mọi cảnh vẫn ăn tông cũ, người dùng không hiểu vì sao."""
+    i = html.index("async function nhanGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "TONG_TAP" in than
+
+
+def test_bang_de_xuat_dem_theo_DONG_KICH_BAN(html):
+    """Quét theo kịch bản thì đơn vị là dòng, không còn là cảnh."""
+    i = html.index("function veGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "cảnh" not in than, "còn đếm theo cảnh là mô tả sai việc vừa làm"
+
+
+# ═══════ việc 5+6 (25/09): màn ASSET dạng bảng thẻ, sinh từ yêu cầu ══════════
+def test_co_MAN_ASSET_rieng(html):
+    """User 25/09: "Là một giao diện tương tự như phân cảnh hiện nay, cho phép
+    xem, điều chỉnh, hệ thống thay vì chỉ là một module nhập liệu". Tấm phiếu
+    cuộn dài trong ngăn kéo không trả lời được câu "asset nào đang bỏ quên"."""
+    assert 'id="manAs"' in html
+    assert "function veAsset(" in html and "function moAsset(" in html
+
+
+def test_the_asset_nhom_theo_LOAI(html):
+    """Nhóm theo loại, đúng cách storyboard nhóm theo phân cảnh."""
+    i = html.index("function veAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    for l in ("nhan_vat", "boi_canh", "dao_cu"):
+        assert l in than
+
+
+def test_the_asset_hien_TRANG_THAI_va_SO_CANH_DUNG(html):
+    """Đường quay ngược "dùng ở N cảnh" chính là phần HỆ THỐNG: nó chỉ ra asset
+    nào lập ra rồi bỏ quên, việc mà tấm phiếu cũ không bao giờ trả lời được."""
+    i = html.index("function veAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "dùng ở" in than
+    assert "chưa có yêu cầu" in than and "chưa sinh mô tả" in than
+
+
+def test_hop_asset_co_o_YEU_CAU(html):
+    """Ô yêu cầu là cả lý do bước sinh asset tồn tại."""
+    assert "data-yc=" in html
+
+
+def test_hop_asset_co_nut_SINH_ASSET(html):
+    assert "function sinhAsset(" in html
+    i = html.index("async function sinhAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "/sinh" in than
+    assert "banRon(" in than, "nút phải báo đang làm như mọi nút gọi API khác"
+
+
+def test_sinh_asset_LUU_YEU_CAU_truoc_khi_goi(html):
+    """Gõ yêu cầu rồi bấm ngay mà không lưu thì máy chủ đọc bản cũ — LLM viết
+    theo yêu cầu cũ, người dùng tưởng nó không nghe mình."""
+    i = html.index("async function sinhAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "docHopAsset(" in than, "phải đọc ô yêu cầu đang gõ trên màn hình"
+    assert than.index("docHopAsset(") < than.index("luuSoLen("), "đọc rồi mới lưu"
+    assert than.index("luuSoLen(") < than.index("/sinh"), "lưu rồi mới gọi máy chủ"
+
+
+def test_hop_asset_liet_ke_CANH_DUNG(html):
+    i = html.index("function moAsset(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "canhDungAsset(" in than
+
+
+def test_nut_Asset_mo_MAN_chu_khong_mo_phieu(html):
+    assert "doiMan('as')" in html
+
+
+# Ba bài test "thiếu asset là thiếu sót" (hộp thoại hỏi lại · chip vàng trên thẻ
+# · băng nhắc trong hộp cảnh) đã gỡ ngày 25/09. Chúng dựng trên giả định MỌI
+# cảnh nên có asset — mà vế "(nếu bắt buộc cần đồng nhất)" của user nói ngược
+# lại: gán THƯA, có chủ đích, chỉ ở cảnh nào phải đồng nhất. Nguyên nhân thật
+# của việc ảnh lệch mood hoá ra nằm chỗ khác và đã vá: prompt máy chủ gửi đi
+# không hề mang đoạn tông (xem test_treatment_anh.py). Luật mới nằm ở bốn bài
+# `viec 7` phía dưới.
+
+# ═══════ việc 7 (25/09): gán asset là việc CÓ CHỦ ĐÍCH, không phải thiếu sót ══
+def test_gen_image_KHONG_con_hoi_lai_khi_thieu_asset(html):
+    """Hôm 25/09 tôi dựng ba lớp cảnh báo coi mọi cảnh không có asset là thiếu
+    sót. Vế "(nếu bắt buộc cần đồng nhất)" của user nghĩa ngược lại: gán THƯA,
+    có chủ đích. Giữ hộp thoại là bắt người ta bấm qua một câu hỏi vô nghĩa ở
+    phần lớn số cảnh."""
+    i = html.index("async function sinhAnh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "confirm(" not in than
+
+
+def test_the_canh_KHONG_con_chip_chua_gan_asset(html):
+    i = html.index("function veTheCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa gán asset" not in than
+
+
+def test_hop_canh_KHONG_con_bang_nhac_thieu_asset(html):
+    i = html.index("function moCanh(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "chưa gán asset" not in than
+
+
+def test_thanh_tren_dem_TRUNG_TINH_khong_bao_thieu(html):
+    """Đếm thì vẫn đếm — nhưng gán thưa là đúng, nên đừng tô vàng nó."""
+    i = html.index("function tienDoSo(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "cảnh chưa gán" not in than
+
+
+def test_bang_de_xuat_TU_MO_lop_phu(html):
+    """Đo Chrome 25/09: nút "Nhận vào sổ" nằm trong DOM mà không bấm được —
+    bảng này trước đây luôn được gọi từ trong phiếu sổ đã mở sẵn, nay gọi thẳng
+    từ thanh màn Asset nên phải tự mở lớp phủ. Test tĩnh không bắt được loại
+    lỗi này, chỉ trình duyệt thật mới thấy."""
+    i = html.index("function veGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "nenCanh" in than
+
+
+def test_nhan_MOOD_hai_lan_KHONG_de_ra_hai_muc(html):
+    """Đo Chrome 25/09: bấm "Đọc kịch bản" rồi "Nhận vào sổ" lần thứ hai thì hộp
+    cảnh mọc thêm một nút tone y hệt — ba lần bấm là ba mục trùng tên. Asset đã
+    gộp trùng theo tên ngay từ đầu, mood thì bị bỏ sót."""
+    i = html.index("async function nhanGoiY(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert 'soTheoLoai("tong")' in than, "phải tìm tông cùng tên đã có trong sổ"
+
+
+def test_nut_doc_kich_ban_KHONG_KET(html):
+    """Đo Chrome 25/09: quét xong xuôi mà nút vẫn "Đang đọc cả kịch bản…" và
+    disabled vĩnh viễn — nó chỉ mở khoá ở nhánh LỖI. Trước đây nút nằm trong
+    phiếu sổ nên bị vẽ lại là hết kẹt; nay nó đứng thường trực trên thanh màn
+    Asset. Mọi nút gọi API phải đi qua `banRon` vì hàm đó có `finally`."""
+    i = html.index("async function goiYTaiSan(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "banRon(" in than
+
+
+def test_man_ASSET_xep_doc_nhu_man_STORYBOARD(html):
+    """Đo Chrome 25/09: màn Asset ra thành một cột hẹp bên phải, thanh công cụ
+    nằm giữa trang. `doiMan` đặt display:flex mà không có `flex-direction:column`
+    thì hai khối con xếp NGANG. `#manSb` có luật CSS riêng nên không lộ."""
+    i = html.index("#manSb")
+    assert "#manAs" in html[i:i + 60], "màn Asset phải dùng chung luật với #manSb"

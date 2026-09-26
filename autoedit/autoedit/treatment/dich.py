@@ -35,24 +35,36 @@ Luật:
 Trả về JSON: {"dong": ["bản dịch dòng 1", "bản dịch dòng 2", ...]}"""
 
 
-_LENH_TAI_SAN = """Bạn là trợ lý dựng storyboard. Dưới đây là danh sách CẢNH \
-của một video (mỗi dòng một cảnh).
+_LENH_TAI_SAN = """Bạn là trợ lý dựng storyboard. Dưới đây là TOÀN BỘ \
+kịch bản tiếng Anh của một tập phim tư liệu.
 
-Hãy liệt kê MỌI nhân vật, đạo cụ và bối cảnh xuất hiện trong các cảnh đó.
+VIỆC 1 — GỌI TÊN những thứ phải trông GIỐNG NHAU ở mọi cảnh:
+- `nhan_vat`: người, sinh vật, phương tiện xuất hiện nhiều lần.
+- `boi_canh`: nơi chốn / môi trường lặp lại. Ánh sáng và chất của môi trường \
+thuộc về đây, KHÔNG thuộc về mood.
+- `dao_cu`: CHỈ nêu khi một vật lặp qua nhiều cảnh và phải trông giống nhau. \
+Vật xuất hiện đúng một lần thì bỏ qua.
 
 Luật:
-- Chỉ liệt kê thứ THỰC SỰ có trong các cảnh. Không bịa thêm.
-- Gộp các cách gọi khác nhau của cùng một thứ làm MỘT mục.
-- `loai` chỉ nhận: nhan_vat | dao_cu | boi_canh
-- `ten`: tiếng Việt, ngắn, đúng cách đội gọi trong cảnh.
-- `chu`: mô tả nhận dạng bằng TIẾNG ANH, ngắn gọn, nêu đặc điểm giữ cho ảnh \
-nhất quán (chất liệu, màu, niên đại, dáng). Đây là đoạn sẽ được đính vào MỌI \
-prompt cảnh dùng nó.
-- `pr`: prompt TIẾNG ANH để sinh ảnh tham chiếu, dùng một lần. Với nhân vật: \
-toàn thân, 3 góc (chính diện, bên hông, sau lưng), nền trắng, photorealistic, \
-đúng niên đại. Với đạo cụ/bối cảnh: một khung hình sạch, photorealistic.
+- Chỉ nêu thứ THỰC SỰ có trong kịch bản. Không bịa.
+- Gộp mọi cách gọi khác nhau của cùng một thứ làm MỘT mục.
+- `ten`: tiếng Việt, ngắn, đúng cách đội gọi.
+- `ly_do`: một câu TIẾNG VIỆT nói vì sao thứ này cần nhất quán, dẫn chi tiết \
+có thật trong kịch bản.
+- TUYỆT ĐỐI KHÔNG viết mô tả nhận dạng. Người dùng sẽ đưa yêu cầu riêng cho \
+từng mục ở bước sau, mô tả sinh từ yêu cầu đó.
 
-Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "chu": "...", "pr": "..."}]}"""
+VIỆC 2 — ĐỀ XUẤT MOOD cho cả tập, dựa trên việc hiểu kịch bản:
+- `ten`: tên gọi ngắn bằng TIẾNG VIỆT.
+- `chu`: đoạn TIẾNG ANH sẽ ghép vào cuối MỌI prompt ảnh và video. Nêu: \
+photorealistic hay không, mood, mức tương phản, bảng màu, và một câu giữ nhất \
+quán giữa các cảnh. KHÔNG nêu ánh sáng của một môi trường cụ thể — cái đó \
+thuộc về bối cảnh.
+- `tb`: đoạn TIẾNG ANH về thiết bị — thân máy, dòng ống kính, chất phim.
+- `ly_do`: một câu TIẾNG VIỆT dẫn căn cứ có thật trong kịch bản.
+
+Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "ly_do": "..."}], \
+"mood": {"ten": "...", "chu": "...", "tb": "...", "ly_do": "..."}}"""
 
 
 # Ngữ pháp cỡ cảnh và luật chống sai nghĩa lấy từ `director/prompts.py` — bộ
@@ -60,7 +72,9 @@ Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "chu": "...", "pr": 
 _LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
 
 Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
-bằng tiếng Việt do biên kịch viết, và vị trí của nó trong phân cảnh.
+bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, và MÔ TẢ CÁC \
+ASSET người dùng đã chọn cho cảnh đó (nếu có). Bám mô tả asset khi tả chủ thể — \
+đó là thứ giữ nhân vật giống nhau giữa các cảnh.
 
 Với MỖI cảnh, trả về:
 - `pa`: prompt TIẾNG ANH tả khung hình tĩnh của cảnh đó. Tả cái NHÌN THẤY: chủ \
@@ -72,8 +86,6 @@ chuyển cảnh. Chuyển động ĐƠN GIẢN thôi.
 - `goc`: góc máy, tiếng Anh ngắn (eye level, low angle, top down…)
 - `cd`: chuyển động camera, tiếng Anh ngắn (static, slow push in, pan left…)
 - `sfx`: gợi ý tiếng động, tiếng Anh ngắn
-- `ts`: danh sách MÃ tài sản xuất hiện trong cảnh, lấy từ sổ được đưa bên dưới. \
-Không có thì để danh sách rỗng. TUYỆT ĐỐI không bịa mã.
 
 Luật:
 - Cỡ cảnh: wide mở đầu/tả bối cảnh · medium kể chuyện · close-up nhấn cảm xúc. \
@@ -83,7 +95,31 @@ câu chuyện. Đây là lỗi sai nghĩa nặng nhất.
 - Trả ĐÚNG số mục, ĐÚNG thứ tự như nhận vào. Không gộp, không bỏ.
 
 Trả về JSON: {"canh": [{"id": "...", "pa": "...", "pv": "...", "co": "...", \
-"goc": "...", "cd": "...", "sfx": "...", "ts": []}]}"""
+"goc": "...", "cd": "...", "sfx": "..."}]}"""
+
+
+_LENH_ASSET = """Bạn viết HỒ SƠ NHẬN DẠNG cho một tài sản trong storyboard.
+
+Bạn nhận: loại, tên, YÊU CẦU CỦA ĐẠO DIỄN (tiếng Việt), và mood của cả tập.
+
+Trả về:
+- `chu`: mô tả nhận dạng bằng TIẾNG ANH, 1-3 câu. Chỉ nêu đặc điểm NHÌN THẤY \
+giữ cho ảnh nhất quán: hình dáng, chất liệu, màu, niên đại, dấu hiệu riêng. \
+Đoạn này đính vào MỌI prompt cảnh dùng tài sản này, nên phải ngắn và đặc.
+- `pr`: prompt TIẾNG ANH sinh ảnh tham chiếu, dùng một lần. Với nhân vật: toàn \
+thân, 3 góc (chính diện, bên hông, sau lưng), nền trắng trơn, photorealistic, \
+đúng niên đại. Với đạo cụ / bối cảnh: một khung hình sạch, photorealistic, \
+nền trung tính.
+
+Luật:
+- BÁM YÊU CẦU CỦA ĐẠO DIỄN. Yêu cầu nói gì thì giữ nguyên cái đó, không thay \
+bằng ý mình, không "cải thiện".
+- Yêu cầu bỏ trống chỗ nào thì tự điền cho hợp lý và hợp mood, nhưng tuyệt đối \
+không bịa chi tiết mâu thuẫn với yêu cầu.
+- `pr` KHÔNG ghép mood tối / ánh sáng của tập. Ref là bản mặt của tài sản, nền \
+sạch. Ghép "dark mood" vào là ref tối om, đem làm tham chiếu thì hỏng.
+
+Trả về JSON: {"chu": "...", "pr": "..."}"""
 
 
 class DichLoi(RuntimeError):
@@ -197,12 +233,34 @@ class LLM:
         ra = self.goi(_LENH_KY_THUAT, than).get("canh") or []
         return [x for x in ra if isinstance(x, dict)]
 
-    def goi_y(self, canh: list[str]) -> list[dict]:
-        """Một lô cảnh -> danh sách tài sản. Trả sai hình dạng thì bỏ mục đó,
-        không giết cả lượt: mất một mục còn hơn mất cả bảng đề xuất."""
-        than = "\n".join("- " + c for c in canh)
-        ra = self.goi(_LENH_TAI_SAN, than).get("tai_san") or []
-        return [x for x in ra if isinstance(x, dict) and (x.get("ten") or "").strip()]
+    def sinh_asset(self, muc: dict, tong: str) -> dict:
+        """Một tài sản + YÊU CẦU của người dùng -> hồ sơ nhận dạng + prompt ref.
+
+        Yêu cầu đi TRƯỚC mọi thứ khác trong thân: cái LLM đoán từ kịch bản là
+        một con cá mập chung chung, cái đội cần là con cá mập trong đầu đạo
+        diễn (user chốt 25/09).
+        """
+        than = ("YÊU CẦU CỦA ĐẠO DIỄN:" + chr(10) + (muc.get("yc") or "") +
+                chr(10) * 2 + "TÀI SẢN: %s (%s)" % (muc.get("ten", ""),
+                                                    muc.get("loai", "")) +
+                chr(10) * 2 + "MOOD CỦA CẢ TẬP:" + chr(10) + (tong or "(chưa đặt)"))
+        ra = self.goi(_LENH_ASSET, than)
+        return {"chu": str(ra.get("chu") or "").strip(),
+                "pr": str(ra.get("pr") or "").strip()}
+
+    def goi_y(self, kich_ban: str) -> dict:
+        """CẢ kịch bản tiếng Anh -> {tai_san, mood}, MỘT lượt gọi.
+
+        Không chia lô nữa: đo 25/09 trên SE001, toàn bộ `en` là 36.542 ký tự
+        (~9.100 token) — lọt một lượt thoải mái. Chia lô thì mỗi lô chỉ thấy
+        một khúc truyện, mà mood là nhận định về CẢ tập; hỏi từng khúc rồi ghép
+        lại chỉ ra một đống mâu thuẫn.
+
+        Tầng app lọc hình dạng: ở đây trả nguyên, hỏng mục nào bỏ mục đó chứ
+        không giết cả lượt — mất một mục còn hơn mất cả bảng đề xuất.
+        """
+        ra = self.goi(_LENH_TAI_SAN, kich_ban)
+        return ra if isinstance(ra, dict) else {}
 
     def dich(self, cau: list[str]) -> list[str]:
         than = "\n".join(f"[{i}] {c}" for i, c in enumerate(cau))

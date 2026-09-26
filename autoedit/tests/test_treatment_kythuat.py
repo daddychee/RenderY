@@ -128,29 +128,63 @@ def test_co_canh_la_bi_bo(tmp_path):
 
 
 # ------------------------------------------------------- asset
-def test_ts_phai_la_ma_co_trong_SO(tmp_path):
-    """LLM trả mã asset không có trong sổ thì bỏ — không thì prompt đính mô tả
-    rỗng, hoặc tệ hơn là trỏ vào thứ không tồn tại."""
+def test_LLM_KHONG_duoc_GAN_ASSET(tmp_path):
+    """User chốt 25/09: *"Người dùng chọn nhân vật và bối cảnh (nếu bắt buộc cần
+    đồng nhất)… Không để LLM tự nhớ"*.
+
+    Người chọn, không phải máy. Bớt một chỗ LLM bịa mã, và bớt một đường ghi đè
+    lựa chọn có chủ đích của người dùng. Đo thật trên SE001 trước khi đổi: 0/83
+    cảnh có asset — LLM chưa từng gán nổi mã nào, vì sổ trống thì không có gì
+    để gán."""
     kt = KyThuatGia(tra=lambda m, t: [{"id": m[0]["id"], "pa": "x", "pv": "y",
-                                       "ts": ["k129", "khong_co"]}])
+                                       "ts": ["k129"]}])
     c, kho = _dung(tmp_path, kt, canh=("a",))
+    _goi(c, kho)
+    assert "ts" not in _cs(kho)[0], "LLM trả `ts` thì cũng phải bị bỏ ngoài"
+
+
+def test_create_prompt_KHONG_XOA_asset_nguoi_dung_da_chon(tmp_path):
+    """Chọn asset xong bấm Create Prompt lại là mất lựa chọn thì không ai dám
+    bấm lần hai."""
+    kt = KyThuatGia(tra=lambda m, t: [{"id": m[0]["id"], "pa": "x", "pv": "y"}])
+    c, kho = _dung(tmp_path, kt, canh=("a",))
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["k129"]
+    kho.luu("SE001", "H", d, "", "thu")
     _goi(c, kho)
     assert _cs(kho)[0]["ts"] == ["k129"]
 
 
-def test_gui_kem_VOICE_va_SO_ASSET(bo):
-    """Không có voice thì LLM không biết cảnh đang kể gì; không có sổ thì nó
-    không gắn được asset vào cảnh — mà asset là thứ giữ mood khớp kịch bản."""
+def test_gui_kem_VOICE(bo):
+    """Không có voice thì LLM không biết cảnh đang kể gì."""
     c, kho, kt = bo
     _goi(c, kho)
-    muc, so = kt.goi[0]
-    assert muc[0]["voice"] == "Voice one."
-    assert [x["ma"] for x in so] == ["k129"]
+    assert kt.goi[0][0][0]["voice"] == "Voice one."
 
 
-def test_tra_ve_so_asset_da_gan(bo):
-    """Trang cần con số này để báo ngay "gắn 1 asset" hay "chưa gắn asset nào"."""
+def test_chi_gui_asset_CUA_CANH_khong_gui_ca_so(bo):
+    """LLM không còn việc CHỌN asset nữa, nên đưa cả sổ là đưa thừa — nó chỉ
+    cần biết chủ thể của CẢNH NÀY trông ra sao để tả cho khớp. Sổ 30 mục mà
+    cảnh dùng 1 thì 29 mục kia chỉ là chỗ cho nó lạc."""
+    c, kho, kt = bo
+    _goi(c, kho)
+    assert kt.goi[0][1] == [], "cảnh chưa chọn asset thì không gửi mục nào"
+
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["k129"]
+    kho.luu("SE001", "H", d, "", "thu")
+    kt.goi.clear()
+    _goi(c, kho)
+    assert [x["ma"] for x in kt.goi[0][1]] == ["k129"]
+
+
+def test_tra_ve_so_asset_CUA_CANH(bo):
+    """Con số này là số asset CẢNH ĐANG CÓ (người dùng đã chọn), không còn là số
+    LLM vừa gán — trang dùng nó để nói prompt vừa kèm bao nhiêu mô tả."""
     c, kho, _ = bo
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["k129"]
+    kho.luu("SE001", "H", d, "", "thu")
     assert _goi(c, kho).json()["gan_asset"] == 1
 
 

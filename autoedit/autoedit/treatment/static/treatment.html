@@ -191,14 +191,14 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .man button{background:transparent;border:0;padding:5px 12px;cursor:pointer;
   font-weight:700;font-size:13px;color:var(--muted)}
 .man button.on{background:var(--accent);color:#fff}
-#manSb{flex:1;min-height:0;display:flex;flex-direction:column}
+#manSb,#manAs{flex:1;min-height:0;display:flex;flex-direction:column}
 .vet-hop{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 14px;
   display:flex;gap:10px;align-items:center;flex:0 0 auto}
 .vet{display:flex;gap:2px;flex:1;min-width:0;flex-wrap:wrap}
 .vet i{width:9px;height:15px;border-radius:2px;background:var(--line);cursor:pointer;
   display:block}
-.vet i.nuoc{background:var(--accent)}
-.vet i.can{background:var(--warn)}
+.vet i.t1{background:var(--accent)}
+.vet i.t2{background:var(--warn)}
 .sb-canvas{flex:1;min-height:0;overflow:auto;padding:14px}
 .lo{background:var(--panel);border:1px solid var(--line);border-radius:13px;
   padding:11px 13px 13px;margin-bottom:13px;border-left:4px solid var(--line)}
@@ -215,8 +215,8 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   color:var(--muted);font-size:10.5px;font-weight:700;border-bottom:1px solid var(--line);
   position:relative;background:repeating-linear-gradient(45deg,
   var(--line) 0 7px,transparent 7px 14px)}
-.tc .hinh.nuoc{background:linear-gradient(160deg,var(--accent-soft),transparent)}
-.tc .hinh.can{background:linear-gradient(160deg,var(--warn-soft),transparent)}
+.tc .hinh.t1{background:linear-gradient(160deg,var(--accent-soft),transparent)}
+.tc .hinh.t2{background:linear-gradient(160deg,var(--warn-soft),transparent)}
 .tc .ma{position:absolute;top:6px;left:6px;background:var(--text);color:var(--bg);
   border-radius:5px;padding:1px 7px;font-size:11px;font-weight:800}
 .tc .chu{padding:8px 9px;font-size:11.5px;line-height:1.45;height:62px;overflow:hidden}
@@ -240,8 +240,8 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .to{width:100%;aspect-ratio:16/9;border-radius:11px;border:1px solid var(--line);
   display:flex;align-items:center;justify-content:center;color:var(--muted);
   font-size:12px;font-weight:700;text-align:center;padding:9px}
-.to.nuoc{background:linear-gradient(160deg,var(--accent-soft),transparent)}
-.to.can{background:linear-gradient(160deg,var(--warn-soft),transparent)}
+.to.t1{background:linear-gradient(160deg,var(--accent-soft),transparent)}
+.to.t2{background:linear-gradient(160deg,var(--warn-soft),transparent)}
 .o-sua{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px;
   font-size:12.5px;line-height:1.55;white-space:pre-wrap;outline:0}
 .o-sua:focus{border-color:var(--accent)}
@@ -298,6 +298,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <div class="man">
     <button id="mKb" class="on" onclick="doiMan('kb')">Kịch bản</button>
     <button id="mSb" onclick="doiMan('sb')">Storyboard</button>
+    <button id="mAs" onclick="doiMan('as')">Asset</button>
   </div>
   <div class="chuong" id="chuong"></div>
   <div class="spacer"></div>
@@ -371,10 +372,24 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <select id="locNhanSu" onchange="veSb()" title="Cụm màu = phân nhân sự">
       <option value="0">Nhân sự: tất cả</option>
     </select>
-    <button class="icon-btn" id="nutTaiSan" onclick="moSo('ts')">Asset</button>
+    <button class="icon-btn" id="nutTaiSan" onclick="doiMan('as')">Asset</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tone</button>
   </div>
   <div class="sb-canvas" id="sbCanvas"></div>
+</div>
+
+<div id="manAs" style="display:none">
+  <div class="vet-hop">
+    <span class="nhan" style="margin:0">Asset của tập</span>
+    <span class="tien-do" id="tienDoAs"></span>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="nutGoiY" onclick="goiYTaiSan()">Đọc kịch bản</button>
+    <button class="icon-btn" onclick="themAsset('nhan_vat')">+ nhân vật</button>
+    <button class="icon-btn" onclick="themAsset('boi_canh')">+ bối cảnh</button>
+    <button class="icon-btn" onclick="themAsset('dao_cu')">+ đạo cụ</button>
+    <button class="icon-btn" onclick="moSo('tong')">Tone</button>
+  </div>
+  <div class="sb-canvas" id="asCanvas"></div>
 </div>
 
 <div class="nen" id="nenCanh" onclick="if(event.target===this) dongCanh()">
@@ -791,29 +806,47 @@ var GIAY_CLIP = 5;
 var TU_MOI_GIAY = 2.6;
 
 /* ─── SỔ dùng chung cả tập: tông · tài sản · phân nhân sự ─── */
-var SO = [];                       // máy chủ trả kèm 2 tông mặc định khi sổ rỗng
+var SO = [], TONG_TAP = "";        // máy chủ trả kèm tông mồi khi sổ rỗng
 function soTheoLoai(l){ return SO.filter(function(x){ return x.loai === l; }); }
 function soTheoMa(ma){
   for(var i = 0; i < SO.length; i++) if(SO[i].ma === ma) return SO[i];
   return null;
 }
 async function napSo(){
-  if(!TAP_MA) { SO = []; return; }
+  if(!TAP_MA) { SO = []; TONG_TAP = ""; return; }
   try { SO = await api("/api/tap/" + TAP_MA + "/so"); } catch(e){ SO = []; }
+  TONG_TAP = (soTheoLoai("tong").filter(function(x){ return x.mac_dinh; })[0]
+              || {}).ma || "";
 }
 async function luuSoLen(){
   if(!SUA_DUOC) return;
-  try { await api("/api/tap/" + TAP_MA + "/so", "PUT", {so: SO}); tt("✓ Đã lưu sổ", "xong"); }
+  try { await api("/api/tap/" + TAP_MA + "/so", "PUT",
+                {so: SO, tong: TONG_TAP}); tt("✓ Đã lưu sổ", "xong"); }
   catch(e){ bao(e.message, true); }
 }
 
 /* Owner sửa tông trong sổ thì MỌI prompt ăn theo — ghi cứng trong trang nghĩa
    là đổi mood phải sửa code. Sổ chưa có thì rơi về mặc định máy chủ đã đưa. */
 function boiler(tong){
-  var x = soTheoMa(tong);
-  if(x && x.loai === "tong" && x.chu) return x.chu;
-  var ds = soTheoLoai("tong");
-  return ds.length ? ds[ds.length - 1].chu : "";
+  var ds = soTheoLoai("tong"), x = null, i;
+  for(i = 0; i < ds.length; i++) if(ds[i].ma === tong) x = ds[i];
+  if(!x) for(i = 0; i < ds.length; i++) if(ds[i].mac_dinh) x = ds[i];
+  if(!x) return "";
+  return [(x.chu || "").trim(), (x.tb || "").trim()]
+           .filter(function(o){ return o; }).join(" ");
+}
+/* Tông HIỆU LỰC của một cảnh — cùng luật với boiler, dùng để tô màu. */
+function tongCua(x){
+  var ds = soTheoLoai("tong"), i;
+  for(i = 0; i < ds.length; i++) if(ds[i].ma === x.tong) return ds[i];
+  for(i = 0; i < ds.length; i++) if(ds[i].mac_dinh) return ds[i];
+  return null;
+}
+/* Màu thẻ theo VỊ TRÍ tông trong sổ, không theo mã: Owner đặt tên tông gì cũng
+   được mà trang không phải biết trước mã nào. */
+function lopTong(x){
+  var k = soTheoLoai("tong").indexOf(tongCua(x));
+  return k >= 0 && k < 2 ? "t" + (k + 1) : "";
 }
 /* Bước 6 của quy trình tay ("ném ref vào Gemini, ghi nhớ đặc điểm") chỉ sống
    trong MỘT phiên chat. API thì không có trí nhớ giữa các lượt, nên mô tả tài
@@ -828,13 +861,34 @@ function moTaTaiSan(x){
    `pv` là bản LLM đã dịch; chưa sinh thì tạm dùng chữ Việt và BÁO RÕ, đừng để
    người ta copy nhầm một prompt nửa Việt nửa Anh rồi trách nhà AI. */
 function chuaDich(x){ return !(x.pa || "").trim(); }
-function promptAnh(x){
-  return "16:9 ratio. " + (x.pa || x.t) + "\n\n" + moTaTaiSan(x) + boiler(x.tong);
+/* Mã cỡ cảnh -> chữ nhà AI hiểu. CÙNG BẢNG với `CO_CHU` bên Python. Gửi "ECU"
+   trần là gửi một mã nội bộ cho nhà AI đoán. */
+var CO_CHU = {WS: "wide shot", MS: "medium shot", CU: "close-up",
+              ECU: "extreme close-up", AERIAL: "aerial shot"};
+/* Cỡ cảnh + góc máy thành một mệnh đề. Đo 25/09: 49/49 cảnh có prompt EN đều
+   đã đủ bốn cột kỹ thuật, hiện rành rành trên thẻ, mà prompt không mang chữ
+   nào — LLM tuân thủ luật "không 3 cảnh liền nhau cùng cỡ" để rồi vô ích. */
+function mayQuay(x){
+  var p = [CO_CHU[(x.co || "").toUpperCase()] || "", (x.goc || "").trim()]
+            .filter(function(o){ return o; }).join(", ");
+  return p ? p.charAt(0).toUpperCase() + p.slice(1) : "";
 }
+function promptAnh(x){
+  var m = mayQuay(x);
+  return "16:9 ratio. " + (m ? m + ". " : "") + (x.pa || x.t) +
+         "\n\n" + moTaTaiSan(x) + boiler(x.tong);
+}
+/* Chuyển động máy lấy từ CHÍNH CẢNH. Câu "Simple camera motion only" chỉ còn
+   là đường lui khi cảnh chưa có `cd` — trước đây nó ĐÈ LÊN mọi cảnh, nên cảnh
+   ghi "slow push in" mất hẳn còn cảnh "static" thành lời khuyên mơ hồ. */
 function promptVideo(x){
-  return (x.pv || x.t) +
-         "\nSimple camera motion only, one continuous shot, no cuts.\n\n" +
-         moTaTaiSan(x) + boiler(x.tong) + " No background music.";
+  var m = mayQuay(x), cd = (x.cd || "").trim(), sfx = (x.sfx || "").trim();
+  return (x.pv || x.t) + "\n" +
+         (cd ? "Camera: " + cd + "." : "Simple camera motion only.") +
+         (m ? " " + m + "." : "") +
+         "\nOne continuous shot, no cuts.\n\n" +
+         moTaTaiSan(x) + boiler(x.tong) +
+         (sfx ? " Sound: " + sfx + "." : "") + " No background music.";
 }
 
 /* Cụm màu = PHÂN NHÂN SỰ (user chốt 24/09), không phải tầng kể chuyện. */
@@ -854,7 +908,7 @@ function dungCanhTap(){
       var pc = truoc + i + 1;
       docCanh(d).forEach(function(cn, j){
         ra.push({ma: pc + "." + (j + 1), pc: pc, ch: c.ma, di: i, ci: j,
-                 en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "can",
+                 en: d.en || "", cum: d.cum || 0, t: cn.t, tong: cn.tong || "",
                  co: cn.co || "", ts: cn.ts || [], pa: cn.pa || "",
                  id: cn.id || "", duyet: cn.duyet || "",
                  anh: cn.anh || "",
@@ -885,7 +939,7 @@ function chip(gt, nhan){
 function veVetTap(){
   var ds = dungCanhTap();
   document.getElementById("vetTap").innerHTML = ds.map(function(x){
-    return '<i class="' + x.tong + '" title="Cảnh ' + x.ma + ' · chương ' + x.ch +
+    return '<i class="' + lopTong(x) + '" title="Cảnh ' + x.ma + ' · chương ' + x.ch +
            '" onclick="nhayCanh(\'' + x.ma + '\')"></i>';
   }).join("") || '<span class="ghi">Chưa có cảnh nào trong tập.</span>';
 }
@@ -917,7 +971,7 @@ function veTheCanh(){
       pcCu = x.pc;
     }
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
-         '<div class="hinh ' + x.tong + '">' +
+         '<div class="hinh ' + lopTong(x) + '">' +
          (x.anh ? '<img src="' + duongAnh(x) + '">' : "") +
          '<span class="ma">' + x.ma + '</span>' +
          (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
@@ -926,9 +980,10 @@ function veTheCanh(){
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
          '<div class="chan">' + chip(x.goc, "góc máy") + chip(x.cd, "chuyển động") +
          chip(x.sfx, "SFX") +
-         (x.t && chuaDich(x) ? '<span class="chip thieu">chưa có prompt EN</span>'
-          : (x.t && !(x.ts || []).length
-               ? '<span class="chip thieu">chưa gán asset</span>' : '')) +
+         (x.t && chuaDich(x)
+            ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
+         ((x.ts || []).length
+            ? '<span class="chip">' + x.ts.length + ' asset</span>' : '') +
          '</div></div>';
   });
   if(pcCu !== -1) h += '</div></div>';
@@ -964,13 +1019,9 @@ async function banRon(nut, chu, viec){
 async function sinhAnh(ev){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
-  // Cảnh không gắn asset nào thì prompt không có ràng buộc nhất quán — ảnh ra
-  // tuỳ hứng, không khớp mood kịch bản (user báo 25/09 sau khi sinh thử 2 cảnh).
-  // Không CẤM (có cảnh thật sự không cần asset), nhưng phải hỏi.
-  if(!(x.ts || []).length &&
-     !confirm("Cảnh " + x.ma + " chưa gán asset nào.\n\nPrompt sẽ không có mô tả " +
-              "nhân vật / đạo cụ / bối cảnh, nên ảnh dễ lệch mood so với các cảnh " +
-              "khác.\n\nVẫn vẽ?")) return;
+  // KHÔNG hỏi lại chuyện thiếu asset. Gán asset là việc CÓ CHỦ ĐÍCH, chỉ ở
+  // cảnh nào bắt buộc phải đồng nhất (user chốt 25/09) — phần lớn cảnh không
+  // cần, nên hỏi là bắt bấm qua một câu vô nghĩa mấy chục lần.
   var nut = ev && ev.target;
   await banRon(nut, "Đang vẽ ảnh…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/anh", "POST"); }
@@ -1028,7 +1079,7 @@ function moCanh(ma){
       (ds[k+1] ? ds[k+1].ma : "") + '\')">sau ›</button>' +
     '<button class="x" onclick="dongCanh()">✕</button></div>' +
     '<div class="hop-than"><div>' +
-      '<div class="to ' + x.tong + (x.anh ? '' : ' trong') + '">' +
+      '<div class="to ' + lopTong(x) + (x.anh ? '' : ' trong') + '">' +
       (x.anh ? '<img src="' + duongAnh(x) + '">' : '16:9<br>chưa có ảnh') + '</div>' +
       (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
         '<button onclick="createPrompt(event)">' +
@@ -1049,18 +1100,9 @@ function moCanh(ma){
         ? '<div class="nhac" style="margin-top:8px">Prompt bên phải còn là ' +
           '<b>chữ Việt</b> — bấm <b>Create Prompt</b> để LLM dịch sang tiếng Anh ' +
           'và điền các cột.</div>'
-        : (!(x.ts || []).length
-            ? '<div class="nhac" style="margin-top:8px">' +
-              'Cảnh này <b>chưa gán asset</b> — prompt không có mô tả nhân vật / ' +
-              'đạo cụ / bối cảnh, nên ảnh dễ lệch mood so với các cảnh khác.</div>'
-            : '')) +
+        : '') +
       '<p class="nhan">Asset dùng trong cảnh</p>' + veTaiSanCanh(x) +
-      '<p class="nhan">Tone</p><div class="hai">' +
-      '<button class="' + (x.tong === "nuoc" ? "on" : "") + '"' +
-      (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'nuoc\')">● dưới nước</button>' +
-      '<button class="' + (x.tong === "can" ? "on" : "") + '"' +
-      (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'can\')">○ trên cạn</button>' +
-      '</div></div><div>' +
+      '<p class="nhan">Tone</p>' + veTongCanh(x) + '</div><div>' +
       '<p class="nhan">Voice của phân cảnh ' + x.pc + '</p>' +
       '<div class="o-sua" style="font-style:italic">' + thoat(x.en) + '</div>' +
       '<div class="ghi" style="margin-top:5px">~' + Math.round(g) + ' giây · ' + x.n +
@@ -1085,15 +1127,17 @@ function tienDoSo(){
   var ts = SO.filter(function(x){
     return x.loai === "nhan_vat" || x.loai === "dao_cu" || x.loai === "boi_canh"; });
   var thieu = ts.filter(function(x){ return !x.ref; }).length;
-  var canh = dungCanhTap(), chua = canh.filter(function(c){
-    return c.t && !(c.ts || []).length; }).length;
-  var o = document.getElementById("tienDoSo");
-  if(!o) return;
-  o.innerHTML = (ts.length
+  var canh = dungCanhTap(), gan = canh.filter(function(c){
+    return (c.ts || []).length; }).length;
+  var chu = (ts.length
       ? "Sổ: <b>" + ts.length + "</b> asset" +
         (thieu ? ' · <span class="thieu">' + thieu + " chưa có ref</span>" : " · đủ ref")
       : '<span class="thieu">Sổ Asset chưa lập</span>') +
-    (chua ? ' · <span class="thieu">' + chua + " cảnh chưa gán</span>" : "");
+    " · " + gan + "/" + canh.length + " cảnh gán asset";
+  ["tienDoSo", "tienDoAs"].forEach(function(id){
+    var o = document.getElementById(id);
+    if(o) o.innerHTML = chu;
+  });
 }
 
 async function taiRef(ma, el){
@@ -1106,7 +1150,7 @@ async function taiRef(ma, el){
     if(!r.ok) throw new Error((await r.json()).detail || ("HTTP " + r.status));
     tt("✓ Đã tải ref", "xong");
   } catch(e){ tt("✕ ref hỏng", "loi"); return bao(e.message, true); }
-  await napSo(); moSo("ts"); tienDoSo();
+  await napSo(); if(ASSET_DANG_MO) moAsset(ASSET_DANG_MO); veAsset();
 }
 /* Vẽ ref bằng chính `pr` của tài sản. Đường TẢI LÊN giữ nguyên — ai đã có ref
    đẹp sẵn thì vẫn dùng được. */
@@ -1122,7 +1166,7 @@ async function sinhRef(ma, ev){
     return bao(e.message, true);
   }
   await napSo(); tienDoSo();
-  if(document.getElementById("nutGoiY")) moSo("ts");
+  if(ASSET_DANG_MO){ moAsset(ASSET_DANG_MO); veAsset(); }
   else if(canhDangMo) moCanh(canhDangMo);
   veSb();
 }
@@ -1130,7 +1174,7 @@ async function sinhRef(ma, ev){
 async function xoaRef(ma){
   try { await api(duongRef(ma), "DELETE"); }
   catch(e){ return bao(e.message, true); }
-  await napSo(); moSo("ts"); tienDoSo();
+  await napSo(); if(ASSET_DANG_MO) moAsset(ASSET_DANG_MO); veAsset();
 }
 
 function taiSanCuaCanh(x){ return x.ts || []; }
@@ -1178,66 +1222,190 @@ function doiTaiSan(ma){
 /* ─── hộp SỔ: tài sản / tông / nhân sự ─── */
 var LOAI_TEN = {nhan_vat: "nhân vật", dao_cu: "đạo cụ", boi_canh: "bối cảnh",
                 tong: "tone", nhan_su: "nhân sự"};
-function moSo(nhom){
-  var loai = nhom === "tong" ? ["tong", "nhan_su"]
-                             : ["nhan_vat", "dao_cu", "boi_canh"];
-  var ds = SO.map(function(x, i){ return {x: x, i: i}; })
-              .filter(function(o){ return loai.indexOf(o.x.loai) >= 0; });
-  var h = '<div class="hop-dau"><b>' +
-    (nhom === "tong" ? "Hồ sơ Tone &amp; phân nhân sự" : "Sổ Asset") +
-    '</b><span class="nho">cả tập ' + TAP_MA + '</span><span class="spacer"></span>' +
-    '<button class="x" onclick="dongCanh()">✕</button></div><div style="padding:15px">';
-  h += '<div class="ghi" style="margin-bottom:11px">' + (nhom === "tong"
-    ? 'Sửa ở đây thì mọi prompt ăn theo — không ghi cứng trong code. ' +
-      'Phân nhân sự: cụm màu 1–6 là ai.'
-    : 'Giữ một lần, mọi cảnh dùng lại. Đây là thứ thay hẳn bước “ném ref vào, ' +
-      'ghi nhớ đặc điểm” — chat mở phiên mới là quên, sổ thì không.') + '</div>';
-  if(nhom === "tong"){
-    for(var k = 1; k <= 6; k++){
-      var ma = "cum" + k, x = soTheoMa(ma);
-      h += '<div style="display:flex;gap:9px;align-items:center;margin-bottom:6px">' +
-           '<span class="cham" style="background:' + MAU_CUM[k] + '"></span>' +
-           '<input class="tap" data-so="' + ma + '" data-loai="nhan_su" ' +
-           'placeholder="tên người phụ trách cụm ' + k + '" value="' +
-           thoat((x && x.ten) || "") + '"' + (SUA_DUOC ? '' : ' disabled') +
-           ' style="flex:1"></div>';
-    }
-    h += '<p class="nhan">Tone</p>';
+/* Hồ sơ Tone + phân nhân sự. ASSET đã tách sang MÀN RIÊNG (user chốt 25/09:
+   "giao diện tương tự như phân cảnh… thay vì chỉ là một module nhập liệu").
+   Sổ tông nhỏ và sửa thưa nên giữ dạng phiếu ở đây là đủ. */
+function moSo(){
+  var ds = SO.filter(function(x){ return x.loai === "tong"; });
+  var h = '<div class="hop-dau"><b>Hồ sơ Tone &amp; phân nhân sự</b>' +
+    '<span class="nho">cả tập ' + TAP_MA + '</span><span class="spacer"></span>' +
+    '<button class="x" onclick="dongCanh()">✕</button></div><div style="padding:15px">' +
+    '<div class="ghi" style="margin-bottom:11px">Tone là <b>mood + phong cách + ' +
+    'thiết bị</b>. Ánh sáng của một môi trường cụ thể KHÔNG thuộc về đây — nó ' +
+    'thuộc về <b>bối cảnh</b> bên màn Asset. Phân nhân sự: cụm màu 1–6 là ai.</div>';
+  for(var k = 1; k <= 6; k++){
+    var ma = "cum" + k, cx = soTheoMa(ma);
+    h += '<div style="display:flex;gap:9px;align-items:center;margin-bottom:6px">' +
+         '<span class="cham" style="background:' + MAU_CUM[k] + '"></span>' +
+         '<input class="tap" data-so="' + ma + '" data-loai="nhan_su" ' +
+         'placeholder="tên người phụ trách cụm ' + k + '" value="' +
+         thoat((cx && cx.ten) || "") + '"' + (SUA_DUOC ? '' : ' disabled') +
+         ' style="flex:1"></div>';
   }
-  ds.forEach(function(o){
-    if(o.x.loai === "nhan_su") return;
+  h += '<p class="nhan">Tone</p>';
+  ds.forEach(function(x){
     h += '<div class="the-p"><div style="display:flex;gap:7px;align-items:center">' +
-         '<span class="chip">' + LOAI_TEN[o.x.loai] + '</span>' +
-         '<input class="tap" data-so="' + o.x.ma + '" data-loai="' + o.x.loai +
-         '" value="' + thoat(o.x.ten) + '"' + (SUA_DUOC ? '' : ' disabled') +
+         '<span class="chip">tone</span>' +
+         '<input class="tap" data-so="' + x.ma + '" data-loai="tong" value="' +
+         thoat(x.ten) + '"' + (SUA_DUOC ? '' : ' disabled') +
          ' style="flex:1;font-weight:700">' +
-         (SUA_DUOC ? '<button class="x" onclick="xoaSo(\'' + o.x.ma +
-                     '\')">✕</button>' : '') + '</div>' +
-         '</div>' + (o.x.loai === "tong" ? "" : oRef(o.x)) +
-         '<p class="nhan">Mô tả — đính vào mọi prompt cảnh</p>' +
-         '<div class="prompt" data-chu="' + o.x.ma + '"' +
-         (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(o.x.chu) + '</div>' +
-         (o.x.loai === "tong" ? "" :
-           '<p class="nhan dau-pr">Prompt tạo ref — dùng một lần' +
-           '<span class="spacer"></span>' +
-           '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
-           '<div class="prompt" data-pr="' + o.x.ma + '"' +
-           (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(o.x.pr || "") + '</div>') +
-         '</div>';
+         (SUA_DUOC ? '<button class="x" onclick="xoaSo(\'' + x.ma +
+                     '\')">✕</button>' : '') + '</div>' + oTongTap(x) + '</div>' +
+         '<p class="nhan">Mood &amp; phong cách — ghép vào cuối mọi prompt</p>' +
+         '<div class="prompt" data-chu="' + x.ma + '"' +
+         (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.chu) + '</div>' +
+         '<p class="nhan">Thiết bị — máy quay / ống kính</p>' +
+         '<div class="prompt" data-tb="' + x.ma + '"' +
+         (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.tb || "") + '</div>';
   });
-  if(SUA_DUOC){
-    h += '<div class="hai" style="margin-top:9px">';
-    (nhom === "tong" ? ["tong"] : ["nhan_vat", "dao_cu", "boi_canh"]).forEach(function(l){
-      h += '<button onclick="themSo(\'' + l + '\')">+ ' + LOAI_TEN[l] + '</button>';
-    });
-    if(nhom !== "tong")
-      h += '<button class="cp" id="nutGoiY" style="margin-top:9px" ' +
-           'onclick="goiYTaiSan()">Gọi tên đủ Asset trong tập</button>';
-    h += '</div><button class="chinh" id="luuSo" style="margin-top:9px" onclick="chotSo(\'' +
-         nhom + '\')">Lưu sổ</button>';
-  }
+  if(SUA_DUOC)
+    h += '<div class="hai" style="margin-top:9px">' +
+         '<button onclick="themSo(\'tong\')">+ tone</button></div>' +
+         '<button class="chinh" id="luuSo" style="margin-top:9px" ' +
+         'onclick="chotSo()">Lưu</button>';
   document.getElementById("hopCanh").innerHTML = h + '</div>';
   document.getElementById("nenCanh").classList.add("mo");
+}
+
+/* ─── MÀN ASSET: bảng thẻ, cùng hình dạng với Storyboard ─── */
+var ASSET_DANG_MO = "";
+function assetTrongSo(){
+  return SO.filter(function(x){
+    return x.loai === "nhan_vat" || x.loai === "boi_canh" || x.loai === "dao_cu"; });
+}
+/* Đường quay ngược: cảnh nào đang dùng asset này. Đây là phần HỆ THỐNG — nó
+   chỉ ra asset lập ra rồi bỏ quên, thứ tấm phiếu cũ không bao giờ trả lời. */
+function canhDungAsset(ma){
+  return dungCanhTap().filter(function(c){ return (c.ts || []).indexOf(ma) >= 0; });
+}
+function veAsset(){
+  var dem = {};
+  dungCanhTap().forEach(function(c){
+    (c.ts || []).forEach(function(m){ dem[m] = (dem[m] || 0) + 1; });
+  });
+  var nhom = [["nhan_vat", "Nhân vật"], ["boi_canh", "Bối cảnh"],
+              ["dao_cu", "Đạo cụ"]];
+  var h = "";
+  if(!assetTrongSo().length)
+    h += '<div class="ghi" style="margin-bottom:12px">Sổ Asset còn trống. Bấm ' +
+         '<b>Đọc kịch bản</b> để LLM đọc cả tập rồi gọi tên nhân vật, bối cảnh ' +
+         'cần giữ nhất quán — và đề xuất luôn mood của tập.</div>';
+  nhom.forEach(function(g){
+    var ds = SO.filter(function(x){ return x.loai === g[0]; });
+    h += '<p class="nhan">' + g[1] + ' · ' + ds.length + '</p>';
+    if(!ds.length){ h += '<div class="ghi">Chưa có mục nào.</div>'; return; }
+    h += '<div class="hang" style="margin-bottom:14px">' + ds.map(function(x){
+      var n = dem[x.ma] || 0;
+      return '<div class="tc" onclick="moAsset(\'' + x.ma + '\')">' +
+        '<div class="hinh">' + (x.ref
+          ? '<img src="' + duongRef(x.ma) + '">' : 'chưa có ref') + '</div>' +
+        '<div class="chu"><b>' + thoat(x.ten || "(chưa đặt tên)") + '</b>' +
+        (x.chu ? '<div style="color:var(--muted);margin-top:3px">' +
+                 thoat(x.chu.slice(0, 96)) + '</div>' : '') + '</div>' +
+        '<div class="chan">' +
+        (x.yc ? '' : '<span class="chip thieu">chưa có yêu cầu</span>') +
+        (x.chu ? '' : '<span class="chip thieu">chưa sinh mô tả</span>') +
+        (x.ref ? '' : '<span class="chip trong">chưa có ref</span>') +
+        '<span class="chip' + (n ? '' : ' trong') + '">dùng ở ' + n + ' cảnh</span>' +
+        '</div></div>';
+    }).join("") + '</div>';
+  });
+  document.getElementById("asCanvas").innerHTML = h;
+  tienDoSo();
+}
+function moAsset(ma){
+  var x = soTheoMa(ma); if(!x) return;
+  ASSET_DANG_MO = ma;
+  var dung = canhDungAsset(ma);
+  var h = '<div class="hop-dau"><b>' + thoat(x.ten || "(chưa đặt tên)") + '</b>' +
+    '<span class="nho">' + LOAI_TEN[x.loai] + ' · cả tập ' + TAP_MA + '</span>' +
+    '<span class="spacer"></span>' +
+    (SUA_DUOC ? '<button class="x" onclick="xoaAsset(\'' + ma +
+                '\')">Xoá</button>' : '') +
+    '<button class="x" onclick="dongCanh()">✕</button></div>' +
+    '<div style="padding:15px">' +
+    '<input class="tap" data-so="' + ma + '" data-loai="' + x.loai + '" value="' +
+    thoat(x.ten) + '"' + (SUA_DUOC ? '' : ' disabled') +
+    ' style="width:100%;font-weight:700;margin-bottom:10px">' + oRef(x) +
+    '<p class="nhan">Yêu cầu của bạn — LLM viết mô tả theo ĐÚNG cái này</p>' +
+    '<div class="prompt" data-yc="' + ma + '"' +
+    (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.yc || "") + '</div>' +
+    (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
+      '<button onclick="sinhAsset(event)">' +
+      (x.chu ? 'Sinh Asset lại' : 'Sinh Asset') + '</button></div>' : '') +
+    '<p class="nhan">Mô tả — đính vào mọi prompt cảnh dùng asset này</p>' +
+    '<div class="prompt" data-chu="' + ma + '"' +
+    (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.chu) + '</div>' +
+    '<p class="nhan dau-pr">Prompt tạo ref — dùng một lần<span class="spacer">' +
+    '</span><button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
+    '<div class="prompt" data-pr="' + ma + '"' +
+    (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.pr || "") + '</div>' +
+    '<p class="nhan">Dùng ở ' + dung.length + ' cảnh</p>' +
+    (dung.length
+      ? '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap">' +
+        dung.map(function(c){
+          return '<span class="chip" style="cursor:pointer" ' +
+                 'onclick="nhayCanhTuAsset(\'' + c.ma + '\')">' + c.ma +
+                 '</span>'; }).join("") + '</div>'
+      : '<div class="ghi">Chưa cảnh nào dùng. Mở một cảnh bên Storyboard rồi ' +
+        'bấm tên asset để gán.</div>') +
+    (SUA_DUOC ? '<button class="chinh" id="luuSo" style="margin-top:12px" ' +
+                'onclick="chotAsset()">Lưu</button>' : '') + '</div>';
+  document.getElementById("hopCanh").innerHTML = h;
+  document.getElementById("nenCanh").classList.add("mo");
+}
+async function nhayCanhTuAsset(ma){
+  dongCanh(); await doiMan("sb"); nhayCanh(ma);
+}
+function themAsset(loai){
+  if(!SUA_DUOC) return;
+  var ma = loai + "_" + Date.now().toString(36);
+  SO.push({ma: ma, loai: loai, ten: "", chu: "", pr: "", tb: "", yc: "",
+           ref: false});
+  veAsset(); moAsset(ma);
+}
+async function xoaAsset(ma){
+  if(!SUA_DUOC || !confirm("Xoá asset này khỏi sổ của cả tập?")) return;
+  SO = SO.filter(function(x){ return x.ma !== ma; });
+  await luuSoLen(); await napSo(); dongCanh(); veAsset(); veSb();
+}
+function docHopAsset(){
+  var x = soTheoMa(ASSET_DANG_MO); if(!x) return null;
+  var t = document.querySelector("#hopCanh [data-so]");
+  if(t) x.ten = t.value;
+  ["yc", "chu", "pr"].forEach(function(k){
+    var o = document.querySelector("#hopCanh [data-" + k + "]");
+    if(o) x[k] = docChu(o);
+  });
+  return x;
+}
+async function chotAsset(){
+  if(!docHopAsset()) return;
+  await luuSoLen(); await napSo(); dongCanh(); veAsset(); veSb();
+}
+/* Lưu YÊU CẦU trước khi gọi: gõ xong bấm ngay mà không lưu thì máy chủ đọc bản
+   cũ, LLM viết theo yêu cầu cũ, người dùng tưởng nó không nghe mình. */
+async function sinhAsset(ev){
+  if(!SUA_DUOC) return;
+  var ma = ASSET_DANG_MO;
+  if(!docHopAsset()) return;
+  await banRon(ev && ev.target, "Đang sinh asset…", async function(){
+    await luuSoLen();
+    try { await api("/api/tap/" + TAP_MA + "/so/" + ma + "/sinh", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    await napSo(); moAsset(ma); veAsset();
+    bao("Đã sinh mô tả. Xem lại rồi bấm <b>Sinh ref</b> để vẽ ảnh tham chiếu.");
+  });
+}
+
+/* Tông nào dùng cho CẢ TẬP. Một tập một mood — cảnh lệch thì tự đè trong hộp
+   cảnh, chứ không bắt gán tay từng cảnh (đo thật trên SE001: bắt gán tay thì
+   0/83 cảnh có, tức mọi ảnh sinh ra đều mất mood). */
+function oTongTap(x){
+  return '<label class="ghi" style="display:flex;gap:7px;align-items:center;' +
+    'margin:6px 0 0"><input type="radio" name="tongTap" data-mac="' + x.ma +
+    '"' + (x.mac_dinh ? ' checked' : '') + (SUA_DUOC ? '' : ' disabled') +
+    '>Dùng tông này cho <b>cả tập</b></label>';
 }
 function oRef(x){
   var co = x.ref, d = duongRef(x.ma);
@@ -1259,41 +1427,60 @@ function oRef(x){
 
 /* Quét cả tập gọi tên tài sản. KHÔNG tự nhận vào sổ: luật cứng #5 — tool đề
    xuất, người duyệt. Tự ghi là một lần bấm nhầm thành sổ đầy rác. */
-var GOI_Y = [];
+var GOI_Y = [], MOOD = {};
 async function goiYTaiSan(){
   if(!SUA_DUOC) return;
-  var n = document.getElementById("nutGoiY");
-  if(n){ n.disabled = true; n.textContent = "Đang quét cả tập…"; }
-  try {
-    var r = await api("/api/tap/" + TAP_MA + "/so/goi-y", "POST");
+  // Qua `banRon` vì hàm đó có `finally`: nút này đứng THƯỜNG TRỰC trên thanh
+  // màn Asset, không còn bị vẽ lại như hồi nằm trong phiếu sổ — tự mở khoá ở
+  // nhánh lỗi thôi là quét xong xuôi nút kẹt vĩnh viễn (đo Chrome 25/09).
+  await banRon(document.getElementById("nutGoiY"), "Đang đọc cả kịch bản…",
+               async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/so/goi-y", "POST"); }
+    catch(e){ return bao(e.message, true); }
     var dang = SO.map(function(x){ return (x.ten || "").toLowerCase(); });
     GOI_Y = (r.goi_y || []).filter(function(x){
       return dang.indexOf((x.ten || "").toLowerCase()) < 0; });
+    MOOD = r.mood || {};
     veGoiY(r);
-  } catch(e){
-    if(n){ n.disabled = false; n.textContent = "Gọi tên đủ Asset trong tập"; }
-    bao(e.message, true);
-  }
+  });
 }
 function veGoiY(r){
-  var h = '<div class="hop-dau"><b>Asset tìm thấy</b><span class="nho">quét ' +
-    r.quet + ' cảnh · ' + GOI_Y.length + ' mục mới</span><span class="spacer"></span>' +
-    '<button class="x" onclick="moSo(\'ts\')">‹ về sổ</button>' +
+  var h = '<div class="hop-dau"><b>LLM đọc kịch bản</b><span class="nho">' +
+    r.quet + ' dòng kịch bản · ' + GOI_Y.length + ' asset mới</span>' +
+    '<span class="spacer"></span>' +
+    '<button class="x" onclick="dongCanh()">‹ về Asset</button>' +
     '<button class="x" onclick="dongCanh()">✕</button></div><div style="padding:15px">';
-  if(r.loi) h += '<div class="khoa">Quét dở giữa chừng: ' + thoat(r.loi) + '</div>';
+  if(MOOD.chu){
+    h += '<p class="nhan">Mood đề xuất cho cả tập</p>' +
+      '<div class="the-p"><label style="display:flex;gap:9px;align-items:flex-start">' +
+      '<input type="checkbox" id="nhanMood" checked style="margin-top:4px">' +
+      '<span style="flex:1"><b>' + thoat(MOOD.ten || "Mood") + '</b>' +
+      (MOOD.ly_do ? '<div class="ghi">' + thoat(MOOD.ly_do) + '</div>' : '') +
+      '<div class="prompt" style="margin-top:6px">' + thoat(MOOD.chu) + '</div>' +
+      (MOOD.tb ? '<div class="prompt" style="margin-top:5px">' + thoat(MOOD.tb) +
+                 '</div>' : '') +
+      '</span></label></div>';
+  }
+  h += '<p class="nhan">Asset cần giữ nhất quán</p>';
   if(!GOI_Y.length)
     h += '<div class="ghi">Không có mục nào mới — sổ đã đủ.</div>';
   GOI_Y.forEach(function(x, i){
     h += '<div class="the-p"><label style="display:flex;gap:9px;align-items:flex-start">' +
       '<input type="checkbox" data-gy="' + i + '" checked style="margin-top:4px">' +
       '<span style="flex:1"><span class="chip">' + LOAI_TEN[x.loai] + '</span> <b>' +
-      thoat(x.ten) + '</b><div class="ghi">' + thoat(x.chu) + '</div></span></label>' +
-      '</div>';
+      thoat(x.ten) + '</b>' +
+      (x.ly_do ? '<div class="ghi">' + thoat(x.ly_do) + '</div>' : '') +
+      '</span></label></div>';
   });
-  if(GOI_Y.length)
+  if(GOI_Y.length || MOOD.chu)
     h += '<button class="chinh" id="nhanGoiY" onclick="nhanGoiY()">' +
          'Nhận vào sổ</button>';
   document.getElementById("hopCanh").innerHTML = h + '</div>';
+  // PHẢI tự mở lớp phủ: trước đây bảng này luôn được gọi từ trong phiếu sổ đã
+  // mở sẵn, nay gọi thẳng từ thanh màn Asset nên không ai mở hộ. Đo Chrome
+  // 25/09: nút "Nhận vào sổ" nằm trong DOM mà không bấm được.
+  document.getElementById("nenCanh").classList.add("mo");
 }
 async function nhanGoiY(){
   var chon = [];
@@ -1301,21 +1488,40 @@ async function nhanGoiY(){
     if(el.checked) chon.push(GOI_Y[+el.dataset.gy]);
   });
   SO = SO.concat(chon);
+  // Nhận mood = thêm mục tông VÀ đặt làm tông của tập. Thêm mà không đặt thì
+  // mọi cảnh vẫn ăn tông cũ, người dùng không hiểu vì sao bấm xong không đổi.
+  var m = document.getElementById("nhanMood"), nhanM = m && m.checked && MOOD.chu;
+  if(nhanM){
+    // Gộp theo TÊN như asset: bấm "Đọc kịch bản" lần hai mà đẻ thêm một tông
+    // trùng tên thì hộp cảnh mọc ra mấy nút y hệt nhau, không ai biết chọn cái
+    // nào (đo Chrome 25/09).
+    var cu = soTheoLoai("tong").filter(function(t){
+      return (t.ten || "") === (MOOD.ten || "Mood"); })[0];
+    if(cu){ cu.chu = MOOD.chu; cu.tb = MOOD.tb || ""; TONG_TAP = cu.ma; }
+    else {
+      var ma = "mood_" + Date.now().toString(36);
+      SO.push({ma: ma, loai: "tong", ten: MOOD.ten || "Mood", chu: MOOD.chu,
+               tb: MOOD.tb || "", pr: "", ref: false});
+      TONG_TAP = ma;
+    }
+  }
   await luuSoLen(); await napSo();
-  moSo("ts"); veSb();
-  bao("Đã nhận <b>" + chon.length + " asset</b> vào sổ. Giờ gen ref rồi tải lên.");
+  dongCanh(); veAsset(); veSb();
+  bao("Đã nhận <b>" + chon.length + " asset</b>" +
+      (nhanM ? " và <b>mood của tập</b>" : "") +
+      ". Giờ mở từng asset, đưa yêu cầu rồi sinh mô tả.");
 }
 
 function themSo(loai){
   SO.push({ma: loai + "_" + Date.now().toString(36), loai: loai,
-          ten: "", chu: "", pr: "", ref: false});
-  moSo(loai === "tong" ? "tong" : "ts");
+          ten: "", chu: "", pr: "", tb: "", ref: false});
+  moSo();
 }
 function xoaSo(ma){
   SO = SO.filter(function(x){ return x.ma !== ma; });
-  moSo(soTheoMa(ma) ? "ts" : "ts");
+  moSo();
 }
-async function chotSo(nhom){
+async function chotSo(){
   document.querySelectorAll("#hopCanh [data-so]").forEach(function(el){
     var ma = el.dataset.so, x = soTheoMa(ma);
     if(!x){ SO.push({ma: ma, loai: el.dataset.loai, ten: el.value, chu: ""}); return; }
@@ -1329,6 +1535,12 @@ async function chotSo(nhom){
     var x = soTheoMa(el.dataset.pr);
     if(x) x.pr = docChu(el);
   });
+  document.querySelectorAll("#hopCanh [data-tb]").forEach(function(el){
+    var x = soTheoMa(el.dataset.tb);
+    if(x) x.tb = docChu(el);
+  });
+  var rd = document.querySelector("#hopCanh [data-mac]:checked");
+  if(rd) TONG_TAP = rd.dataset.mac;
   SO = SO.filter(function(x){ return (x.ten || "").trim(); });
   await luuSoLen();
   await napSo();
@@ -1364,8 +1576,24 @@ function luuNoiCanh(x, chu){
   ghiCanhVao(x.ch, x.di, ds);
   veSb();
 }
-/* Tông thuộc về CHÍNH CẢNH (canh[i].tong) chứ không phải một bảng rời — chẻ,
-   gộp, đổi thứ tự thì nó đi theo. Cùng bài học của `cum`. */
+/* Tông mặc định nằm ở TẬP; cảnh chỉ giữ phần GHI ĐÈ. Cảnh nào không đè thì
+   `tong` để RỖNG — ghi sẵn một mã vào mọi cảnh thì sau này đổi tông của tập sẽ
+   không tới được cảnh nào cả (đúng cái `|| "can"` cũ đã làm). */
+function veTongCanh(x){
+  var ds = soTheoLoai("tong"), mac = null, i;
+  for(i = 0; i < ds.length; i++) if(ds[i].mac_dinh) mac = ds[i];
+  var h = '<button class="' + (x.tong ? "" : "on") + '"' +
+          (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'\')">○ theo tập' +
+          (mac ? " · " + thoat(mac.ten) : "") + '</button>';
+  ds.forEach(function(t){
+    h += '<button class="' + (x.tong === t.ma ? "on" : "") + '"' +
+         (SUA_DUOC ? '' : ' disabled') + ' onclick="datTong(\'' + t.ma + '\')">● ' +
+         thoat(t.ten) + '</button>';
+  });
+  return '<div class="hai" style="flex-wrap:wrap">' + h + '</div>';
+}
+/* Ghi đè thuộc về CHÍNH CẢNH (canh[i].tong) — chẻ, gộp, đổi thứ tự thì nó đi
+   theo. Cùng bài học của `cum`. */
 function datTong(t){
   if(!SUA_DUOC) return;
   var x = canhTrongPham(dungCanhTap()).filter(function(c){
@@ -1374,7 +1602,7 @@ function datTong(t){
   var ds = canhCuaDong(x.ch, x.di);
   if(!ds[x.ci]) return;
   ghiNho();
-  ds[x.ci].tong = t;
+  if(t) ds[x.ci].tong = t; else delete ds[x.ci].tong;
   ghiCanhVao(x.ch, x.di, ds);
   veSb(); moCanh(canhDangMo);
 }
@@ -1412,11 +1640,21 @@ async function doiMan(m){
   MAN_HINH = m;
   document.getElementById("mKb").className = m === "kb" ? "on" : "";
   document.getElementById("mSb").className = m === "sb" ? "on" : "";
+  document.getElementById("mAs").className = m === "as" ? "on" : "";
   // Đặt THẲNG style.display: cả hai màn đều display:flex nên thuộc tính
   // `hidden` bị đè, bấm Storyboard mà màn Kịch bản vẫn nằm nguyên phía trên
   // (đo Chrome 24/09).
   document.getElementById("manKb").style.display = m === "kb" ? "flex" : "none";
   document.getElementById("manSb").style.display = m === "sb" ? "flex" : "none";
+  document.getElementById("manAs").style.display = m === "as" ? "flex" : "none";
+  if(m === "as"){
+    // Màn Asset đếm "dùng ở N cảnh" nên cũng phải có đủ chương trong tay.
+    for(var k = 0; k < DS_CHUONG.length; k++){
+      var mc = DS_CHUONG[k].ma;
+      if(!DU[mc]) DU[mc] = await api("/api/tap/" + TAP_MA + "/" + mc);
+    }
+    veAsset();
+  }
   if(m === "sb"){
     // Storyboard nhìn cả tập nên phải có đủ chương trong tay.
     for(var i = 0; i < DS_CHUONG.length; i++){

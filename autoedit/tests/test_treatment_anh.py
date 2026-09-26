@@ -278,3 +278,159 @@ def test_duyet_cung_tra_409(tmp_path):
     c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
     kho.giu("SE001", "H", "nguoi_khac")
     assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/duyet").status_code == 409
+
+
+# ─────────────────────────────────────────────────────────── tông đi vào prompt
+# Đo trên production 25/09: bảng `so` TRỐNG 0 dòng ở mọi tập, 0/83 cảnh chọn
+# `tong`, 0/83 cảnh gán asset. Prompt máy chủ thật sự gửi Seedream chỉ là
+# "16:9 ratio. <pa>" — không một chữ nào về mood. Trong khi hộp cảnh trên màn
+# hình vẫn hiện đoạn tông ở cuối, vì `boiler()` bên JS có đường lui còn
+# `_prompt_anh` bên Python thì không.
+#
+# `_bo` ở trên dựng sổ đã có tông SẴN và cảnh đã chọn `tong` — tức đúng cái
+# production KHÔNG có — nên `test_prompt_gui_di_la_prompt_DAY_DU` xanh suốt
+# trong lúc mọi ảnh sinh ra đều trần. Dữ liệu thử sai thì xanh cũng vô nghĩa.
+
+
+def _bo_tran(tmp_path, ve=None):
+    """Đúng hình dạng PRODUCTION: sổ trống, cảnh không chọn tông, không asset."""
+    kho = Kho(tmp_path / "kho" / "k.db")
+    kho.tao_tap("SE001", "K-129")
+    c = TestClient(tao_app(kho, ve_anh=ve or VeGia()))
+    c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
+    c.post("/api/tap/SE001/chuong", json={"ma": "H"})
+    c.put("/api/tap/SE001/H", json={"outline": "", "dong": [
+        {"en": "Voice.", "vi": "", "het": 0,
+         "canh": [{"t": "Cận bàn tay", "pa": "EN can ban tay"}]}]})
+    return c, kho
+
+
+def test_so_TRONG_van_phai_ghep_tong_vao_prompt(tmp_path):
+    """Tập chưa lập sổ là trạng thái của MỌI tập lúc mới mở. Nếu lúc đó prompt
+    ra trần thì mọi ảnh đầu tiên của mọi tập đều lệch mood."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "Mood and tone" in ve.goi[0], (
+        "sổ trống thì máy chủ vẫn phải dùng tông mặc định — đúng như trang làm")
+
+
+def test_prompt_may_chu_dung_DUNG_cai_so_ma_TRANG_nhan(tmp_path):
+    """Gốc rễ của lỗi: `GET /so` chêm tông mặc định nên TRANG thấy, còn
+    `_prompt_anh` gọi thẳng `kho.ds_so()` nên MÁY CHỦ không thấy. Hai bên phải
+    đọc cùng một sổ, không thì cái người ta duyệt khác cái máy gửi đi."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    tong = [x for x in c.get("/api/tap/SE001/so").json() if x["loai"] == "tong"]
+    assert tong, "endpoint sổ phải có tông mặc định"
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert tong[-1]["chu"] in ve.goi[0], (
+        "đoạn tông trang hiện phải là đoạn máy chủ gửi, từng chữ một")
+
+
+def test_canh_khong_chon_tong_thi_VAN_CO_tong(tmp_path):
+    """Cảnh quên chọn tông thì KHÔNG BAO GIỜ được ra prompt cụt — đo thật:
+    0/83 cảnh có chọn, tức đây là đường đi của mọi cảnh chứ không phải ngoại lệ.
+
+    Tập chưa chỉ định tông mặc định thì lấy tông ĐẦU sổ. Không lấy tông cuối:
+    cuối là theo thứ tự gõ vào, thêm một mood mới là cả tập đổi mặt."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [
+        {"ma": "toi", "loai": "tong", "ten": "Tối", "chu": "DARK LOOK"},
+        {"ma": "sang", "loai": "tong", "ten": "Sáng", "chu": "BRIGHT LOOK"}])
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "DARK LOOK" in ve.goi[0]
+
+
+def test_mo_ta_asset_van_di_kem_khi_canh_co_gan(tmp_path):
+    """Nửa kia của cùng lỗi: `ds_so()` trống thì mô tả asset cũng rơi mất."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "ca_map", "loai": "nhan_vat", "ten": "cá mập",
+                          "chu": "scarred old great white shark"}])
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["ca_map"]
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "scarred old great white shark" in ve.goi[0]
+
+
+def test_canh_khong_chon_tong_thi_theo_TONE_CUA_TAP(tmp_path):
+    """Đường lui phải là tone MẶC ĐỊNH CỦA TẬP, không phải tông cuối sổ. Lấy
+    tông cuối là lấy theo thứ tự gõ vào — thêm một mood mới là cả tập đổi mặt
+    mà không ai bấm gì."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.put("/api/tap/SE001/so", json={"tong": "toi", "so": [
+        {"ma": "toi", "loai": "tong", "ten": "Tối", "chu": "DARK LOOK"},
+        {"ma": "sang", "loai": "tong", "ten": "Sáng", "chu": "BRIGHT LOOK"}]})
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "DARK LOOK" in ve.goi[0]
+    assert "BRIGHT LOOK" not in ve.goi[0]
+
+
+def test_canh_chon_tong_rieng_thi_THANG_tone_cua_tap(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.put("/api/tap/SE001/so", json={"tong": "toi", "so": [
+        {"ma": "toi", "loai": "tong", "ten": "Tối", "chu": "DARK LOOK"},
+        {"ma": "sang", "loai": "tong", "ten": "Sáng", "chu": "BRIGHT LOOK"}]})
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["tong"] = "sang"
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "BRIGHT LOOK" in ve.goi[0]
+
+
+def test_THIET_BI_cua_tone_di_vao_prompt(tmp_path):
+    """User 25/09: "Prompt video đang thiếu hẳn … Thiết bị: Ống kính/Máy quay".
+    Thiết bị là quyết định look của CẢ TẬP nên nằm ở tone, và phải đi vào
+    prompt — để ở sổ mà không ghép thì cũng như không có."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.put("/api/tap/SE001/so", json={"tong": "toi", "so": [
+        {"ma": "toi", "loai": "tong", "ten": "Tối", "chu": "DARK LOOK",
+         "tb": "Shot on ARRI Alexa 35, 40mm anamorphic prime"}]})
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "ARRI Alexa 35" in ve.goi[0]
+    assert "40mm anamorphic prime" in ve.goi[0]
+
+
+# ────────────────────────────────────── cột kỹ thuật phải ĐI VÀO prompt
+# Đo trên SE001 ngày 25/09: 49/49 cảnh có prompt EN đều đã có đủ `co` (cỡ cảnh),
+# `goc` (góc máy), `cd` (chuyển động máy) và `sfx`. LLM điền, người dùng nhìn
+# thấy trên thẻ và trong hộp cảnh — nhưng KHÔNG cột nào đi vào prompt. Cùng một
+# họ lỗi với đoạn tông: dữ liệu có sẵn, không bao giờ tới nơi cần tới.
+
+
+def test_prompt_anh_mang_CO_CANH_va_GOC_MAY(tmp_path):
+    """Cỡ cảnh là thứ user duyệt trên bảng. Không gửi thì Seedream tự chọn cỡ,
+    và luật "không 3 cảnh liền nhau cùng cỡ" mà LLM vừa tuân thủ thành vô ích."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0].update({"co": "CU", "goc": "eye level, straight-on"})
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "close-up" in ve.goi[0].lower(), "cỡ cảnh phải ra chữ, không để mã CU"
+    assert "eye level, straight-on" in ve.goi[0]
+
+
+def test_ma_co_canh_dich_ra_CHU_khong_gui_tat(tmp_path):
+    """Gửi "ECU" trần cho nhà AI là gửi một mã nội bộ — nó đoán."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["co"] = "ECU"
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "extreme close-up" in ve.goi[0].lower()
+
+
+def test_canh_khong_co_cot_ky_thuat_thi_prompt_van_sach(tmp_path):
+    """Cảnh chưa sinh prompt kỹ thuật thì đừng chèn dấu chấm hay dấu phẩy lạc."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.goi[0].startswith("16:9 ratio. EN can ban tay")
