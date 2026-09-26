@@ -129,3 +129,57 @@ def test_hoi_ket_theo_SLUG_CUA_CHINH_APP(monkeypatch):
     assert da_goi["url"].endswith("/api/cau-hinh/api-khoa/treatment"), da_goi["url"]
     assert cd["key"] == "sk-mwapi" and cd["model"] == "claude-sonnet-5"
     assert cd["base_url"] == "https://api.mwapi.dev/v1"
+
+# ══════ 26/09: model viết thêm chữ SAU khối JSON thì lượt gọi chết ═════════
+def _gia_tra_loi(monkeypatch, noi_dung):
+    """Dựng một lượt gọi LLM giả trả về đúng chuỗi `noi_dung`."""
+    import requests
+
+    from autoedit.treatment import dich as mdich
+
+    monkeypatch.setattr(mdich, "doc_ket_viec", lambda: {
+        "key": "k", "model": "claude-sonnet-5", "base_url": "https://api.mwapi.dev/v1"})
+
+    class _R:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": noi_dung}}]}
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _R())
+    return mdich
+
+
+def test_CAT_JSON_khong_an_chu_viet_them_o_cuoi(monkeypatch):
+    """Đo thật 26/09 trên kịch bản SE001: 1/6 lượt chết
+    `claude-sonnet-5 trả về không đọc được: Extra data: line 1 column 4184`.
+
+    Đây là lượt gọi ĐẮT NHẤT của tool — cả kịch bản tiếng Anh, 36.656 ký tự,
+    ~9.100 token. Chết là mất trọn lượt tiền và người dùng phải bấm lại.
+
+    Nguyên nhân: chỗ cắt cũ lấy từ dấu `{` đầu tới dấu `}` CUỐI CÙNG. Model
+    viết thêm một câu có dấu `}` phía sau khối JSON là `rindex` cắt lố, ôm cả
+    câu đó vào rồi `json.loads` nghẹn. Phải dừng đúng chỗ khối JSON đóng lại,
+    không quan tâm phía sau còn gì.
+    """
+    mdich = _gia_tra_loi(monkeypatch, (
+        '{"dong": ["mot", "hai"]}' + chr(10) * 2
+        + 'Ghi chu: minh da giu nguyen dinh dang {"dong": [...]} nhu yeu cau.'))
+    assert mdich.LLM().dich(["x", "y"]) == ["mot", "hai"]
+
+
+def test_CAT_JSON_van_bo_duoc_chu_viet_them_o_DAU(monkeypatch):
+    """Luật cũ vẫn phải giữ: model hay mở đầu bằng ```json hoặc một câu dẫn."""
+    mdich = _gia_tra_loi(monkeypatch, (
+        'Day la ket qua:' + chr(10) + '```json' + chr(10)
+        + '{"dong": ["mot", "hai"]}' + chr(10) + '```'))
+    assert mdich.LLM().dich(["x", "y"]) == ["mot", "hai"]
+
+
+def test_KHONG_CO_JSON_thi_bao_loi_co_ten_model(monkeypatch):
+    """Không có khối JSON nào thì vẫn phải chết có tên model, đừng chết trần."""
+    mdich = _gia_tra_loi(monkeypatch, "xin loi, minh khong lam duoc viec nay")
+    with pytest.raises(mdich.DichLoi) as e:
+        mdich.LLM().dich(["x"])
+    assert "claude-sonnet-5" in str(e.value)

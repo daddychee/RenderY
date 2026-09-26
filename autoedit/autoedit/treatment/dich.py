@@ -247,7 +247,12 @@ class LLM:
             raise DichLoi(f"Gọi {self.model} hỏng: HTTP {r.status_code} — {r.text[:160]}")
         try:
             noi = r.json()["choices"][0]["message"]["content"]
-            return json.loads(noi[noi.index("{"):noi.rindex("}") + 1])
+            # Dừng đúng chỗ khối JSON đóng lại. Cách cũ cắt tới dấu `}` CUỐI
+            # CÙNG, nên model viết thêm một câu có dấu `}` phía sau là ôm luôn
+            # câu đó vào rồi nghẹn. Đo thật 26/09 trên cả kịch bản SE001:
+            # 1/6 lượt chết `Extra data: line 1 column 4184` — mà đây là lượt
+            # gọi đắt nhất của tool (~9.100 token), chết là mất trọn lượt tiền.
+            return json.JSONDecoder().raw_decode(noi, noi.index("{"))[0]
         except (KeyError, IndexError, ValueError) as exc:
             raise DichLoi(f"{self.model} trả về không đọc được: {exc}") from exc
 
