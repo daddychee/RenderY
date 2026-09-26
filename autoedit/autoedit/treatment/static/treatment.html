@@ -320,6 +320,12 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .prompt{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;
   font:11.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap}
 .dau-pr{display:flex;align-items:center;gap:9px}
+.prompt[contenteditable]{cursor:text}
+.prompt[contenteditable]:focus{outline:none;border-color:var(--accent);
+  background:var(--card)}
+.prompt.tay{border-color:var(--accent);background:var(--accent-soft)}
+.dau-tay{font-size:10.5px;font-weight:800;letter-spacing:.3px;color:#fff;
+  background:var(--accent);border-radius:999px;padding:2px 8px;text-transform:none}
 .x{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 10px;
   cursor:pointer;font-weight:700}
 .khoi{display:flex;gap:7px;align-items:flex-start;background:var(--bg);
@@ -930,9 +936,14 @@ function lopTong(x){
 /* Bước 6 của quy trình tay ("ném ref vào Gemini, ghi nhớ đặc điểm") chỉ sống
    trong MỘT phiên chat. API thì không có trí nhớ giữa các lượt, nên mô tả tài
    sản phải đi KÈM mỗi prompt. */
+/* Khối mô tả tài sản — CHỈ cho tài sản CHƯA có ref. Đo 26/09 bốn lượt vẽ trên
+   cùng một cảnh: bỏ khối chữ mà vẫn giữ ref thì danh tính KHÔNG suy suyển còn
+   khuôn hình chặt lại; bỏ ref mà giữ khối chữ thì ra hẳn một cái thang máy
+   khác. Ảnh neo được, chữ thì không — chữ chỉ giành chỗ với khuôn hình.
+   CÙNG LUẬT với `_mo_ta_ts()` bên Python, canh bằng test tĩnh. */
 function moTaTaiSan(x){
   var ds = (x.ts || []).map(soTheoMa).filter(Boolean)
-                       .filter(function(t){ return t.chu; });
+                       .filter(function(t){ return t.chu && !t.ref; });
   if(!ds.length) return "";
   return ds.map(function(t){ return t.ten + ": " + t.chu; }).join("\n") + "\n\n";
 }
@@ -952,15 +963,20 @@ function mayQuay(x){
             .filter(function(o){ return o; }).join(", ");
   return p ? p.charAt(0).toUpperCase() + p.slice(1) : "";
 }
-function promptAnh(x){
+function ghepPromptAnh(x){
   var m = mayQuay(x);
   return "16:9 ratio. " + (m ? m + ". " : "") + (x.pa || x.t) +
          "\n\n" + moTaTaiSan(x) + boiler(x.tong);
 }
+/* `pat`/`pvt` = bản người dùng SỬA TAY, ĐÈ HẲN bản tự ghép (user chốt 26/09:
+   "đã sinh lại nhiều lần nhưng vẫn sai... cần tự sửa prompt trước khi gen").
+   CÙNG LUẬT với `_prompt_anh`/`_prompt_video` bên Python — ô này chính là thứ
+   máy chủ gửi đi, không được phép lệch một chữ. */
+function promptAnh(x){ return (x.pat || "").trim() || ghepPromptAnh(x); }
 /* Chuyển động máy lấy từ CHÍNH CẢNH. Câu "Simple camera motion only" chỉ còn
    là đường lui khi cảnh chưa có `cd` — trước đây nó ĐÈ LÊN mọi cảnh, nên cảnh
    ghi "slow push in" mất hẳn còn cảnh "static" thành lời khuyên mơ hồ. */
-function promptVideo(x){
+function ghepPromptVideo(x){
   var m = mayQuay(x), cd = (x.cd || "").trim(), sfx = (x.sfx || "").trim();
   return (x.pv || x.t) + "\n" +
          (cd ? "Camera: " + cd + "." : "Simple camera motion only.") +
@@ -968,6 +984,63 @@ function promptVideo(x){
          "\nOne continuous shot, no cuts.\n\n" +
          moTaTaiSan(x) + boiler(x.tong) +
          (sfx ? " Sound: " + sfx + "." : "") + " No background music.";
+}
+function promptVideo(x){ return (x.pvt || "").trim() || ghepPromptVideo(x); }
+
+/* Hộp một ô prompt. Sửa được tại chỗ vì trước đây muốn đổi một chữ phải nhờ
+   LLM dịch lại cả cảnh — tức ĐOÁN LẠI, mà mỗi lượt đoán lại là một lượt trả
+   tiền vẽ. */
+function hopPrompt(ten, id, khoa, chu, x){
+  var tay = (x[khoa] || "").trim();
+  return '<p class="nhan dau-pr">' + ten +
+    (tay ? '<b class="dau-tay">đã sửa tay</b>' : '') +
+    '<span class="spacer"></span>' +
+    (tay && SUA_DUOC
+      ? '<button class="cp" onclick="boPromptTay(\'' + khoa + '\')" ' +
+        'title="Bỏ bản sửa tay, quay lại bản hệ thống tự ghép">⟲ tự động</button>'
+      : '') +
+    '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
+    '<div class="prompt' + (tay ? ' tay' : '') + '" id="' + id + '"' +
+    (SUA_DUOC ? ' contenteditable onblur="luuPromptTay(\'' + khoa +
+                '\', this)"' : '') +
+    '>' + thoat(chu) + '</div>';
+}
+
+/* Ghi một khoá của cảnh đang mở xuống kho. Giá trị rỗng thì XOÁ hẳn khoá —
+   để lại chuỗi rỗng là sau này mọi chỗ đều phải nhớ `.trim()`. */
+function datKhoaCanh(x, khoa, gt){
+  var ds = canhCuaDong(x.ch, x.di), c = ds[x.ci];
+  if(!c) return;
+  ghiNho();
+  if(gt) c[khoa] = gt; else delete c[khoa];
+  ghiCanhVao(x.ch, x.di, ds);
+}
+
+/* Sửa xong mà chữ TRÙNG KHÍT bản tự ghép thì bỏ luôn cờ đè: người ta vừa sửa
+   về như cũ, giữ lại một bản chụp chết là bẫy — sau này đổi tông hay gán asset
+   sẽ không chảy vào được mà trên màn hình trông y hệt. */
+function luuPromptTay(khoa, o){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var chu = docChu(o).trim();
+  var tu = (khoa === "pat" ? ghepPromptAnh(x) : ghepPromptVideo(x)).trim();
+  var cu = (x[khoa] || "").trim(), moi = (chu === tu) ? "" : chu;
+  if(moi === cu) return;              // không đổi thì đừng vẽ lại, mất cú bấm kế
+  datKhoaCanh(x, khoa, moi);
+  moCanh(canhDangMo);
+  bao(moi
+    ? "Đã lưu prompt sửa tay — từ giờ cảnh này gửi <b>đúng chữ trong ô</b>. " +
+      "Đổi tông hay gán thêm asset sẽ <b>không</b> chảy vào nữa; muốn vậy thì " +
+      "bấm <b>⟲ tự động</b>."
+    : "Đã trả prompt về bản tự động.");
+}
+
+function boPromptTay(khoa){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  datKhoaCanh(x, khoa, "");
+  moCanh(canhDangMo);
+  bao("Đã trả prompt về bản tự động.");
 }
 
 /* Cụm màu = PHÂN NHÂN SỰ (user chốt 24/09), không phải tầng kể chuyện. */
@@ -1093,6 +1166,33 @@ function duongAnh(x){
 function canhTheoMa(ma){
   return dungCanhTap().filter(function(c){ return c.ma === ma; })[0];
 }
+
+/* Cảnh đẻ ra ở TRANG thì CHƯA CÓ MÃ: mã do máy chủ cấp lúc ghi
+   (`dong.ghi_canh`), mà trang không đọc lại sau khi ghi nên vẫn cầm bản không
+   mã. Mọi đường cần mã liền gọi vào URL có đoạn RỖNG — đo trong log máy chủ
+   26/09: `POST /api/tap/SE001/C2/canh//ky-thuat -> 404`, và trên màn hình người
+   dùng chỉ thấy đúng hai chữ "Not Found".
+
+   Ghi xuống rồi nạp lại chương để lấy mã về. Ép `canLuu` để chương cũ chưa từng
+   được lưu kể từ hồi đổi kiểu dữ liệu cũng có một lượt ghi — đó là nguồn thứ
+   hai của cùng lỗi. KHÔNG vẽ lại hộp ở đây: vẽ lại là cái nút vừa bấm rời khỏi
+   trang, mất luôn chữ "đang làm" trên nó. */
+async function maCanhChac(){
+  var x = canhTheoMa(canhDangMo);
+  if(!x || x.id) return x || null;
+  canLuu[x.ch] = 1;
+  clearTimeout(hen);
+  await luuNgay();
+  await taiLaiChuong(x.ch);
+  x = canhTheoMa(canhDangMo);
+  if(!x || !x.id){
+    bao("Cảnh này chưa ghi được xuống kho nên chưa có mã. Sửa một chữ trong " +
+        "<b>Nội dung / hành động</b>, đợi thấy <b>✓ Đã lưu</b> ở góc trên, rồi " +
+        "bấm lại.", true);
+    return null;
+  }
+  return x;
+}
 /* Báo ĐANG LÀM ngay trên nút. User 25/09: "khi ấn nút thì không thấy có thông
    báo đang làm mà chỉ đến khi ảnh xuất hiện mới biết" — đổi chữ ở dòng trạng
    thái góc trên là quá kín, mắt đang nhìn cái nút. */
@@ -1105,7 +1205,7 @@ async function banRon(nut, chu, viec){
 
 async function sinhAnh(ev){
   if(!SUA_DUOC) return;
-  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var x = await maCanhChac(); if(!x) return;
   // KHÔNG hỏi lại chuyện thiếu asset. Gán asset là việc CÓ CHỦ ĐÍCH, chỉ ở
   // cảnh nào bắt buộc phải đồng nhất (user chốt 25/09) — phần lớn cảnh không
   // cần, nên hỏi là bắt bấm qua một câu vô nghĩa mấy chục lần.
@@ -1120,14 +1220,22 @@ async function sinhAnh(ev){
 /* Dịch nội dung cảnh sang prompt tiếng Anh + điền cột kỹ thuật, CHO MỘT CẢNH. */
 async function createPrompt(ev){
   if(!SUA_DUOC) return;
-  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var x = await maCanhChac(); if(!x) return;
   var nut = ev && ev.target;
   await banRon(nut, "Đang tạo prompt…", async function(){
     var r;
     try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
                         "/ky-thuat", "POST"); }
     catch(e){ return bao(e.message, true); }
-    await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
+    await taiLaiChuong(x.ch); veSb();
+    var y = canhTheoMa(canhDangMo) || x;
+    moCanh(canhDangMo);
+    // Bản sửa tay ĐÈ HẲN, nên LLM có viết `pa` mới thì màn hình vẫn y nguyên.
+    // Im lặng ở đây là để người ta bấm lại vài lượt, mỗi lượt một lần trả tiền.
+    if((y.pat || "").trim() || (y.pvt || "").trim())
+      return bao("Đã tạo prompt mới, nhưng cảnh này đang có <b>prompt sửa tay</b> " +
+                 "đè lên nên trên màn hình không đổi gì. Bấm <b>⟲ tự động</b> ở ô " +
+                 "prompt nếu muốn dùng bản vừa tạo.", true);
     bao(r.gan_asset ? "Đã tạo prompt, gắn <b>" + r.gan_asset + " asset</b>."
                     : "Đã tạo prompt — <b>không gắn asset nào</b>. Lập sổ Asset " +
                       "rồi tạo lại thì ảnh mới khớp mood giữa các cảnh.",
@@ -1163,7 +1271,7 @@ function theoDoiTatCa(){
 }
 async function genVideo(ev, noi){
   if(!SUA_DUOC) return;
-  var x = canhTheoMa(canhDangMo); if(!x) return;
+  var x = await maCanhChac(); if(!x) return;
   if(x.vid) return bao("Cảnh này đang dựng video rồi — đợi xong đã.", true);
   await banRon(ev && ev.target, "Đang gửi…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
@@ -1273,12 +1381,8 @@ function moCanh(ma){
       '<p class="nhan">Tone</p>' + veTongCanh(x) +
       '<p class="nhan gap" onclick="gapPromptCanh(this)">▸ Prompt ảnh · Prompt video</p>' +
     '</div><div class="cot-chu">' +
-      '<p class="nhan dau-pr">Prompt ảnh<span class="spacer"></span>' +
-      '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
-      '<div class="prompt" id="prAnh">' + thoat(promptAnh(x)) + '</div>' +
-      '<p class="nhan dau-pr">Prompt video<span class="spacer"></span>' +
-      '<button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
-      '<div class="prompt" id="prVid">' + thoat(promptVideo(x)) + '</div>' +
+      hopPrompt("Prompt ảnh", "prAnh", "pat", promptAnh(x), x) +
+      hopPrompt("Prompt video", "prVid", "pvt", promptVideo(x), x) +
     '</div></div>';
   document.getElementById("nenCanh").classList.add("mo");
   var oc = document.getElementById("oCanh");

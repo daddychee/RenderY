@@ -111,8 +111,12 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # `vid` = mã task Seedance ĐANG chạy. Sinh video mất 70-150 giây (đo 26/09)
 # nên không giữ một request treo suốt: lưu mã lại, trang tự hỏi lại. Xong hoặc
 # hỏng thì xoá — còn mã nghĩa là còn đang chạy.
+# `pat`/`pvt` = prompt người dùng SỬA TAY, đè hẳn bản hệ thống tự ghép (user
+# chốt 26/09: "đã sinh lại nhiều lần nhưng vẫn sai... cần tự sửa prompt trước
+# khi gen"). Lưu NGUYÊN VĂN cả bản ghép chứ không lưu phần chênh: ô trên màn
+# hình là bản đã ghép sẵn, sửa một chỗ rồi tách ngược ra `pa` là đoán mò.
 KHOA_CANH = ("id", "t", "co", "goc", "cd", "sfx", "tong", "ts", "pa",
-             "pv", "duyet", "vid")
+             "pv", "pat", "pvt", "duyet", "vid")
 
 
 def _ma_canh_moi(da_co: set[str]) -> str:

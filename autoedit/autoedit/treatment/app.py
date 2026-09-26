@@ -696,15 +696,40 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         t = ", ".join(x for x in pn if x)
         return t[:1].upper() + t[1:] if t else ""
 
+    def _mo_ta_ts(so: list[dict], c: dict) -> str:
+        """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
+
+        Đo thật 26/09, bốn lượt vẽ trên cùng một cảnh (thang máy Liên Xô, cỡ CU,
+        đã có ref):
+
+          A  pa đầy đủ + khối mô tả 77 từ + ref  -> khuôn hình vẫn RỘNG
+          B  bỏ khối mô tả, giữ ref              -> danh tính GIỮ NGUYÊN (đúng
+                                                    bóng đèn, sơn, sàn, bảng nút),
+                                                    khuôn hình chặt lại
+          D  giữ khối mô tả, BỎ ref              -> thang máy KHÁC HẲN, ra ảnh
+                                                    dựng 3D thay vì ảnh chụp
+
+        Tức là ảnh ref neo danh tính, khối chữ KHÔNG neo được — nó chỉ giành chỗ
+        với khuôn hình, và nhắc lại thứ `pa` đã tả nên nhà AI cân về phía bối
+        cảnh thay vì chủ thể. Asset CHƯA có ref thì giữ nguyên đường cũ: lúc đó
+        chữ là thứ duy nhất neo được nó.
+
+        CÙNG LUẬT với `moTaTaiSan()` bên trang, canh bằng test tĩnh.
+        """
+        tra = {x["ma"]: x for x in so}
+        ta = [tra[m] for m in (c.get("ts") or [])
+              if m in tra and tra[m].get("chu") and not tra[m].get("ref")]
+        mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
+        return mo_ta + "\n" if mo_ta else ""
+
     def _prompt_anh(tap: str, c: dict) -> str:
         """ĐÚNG cái người dùng thấy trong hộp: nội dung EN + mô tả tài sản +
         đoạn tông. Gửi mỗi `pa` thì ảnh mất tông, khác hẳn bản họ duyệt."""
+        tay = (c.get("pat") or "").strip()
+        if tay:
+            return tay      # sửa tay thì THẤY GÌ GỬI NẤY, không ghép thêm chữ nào
         so = _so_day_du(tap)
-        tra = {x["ma"]: x for x in so}
-        ta = [tra[m] for m in (c.get("ts") or []) if m in tra and tra[m].get("chu")]
-        mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
-        if mo_ta:
-            mo_ta += "\n"
+        mo_ta = _mo_ta_ts(so, c)
         tong = _tong_chu(so, c.get("tong") or "")
         may = _may(c)
         return f"16:9 ratio. {may + '. ' if may else ''}{c['pa']}\n\n{mo_ta}{tong}".strip()
@@ -717,12 +742,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         hai tầng rồi trôi khỏi nhau, người dùng duyệt một đằng máy gửi một nẻo.
         Lần này viết kèm phép đo so từng chữ ngay từ đầu.
         """
+        tay = (c.get("pvt") or "").strip()
+        if tay:
+            return tay
         so = _so_day_du(tap)
-        tra = {x["ma"]: x for x in so}
-        ta = [tra[m] for m in (c.get("ts") or []) if m in tra and tra[m].get("chu")]
-        mo_ta = "".join(f"{x['ten']}: {x['chu']}\n" for x in ta)
-        if mo_ta:
-            mo_ta += "\n"
+        mo_ta = _mo_ta_ts(so, c)
         may, cd = _may(c), (c.get("cd") or "").strip()
         dau = f"Camera: {cd}." if cd else "Simple camera motion only."
         if may:
@@ -734,10 +758,13 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     def _ve_mot_canh(tap: str, chuong: str, d: list, i: int, j: int, ai: str) -> None:
         c = mdong.doc_canh(d[i])[j]
-        if not (c.get("pa") or "").strip():
+        # Người đã tự viết tay thì thôi bắt đi qua LLM — đi vòng qua LLM CHÍNH LÀ
+        # mục đích của ô sửa tay.
+        if not ((c.get("pa") or "").strip() or (c.get("pat") or "").strip()):
             raise HTTPException(
-                400, "Cảnh này chưa có prompt tiếng Anh — bấm Sinh prompt trước. "
-                     "Gửi chữ Việt cho Seedream là ra ảnh sai.")
+                400, "Cảnh này chưa có prompt tiếng Anh — bấm Create Prompt trước, "
+                     "hoặc tự sửa thẳng vào ô Prompt ảnh. Gửi chữ Việt cho "
+                     "Seedream là ra ảnh sai.")
         # Ảnh ref của asset đã gán đi KÈM lượt vẽ. Asset chưa vẽ ref thì bỏ
         # qua, không chặn — gán rồi mà chưa kịp vẽ ref là chuyện thường giữa
         # chừng, lúc đó rơi về đúng hành vi cũ: chỉ có chữ.
@@ -865,9 +892,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(
                 400, "Ảnh của cảnh này chưa được duyệt. Tiền video chỉ đốt sau "
                      "cổng duyệt — xem ảnh rồi bấm Duyệt ảnh đã.")
-        if not (c.get("pv") or "").strip():
+        if not ((c.get("pv") or "").strip() or (c.get("pvt") or "").strip()):
             raise HTTPException(
-                400, "Cảnh này chưa có prompt video — bấm Create Prompt trước.")
+                400, "Cảnh này chưa có prompt video — bấm Create Prompt trước, "
+                     "hoặc tự sửa thẳng vào ô Prompt video.")
 
         # NỐI: khung cuối clip cảnh trước thành khung đầu clip này (user chốt
         # 26/09). Đổi lại clip KHÔNG còn bắt đầu từ tấm ảnh đã duyệt của chính

@@ -82,14 +82,27 @@ Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "ly_do": "..."}], \
 _LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
 
 Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
-bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, và MÔ TẢ CÁC \
-ASSET người dùng đã chọn cho cảnh đó (nếu có). Bám mô tả asset khi tả chủ thể — \
-đó là thứ giữ nhân vật giống nhau giữa các cảnh.
+bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, và ASSET người \
+dùng đã gán cho cảnh đó (nếu có).
+
+ASSET ĐÃ CÓ CHỖ LO RỒI — ĐỪNG TẢ LẠI. Hệ thống tự ghim asset vào lượt vẽ, bằng \
+ẢNH THAM CHIẾU hoặc bằng chính đoạn mô tả bạn đang đọc. Nên trong `pa` bạn KHÔNG \
+tả lại chúng: không nhắc lại chất liệu, màu sơn, niên đại, kết cấu hay chi tiết \
+ngoại hình của asset. Gọi nó bằng một cụm danh từ ngắn là đủ ("the elevator \
+gate", "the captain"). Chỉ tả HÀNH ĐỘNG, tư thế, vị trí trong khung, và những \
+thứ KHÔNG thuộc asset nào.
+
+Đo thật 26/09 trên tập đang chạy: `pa` tả lại asset trung bình 26%, cao nhất 55% \
+— prompt phình lên 137 từ mà chủ thể thật chỉ chiếm ~12 từ, phần còn lại tả căn \
+phòng. Nhà AI cân theo đúng tỉ lệ đó: nó vẽ căn phòng, chủ thể thành phụ kiện. \
+Cắt phần tả lại đi thì ra đúng khuôn hình ngay lượt đầu.
 
 Với MỖI cảnh, trả về:
 - `pa`: prompt TIẾNG ANH tả khung hình tĩnh của cảnh đó. Tả cái NHÌN THẤY: chủ \
-thể, hành động, bối cảnh, ánh sáng, chất liệu. KHÔNG thêm câu về phong cách hay \
-mood — phần đó hệ thống tự ghép.
+thể, hành động, ánh sáng. Bối cảnh và chất liệu CHỈ tả khi cảnh không có asset \
+nào lo phần đó. KHÔNG thêm câu về phong cách hay mood — phần đó hệ thống tự ghép.
+  · Cảnh CÓ asset: giữ `pa` khoảng 20-40 từ.
+  · Cảnh KHÔNG có asset: tả đủ, khoảng 40-70 từ.
 - `pv`: prompt TIẾNG ANH tả CHUYỂN ĐỘNG cho một clip liền mạch 5 giây, không \
 chuyển cảnh. Chuyển động ĐƠN GIẢN thôi.
 - `co`: cỡ cảnh, chỉ nhận WS | MS | CU | ECU | AERIAL
@@ -241,9 +254,13 @@ class LLM:
     def ky_thuat(self, muc: list[dict], tai_san: list[dict]) -> list[dict]:
         """Một lô cảnh -> cột kỹ thuật + prompt tiếng Anh. Kiểm SỐ LƯỢNG trước
         khi trả: lệch một mục là lệch hết phần còn lại của chương."""
+        # Nhãn phải nói rõ đây là asset CỦA CẢNH NÀY. Nhãn cũ ("SỔ TÀI SẢN")
+        # làm LLM tưởng được đưa cả danh mục để tự chọn lấy — đúng thứ user đã
+        # bỏ ngày 25/09 ("Không để LLM tự nhớ"): người chọn, máy không đoán.
         so = "\n".join("- %s (%s): %s" % (t["ma"], t["ten"], t.get("chu", ""))
-                        for t in tai_san) or "(sổ tài sản trống)"
-        than = "SỔ TÀI SẢN:\n" + so + "\n\nCÁC CẢNH:\n" + json.dumps(
+                        for t in tai_san) or "(cảnh này chưa gán asset nào)"
+        than = ("ASSET ĐÃ GÁN CHO CẢNH (đừng tả lại trong `pa`):\n" + so +
+                "\n\nCÁC CẢNH:\n") + json.dumps(
             muc, ensure_ascii=False, indent=1)
         # KHÔNG chốt số lượng ở đây: đo thật 24/09 trên C1, claude-sonnet-5 gửi 8
         # trả 7 — chốt số lượng thì cả chương dừng vì một mục bị nuốt. Tầng app

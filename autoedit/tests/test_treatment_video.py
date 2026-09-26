@@ -366,3 +366,45 @@ def test_khung_cuoi_lay_dung_CUOI_clip():
 
     nguon = inspect.getsource(mapp.khung_cuoi)
     assert "-sseof" in nguon
+
+
+# ═════════ việc 3 — asset có ref thì bỏ khối chữ, y hệt bên prompt ảnh ═════════
+# Với video lý do còn chắc hơn: đầu vào i2v là ẢNH ĐÃ DUYỆT của chính cảnh đó,
+# tức là cái neo mạnh nhất có thể có. Giữ thêm 77 từ tả tĩnh trong một prompt
+# CHUYỂN ĐỘNG chỉ là nhiễu. Một luật cho cả hai, không để hai tầng lệch nhau.
+def test_video_asset_CO_REF_thi_bo_khoi_mo_ta_chu(tmp_path):
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    t = kho.duong_ref("SE001", "k129", ".png")
+    t.parent.mkdir(parents=True, exist_ok=True)
+    t.write_bytes(PNG)
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    assert "Soviet Golf-II submarine" not in vv.goi[0]["prompt"]
+
+
+def test_video_asset_CHUA_co_ref_thi_VAN_chem_mo_ta(tmp_path):
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    assert "Soviet Golf-II submarine" in vv.goi[0]["prompt"]
+
+
+# ═════════════ việc 1 — prompt video sửa tay ═════════════
+def test_prompt_video_SUA_TAY_de_len_ban_tu_ghep(tmp_path):
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pvt"] = "TAY VIET HAN"
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    assert vv.goi[0]["prompt"] == "TAY VIET HAN"
+
+
+def test_canh_chua_co_pv_nhung_co_prompt_tay_thi_VAN_dung_duoc(tmp_path):
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pv"] = ""
+    d[0]["canh"][0]["pvt"] = "EN motion tay viet"
+    kho.luu("SE001", "H", d, "", "thu")
+    assert c.post(f"/api/tap/SE001/H/canh/{ma}/video").status_code == 200

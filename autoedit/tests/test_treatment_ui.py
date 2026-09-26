@@ -340,8 +340,9 @@ def test_prompt_ghep_boilerplate_THEO_TONG(html):
     nhiên dưới nước, cảnh trên cạn thì không."""
     assert "function promptAnh(" in html and "function promptVideo(" in html
     # Hai đoạn tông nay sống ở SỔ của tập (máy chủ đưa mặc định) — nội dung của
-    # chúng canh ở test_treatment_so.py. Ở trang chỉ canh chỗ GHÉP.
-    for ten in ("promptAnh", "promptVideo"):
+    # chúng canh ở test_treatment_so.py. Ở trang chỉ canh chỗ GHÉP: từ 26/09 chỗ
+    # ghép nằm ở `ghepPrompt*`, còn `prompt*` là lớp mỏng ưu tiên bản sửa tay.
+    for ten in ("ghepPromptAnh", "ghepPromptVideo"):
         i = html.index("function %s(" % ten)
         than = html[i:html.index(chr(10) + "}", i)]
         assert "boiler(x.tong)" in than, f"{ten} phải ghép tông của CHÍNH cảnh đó"
@@ -785,7 +786,7 @@ def test_prompt_video_dung_CHUYEN_DONG_THAT_khong_de_len(html):
     """Nặng nhất trong bốn cột: prompt video ghi đè `cd` bằng một câu chung
     chung. Cảnh ghi `slow push in` thì mất hẳn, cảnh `static` thì thành lời
     khuyên mơ hồ. Chỉ được dùng câu chung khi cảnh KHÔNG có `cd`."""
-    i = html.index("function promptVideo(")
+    i = html.index("function ghepPromptVideo(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "x.cd" in than, "phải dùng chuyển động máy của chính cảnh"
     assert "Simple camera motion only" not in than or "cd ?" in than or "cd)" in than
@@ -794,7 +795,7 @@ def test_prompt_video_dung_CHUYEN_DONG_THAT_khong_de_len(html):
 def test_prompt_video_mang_SFX(html):
     """`sfx` là gợi ý tiếng động LLM đã sinh cho từng cảnh. Seedance nhận được
     thì tiếng khớp hình; không nhận thì nó tự bịa hoặc câm."""
-    i = html.index("function promptVideo(")
+    i = html.index("function ghepPromptVideo(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert "x.sfx" in than
 
@@ -1235,3 +1236,70 @@ def test_hang_nut_hop_canh_CO_DINH_KIEU(html):
     assert ".hang-nut button{" in khoi, "thiếu hẳn luật hình dạng cho nút"
     assert ".hang-nut button.on{" in khoi, "nút đã duyệt phải khác nút thường"
     assert ".hang-nut button:disabled{" in khoi, "nút đang chạy phải trông như bị khoá"
+
+
+def test_moTaTaiSan_BO_asset_da_co_ref(html):
+    """Song sinh bên trang của luật việc 3. Hai tầng ghép prompt lệch nhau là
+    lỗi nặng nhất của cả đợt (người duyệt một đằng, máy gửi một nẻo) — nên luật
+    mới phải có mặt ở CẢ HAI, canh bằng test tĩnh."""
+    than = html[html.index("function moTaTaiSan(x){"):]
+    than = than[:than.index(chr(10) + "}")]
+    assert "t.ref" in than, (
+        "moTaTaiSan phải bỏ asset đã có ref — đo 26/09: ref giữ danh tính, "
+        "khối chữ chỉ tranh khuôn hình")
+
+
+def test_o_PROMPT_sua_duoc_tai_cho(html):
+    """User 26/09: "để tiết kiệm chi phí, tôi cần tự sửa prompt trước khi gen".
+    Trước đó ô prompt chỉ đọc, muốn đổi chữ phải nhờ LLM dịch lại — tức đoán
+    lại, không phải sửa."""
+    assert '"prAnh", "pat"' in html and '"prVid", "pvt"' in html, (
+        "hai ô prompt phải đi qua hopPrompt và mang đúng khoá sửa tay")
+    i = html.index("function hopPrompt(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "contenteditable" in than, "hai ô prompt phải sửa được tại chỗ"
+    assert "luuPromptTay" in than, "sửa xong phải có đường lưu xuống kho"
+    assert "SUA_DUOC" in than, "người chỉ có quyền xem thì KHÔNG được sửa"
+
+
+def test_co_duong_TRA_VE_TU_DONG_khi_da_sua_tay(html):
+    """Đè tay thì tông/asset/nội dung không chảy vào prompt nữa. Không có đường
+    quay lại thì cảnh đó mắc kẹt vĩnh viễn ở bản chụp lúc sửa."""
+    assert "boPromptTay" in html
+    assert "đã sửa tay" in html
+
+
+def test_promptAnh_UU_TIEN_ban_sua_tay(html):
+    """Song sinh bên trang của luật `pat`/`pvt`. Lệch hai tầng là người duyệt
+    một đằng máy gửi một nẻo — lỗi nặng nhất của cả đợt."""
+    for ten, khoa in (("function promptAnh(x){", "x.pat"),
+                      ("function promptVideo(x){", "x.pvt")):
+        than = html[html.index(ten):]
+        than = than[:than.index(chr(10) + "}")]
+        assert khoa in than, ten + " phải ưu tiên bản sửa tay"
+
+
+def test_ba_duong_CAN_MA_CANH_deu_qua_maCanhChac(html):
+    """User 26/09: bấm Create Prompt ra "Not Found". Đo trong log máy chủ:
+    `POST /api/tap/SE001/C2/canh//ky-thuat` — mã cảnh RỖNG. Cảnh đẻ ra ở trang
+    chưa có mã (máy chủ cấp lúc ghi), trang không đọc lại nên vẫn cầm bản không
+    mã rồi ghép thẳng vào URL."""
+    assert "async function maCanhChac()" in html
+    for ten in ("async function sinhAnh(", "async function createPrompt(",
+                "async function genVideo("):
+        i = html.index(ten)
+        than = html[i:html.index(chr(10) + "}", i)]
+        # Cái phải siết là chỗ BUỘC x — nơi mã cảnh được ghép vào URL. Đọc lại
+        # cảnh SAU khi gọi API thì vẫn dùng canhTheoMa được, không sao.
+        assert "var x = await maCanhChac(); if(!x) return;" in than, (
+            ten + " phải lấy mã chắc chắn trước khi gọi")
+
+
+def test_create_prompt_BAO_khi_dang_bi_prompt_tay_de_len(html):
+    """Cảnh đang có `pat` thì bấm Create Prompt lại chẳng thấy gì đổi — LLM có
+    viết `pa` mới nhưng bản sửa tay vẫn đè lên. Im lặng ở đây là để người ta bấm
+    lại vài lượt, mỗi lượt một lần trả tiền LLM."""
+    i = html.index("async function createPrompt(")
+    than = html[i:html.index(chr(10) + "}", i)]
+    assert "pat" in than and "pvt" in than, (
+        "Create Prompt phải báo khi kết quả của nó đang bị prompt sửa tay đè")

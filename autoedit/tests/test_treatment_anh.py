@@ -505,3 +505,137 @@ def test_canh_khong_gan_asset_thi_khong_co_ref(tmp_path):
     c, kho = _bo_tran(tmp_path, ve)
     c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
     assert ve.ref[0] == []
+
+
+# ═══════════════ việc 3 — ĐO THẬT 26/09: ref thay được khối chữ ═══════════════
+# Gen bốn biến thể trên cùng một cảnh thật (thang máy Liên Xô, cỡ CU, đã có ref):
+#   A  pa đầy đủ + khối mô tả 77 từ + ref  (165 từ) -> vẫn ra khuôn hình RỘNG
+#   B  bỏ khối mô tả, giữ ref              ( 86 từ) -> danh tính GIỮ NGUYÊN,
+#                                                       khuôn hình chặt lại
+#   D  giữ khối mô tả, BỎ ref              (165 từ) -> thang máy KHÁC HẲN,
+#                                                       ra ảnh dựng 3D
+# Kết luận: ảnh ref giữ danh tính, khối chữ KHÔNG giữ — nó chỉ tranh chỗ với
+# khuôn hình. Vậy asset nào ĐÃ có ref thì thôi chêm chữ. Asset chưa có ref thì
+# giữ nguyên đường cũ, vì lúc đó chữ là thứ duy nhất neo được nó.
+def _co_ref(kho, ma):
+    t = kho.duong_ref("SE001", ma, ".png")
+    t.parent.mkdir(parents=True, exist_ok=True)
+    t.write_bytes(PNG)
+    return t
+
+
+def _gan(kho, ma_asset):
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = [ma_asset]
+    kho.luu("SE001", "H", d, "", "thu")
+
+
+def test_asset_CO_REF_thi_KHONG_chem_khoi_mo_ta_chu(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "thang_may", "loai": "boi_canh", "ten": "Thang Máy",
+                          "chu": "cramped Soviet-era industrial elevator car"}])
+    _gan(kho, "thang_may")
+    _co_ref(kho, "thang_may")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "cramped Soviet-era industrial elevator car" not in ve.goi[0], (
+        "asset đã có ref thì khối chữ chỉ tranh khuôn hình — đo 26/09 tấm A vs B")
+    assert "Thang Máy" not in ve.goi[0], (
+        "tên tiếng Việt đứng trơ một mình còn vô nghĩa hơn với Seedream")
+
+
+def test_asset_co_ref_VAN_dinh_anh_ref_vao_luot_ve(tmp_path):
+    """Bỏ CHỮ, không bỏ ẢNH. Bỏ nhầm ảnh là quay lại đúng tấm D: thang máy khác."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "thang_may", "loai": "boi_canh", "ten": "Thang Máy",
+                          "chu": "cramped Soviet-era industrial elevator car"}])
+    _gan(kho, "thang_may")
+    t = _co_ref(kho, "thang_may")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.ref[0] == [t], "ảnh ref phải đi kèm lượt vẽ"
+
+
+def test_asset_CHUA_co_ref_thi_VAN_chem_mo_ta_chu(tmp_path):
+    """Đường lui giữ nguyên: chưa vẽ ref thì chữ là thứ duy nhất neo được."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [{"ma": "thang_may", "loai": "boi_canh", "ten": "Thang Máy",
+                          "chu": "cramped Soviet-era industrial elevator car"}])
+    _gan(kho, "thang_may")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "cramped Soviet-era industrial elevator car" in ve.goi[0]
+
+
+def test_mot_asset_co_ref_MOT_khong_thi_chem_dung_cai_khong(tmp_path):
+    """Cảnh trộn hai loại là chuyện thường. Lọc phải theo TỪNG asset."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    kho.luu_so("SE001", [
+        {"ma": "thang_may", "loai": "boi_canh", "ten": "Thang Máy",
+         "chu": "cramped Soviet elevator car"},
+        {"ma": "kobzar", "loai": "nhan_vat", "ten": "Kobzar",
+         "chu": "weathered Soviet captain in dark coat"}])
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["ts"] = ["thang_may", "kobzar"]
+    kho.luu("SE001", "H", d, "", "thu")
+    _co_ref(kho, "thang_may")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "cramped Soviet elevator car" not in ve.goi[0]
+    assert "weathered Soviet captain in dark coat" in ve.goi[0]
+
+
+# ═════════════ việc 1 — PROMPT SỬA TAY (user chốt 26/09) ═════════════
+# "Prompt sinh ảnh không đúng, đã sinh lại nhiều lần nhưng vẫn sai. Để tiết kiệm
+# chi phí, tôi cần cho tính năng tự sửa prompt trước khi gen ảnh hoặc video."
+#
+# Ô prompt trên màn hình là bản GHÉP (16:9 + máy quay + pa + mô tả asset + tông).
+# Sửa một phần rồi ghép lại thì không tách ngược ra được, nên bản sửa tay lưu
+# NGUYÊN VĂN vào `pat`/`pvt` và ĐÈ HẲN bản ghép. Thấy gì gửi nấy.
+#
+# Cái giá phải trả, đã nói rõ với user và hiện thành nhãn trên màn hình: đã đè
+# thì đổi tông / gán thêm asset / sửa nội dung Việt KHÔNG chảy vào prompt nữa.
+def test_prompt_SUA_TAY_de_len_ban_tu_ghep(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pat"] = "TAY VIET HAN"
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert ve.goi[0] == "TAY VIET HAN", (
+        "thấy gì gửi nấy — còn ghép thêm chữ nào là lại lệch với ô người ta sửa")
+
+
+def test_prompt_sua_tay_RONG_thi_van_tu_ghep_nhu_cu(tmp_path):
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pat"] = "   "
+    kho.luu("SE001", "H", d, "", "thu")
+    c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert "Mood and tone" in ve.goi[0]
+
+
+def test_canh_CHUA_co_pa_nhung_co_prompt_tay_thi_VAN_ve_duoc(tmp_path):
+    """Cổng chặn "chưa có prompt tiếng Anh" không được chặn người đã tự viết
+    tay — họ đang đi đường vòng qua LLM, đó là cả mục đích của tính năng."""
+    ve = VeGia()
+    c, kho = _bo_tran(tmp_path, ve)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pa"] = ""
+    d[0]["canh"][0]["pat"] = "EN tay viet"
+    kho.luu("SE001", "H", d, "", "thu")
+    r = c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
+    assert r.status_code == 200, r.text
+
+
+def test_prompt_tay_LUU_XUONG_KHO_va_doc_lai_duoc(tmp_path):
+    """`pat`/`pvt` phải nằm trong danh sách khoá của cảnh. Thiếu là gõ xong,
+    tải lại trang thì mất trắng — kiểu hỏng tệ nhất vì im lặng."""
+    c, kho = _bo_tran(tmp_path)
+    d = kho.doc("SE001", "H")["dong"]
+    d[0]["canh"][0]["pat"] = "AAA"
+    d[0]["canh"][0]["pvt"] = "BBB"
+    kho.luu("SE001", "H", d, "", "thu")
+    x = kho.doc("SE001", "H")["dong"][0]["canh"][0]
+    assert x.get("pat") == "AAA" and x.get("pvt") == "BBB"

@@ -235,3 +235,41 @@ def test_chua_bat_LLM_thi_503(bo):
     c = TestClient(tao_app(kho))
     c.headers.update({"X-Remote-User": "thu", "X-Remote-Actions": "sua"})
     assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/ky-thuat").status_code == 503
+
+
+# ═════ việc 2 — ĐO 26/09: `pa` đang tả lại y nguyên thứ hệ thống sẽ chêm ═════
+# Đo trên tập SE001 thật, 5 cặp cảnh–asset: mô tả asset trùng vào `pa` trung
+# bình 26%, cao nhất 55% (cảnh thang máy: 28/51 từ của khối mô tả đã nằm sẵn
+# trong `pa`). Hậu quả đo được: prompt 137 từ thì chủ thể thật ("a human hand
+# gripping the handle") chỉ chiếm ~12 từ, còn lại tả CĂN PHÒNG — nên Seedream
+# vẽ căn phòng, bàn tay thành phụ kiện. Gen lại bao nhiêu lần cũng vậy.
+#
+# Gốc: LLM viết `pa` KHÔNG BIẾT phần mô tả asset sẽ được chêm vào sau, nên nó tự
+# tả lại bối cảnh cho đủ ý. Phải nói cho nó biết.
+from autoedit.treatment import dich as _dich
+
+
+def test_lenh_ky_thuat_CAM_ta_lai_asset_trong_pa():
+    L = _dich._LENH_KY_THUAT
+    assert "Bám mô tả asset khi tả chủ thể" not in L, (
+        "chính câu này đẻ ra trùng lặp — nó bảo LLM chép lại mô tả asset")
+    assert "KHÔNG tả lại" in L or "ĐỪNG tả lại" in L, (
+        "lệnh phải cấm tả lại asset trong `pa`")
+
+
+def test_than_goi_LLM_ghi_ro_day_la_ASSET_CUA_CANH():
+    """Nhãn cũ là "SỔ TÀI SẢN" trong khi app chỉ gửi asset CỦA CẢNH ĐÓ. Nhãn sai
+    thì LLM tưởng đang được đưa cả danh mục để tự chọn — đúng thứ user đã bỏ
+    ("Không để LLM tự nhớ")."""
+    llm = _dich.LLM.__new__(_dich.LLM)
+    bat = {}
+
+    def goi_gia(lenh, than):
+        bat["than"] = than
+        return {"canh": []}
+
+    llm.goi = goi_gia
+    llm.ky_thuat([{"id": "c1", "canh": "Cận bàn tay"}],
+                 [{"ma": "k129", "ten": "Tàu K-129", "chu": "Soviet Golf-II"}])
+    assert "ĐÃ GÁN CHO CẢNH" in bat["than"], bat["than"][:200]
+    assert "Soviet Golf-II" in bat["than"], "mô tả asset vẫn phải đưa làm ngữ cảnh"
