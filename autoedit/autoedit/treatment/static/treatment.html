@@ -260,6 +260,57 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   overflow:hidden;display:flex;align-items:center;justify-content:center;
   color:var(--muted);font-size:12px;font-weight:700;text-align:center}
 #hopCanh.chia .khung-to{height:auto;width:100%}
+/* Hộp cảnh v3 (Owner duyệt mockup ui3 ngày 27/09): TOÀN MÀN HÌNH. Trái = bốn
+   bước theo đúng thứ tự tay làm — References → Camera angle → Shot size →
+   Camera movement; phải = hình + nút gen + prompt. Nhãn = thuật ngữ chuyên
+   môn tiếng Anh, chú thích Việt nhỏ bên dưới. */
+.nen.toan{padding:0}
+#hopCanh.toan{width:100vw;max-width:none;height:100vh;max-height:none;border-radius:0;
+  border:0;display:flex;flex-direction:column}
+#hopCanh.toan .hop-dau{flex:0 0 auto;position:static}
+#hopCanh.toan .than2{flex:1;min-height:0;display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:0;padding:0}
+#hopCanh.toan .cot-buoc{min-height:0;overflow:auto;padding:14px 18px 40px;
+  border-right:1px solid var(--line);background:var(--bg)}
+#hopCanh.toan .cot-hinh{min-height:0;overflow:auto;padding:14px 18px 40px}
+#hopCanh.toan .khung-to{height:auto;width:100%}
+.hop-dau .noidung{flex:1;min-width:0;border-left:1px solid var(--line);padding-left:14px;
+  font-size:13.5px;line-height:1.4}
+.hop-dau .noidung .nhan{margin:0 0 3px}
+.hop-dau .noidung .o-sua{padding:4px 8px;min-height:0;font-size:13.5px}
+.hop-dau .noidung i{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.buoc{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  margin-bottom:12px;overflow:hidden}
+.buoc-dau{display:flex;align-items:center;gap:11px;padding:10px 15px;
+  border-bottom:1px solid var(--line)}
+.buoc-dau .so{display:inline-flex;width:26px;height:26px;border-radius:50%;
+  background:var(--accent);color:#fff;align-items:center;justify-content:center;
+  font-weight:800;font-size:13px;flex:0 0 auto}
+.buoc-dau .ten{font-weight:800;font-size:15px}
+.buoc-dau .ten small{font-weight:500;color:var(--muted);margin-left:7px;font-size:12.5px}
+.buoc-dau .chon{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.buoc-dau .chon b{color:var(--text);background:var(--accent-soft);border:1px solid var(--accent);
+  border-radius:6px;padding:2px 9px}
+.buoc-than{padding:12px 15px 14px}
+.luoi{display:grid;gap:7px;grid-template-columns:repeat(4,1fr)}
+.luoi.g5{grid-template-columns:repeat(5,1fr)}
+.luoi .o{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  cursor:pointer;text-align:left;color:var(--text);line-height:1.25;min-height:52px;
+  display:flex;flex-direction:column;gap:3px}
+.luoi .o b{font-size:13.5px;font-weight:700}
+.luoi .o small{color:var(--muted);font-size:11.5px}
+.luoi .o.on{border-color:var(--accent);background:var(--accent-soft);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+.luoi .o:disabled{cursor:default;opacity:.75}
+.nhom{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  font-weight:800;margin:10px 0 6px}
+.nhom:first-child{margin-top:0}
+.nhom .nho{font-weight:400;text-transform:none;letter-spacing:0}
+.dong-nho{font-size:12.5px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+.dong-nho b{color:var(--text)}
+@media(max-width:1100px){#hopCanh.toan .than2{grid-template-columns:1fr}
+  #hopCanh.toan .cot-buoc{border-right:0}.luoi,.luoi.g5{grid-template-columns:repeat(2,1fr)}}
 .khung-to img,.khung-to video{width:100%;height:100%;object-fit:cover;display:block}
 /* `hidden` đặt display:none nhưng luật trên có độ ưu tiên cao hơn nên đè mất —
    bấm tab Video thì ảnh vẫn hiện, hai cái nằm cạnh nhau (đo Chrome 26/09). */
@@ -968,6 +1019,7 @@ function moMoHinh(){
     h += '<p class="nhan">Ảnh</p>' + hangMoHinh("image", MO_HINH.chon.anh, nhanKet("anh"), "datMoHinhTap") +
          '<p class="nhan">Video</p>' + hangMoHinh("video", MO_HINH.chon.video, nhanKet("video"), "datMoHinhTap");
   }
+  hopToan(false);
   document.getElementById("hopCanh").innerHTML = h + '</div>';
   document.getElementById("nenCanh").classList.add("mo");
 }
@@ -1089,18 +1141,34 @@ var CD_CHU = {
   orbit: "The camera orbits around the subject."
 };
 /* Nhãn tiếng Việt cho nút và chip. Ghi chú của động tác = số đo (trang ⑬). */
-var NHAN_CO = {EWS: "toàn cảnh", WS: "rộng", MS: "trung", MCU: "trung-cận", CU: "cận",
-               ECU: "cực cận", AERIAL: "trên không"};
-var GOI_CO = {EWS: "người rất nhỏ", WS: "cả người", MS: "từ thắt lưng", MCU: "ngang ngực",
-              CU: "mặt / bàn tay", ECU: "mắt, ngón, chi tiết", AERIAL: "từ trên cao"};
-var NHAN_GOC = {eye: "ngang mắt", low: "ngước lên", high: "cúi xuống", bird: "bird view",
-                top: "từ đỉnh", ots: "qua vai", pov: "POV"};
-var NHAN_CD = {static: "tĩnh", push_in: "đẩy vào", pull_out: "kéo ra", tilt_up: "ngước lên",
-               tilt_down: "cúi xuống", track: "theo chủ thể", truck_left: "trượt trái",
-               truck_right: "trượt phải", pan_left: "lia trái", pan_right: "lia phải",
-               whip_pan: "lia giật", crash_zoom: "zoom giật", arc: "vòng cung", orbit: "quay quanh"};
-var GHI_CD = {pan_left: "2/3", pan_right: "2/3", whip_pan: "rồi đứng yên", crash_zoom: "dồn về cuối",
-              arc: "vòng lỏng", orbit: "vòng lỏng"};
+/* Nhãn = THUẬT NGỮ CHUYÊN MÔN tiếng Anh (Owner chốt 27/09), chú thích Việt đi
+   kèm. Chỉ bày thứ đã đo ra chạy — góc/động tác không ra khi đo thì KHÔNG bày
+   ô mờ (Owner 27/09: bỏ hẳn cho gọn). */
+var NHAN_CO = {EWS: "Extreme wide shot", WS: "Wide shot", MS: "Medium shot",
+               MCU: "Medium close-up", CU: "Close-up", ECU: "Extreme close-up", AERIAL: "Aerial shot"};
+var GOI_CO = {EWS: "EWS · người rất nhỏ trong không gian", WS: "WS · cả người + bối cảnh",
+              MS: "MS · từ thắt lưng lên", MCU: "MCU · ngang ngực", CU: "CU · mặt / bàn tay",
+              ECU: "ECU · mắt, ngón, chi tiết", AERIAL: "từ trên cao · flycam"};
+var NHAN_GOC = {eye: "Eye level", low: "Low angle", high: "High angle", bird: "Bird's-eye view",
+                top: "Top shot", ots: "Over-the-shoulder", pov: "POV"};
+var GOI_GOC = {eye: "ngang mắt · trung tính", low: "máy dưới ngước lên · uy quyền, sức nặng",
+               high: "máy trên cúi xuống · nhỏ bé, bị theo dõi", bird: "từ rất cao, dốc · bao quát",
+               top: "thẳng từ đỉnh xuống (top-down)", ots: "qua vai người thứ hai · OTS",
+               pov: "mắt nhân vật · nhân vật không hiện"};
+var NHAN_CD = {static: "Static", push_in: "Push in", pull_out: "Pull out", crash_zoom: "Crash zoom",
+               pan_left: "Pan left", pan_right: "Pan right", whip_pan: "Whip pan",
+               tilt_up: "Tilt up", tilt_down: "Tilt down", track: "Tracking",
+               truck_left: "Truck left", truck_right: "Truck right", arc: "Arc shot", orbit: "360 orbit"};
+var GOI_CD = {static: "tĩnh · máy đứng yên", push_in: "dolly tới chủ thể", pull_out: "dolly lùi, lộ bối cảnh",
+              crash_zoom: "zoom giật · dồn về cuối", pan_left: "lia trái · 2/3 lượt đo",
+              pan_right: "lia phải · 2/3 lượt đo", whip_pan: "lia giật rồi đứng yên",
+              tilt_up: "ngước lên", tilt_down: "cúi xuống", track: "theo chủ thể",
+              truck_left: "trượt ngang trái", truck_right: "trượt ngang phải",
+              arc: "vòng cung quanh chủ thể · vòng lỏng", orbit: "quay trọn vòng · vòng lỏng"};
+/* Ba nhóm chuyển động như mockup ui3 — mỗi mã của CD_CHU nằm đúng một nhóm. */
+var NHOM_CD = [["Hướng vào / ra", ["static", "push_in", "pull_out", "crash_zoom"]],
+               ["Xoay tại chỗ", ["pan_left", "pan_right", "whip_pan", "tilt_up", "tilt_down"]],
+               ["Dời máy", ["track", "truck_left", "truck_right", "arc", "orbit"]]];
 /* Cỡ cảnh + góc máy thành một mệnh đề. Đo 25/09: 49/49 cảnh có prompt EN đều
    đã đủ bốn cột kỹ thuật, hiện rành rành trên thẻ, mà prompt không mang chữ
    nào — LLM tuân thủ luật "không 3 cảnh liền nhau cùng cỡ" để rồi vô ích. */
@@ -1480,24 +1548,47 @@ function moCanh(ma){
   if(k < 0) return;
   var x = ds[k], g = giayCua(x.en), moi = g / x.n;
   canhDangMo = ma;
-  var truoc = ds[k - 1];
+  var truoc = ds[k - 1], gui = anhSeGui(x);
+  hopToan(true);
   document.getElementById("hopCanh").innerHTML =
-    '<div class="hop-dau"><b>Cảnh ' + x.ma + '</b><span class="nho">phân cảnh ' +
-    x.pc + ' · cảnh ' + (x.ci + 1) + '/' + x.n + ' · chương ' + x.ch + '</span>' +
-    '<span class="spacer"></span>' +
+    '<div class="hop-dau"><div><b>Cảnh ' + x.ma + '</b><div class="nho">phân cảnh ' +
+    x.pc + ' · cảnh ' + (x.ci + 1) + '/' + x.n + ' · chương ' + x.ch + '</div></div>' +
+    '<div class="noidung"><p class="nhan">Nội dung / hành động</p>' +
+    '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
+    thoat(x.t) + '</div>' +
+    '<i title="' + thoat(x.en) + '">Voice phân cảnh ' + x.pc + ': “' + thoat(x.en) +
+    '” · ~' + Math.round(g) + ' giây · ' + x.n + ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
+    (moi > giayCanh(x) ? ' · <span class="canh-bao">dài hơn 1 clip ' + giayCanh(x) + 's</span>' : '') +
+    '</i></div>' +
     '<button class="x"' + (k <= 0 ? ' disabled' : '') + ' onclick="moCanh(\'' +
       (truoc ? truoc.ma : "") + '\')">‹ trước</button>' +
     '<button class="x"' + (k >= ds.length-1 ? ' disabled' : '') + ' onclick="moCanh(\'' +
       (ds[k+1] ? ds[k+1].ma : "") + '\')">sau ›</button>' +
     '<button class="x" onclick="dongCanh()">✕</button></div>' +
-    '<div class="than2"><div class="cot-hinh">' +
+
+    '<div class="than2"><div class="cot-buoc">' +
+      // ── 1 · References ──
+      '<div class="buoc"><div class="buoc-dau"><span class="so">1</span><span class="ten">' +
+      'References<small>chọn ref · ảnh đi kèm lượt vẽ, master đi đầu</small></span>' +
+      '<span class="chon">đã chọn <b>' + gui.length + ' / 4</b></span></div>' +
+      '<div class="buoc-than">' +
+      '<div class="nhom">Sequence master · trường đoạn<span class="nho"> — nhóm cú máy cùng ' +
+      'một không gian; khung master của nhóm đi kèm mọi lượt vẽ</span></div>' +
+      veTruongDoanCanh(x) +
+      '<div class="nhom">Assets in this shot · asset của cảnh<span class="nho"> — bấm để chọn, ' +
+      'bấm đúp để xem ref</span></div>' + veTaiSanCanh(x) +
+      '<div class="nhom">Images sent · ảnh sẽ gửi đi<span class="nho"> — đúng thứ tự nhà AI ' +
+      'nhận</span></div>' + veAnhSeGui(x) + '</div></div>' +
+      // ── 2 · Camera angle · 3 · Shot size · 4 · Camera movement ──
+      veKhungCanh(x) + veMayCanh(x) +
+    '</div><div class="cot-hinh">' +
       '<div class="tab-hinh">' +
       '<button class="on" onclick="doiTabHinh(this,\'anh\')">Ảnh</button>' +
       '<button' + (x.video ? '' : ' disabled') +
       ' onclick="doiTabHinh(this,\'video\')">Video</button>' +
       '<span class="spacer"></span><span class="nho">' +
       (x.anh ? '2560×1440' : 'chưa có ảnh') +
-      (x.video ? ' · clip 15,0s' : '') + '</span></div>' +
+      (x.video ? ' · clip ' + giayCanh(x) + 's' : '') + '</span></div>' +
 
       '<div class="khung-to' + (x.anh ? ' bam-duoc' : '') + '"' +
       (x.anh ? ' title="Bấm để xem cỡ lớn" onclick="xemAnh(\'' + duongAnh(x) +
@@ -1532,50 +1623,16 @@ function moCanh(ma){
       (x.vid ? '<div class="nhac" style="margin-top:8px">Đang dựng video — mất ' +
                'khoảng <b>1–3 phút</b>. Đóng tab cũng không sao, quay lại là thấy.' +
                '</div>' : '') +
-
-      '<p class="nhan">Trường đoạn<span class="nho" style="font-weight:400;' +
-      'text-transform:none;letter-spacing:0"> — nhóm cú máy cùng một không ' +
-      'gian; khung master của nhóm đi kèm mọi lượt vẽ</span></p>' +
-      veTruongDoanCanh(x) +
-
-      '<p class="nhan">Asset trong cảnh<span class="nho" style="font-weight:400;' +
-      'text-transform:none;letter-spacing:0"> — ảnh ref của asset đã chọn đi ' +
-      'thẳng vào lượt vẽ; bấm đúp để xem ref</span></p>' + veTaiSanCanh(x) +
-
-      '<p class="nhan">Ảnh sẽ gửi đi<span class="nho" style="font-weight:400;' +
-      'text-transform:none;letter-spacing:0"> — đúng thứ tự Seedream nhận' +
-      '</span></p>' + veAnhSeGui(x) +
-
-      '<div class="lo-voice"><span class="nhan" style="margin:0">Voice phân cảnh ' +
-      x.pc + '</span><i>' + thoat(x.en) + '</i><span class="nho">~' +
-      Math.round(g) + ' giây · ' + x.n + ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
-      (moi > giayCanh(x) ? ' · dài hơn 1 clip ' + giayCanh(x) + 's' : '') +
-      '</span></div>' +
-
-      '<p class="nhan">Nội dung / hành động</p>' +
-      '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
-      thoat(x.t) + '</div>' +
-      '<p class="nhan">Khung hình<span class="nho" style="font-weight:400;' +
-      'text-transform:none;letter-spacing:0"> — cỡ + góc thành câu đầu prompt; ' +
-      '"cái gì lấp khung" máy gợi khi Create Prompt, sửa được</span></p>' +
-      veKhungCanh(x) +
-      '<p class="nhan">Chuyển động máy<span class="nho" style="font-weight:400;' +
-      'text-transform:none;letter-spacing:0"> — chỉ bày động tác đo ra chạy; ' +
-      'đứng đầu prompt video, kéo suốt ' + giayCanh(x) + ' s</span></p>' +
-      veMayCanh(x) +
-      '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' +
-      chip(x.sfx, "SFX") + '</div>' +
       (chuaDich(x)
         ? '<div class="nhac" style="margin-top:8px">Prompt còn là <b>chữ Việt</b>' +
           ' — bấm <b>Create Prompt</b> để LLM dịch sang tiếng Anh và điền các cột.' +
           '</div>'
         : '') +
+      '<div class="dong-nho"><span>SFX ' + chip(x.sfx, "SFX") + '</span></div>' +
       '<p class="nhan">Tone</p>' + veTongCanh(x) +
       '<p class="nhan">Model<span class="nho" style="font-weight:400;' +
       'text-transform:none;letter-spacing:0"> — đè cho riêng cảnh này; độ dài clip' +
       ' theo model video</span></p>' + veMoHinhCanh(x) +
-      '<p class="nhan gap" onclick="gapPromptCanh(this)">▸ Prompt ảnh · Prompt video</p>' +
-    '</div><div class="cot-chu">' +
       hopPrompt("Prompt ảnh", "prAnh", "pat", promptAnh(x), x) +
       hopPrompt("Prompt video", "prVid", "pvt", promptVideo(x), x) +
     '</div></div>';
@@ -1585,6 +1642,12 @@ function moCanh(ma){
   // Mở lại một cảnh đang dựng dở (kể cả sau khi đã đóng tab) thì bắt nhịp hỏi
   // tiếp — mã task nằm trong kho nên không mất dấu clip đã trả tiền.
   if(x.vid) theoDoiVideo(x.ch, x.id);
+}
+/* Toàn màn hình CHỈ cho hộp cảnh. Các phiếu khác (Tone, Model, Asset, gợi ý
+   asset) dùng chung #hopCanh nên phải tự hạ cờ trước khi vẽ. */
+function hopToan(bat){
+  document.getElementById("hopCanh").classList.toggle("toan", !!bat);
+  document.getElementById("nenCanh").classList.toggle("toan", !!bat);
 }
 
 /* Tem phiên bản theo mtime của chính file ref — cùng lý do `duongAnh` có `?v=`. */
@@ -1775,6 +1838,7 @@ function moSo(){
          '<button onclick="themSo(\'tong\')">+ tone</button></div>' +
          '<button class="chinh" id="luuSo" style="margin-top:9px" ' +
          'onclick="chotSo()">Lưu</button>';
+  hopToan(false);
   document.getElementById("hopCanh").innerHTML = h + '</div>';
   document.getElementById("nenCanh").classList.add("mo");
 }
@@ -1883,6 +1947,7 @@ function moAsset(ma){
         'bấm tên asset để gán.</div>') +
     (SUA_DUOC ? '<button class="chinh" id="luuSo" style="margin-top:12px" ' +
                 'onclick="chotAsset()">Lưu</button>' : '') + '</div>';
+  hopToan(false);
   document.getElementById("hopCanh").innerHTML = h;
   document.getElementById("nenCanh").classList.add("mo");
 }
@@ -2023,6 +2088,7 @@ function veGoiY(r){
   if(GOI_Y.length || MOOD.chu)
     h += '<button class="chinh" id="nhanGoiY" onclick="nhanGoiY()">' +
          'Nhận vào sổ</button>';
+  hopToan(false);
   document.getElementById("hopCanh").innerHTML = h + '</div>';
   // PHẢI tự mở lớp phủ: trước đây bảng này luôn được gọi từ trong phiếu sổ đã
   // mở sẵn, nay gọi thẳng từ thanh màn Asset nên không ai mở hộ. Đo Chrome
@@ -2139,6 +2205,7 @@ function dongCanh(){
   // Quên luôn cảnh đang mở: giữ lại thì chỗ nào vẽ theo biến đó cũng dựng hộp
   // dậy sau khi người ta đã bấm Esc (đo Chrome 24/09).
   canhDangMo = "";
+  hopToan(false);
   document.getElementById("nenCanh").classList.remove("mo");
 }
 
@@ -2280,36 +2347,55 @@ async function themTruongDoan(){
    static 48%, eye level 53%. Đo tiếp (trang ⑬): người đặt khung, LLM viết đoạn
    sau theo khung thì cận/cực cận/từ đỉnh/POV 3/3. Nút ở đây ghi thẳng vào cảnh;
    Create Prompt đọc khung này, không đổi nó. */
-function nutMa(khoa, x, bang, nhan, goi, ghi){
-  var hien = (x[khoa] || "").trim(), h = "";
-  Object.keys(bang).forEach(function(m){
-    h += '<button class="' + (hien === m ? "on" : "") + '"' +
+function nutMa(khoa, x, bang, nhan, goi, khoas){
+  var hien = (x[khoa] || "").trim(), ds = khoas || Object.keys(bang), h = "";
+  ds.forEach(function(m){
+    h += '<button class="o' + (hien === m ? " on" : "") + '"' +
          (SUA_DUOC ? '' : ' disabled') + ' onclick="datKhung(\'' + khoa + '\',\'' + m +
-         '\')" title="' + thoat(bang[m]) + '">' + nhan[m] +
-         (goi && goi[m] ? '<span class="nho"> · ' + goi[m] + '</span>' : '') +
-         (ghi && ghi[m] ? '<span class="nho"> ' + ghi[m] + '</span>' : '') + '</button>';
+         '\')" title="' + thoat(bang[m]) + '"><b>' + nhan[m] + '</b>' +
+         (goi && goi[m] ? '<small>' + goi[m] + '</small>' : '') + '</button>';
   });
-  // Dữ liệu cũ: LLM từng ghi chữ tự do ("slow push in"). Vẫn gửi nguyên, bày ra
-  // để người dùng thấy và bấm nút thay.
-  if(hien && !bang[hien])
-    h += '<span class="chip" title="chữ cũ do LLM ghi — vẫn gửi nguyên; bấm nút để thay">cũ: ' +
-         thoat(hien) + '</span>';
-  return '<div class="hai" style="flex-wrap:wrap">' + h + '</div>';
+  return '<div class="luoi' + (ds.length === 5 ? ' g5' : '') + '">' + h + '</div>';
 }
+/* Dữ liệu cũ: LLM từng ghi chữ tự do ("slow push in"). Vẫn gửi nguyên, bày ra
+   để người dùng thấy và bấm ô thay. */
+function chipCu(khoa, x, bang){
+  var hien = (x[khoa] || "").trim();
+  return hien && !bang[hien]
+    ? '<div style="margin-top:7px"><span class="chip" title="chữ cũ do LLM ghi — vẫn gửi ' +
+      'nguyên; bấm ô để thay">cũ: ' + thoat(hien) + '</span></div>' : '';
+}
+function buocDau(so, ten, phu, chon){
+  return '<div class="buoc-dau"><span class="so">' + so + '</span><span class="ten">' + ten +
+         '<small>' + phu + '</small></span><span class="chon">đang chọn <b>' +
+         thoat(chon || "—") + '</b></span></div>';
+}
+/* Bước 2 góc máy rồi bước 3 cỡ cảnh (thứ tự Owner chốt); câu KHUNG vẫn ghép
+   "cỡ, góc" vì đó là dạng đã đo ra chạy (`khungCanh`). */
 function veKhungCanh(x){
-  return nutMa("co", x, CO_CHU, NHAN_CO, GOI_CO) +
-         '<div style="height:5px"></div>' +
-         nutMa("goc", x, GOC_CHU, NHAN_GOC) +
-         '<div class="hai" style="margin-top:7px;align-items:center;gap:8px">' +
-         '<span class="nho" style="white-space:nowrap">Cái gì lấp khung</span>' +
-         '<div class="o-sua" id="oLap" style="flex:1;min-height:32px;padding:5px 9px"' +
-         (SUA_DUOC ? ' contenteditable onblur="luuLap(this)"' : '') + '>' +
-         thoat(x.lap || "") + '</div></div>' +
-         '<div class="ghi" style="margin-top:4px">Câu đầu prompt sẽ là: <b>' +
-         thoat(khungCanh(x) || "(chưa chọn cỡ / góc)") + '</b></div>';
+  return '<div class="buoc">' + buocDau(2, "Camera angle", "góc máy", NHAN_GOC[x.goc] || x.goc) +
+         '<div class="buoc-than">' + nutMa("goc", x, GOC_CHU, NHAN_GOC, GOI_GOC) +
+         chipCu("goc", x, GOC_CHU) + '</div></div>' +
+         '<div class="buoc">' + buocDau(3, "Shot size", "cỡ cảnh",
+                                        NHAN_CO[(x.co || "").toUpperCase()] || x.co) +
+         '<div class="buoc-than">' + nutMa("co", x, CO_CHU, NHAN_CO, GOI_CO) +
+         chipCu("co", x, CO_CHU) +
+         '<div class="nhom" style="margin-top:12px">What fills the frame · cái gì lấp khung' +
+         '<span class="nho"> — LLM viết theo cỡ + góc đã chọn khi Create Prompt, sửa được</span></div>' +
+         '<div class="o-sua" id="oLap"' + (SUA_DUOC ? ' contenteditable onblur="luuLap(this)"' : '') +
+         '>' + thoat(x.lap || "") + '</div>' +
+         '<div class="ghi" style="margin-top:6px">Câu đầu prompt: <b>' +
+         thoat(khungCanh(x) || "(chưa chọn cỡ / góc)") + '</b></div></div></div>';
 }
 function veMayCanh(x){
-  return nutMa("cd", x, CD_CHU, NHAN_CD, null, GHI_CD);
+  var h = "";
+  NHOM_CD.forEach(function(n){
+    h += '<div class="nhom">' + n[0] + '</div>' + nutMa("cd", x, CD_CHU, NHAN_CD, GOI_CD, n[1]);
+  });
+  return '<div class="buoc">' + buocDau(4, "Camera movement",
+           "chuyển động máy · đứng đầu prompt video, kéo suốt " + giayCanh(x) + " s",
+           NHAN_CD[x.cd] || x.cd) +
+         '<div class="buoc-than">' + h + chipCu("cd", x, CD_CHU) + '</div></div>';
 }
 function datKhung(khoa, ma){
   if(!SUA_DUOC) return;
