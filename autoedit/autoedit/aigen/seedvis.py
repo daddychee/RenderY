@@ -77,7 +77,9 @@ class SeedvisClient:
         self.model_anh = model_anh or MODEL_ANH_MAC_DINH
         self.model_video = model_video or MODEL_VIDEO_MAC_DINH
         self.timeout, self.retries = timeout, retries
-        self.giay = self.GIAY
+        # Độ dài clip theo MODEL video đang cấp (Omni/Veo 8, Seedance 15/30):
+        # lệnh LLM, prompt video và trang đọc qua `_VeVideo.giay`.
+        self.giay = giay_theo_model(self.model_video)
         self._session = requests.Session()     # test thay bằng phiên giả
 
     # ------------------------------------------------------------- HTTP

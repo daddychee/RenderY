@@ -221,3 +221,12 @@ def test_gen_anh_va_video_nhan_model_de(tmp_path):
     assert c._session.goi[0]["json"]["model"] == "NARWHAL"
     c.gen_video_i2v("p", ref, giay=8, model="Veo-3.1")
     assert c._session.goi[2]["json"]["model"] == "Veo-3.1"
+
+
+def test_giay_cua_client_theo_model_video():
+    """Owner 27/09 đổi két sang Seedance 2.5 qua Seedvis: không chọn gì trong UI
+    thì tập vẫn phải ra 30 s, không phải 8 của Omni."""
+    assert _may([]).giay == 8
+    assert _may([], model_video="seedance_2.5").giay == 30
+    assert _may([], model_video="seedance_2.0_fast").giay == 15
+    assert _may([], model_video="Omni-Flash").giay == 8
