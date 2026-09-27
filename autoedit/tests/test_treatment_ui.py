@@ -210,6 +210,8 @@ def test_trang_cu_dang_mo_biet_co_ban_moi(html):
     """
     assert "BAN_TRANG" in html, "trang chưa giữ số hiệu bản mình đang chạy"
     assert "Tải lại" in html, "chưa có lời nhắc tải lại khi máy chủ đã có bản mới"
+    assert html.index('id="banMoi"') < html.index('id="manKb"'), \
+        "thanh báo phải nằm ngoài ba màn — đứng ở Storyboard/Asset cũng thấy (đo 27/09)"
 
 
 def test_hoi_lai_dinh_ky_mang_chop_thi_KHONG_ha_quyen(html):
