@@ -156,6 +156,9 @@ def test_trang_co_MOT_nut_breakdown_CA_CHUONG_goi_tung_phan_canh():
     assert "/dong/" in t and '"/breakdown"' in t and "for(" in t, "gọi máy chủ từng phân cảnh, không một request cả chương"
     assert "confirm(" in t and "luuNgay()" in t and "taiLaiChuong(" in t and "SUA_DUOC" in t
     assert "hong" in t, "phân cảnh hỏng phải được báo, không nuốt"
+    assert html.index('id="pane-t"') < i < html.index('id="pane-c"'), \
+        "Owner 27/09: nút ở khung Treatment màn Kịch bản (chỗ ghi direction), không ở thanh Storyboard"
+    assert "ve();" in t and "lichSu = []" in t, "máy chủ ghi đè chương -> vẽ lại màn Kịch bản, bỏ lịch sử hoàn tác"
 
 
 

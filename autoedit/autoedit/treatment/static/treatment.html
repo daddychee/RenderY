@@ -466,8 +466,11 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
         <div class="doan" id="tDoan">Bấm một dòng ở cột giữa.</div>
         <div id="tKhoi"></div>
         <button class="cp" id="themCanh" onclick="themCanh()">+ Cảnh</button>
+        <button class="cp chi-sua" id="nutBreakdown" onclick="breakdownChuong(event)"
+                title="LLM viết lại chi tiết mọi cảnh của chương từ direction anh ghi — mỗi ý một cú máy, đặt góc · cỡ · máy. Sai thì sửa tay như sửa prompt.">Breakdown chương</button>
         <div class="ghi">Mỗi khối là một <b>cảnh</b>. <b>Enter</b> sang cảnh mới ·
-          <b>Backspace</b> ở đầu khối gộp lên trên. Tự lưu như phần kịch bản.</div>
+          <b>Backspace</b> ở đầu khối gộp lên trên. Tự lưu như phần kịch bản. Ghi direction vắn tắt rồi bấm
+          <b>Breakdown chương</b> — LLM viết lại chi tiết, mỗi ý một cú máy.</div>
       </div>
       <div class="the">
         <p class="nhan">Bản lùi</p>
@@ -497,8 +500,6 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <select id="locNhanSu" onchange="veSb()" title="Cụm màu = phân nhân sự">
       <option value="0">Nhân sự: tất cả</option>
     </select>
-    <button class="icon-btn chi-sua" id="nutBreakdown" onclick="breakdownChuong(event)"
-            title="LLM viết lại chi tiết mọi cảnh của chương từ direction anh ghi — mỗi ý một cú máy, đặt góc · cỡ · máy. Sai thì sửa tay như sửa prompt.">Breakdown chương</button>
     <button class="icon-btn" id="nutTaiSan" onclick="doiMan('as')">Asset</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tone</button>
     <button class="icon-btn" id="nutMoHinh" onclick="moMoHinh()"
@@ -1529,7 +1530,9 @@ async function breakdownChuong(ev){
         y += r.so_y; cu += r.so_cu;
       } catch(e){ hong.push(muc[k] + 1); }
     }
-    await taiLaiChuong(ch); veSb();
+    // Máy chủ đã ghi đè chương: vẽ lại cột giữa + khung Treatment (màn Kịch bản),
+    // bỏ lịch sử hoàn tác vì bản cũ trong lịch sử không còn là bản trên máy chủ.
+    await taiLaiChuong(ch); lichSu = []; lamLaiDuoc = []; ve(); veSb();
     if(canhDangMo) moCanh(canhDangMo);
     tt(hong.length ? "✕ breakdown hỏng " + hong.length : "✓ Đã breakdown", hong.length ? "loi" : "xong");
     bao("Đã breakdown chương " + ch + ": <b>" + y + " ý → " + cu + " cú máy</b>." +
