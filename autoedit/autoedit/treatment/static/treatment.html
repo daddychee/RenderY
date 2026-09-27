@@ -466,11 +466,11 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
         <div class="doan" id="tDoan">Bấm một dòng ở cột giữa.</div>
         <div id="tKhoi"></div>
         <button class="cp" id="themCanh" onclick="themCanh()">+ Cảnh</button>
-        <button class="cp chi-sua" id="nutBreakdown" onclick="breakdownChuong(event)"
-                title="LLM viết lại chi tiết mọi cảnh của chương từ direction anh ghi — mỗi ý một cú máy, đặt góc · cỡ · máy. Sai thì sửa tay như sửa prompt.">Breakdown chương</button>
+        <button class="cp chi-sua" id="nutBreakdown" onclick="breakdownDong(event)"
+                title="LLM viết lại chi tiết các cảnh của PHÂN CẢNH đang chọn từ direction anh ghi — mỗi ý một cú máy, đặt góc · cỡ · máy. Sai thì sửa tay như sửa prompt.">Breakdown</button>
         <div class="ghi">Mỗi khối là một <b>cảnh</b>. <b>Enter</b> sang cảnh mới ·
           <b>Backspace</b> ở đầu khối gộp lên trên. Tự lưu như phần kịch bản. Ghi direction vắn tắt rồi bấm
-          <b>Breakdown chương</b> — LLM viết lại chi tiết, mỗi ý một cú máy.</div>
+          <b>Breakdown</b> — LLM viết lại chi tiết phân cảnh này, mỗi ý một cú máy.</div>
       </div>
       <div class="the">
         <p class="nhan">Bản lùi</p>
@@ -1512,32 +1512,35 @@ async function boTroDong(ev){
    Gọi máy chủ TỪNG PHÂN CẢNH (mỗi lượt ~30 s với Opus) thay vì một request dài
    cả chương: chương 30 phân cảnh là 15 phút, một request như thế đứt giữa chừng
    là mất cả. Hỏng phân cảnh nào báo phân cảnh đó, bấm lại là chạy tiếp. */
-async function breakdownChuong(ev){
+async function breakdownDong(ev){
+  // Owner 27/09: theo PHÂN CẢNH đang chọn, không cả chương — chương H 4 phân cảnh
+  // chạy liền thì cổng LLM (Cloudflare) cắt 524 ở ~100 s (Opus 50-60 s/dòng 7 ý,
+  // đo 1/3 lượt chết), và người dựng làm từng phân cảnh một cụ thể hơn.
   if(!SUA_DUOC || !chonCh) return;
-  var ds = ((DU[chonCh] || {}).dong || []), muc = [];
-  ds.forEach(function(d, i){
-    if(docCanh(d).some(function(c){ return (c.t || "").trim(); })) muc.push(i); });
-  if(!muc.length) return bao("Chương " + chonCh + " chưa có direction nào để breakdown.", true);
-  if(!confirm("Breakdown cả chương " + chonCh + ": " + muc.length + " phân cảnh, mỗi ý một " +
-              "cú máy. Mô tả và góc/cỡ/máy hiện có sẽ bị VIẾT LẠI, prompt cũ bỏ. Chạy?")) return;
+  var ch = chonCh, i = chonD, d = ((DU[ch] || {}).dong || [])[i];
+  if(!d) return;
+  var y = docCanh(d).filter(function(c){ return (c.t || "").trim(); }).length;
+  if(!y) return bao("Phân cảnh " + (i + 1) + " chưa có direction nào để breakdown.", true);
+  if(!confirm("Breakdown phân cảnh " + (i + 1) + " chương " + ch + ": " + y + " ý → " + y +
+              " cú máy. Mô tả và góc/cỡ/máy hiện có sẽ bị VIẾT LẠI, prompt cũ bỏ. Chạy?")) return;
   await luuNgay();
-  var ch = chonCh, y = 0, cu = 0, hong = [];
   await banRon(ev && ev.target, "Đang breakdown…", async function(){
-    for(var k = 0; k < muc.length; k++){
-      tt("Breakdown phân cảnh " + (k + 1) + "/" + muc.length + "…");
-      try {
-        var r = await api("/api/tap/" + TAP_MA + "/" + ch + "/dong/" + muc[k] + "/breakdown", "POST");
-        y += r.so_y; cu += r.so_cu;
-      } catch(e){ hong.push(muc[k] + 1); }
+    tt("Breakdown phân cảnh " + (i + 1) + "…");
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/dong/" + i + "/breakdown", "POST"); }
+    catch(e){
+      tt("✕ breakdown hỏng", "loi");
+      return bao(/HTTP 524/.test(e.message)
+        ? "Cổng LLM quá 100 giây chưa trả lời (HTTP 524). Direction giữ nguyên — bấm Breakdown lại."
+        : e.message, true);
     }
-    // Máy chủ đã ghi đè chương: vẽ lại cột giữa + khung Treatment (màn Kịch bản),
+    // Máy chủ đã ghi đè phân cảnh: vẽ lại cột giữa + khung Treatment (màn Kịch bản),
     // bỏ lịch sử hoàn tác vì bản cũ trong lịch sử không còn là bản trên máy chủ.
     await taiLaiChuong(ch); lichSu = []; lamLaiDuoc = []; ve(); veSb();
     if(canhDangMo) moCanh(canhDangMo);
-    tt(hong.length ? "✕ breakdown hỏng " + hong.length : "✓ Đã breakdown", hong.length ? "loi" : "xong");
-    bao("Đã breakdown chương " + ch + ": <b>" + y + " ý → " + cu + " cú máy</b>." +
-        (hong.length ? " <b>Hỏng phân cảnh " + hong.join(", ") + "</b> — bấm lại là chạy tiếp." : "") +
-        " Prompt cũ đã bỏ — bấm <b>Create Prompt</b> từng cảnh khi ưng.", !!hong.length);
+    tt("✓ Đã breakdown", "xong");
+    bao("Đã breakdown phân cảnh " + (i + 1) + ": <b>" + r.so_y + " ý → " + r.so_cu + " cú máy</b>." +
+        " Prompt cũ đã bỏ — bấm <b>Create Prompt</b> từng cảnh khi ưng.");
   });
 }
 /* Máy chủ trả về NGAY kèm mã task (một clip mất 70-150 giây, đo 26/09), nên

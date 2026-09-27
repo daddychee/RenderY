@@ -145,20 +145,21 @@ def test_lenh_la_lenh_da_do_va_mang_du_ba_bang_ma():
     assert "1) a\n2) b" in than and "~7 giây" in than and "- X (vật)" in than
 
 
-def test_trang_co_MOT_nut_breakdown_CA_CHUONG_goi_tung_phan_canh():
+def test_trang_nut_breakdown_theo_PHAN_CANH_dang_chon_mot_request():
+    """Owner 27/09 đổi: từng phân cảnh, không cả chương — chạy liền 4 dòng thì cổng
+    LLM cắt 524 ở ~100 s (đo trên chương H), và người dựng làm từng cụm cụ thể hơn."""
     html = HTML.read_text(encoding="utf-8")
-    assert html.count("breakdownChuong(") == 2 and 'id="nutBreakdown"' in html     # nút + hàm
-    assert "breakdownDong(" not in html, "Owner: một nút cho cả chương, không có nút theo phân cảnh"
+    assert html.count("breakdownDong(") == 2 and 'id="nutBreakdown"' in html     # nút + hàm
+    assert "breakdownChuong" not in html, "không còn nút cả chương"
     i = html.index('id="nutBreakdown"')
     assert "chi-sua" in html[i - 60:i], "người chỉ xem không thấy nút"
-    j = html.index("async function breakdownChuong(")
+    assert html.index('id="pane-t"') < i < html.index('id="pane-c"'),         "nút ở khung Treatment màn Kịch bản (chỗ ghi direction), không ở thanh Storyboard"
+    j = html.index("async function breakdownDong(")
     t = html[j:html.index(chr(10) + "}", j)]
-    assert "/dong/" in t and '"/breakdown"' in t and "for(" in t, "gọi máy chủ từng phân cảnh, không một request cả chương"
+    assert "chonD" in t and '"/breakdown"' in t and "for(" not in t, "một request cho đúng phân cảnh đang chọn"
     assert "confirm(" in t and "luuNgay()" in t and "taiLaiChuong(" in t and "SUA_DUOC" in t
-    assert "hong" in t, "phân cảnh hỏng phải được báo, không nuốt"
-    assert html.index('id="pane-t"') < i < html.index('id="pane-c"'), \
-        "Owner 27/09: nút ở khung Treatment màn Kịch bản (chỗ ghi direction), không ở thanh Storyboard"
-    assert "ve();" in t and "lichSu = []" in t, "máy chủ ghi đè chương -> vẽ lại màn Kịch bản, bỏ lịch sử hoàn tác"
+    assert "524" in t, "cổng LLM cắt 524 phải nói bằng lời người, không đổ HTML Cloudflare ra toast"
+    assert "ve();" in t and "lichSu = []" in t, "máy chủ ghi đè -> vẽ lại màn Kịch bản, bỏ lịch sử hoàn tác"
 
 
 
