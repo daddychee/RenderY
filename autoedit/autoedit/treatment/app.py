@@ -740,6 +740,15 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         lap = (c.get("lap") or "").strip()
         return f"{dau}: {lap}." if lap else f"{dau}."
 
+    def _giay_clip() -> int:
+        """Độ dài clip của nhà đang dùng — lệnh LLM, prompt video và trang cùng
+        đọc một chỗ. Bộ dựng không báo thì 15 như cũ."""
+        return int(getattr(ve_video, "giay", None) or GIAY_VIDEO)
+
+    @app.get("/api/cau-hinh/video")
+    def cau_hinh_video():
+        return {"giay": _giay_clip()}
+
     def _mo_ta_ts(so: list[dict], c: dict) -> str:
         """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
 
@@ -801,7 +810,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         may = CD_CHU.get(cd) or (f"Camera: {cd}." if cd else "Simple camera motion only.")
         kh = _khung(c)
         dau = (f"{may} {kh + ' ' if kh else ''}Continue this camera move for the full "
-               f"{GIAY_VIDEO} seconds.")
+               f"{_giay_clip()} seconds.")
         sfx = (c.get("sfx") or "").strip()
         return (f"{dau}\n{c['pv']}\nOne continuous shot, no cuts.\n\n"
                 f"{mo_ta}{_tong_chu(so, c.get('tong') or '')}"
@@ -860,7 +869,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not (cs[j].get("goc") or "").strip():
             cs[j]["goc"] = "eye"
         muc = [{"id": ma, "voice": d[i].get("en", ""), "canh": c["t"],
-                "thu_tu": f"{j + 1}/{len(cs)}", "khung": _khung(cs[j]).rstrip(".")}]
+                "thu_tu": f"{j + 1}/{len(cs)}", "khung": _khung(cs[j]).rstrip("."),
+                "giay": _giay_clip()}]
         try:
             ra = ky_thuat.ky_thuat(muc, so)
         except Exception as exc:  # noqa: BLE001
@@ -978,7 +988,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 raise HTTPException(502, f"Trích khung cuối hỏng: {exc}") from exc
         try:
             tid = ve_video.bat_dau(_prompt_video(tap, c), dau_vao,
-                                   GIAY_VIDEO, False)
+                                   _giay_clip(), False)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         cs = mdong.doc_canh(d[i])
@@ -1072,6 +1082,22 @@ class _Dich:
         return LLM().dich(cau)
 
 
+def _may_ve(cd: dict, video: bool = False):
+    """Chọn NHÀ theo `base_url` trong két: seedvis.com -> SeedvisClient (Nano
+    Banana / Omni Flash / Veo), còn lại ModelArk như cũ. User chốt 27/09: đấu
+    nối Seedvis, không dùng Seedance nữa. Model trong két là của việc đó (ảnh
+    hay video); để trống thì lấy mặc định của nhà."""
+    if "seedvis.com" in (cd.get("base_url") or ""):
+        from autoedit.aigen.seedvis import SeedvisClient
+
+        m = (cd.get("model") or "").strip() or None
+        return SeedvisClient(api_key=cd.get("key", ""), base_url=cd.get("base_url") or "",
+                             model_video=m if video else None, model_anh=None if video else m)
+    from autoedit.aigen.client import ArkClient
+
+    return ArkClient(api_key=cd.get("key", ""))
+
+
 class _VeAnh:
     """Seedream qua ArkClient, khoá lấy từ KÉT bằng SLUG CỦA TREATMENT.
 
@@ -1082,15 +1108,14 @@ class _VeAnh:
     """
 
     def gen_anh(self, prompt, dich, ref=None):
-        from autoedit.aigen.client import ArkClient
         from autoedit.treatment.dich import doc_ket_viec
 
-        khoa = (doc_ket_viec("gen_canh") or {}).get("key", "")
-        if not khoa:
+        cd = doc_ket_viec("gen_canh") or {}
+        if not cd.get("key"):
             raise RuntimeError(
                 "Chưa có khoá vẽ ảnh — Owner cấp ở General › API Keys › "
                 "Theo app › Treatment › gen_canh.")
-        return ArkClient(api_key=khoa).gen_anh(prompt, dich, ref=ref)
+        return _may_ve(cd).gen_anh(prompt, dich, ref=ref)
 
 
 class _VeVideo:
@@ -1100,25 +1125,38 @@ class _VeVideo:
     lẫn Seedance. Tách việc riêng chỉ để đo tiền tách bạch thì làm sau.
     """
 
-    def _ark(self):
-        from autoedit.aigen.client import ArkClient
+    def _may(self):
         from autoedit.treatment.dich import doc_ket_viec
 
-        khoa = (doc_ket_viec("gen_canh") or {}).get("key", "")
-        if not khoa:
+        # Việc riêng `gen_video` (ảnh và video là hai model khác nhau ở Seedvis);
+        # chưa cấp thì dùng chung `gen_canh` như trước.
+        cd = doc_ket_viec("gen_video") or {}
+        if not cd.get("key"):
+            # `model` của gen_canh là model ẢNH — không đem sang video. Bỏ để
+            # nhà tự lấy model video mặc định.
+            cd = {k: v for k, v in (doc_ket_viec("gen_canh") or {}).items() if k != "model"}
+        if not cd.get("key"):
             raise RuntimeError(
                 "Chưa có khoá dựng video — Owner cấp ở General › API Keys › "
                 "Theo app › Treatment › gen_canh.")
-        return ArkClient(api_key=khoa)
+        return _may_ve(cd, video=True)
+
+    @property
+    def giay(self):
+        """Độ dài clip của NHÀ đang dùng: Seedvis 8, ModelArk 15."""
+        try:
+            return int(getattr(self._may(), "giay", GIAY_VIDEO) or GIAY_VIDEO)
+        except Exception:  # noqa: BLE001 — chưa cấp khoá thì vẫn ghép prompt được
+            return GIAY_VIDEO
 
     def bat_dau(self, prompt, anh, giay, am):
-        return self._ark().gen_video_i2v(prompt, anh, giay=giay, am=am)
+        return self._may().gen_video_i2v(prompt, anh, giay=giay, am=am)
 
     def trang_thai(self, tid):
-        return self._ark().trang_thai_video(tid)
+        return self._may().trang_thai_video(tid)
 
     def tai_ve(self, url, dich):
-        return self._ark().tai_video(url, dich)
+        return self._may().tai_video(url, dich)
 
 
 def _ve_video_mac_dinh(kho: Kho):

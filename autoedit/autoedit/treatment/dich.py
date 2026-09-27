@@ -88,7 +88,7 @@ GIAY_VIDEO = 15
 # General › API Keys › Theo app › Treatment. Chưa thêm thì dùng chung `dich`.
 VIEC_SINH_PROMPT = "sinh_prompt"
 
-_LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
+_LENH_KY_THUAT_MAU = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
 
 Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
 bằng tiếng Việt do biên kịch viết, vị trí của nó trong phân cảnh, KHUNG HÌNH \
@@ -134,7 +134,7 @@ cạnh nhau lệch màu hẳn.
 24 từ ra chân dung đặt dáng, 61 từ ra đúng hành động 3/3. Bối cảnh CHỈ tả khi \
 cảnh không có asset nào lo phần đó. KHÔNG câu nào về phong cách hay mood.
 - `pv`: chuyển động của CHỦ THỂ cho một clip liền mạch __GIAY__ giây, chia 2-3 \
-nhịp CÓ MỐC GIÂY ("0-5 s: … 5-10 s: … 10-15 s: …"), hành động phải còn tới giây \
+nhịp CÓ MỐC GIÂY ("__NHIP__"), hành động phải còn tới giây \
 cuối — đo 27/09, viết cho 5 s thì 5 s cuối clip đứng hình. KHÔNG tả chuyển động \
 MÁY: người dựng chọn riêng, hệ thống ghép vào đầu prompt.
 - `sfx`: gợi ý tiếng động, tiếng Anh ngắn.
@@ -145,7 +145,19 @@ câu chuyện. Đây là lỗi sai nghĩa nặng nhất.
 - Trả ĐÚNG số mục, ĐÚNG thứ tự như nhận vào. Không gộp, không bỏ.
 
 Trả về JSON: {"canh": [{"id": "...", "lap": "...", "pa": "...", "pv": "...", \
-"sfx": "..."}]}""".replace("__GIAY__", str(GIAY_VIDEO))
+"sfx": "..."}]}"""
+
+
+def lenh_ky_thuat(giay: int = GIAY_VIDEO) -> str:
+    """Lệnh theo ĐỘ DÀI CLIP của nhà đang dùng: ModelArk 15 s, Seedvis (Omni
+    Flash / Veo) 8 s. Nhịp chia ba theo số giây đó."""
+    g = int(giay or GIAY_VIDEO)
+    a, b = round(g / 3), round(2 * g / 3)
+    nhip = "0-%d s: … %d-%d s: … %d-%d s: …" % (a, a, b, b, g)
+    return _LENH_KY_THUAT_MAU.replace("__GIAY__", str(g)).replace("__NHIP__", nhip)
+
+
+_LENH_KY_THUAT = lenh_ky_thuat(GIAY_VIDEO)
 
 
 _LENH_ASSET = """Bạn viết HỒ SƠ NHẬN DẠNG cho một tài sản trong storyboard.
@@ -303,7 +315,10 @@ class LLM:
         # KHÔNG chốt số lượng ở đây: đo thật 24/09 trên C1, claude-sonnet-5 gửi 8
         # trả 7 — chốt số lượng thì cả chương dừng vì một mục bị nuốt. Tầng app
         # khớp theo MÃ, mục nào thiếu thì cảnh đó để trống, bấm lại chạy tiếp.
-        ra = self.goi(_LENH_KY_THUAT, than).get("canh") or []
+        # Độ dài clip đi trong từng mục (app đặt theo nhà đang dùng), để lệnh
+        # nói đúng số giây và chia nhịp theo số đó.
+        giay = (muc[0].get("giay") if muc else None) or GIAY_VIDEO
+        ra = self.goi(lenh_ky_thuat(giay), than).get("canh") or []
         return [x for x in ra if isinstance(x, dict)]
 
     def sinh_asset(self, muc: dict, tong: str) -> dict:

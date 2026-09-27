@@ -209,13 +209,18 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     `aigen.client` được mở cửa 24/09 khi user chốt "sinh ảnh và video bằng API
     seedance có sẵn trong kho": nó là một client HTTP mỏng gọi ARK, không phải
     tầng dựng — import nó không kéo theo ffmpeg, pycapcut hay hàng đợi job.
+
+    `aigen.seedvis` mở cửa 27/09 (user chốt "đấu nối hạ tầng với seedvis, không
+    dùng seedance nữa"): cùng loại — client HTTP mỏng, chỉ import `requests`,
+    `AigenError`, `httpx_ma`, `so_goi_nen`.
     """
     import pathlib
     import re
 
     goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "treatment"
     cho_phep = ("autoedit.treatment", "autoedit.web.chapters",
-                "autoedit.web.ket_v3", "autoedit.aigen.client")
+                "autoedit.web.ket_v3", "autoedit.aigen.client",
+                "autoedit.aigen.seedvis")
     xau = []
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",

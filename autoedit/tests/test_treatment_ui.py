@@ -378,8 +378,8 @@ def test_vet_ca_tap_de_soat_tong(html):
 def test_canh_bao_voice_dai_hon_mot_clip(html):
     """Tool biết voice dài bao nhiêu (2,6 từ/giây) — Gemini thì không. Phân cảnh
     38 giây chia 5 cảnh là 7,6s/cảnh, dài hơn một clip i2v 5 giây."""
-    assert "GIAY_CLIP" in html, "phải có hằng số độ dài một clip"
-    i = html.index("GIAY_CLIP")
+    assert "var GIAY_CLIP" in html, "phải có hằng số độ dài một clip"
+    i = html.index("var GIAY_CLIP")
     assert "5" in html[i:i + 40]
 
 
@@ -1441,3 +1441,11 @@ def test_ghepPromptVideo_CAU_MAY_dung_dau(html):
     than = html[i:html.index(chr(10) + "}", i)]
     assert than.index("CD_CHU[") < than.index("x.pv"), "câu máy phải đứng trước nhịp"
     assert "GIAY_CLIP" in than
+
+
+def test_trang_hoi_do_dai_video_tu_may_chu(html):
+    """GIAY_CLIP mặc định 15 (= dich.GIAY_VIDEO) nhưng khi nạp trang phải hỏi
+    máy chủ — Seedvis chỉ 8 s, cảnh báo "dài hơn 1 clip" mà tính theo 15 là sai."""
+    assert "/api/cau-hinh/video" in html
+    i = html.index("/api/cau-hinh/video")
+    assert "GIAY_CLIP = " in html[i:i + 200]

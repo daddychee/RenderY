@@ -242,7 +242,9 @@ def test_bo_ve_hoi_KET_BANG_SLUG_CUA_CHINH_MINH():
 
     from autoedit.treatment import app as mapp
 
-    nguon = inspect.getsource(mapp._VeAnh)
+    # Chọn nhà nằm ở `_may_ve` (27/09: Seedvis / ModelArk) — khoá vẫn phải
+    # được truyền tận tay ở đó.
+    nguon = inspect.getsource(mapp._VeAnh) + inspect.getsource(mapp._may_ve)
     nhap = [d for d in nguon.splitlines()
             if d.strip().startswith(("import ", "from "))]
     assert not any("ket_v3" in d for d in nhap),         "phải hỏi két bằng slug của Treatment, không đi qua ket_v3 của RenderY"

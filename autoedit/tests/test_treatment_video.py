@@ -432,3 +432,56 @@ def test_ma_dong_tac_dich_ra_CAU_DA_DO(tmp_path):
     p = vv.goi[0]["prompt"]
     assert p.startswith(CD_CHU["push_in"]), p
     assert "full 15 seconds" in p
+
+
+# ═══════ 27/09: nối Seedvis — độ dài video theo MODEL, không phải hằng 15 ═════
+# User: "Hãy đấu nối hạ tầng với seedvis. Tôi không dùng seedance nữa." Omni
+# Flash / Veo tối đa 8 s. Máy chủ hỏi `ve_video.giay`; không có thì 15 như cũ.
+
+def test_do_dai_video_THEO_MODEL_khi_bo_dung_bao(tmp_path):
+    vv = VeVideoGia()
+    vv.giay = 8
+    c, kho, ma = _bo(tmp_path, vv)
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    assert vv.goi[0]["giay"] == 8
+    assert "full 8 seconds" in vv.goi[0]["prompt"]
+    assert "15 seconds" not in vv.goi[0]["prompt"]
+
+
+def test_do_dai_video_mac_dinh_15_khi_bo_dung_KHONG_bao(tmp_path):
+    vv = VeVideoGia()
+    c, kho, ma = _bo(tmp_path, vv)
+    c.post(f"/api/tap/SE001/H/canh/{ma}/video")
+    assert vv.goi[0]["giay"] == 15 and "full 15 seconds" in vv.goi[0]["prompt"]
+
+
+def test_trang_hoi_duoc_do_dai_video(tmp_path):
+    """Cảnh báo "dài hơn 1 clip" trên trang phải theo cùng con số máy chủ gửi."""
+    vv = VeVideoGia()
+    vv.giay = 8
+    c, kho, ma = _bo(tmp_path, vv)
+    assert c.get("/api/cau-hinh/video").json() == {"giay": 8}
+
+
+def test_chon_nha_theo_base_url_trong_ket():
+    from autoedit.treatment.app import _may_ve
+    from autoedit.aigen.seedvis import SeedvisClient
+    from autoedit.aigen.client import ArkClient
+    sv = _may_ve({"key": "k", "base_url": "https://seedvis.com/api/v1", "model": "GEM_PIX_2"})
+    assert isinstance(sv, SeedvisClient) and sv.model_anh == "GEM_PIX_2"
+    svv = _may_ve({"key": "k", "base_url": "https://seedvis.com/api/v1", "model": "Veo-3.1"}, video=True)
+    assert isinstance(svv, SeedvisClient) and svv.model_video == "Veo-3.1"
+    assert isinstance(_may_ve({"key": "k", "base_url": ""}), ArkClient)
+
+
+def test_bo_dung_video_doc_viec_gen_video_roi_moi_roi_ve_gen_canh(monkeypatch):
+    """Két một trường `model` mỗi việc; ảnh và video là hai model khác nhau ở
+    Seedvis, nên video có việc riêng `gen_video`, chưa cấp thì dùng `gen_canh`."""
+    from autoedit.treatment import app as mapp, dich as mdich
+    ket = {"gen_canh": {"key": "k1", "base_url": "https://seedvis.com/api/v1", "model": "GEM_PIX_2"},
+           "gen_video": {"key": "k1", "base_url": "https://seedvis.com/api/v1", "model": "Omni-Flash"}}
+    monkeypatch.setattr(mdich, "doc_ket_viec", lambda viec="dich": ket.get(viec) or {})
+    v = mapp._VeVideo()
+    assert v.giay == 8 and v._may().model_video == "Omni-Flash"
+    ket.pop("gen_video")
+    assert v._may().model_video == "Omni-Flash", "rơi về gen_canh: model mặc định của Seedvis"

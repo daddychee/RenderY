@@ -348,3 +348,24 @@ def test_lenh_bat_lap_NOI_MOI_TRUONG_khi_khong_hien_nhien():
     "underwater" 3/3; có luật, 6/6 nói "submerged underwater" và 6/6 ảnh dưới nước."""
     from autoedit.treatment.dich import _LENH_KY_THUAT as L
     assert "MÔI TRƯỜNG" in L and "submerged underwater" in L
+
+
+def test_lenh_ky_thuat_theo_DO_DAI_clip():
+    """Seedvis (Omni Flash / Veo) tối đa 8 s. Lệnh phải nói đúng số giây của
+    model đang dùng và chia nhịp theo số đó — không thì `pv` viết cho 15 s rồi
+    clip 8 s cắt cụt giữa nhịp."""
+    from autoedit.treatment import dich
+    l8 = dich.lenh_ky_thuat(8)
+    assert "8 giây" in l8 and "0-3 s" in l8 and "5-8 s" in l8
+    assert "15 giây" not in l8
+    assert dich.lenh_ky_thuat(15) == dich._LENH_KY_THUAT
+
+
+def test_ky_thuat_lay_do_dai_tu_muc(tmp_path):
+    from autoedit.treatment import dich
+    llm = dich.LLM()
+    ghi = {}
+    llm.goi = lambda he, than: (ghi.setdefault("he", he), {"canh": []})[1]
+    llm.ky_thuat([{"id": "c1", "voice": "v", "canh": "t", "thu_tu": "1/1",
+                   "khung": "Medium shot, eye level", "giay": 8}], [])
+    assert "8 giây" in ghi["he"]

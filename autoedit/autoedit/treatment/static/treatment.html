@@ -769,6 +769,10 @@ async function taoTap(){
   var ten = prompt("Tên tập:") || ma;
   try { await api("/api/tap", "POST", {ma: ma.trim(), ten: ten.trim()}); }
   catch(e){ return bao(e.message, true); }
+  // Độ dài clip theo NHÀ đang dùng (Seedvis 8 s, ModelArk 15 s) — cảnh báo
+  // "dài hơn 1 clip" và prompt video phải cùng con số với máy chủ.
+  try { var cv = await api("/api/cau-hinh/video"); if(cv && cv.giay) GIAY_CLIP = cv.giay; }
+  catch(e){}
   await napTap();
   document.getElementById("dsTap").value = ma.trim();
   await doiTap(ma.trim());
