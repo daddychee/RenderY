@@ -73,8 +73,11 @@ class Kho:
                 self.cn.execute(
                     f"ALTER TABLE so ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
         ct = {r["name"] for r in self.cn.execute("PRAGMA table_info(tap)")}
-        if ct and "tong" not in ct:
-            self.cn.execute("ALTER TABLE tap ADD COLUMN tong TEXT NOT NULL DEFAULT ''")
+        # `tong` 25/09; `model_anh`/`model_video` 27/09 (Owner: chọn model ngay
+        # trong UI, theo tập, cảnh đè được) — cùng cách vá.
+        for ten in ("tong", "model_anh", "model_video"):
+            if ct and ten not in ct:
+                self.cn.execute(f"ALTER TABLE tap ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
         self.cn.commit()
         self._va_ma_canh()
 
@@ -132,6 +135,19 @@ class Kho:
 
     def dat_tong_tap(self, tap: str, ma: str) -> None:
         self.cn.execute("UPDATE tap SET tong=? WHERE ma=?", (ma or "", tap))
+        self.cn.commit()
+
+    def mo_hinh_tap(self, tap: str) -> dict:
+        """Model ảnh/video CỦA TẬP (Owner 27/09: chọn ngay trong UI). Rỗng = theo
+        két. Cảnh đè bằng `mda`/`mdv`."""
+        r = self.cn.execute("SELECT model_anh, model_video FROM tap WHERE ma=?",
+                            (tap,)).fetchone()
+        return {"anh": (r["model_anh"] if r else "") or "",
+                "video": (r["model_video"] if r else "") or ""}
+
+    def dat_mo_hinh_tap(self, tap: str, anh: str = "", video: str = "") -> None:
+        self.cn.execute("UPDATE tap SET model_anh=?, model_video=? WHERE ma=?",
+                        ((anh or "").strip(), (video or "").strip(), tap))
         self.cn.commit()
 
     # --------------------------------------------------------------- chương

@@ -186,3 +186,38 @@ def test_tai_video_ghi_file(tmp_path):
     c = _may([_Tra(200, b"MP4")])
     p = c.tai_video("https://cdn/v.mp4", tmp_path / "v" / "a.mp4")
     assert p.read_bytes() == b"MP4"
+
+
+# ═══════ danh sách model + tài khoản cho bảng chọn trong UI ═══════════════════
+def test_ds_model_doc_GET_models_va_giay_theo_model():
+    from autoedit.aigen.seedvis import giay_theo_model
+    c = _may([_Tra(200, {"data": [
+        {"id": "GEM_PIX_2", "label": "Nano Banana Pro", "type": "image", "status": "active"},
+        {"id": "Omni-Flash", "label": "Omni Flash", "type": "video", "status": "active"},
+        {"id": "Veo-3.1", "label": "Veo 3.1", "type": "video", "status": "maintenance"}]})])
+    ds = c.ds_model()
+    assert [m["id"] for m in ds] == ["GEM_PIX_2", "Omni-Flash", "Veo-3.1"]
+    assert ds[2]["status"] == "maintenance"
+    assert c._session.goi[0]["url"].endswith("/models")
+    assert giay_theo_model("Omni-Flash") == 8 and giay_theo_model("Veo-3.1") == 8
+    assert giay_theo_model("seedance_2.5") == 30 and giay_theo_model("seedance_2.0_fast") == 15
+    assert giay_theo_model("la-hoac") == 8
+
+
+def test_tai_khoan_tra_credit():
+    c = _may([_Tra(200, {"data": {"credit_balance": 6820, "plan": {"code": "starter"},
+                                  "concurrency_limit": 4}})])
+    tk = c.tai_khoan()
+    assert tk["credit"] == 6820 and tk["goi"] == "starter" and tk["luong"] == 4
+
+
+def test_gen_anh_va_video_nhan_model_de(tmp_path):
+    """UI đè model theo cảnh -> client phải dùng đúng model đó cho lượt này."""
+    ref = tmp_path / "a.png"; ref.write_bytes(PNG)
+    c = _may([_Tra(200, {"id": "j", "status": "completed", "is_final": True,
+                         "outputs": [{"url": "https://cdn/x.png"}]}), _Tra(200, b"A"),
+              _Tra(202, {"data": {"id": "v9", "status": "queued", "is_final": False}})])
+    c.gen_anh("p", tmp_path / "o.png", ref=[ref], model="NARWHAL")
+    assert c._session.goi[0]["json"]["model"] == "NARWHAL"
+    c.gen_video_i2v("p", ref, giay=8, model="Veo-3.1")
+    assert c._session.goi[2]["json"]["model"] == "Veo-3.1"

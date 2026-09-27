@@ -122,8 +122,10 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # được). Ghép thành câu ĐẦU prompt: "{cỡ}, {góc}: {lap}." Đo 27/09: cỡ cảnh vào
 # prompt bằng ba chữ đứng trước 134 chữ thì 0/9; câu này đứng đầu thì rộng 3/3,
 # và khi đoạn sau viết theo khung thì cận/cực cận/từ đỉnh/POV đều 3/3.
+# `mda`/`mdv` — model ảnh / video ĐÈ cho riêng cảnh này (Owner 27/09: chọn model
+# trong UI, theo tập, cảnh đè được). Rỗng = theo tập, tập rỗng = theo két.
 KHOA_CANH = ("id", "t", "co", "goc", "cd", "lap", "sfx", "tong", "ts", "td", "pa",
-             "pv", "pat", "pvt", "duyet", "vid")
+             "pv", "pat", "pvt", "duyet", "vid", "mda", "mdv")
 
 
 def _ma_canh_moi(da_co: set[str]) -> str:

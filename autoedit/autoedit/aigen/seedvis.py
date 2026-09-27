@@ -37,6 +37,13 @@ BASE_MAC_DINH = "https://seedvis.com/api/v1"
 MODEL_ANH_MAC_DINH = "GEM_PIX_2"          # Nano Banana Pro — đo 27/09, 4 ref neo đủ
 MODEL_VIDEO_MAC_DINH = "Omni-Flash"       # Veo-3.1 cùng tham số, đổi ở két khi hết bảo trì
 GIAY_HOP_LE = (4, 6, 8)                   # Omni Flash / Veo: "4s" | "6s" | "8s"
+# Độ dài tối đa theo MODEL (tài liệu Seedvis v2.0). Lệnh LLM, prompt video và cảnh
+# báo trên trang ăn theo model video HIỆU LỰC của cảnh. Model lạ -> 8 (an toàn).
+GIAY_THEO_MODEL = {"Omni-Flash": 8, "Veo-3.1": 8, "seedance_2.0_fast": 15, "seedance_2.5": 30}
+
+
+def giay_theo_model(model: str) -> int:
+    return GIAY_THEO_MODEL.get((model or "").strip(), GIAY_HOP_LE[-1])
 _UA = "RenderY-treatment/1.0"
 
 
@@ -144,12 +151,27 @@ class SeedvisClient:
         return d
 
     # ------------------------------------------------------------- ảnh
+    # ------------------------------------------------------------- bảng chọn
+    def ds_model(self) -> list[dict]:
+        """`GET /models` — nguồn sự thật duy nhất về model đang mở. Trả gọn cho
+        bảng chọn trong UI: id · label · type (image/video) · status."""
+        j = self._goi("GET", "/models")
+        ds = j.get("data") if isinstance(j, dict) else j
+        return [{"id": m.get("id"), "label": m.get("label") or m.get("id"),
+                 "type": m.get("type"), "status": m.get("status") or "active"}
+                for m in (ds or []) if isinstance(m, dict) and m.get("id")]
+
+    def tai_khoan(self) -> dict:
+        d = self._du_lieu(self._goi("GET", "/account/info"))
+        return {"credit": d.get("credit_balance"), "goi": (d.get("plan") or {}).get("code"),
+                "luong": d.get("concurrency_limit")}
+
     def gen_anh(self, prompt: str, dich: Path, size: str = "2560x1440",
-                ref: "list[Path] | None" = None) -> Path:
+                ref: "list[Path] | None" = None, model: Optional[str] = None) -> Path:
         """Nano Banana qua endpoint Google. `size` chỉ để cùng chữ ký với
         ArkClient: Seedvis nhận tỉ lệ + upscale, 16:9 + 2k = 2752×1536."""
         anh_ref = [Path(p) for p in (ref or []) if Path(p).exists()]
-        than = {"model": self.model_anh, "input": prompt, "aspect_ratio": "16:9",
+        than = {"model": model or self.model_anh, "input": prompt, "aspect_ratio": "16:9",
                 "upscale_image": "2k", "count": 1,
                 "mode": "image-to-image" if anh_ref else "text-to-image"}
         if anh_ref:
@@ -173,12 +195,21 @@ class SeedvisClient:
 
     # ------------------------------------------------------------- video i2v
     def gen_video_i2v(self, prompt: str, anh: Path, giay: int = 8,
-                      am: bool = True) -> str:
-        """Nộp task, trả id. `am` không có tham số tương ứng ở Omni/Veo — bỏ qua."""
+                      am: bool = True, model: Optional[str] = None) -> str:
+        """Nộp task, trả id. `am` không có tham số tương ứng ở Omni/Veo — bỏ qua.
+        Seedance (nếu ai chọn) nhận `duration` là số 5..30, còn Omni/Veo nhận "4s"."""
         _ = am
-        than = {"model": self.model_video, "mode": "image-to-video", "prompt": prompt,
-                "image": _data_url(Path(anh)), "aspect_ratio": "16:9",
-                "duration": f"{giay_hop_le(giay)}s", "upscale_video": "none"}
+        m = model or self.model_video
+        if m.startswith("seedance"):
+            cho_phep = (5, 10, 15) if "fast" in m else (5, 10, 15, 20, 25, 30)
+            d = max([g for g in cho_phep if g <= max(int(giay or 5), 5)] or [5])
+            than = {"model": m, "mode": "image-to-video", "prompt": prompt,
+                    "reference_images": [_data_url(Path(anh))], "aspect_ratio": "16:9",
+                    "duration": d}
+        else:
+            than = {"model": m, "mode": "image-to-video", "prompt": prompt,
+                    "image": _data_url(Path(anh)), "aspect_ratio": "16:9",
+                    "duration": f"{giay_hop_le(giay)}s", "upscale_video": "none"}
         d = self._du_lieu(self._goi("POST", "/developer/generations", than,
                                     idem=str(uuid.uuid4())))
         if not d.get("id"):

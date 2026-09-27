@@ -448,6 +448,8 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     </select>
     <button class="icon-btn" id="nutTaiSan" onclick="doiMan('as')">Asset</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tone</button>
+    <button class="icon-btn" id="nutMoHinh" onclick="moMoHinh()"
+            title="Model vẽ ảnh / dựng video của cả tập — cảnh đè được trong hộp cảnh">Model</button>
   </div>
   <div class="sb-canvas" id="sbCanvas"></div>
 </div>
@@ -537,7 +539,7 @@ async function napTap(){
 async function doiTap(ma){
   if(!ma) return;
   TAP_MA = ma; DU = {}; MAN = ""; chonCh = "";
-  await napSo(); veLocNhanSu();
+  await napSo(); veLocNhanSu(); await napMoHinh();
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   veChuong();
   if(DS_CHUONG.length) await doiMan_chuong(DS_CHUONG[0].ma); else ve();
@@ -896,6 +898,102 @@ function ghiNho(){
 var GIAY_CLIP = 15;
 var TU_MOI_GIAY = 2.6;
 
+/* ─── MODEL vẽ ảnh / dựng video (Owner 27/09: chọn ngay trong UI) ───
+   Thứ tự: cảnh (`mda`/`mdv`) > tập > két General. `danh_sach` là GET /models của
+   nhà đang nối (Seedvis); ModelArk không có bảng -> rỗng -> chỉ còn "theo két".
+   `giay` = độ dài clip theo từng model video: prompt video và cảnh báo "dài hơn
+   1 clip" ăn theo model HIỆU LỰC của chính cảnh, không theo một hằng số. */
+var MO_HINH = {chon: {anh: "", video: ""}, ket: {anh: "", video: ""}, danh_sach: [], credit: null, giay: {}};
+async function napMoHinh(){
+  MO_HINH = {chon: {anh: "", video: ""}, ket: {anh: "", video: ""}, danh_sach: [], credit: null, giay: {}};
+  if(!TAP_MA){ veNutMoHinh(); return; }
+  try {
+    var r = await api("/api/tap/" + TAP_MA + "/mo-hinh");
+    if(r){ MO_HINH = r; MO_HINH.giay = r.giay || {}; MO_HINH.chon = r.chon || {anh: "", video: ""};
+           MO_HINH.ket = r.ket || {anh: "", video: ""};
+           MO_HINH.danh_sach = r.danh_sach || []; if(r.giay_mac_dinh) GIAY_CLIP = r.giay_mac_dinh; }
+  } catch(e){}
+  veNutMoHinh();
+}
+function moHinhTheoLoai(loai){          // "image" | "video"
+  return MO_HINH.danh_sach.filter(function(m){ return m.type === loai; });
+}
+function tenMoHinh(id){
+  var m = MO_HINH.danh_sach.filter(function(m){ return m.id === id; })[0];
+  return m ? m.label : id;
+}
+/* Nhãn "theo két": két có model thì nói tên, không thì "két". */
+function nhanKet(loai){ var k = MO_HINH.ket[loai] || ""; return "theo két" + (k ? " · " + tenMoHinh(k) : ""); }
+/* Giây của CẢNH: model video cảnh đè -> bảng giây; không thì của tập/nhà. */
+function giayCanh(x){
+  var m = (x && x.mdv) || MO_HINH.chon.video || "";
+  return (m && MO_HINH.giay[m]) || GIAY_CLIP;
+}
+function veNutMoHinh(){
+  var b = document.getElementById("nutMoHinh"); if(!b) return;
+  var a = MO_HINH.chon.anh, v = MO_HINH.chon.video;
+  a = a || MO_HINH.ket.anh; v = v || MO_HINH.ket.video;
+  b.textContent = "Model" + ((a || v) ? " · " + (a ? tenMoHinh(a) : "két") + " / " +
+                  (v ? tenMoHinh(v) : "két") : "") +
+                  (MO_HINH.credit != null ? " · " + MO_HINH.credit + " cr" : "");
+}
+/* Một hàng nút cho một loại. `chon` = id đang chọn; `mac` = nhãn của mức trên
+   (két / tập) để nút "○ theo …" nói rõ đang rơi về đâu. `maintenance` bày
+   nhưng KHÔNG bấm được: chọn rồi vẽ hỏng thì tốn lượt chờ vô ích. */
+function hangMoHinh(loai, chon, macNhan, goi){
+  var h = '<button class="' + (chon ? "" : "on") + '"' + (SUA_DUOC ? '' : ' disabled') +
+          ' onclick="' + goi + '(\'' + loai + '\',\'\')">○ ' + thoat(macNhan) + '</button>';
+  moHinhTheoLoai(loai).forEach(function(m){
+    var bt = m.status && m.status !== "active";
+    h += '<button class="' + (chon === m.id ? "on" : "") + '"' +
+         ((SUA_DUOC && !bt) ? '' : ' disabled') + ' title="' + thoat(m.id) + '"' +
+         ' onclick="' + goi + '(\'' + loai + '\',\'' + thoat(m.id) + '\')">● ' + thoat(m.label) +
+         (loai === "video" && MO_HINH.giay[m.id] ? ' · ' + MO_HINH.giay[m.id] + ' s' : '') +
+         (bt ? ' <span class="nho">(' + thoat(m.status) + ')</span>' : '') + '</button>';
+  });
+  return '<div class="hai" style="flex-wrap:wrap">' + h + '</div>';
+}
+function moMoHinh(){
+  var h = '<div class="hop-dau"><b>Model vẽ ảnh · dựng video</b>' +
+    '<span class="nho">cả tập ' + TAP_MA + '</span><span class="spacer"></span>' +
+    '<button class="x" onclick="dongCanh()">✕</button></div><div style="padding:15px">' +
+    '<div class="ghi" style="margin-bottom:11px">Khoá nằm ở General › API Keys. Ở đây chỉ ' +
+    'chọn <b>model</b> cho cả tập; từng cảnh đè lại được trong hộp cảnh. ' +
+    '"Theo két" = model Owner cấp trong General.' +
+    (MO_HINH.credit != null ? ' Số dư: <b>' + MO_HINH.credit + '</b> credit.' : '') + '</div>';
+  if(!MO_HINH.danh_sach.length){
+    h += '<div class="nhac">Nhà đang nối không trả bảng model (ModelArk) hoặc chưa cấp khoá' +
+         ' — chọn model trong két General.</div>';
+  } else {
+    h += '<p class="nhan">Ảnh</p>' + hangMoHinh("image", MO_HINH.chon.anh, nhanKet("anh"), "datMoHinhTap") +
+         '<p class="nhan">Video</p>' + hangMoHinh("video", MO_HINH.chon.video, nhanKet("video"), "datMoHinhTap");
+  }
+  document.getElementById("hopCanh").innerHTML = h + '</div>';
+  document.getElementById("nenCanh").classList.add("mo");
+}
+async function datMoHinhTap(loai, id){
+  if(!SUA_DUOC) return;
+  var than = {anh: MO_HINH.chon.anh || "", video: MO_HINH.chon.video || ""};
+  than[loai === "image" ? "anh" : "video"] = id || "";
+  try { await api("/api/tap/" + TAP_MA + "/mo-hinh", "PUT", than); }
+  catch(e){ return bao(e.message, true); }
+  await napMoHinh(); moMoHinh(); veSb();
+}
+/* Đè theo CẢNH: `mda`/`mdv` là khoá của chính cảnh (cùng bài `tong`). */
+function veMoHinhCanh(x){
+  if(!MO_HINH.danh_sach.length) return '<div class="nho">theo két General</div>';
+  return '<div class="nho" style="margin-bottom:3px">Ảnh</div>' +
+         hangMoHinh("image", x.mda || "", "theo tập · " + tenMoHinh(MO_HINH.chon.anh || MO_HINH.ket.anh || "két"), "datMoHinhCanh") +
+         '<div class="nho" style="margin:5px 0 3px">Video</div>' +
+         hangMoHinh("video", x.mdv || "", "theo tập · " + tenMoHinh(MO_HINH.chon.video || MO_HINH.ket.video || "két"), "datMoHinhCanh");
+}
+function datMoHinhCanh(loai, id){
+  if(!SUA_DUOC) return;
+  var x = canhTheoMa(canhDangMo); if(!x) return;
+  datKhoaCanh(x, loai === "image" ? "mda" : "mdv", id || "");
+  moCanh(canhDangMo);
+}
+
 /* ─── SỔ dùng chung cả tập: tông · tài sản · phân nhân sự ─── */
 var SO = [], TONG_TAP = "";        // máy chủ trả kèm tông mồi khi sổ rỗng
 function soTheoLoai(l){ return SO.filter(function(x){ return x.loai === l; }); }
@@ -1038,8 +1136,10 @@ function promptAnh(x){ return (x.pat || "").trim() || ghepPromptAnh(x); }
 function ghepPromptVideo(x){
   var cd = (x.cd || "").trim(), sfx = (x.sfx || "").trim(), k = khungCanh(x);
   var m = CD_CHU[cd] || (cd ? "Camera: " + cd + "." : "Simple camera motion only.");
+  // Giây theo model video HIỆU LỰC của cảnh (cảnh đè > tập > nhà = GIAY_CLIP).
+  var gi = (x.mdv && MO_HINH.giay[x.mdv]) || (MO_HINH.chon.video && MO_HINH.giay[MO_HINH.chon.video]) || GIAY_CLIP;
   return m + " " + (k ? k + " " : "") + "Continue this camera move for the full " +
-         GIAY_CLIP + " seconds.\n" + (x.pv || x.t) +
+         gi + " seconds.\n" + (x.pv || x.t) +
          "\nOne continuous shot, no cuts.\n\n" +
          moTaTaiSan(x) + boiler(x.tong) +
          (sfx ? " Sound: " + sfx + "." : "") + " No background music.";
@@ -1133,6 +1233,7 @@ function dungCanhTap(){
                  anh: cn.anh || "",
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
                  sfx: cn.sfx || "", video: cn.video || "", vid: cn.vid || "",
+                 mda: cn.mda || "", mdv: cn.mdv || "",
                  n: docCanh(d).length});
       });
     });
@@ -1448,7 +1549,7 @@ function moCanh(ma){
       '<div class="lo-voice"><span class="nhan" style="margin:0">Voice phân cảnh ' +
       x.pc + '</span><i>' + thoat(x.en) + '</i><span class="nho">~' +
       Math.round(g) + ' giây · ' + x.n + ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
-      (moi > GIAY_CLIP ? ' · dài hơn 1 clip ' + GIAY_CLIP + 's' : '') +
+      (moi > giayCanh(x) ? ' · dài hơn 1 clip ' + giayCanh(x) + 's' : '') +
       '</span></div>' +
 
       '<p class="nhan">Nội dung / hành động</p>' +
@@ -1460,7 +1561,7 @@ function moCanh(ma){
       veKhungCanh(x) +
       '<p class="nhan">Chuyển động máy<span class="nho" style="font-weight:400;' +
       'text-transform:none;letter-spacing:0"> — chỉ bày động tác đo ra chạy; ' +
-      'đứng đầu prompt video, kéo suốt ' + GIAY_CLIP + ' s</span></p>' +
+      'đứng đầu prompt video, kéo suốt ' + giayCanh(x) + ' s</span></p>' +
       veMayCanh(x) +
       '<div class="kt" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' +
       chip(x.sfx, "SFX") + '</div>' +
@@ -1470,6 +1571,9 @@ function moCanh(ma){
           '</div>'
         : '') +
       '<p class="nhan">Tone</p>' + veTongCanh(x) +
+      '<p class="nhan">Model<span class="nho" style="font-weight:400;' +
+      'text-transform:none;letter-spacing:0"> — đè cho riêng cảnh này; độ dài clip' +
+      ' theo model video</span></p>' + veMoHinhCanh(x) +
       '<p class="nhan gap" onclick="gapPromptCanh(this)">▸ Prompt ảnh · Prompt video</p>' +
     '</div><div class="cot-chu">' +
       hopPrompt("Prompt ảnh", "prAnh", "pat", promptAnh(x), x) +

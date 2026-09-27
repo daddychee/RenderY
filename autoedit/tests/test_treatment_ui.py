@@ -1449,3 +1449,32 @@ def test_trang_hoi_do_dai_video_tu_may_chu(html):
     assert "/api/cau-hinh/video" in html
     i = html.index("/api/cau-hinh/video")
     assert "GIAY_CLIP = " in html[i:i + 200]
+
+
+# ═══════ bảng chọn MODEL ngay trong UI (Owner 27/09), đè theo cảnh ═══════════
+def _than(html, ten):
+    i = html.index("function " + ten + "(")
+    return html[i:html.index("\nfunction ", i + 1)]
+
+
+def test_bang_chon_MODEL_nap_theo_tap_va_co_nut_tren_thanh(html):
+    assert 'id="nutMoHinh"' in html and 'onclick="moMoHinh()"' in html
+    assert "/mo-hinh" in _than(html, "napMoHinh")
+    assert "napMoHinh()" in _than(html, "doiTap"), "đổi tập phải nạp lại model của tập"
+    assert 'GIAY_CLIP = r.giay_mac_dinh' in _than(html, "napMoHinh"), \
+        "giây của tập theo model video đang chọn"
+
+
+def test_bang_chon_MODEL_dat_theo_tap_bang_PUT_va_bay_bao_tri_khong_bam_duoc(html):
+    assert '"PUT", than' in _than(html, "datMoHinhTap") and "/mo-hinh" in _than(html, "datMoHinhTap")
+    t = _than(html, "hangMoHinh")
+    assert 'm.status !== "active"' in t and "disabled" in t, "model bảo trì bày ra nhưng không bấm được"
+
+
+def test_hop_canh_DE_model_bang_mda_mdv_va_giay_theo_model_cua_canh(html):
+    assert "veMoHinhCanh(x)" in html[html.index("function moCanh("):]
+    t = _than(html, "datMoHinhCanh")
+    assert '"mda"' in t and '"mdv"' in t and "datKhoaCanh(" in t
+    v = _than(html, "ghepPromptVideo")
+    assert "x.mdv" in v and "MO_HINH.giay" in v, "prompt video phải theo model video của CHÍNH cảnh"
+    assert "giayCanh(x)" in html[html.index("function moCanh("):], "cảnh báo dài hơn 1 clip theo model của cảnh"

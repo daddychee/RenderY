@@ -593,6 +593,29 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 for c in kho.ds_chuong(tap)]
         return "\n".join(p for p in phan if p)
 
+    # Bảng chọn model — đứng TRƯỚC `/api/tap/{tap}/{chuong}` kẻo "mo-hinh" bị
+    # nuốt làm mã chương (cùng bẫy với `/txt` ngay trên).
+    @app.get("/api/tap/{tap}/mo-hinh")
+    def doc_mo_hinh(tap: str):
+        """Bảng chọn model: danh sách nhà đang mở + đang chọn của tập + credit +
+        giây từng model video. Nhà không có bảng (ModelArk) thì danh sách rỗng."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        # Model Owner cấp trong két — để nút "theo két" nói rõ đang rơi về đâu.
+        ket = {"anh": (doc_ket_viec("gen_canh") or {}).get("model") or "",
+               "video": (doc_ket_viec("gen_video") or {}).get("model") or ""}
+        return {"chon": kho.mo_hinh_tap(tap), "ket": ket,
+                "danh_sach": getattr(ve_video, "danh_sach", None) or [],
+                "credit": getattr(ve_video, "credit", None),
+                "giay": getattr(ve_video, "giay_theo_model", None) or {},
+                "giay_mac_dinh": _giay_clip(tap)}
+
+    @app.put("/api/tap/{tap}/mo-hinh")
+    def dat_mo_hinh(tap: str, request: Request, than: dict = Body(...)):
+        _ghi_duoc(request)
+        kho.dat_mo_hinh_tap(tap, than.get("anh") or "", than.get("video") or "")
+        return {"ok": True, "chon": kho.mo_hinh_tap(tap)}
+
     # ------------------------------------------------------------ chương
     @app.get("/api/tap/{tap}/{chuong}")
     def doc(tap: str, chuong: str):
@@ -740,14 +763,26 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         lap = (c.get("lap") or "").strip()
         return f"{dau}: {lap}." if lap else f"{dau}."
 
-    def _giay_clip() -> int:
-        """Độ dài clip của nhà đang dùng — lệnh LLM, prompt video và trang cùng
-        đọc một chỗ. Bộ dựng không báo thì 15 như cũ."""
+    def _mo_hinh(tap: str, c: dict | None, loai: str) -> str:
+        """Model HIỆU LỰC: cảnh đè (`mda`/`mdv`) > tập > "" (= theo két, nhà tự
+        lấy). Owner 27/09: chọn model ngay trong UI, đè được theo cảnh."""
+        khoa = "mda" if loai == "anh" else "mdv"
+        m = ((c or {}).get(khoa) or "").strip()
+        return m or (kho.mo_hinh_tap(tap).get(loai) or "").strip()
+
+    def _giay_clip(tap: str | None = None, c: dict | None = None) -> int:
+        """Độ dài clip theo model video HIỆU LỰC — lệnh LLM, prompt video và
+        trang cùng đọc một chỗ. Model không có trong bảng thì theo nhà; nhà
+        không báo thì 15 như cũ."""
+        m = _mo_hinh(tap, c, "video") if tap else ""
+        bang = getattr(ve_video, "giay_theo_model", None) or {}
+        if m and m in bang:
+            return int(bang[m])
         return int(getattr(ve_video, "giay", None) or GIAY_VIDEO)
 
     @app.get("/api/cau-hinh/video")
-    def cau_hinh_video():
-        return {"giay": _giay_clip()}
+    def cau_hinh_video(tap: str = ""):
+        return {"giay": _giay_clip(tap or None)}
 
     def _mo_ta_ts(so: list[dict], c: dict) -> str:
         """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
@@ -810,7 +845,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         may = CD_CHU.get(cd) or (f"Camera: {cd}." if cd else "Simple camera motion only.")
         kh = _khung(c)
         dau = (f"{may} {kh + ' ' if kh else ''}Continue this camera move for the full "
-               f"{_giay_clip()} seconds.")
+               f"{_giay_clip(tap, c)} seconds.")
         sfx = (c.get("sfx") or "").strip()
         return (f"{dau}\n{c['pv']}\nOne continuous shot, no cuts.\n\n"
                 f"{mo_ta}{_tong_chu(so, c.get('tong') or '')}"
@@ -836,7 +871,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             + (c.get("ts") or [])
         ref = [t for t in (kho.ref_dang_co(tap, m) for m in ma_ref)
                if t is not None]
-        ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]), ref=ref)
+        m = _mo_hinh(tap, c, "anh")
+        ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]), ref=ref,
+                       **({"model": m} if m else {}))
         cs = mdong.doc_canh(d[i])
         cs[j].pop("duyet", None)      # ảnh đổi thì con dấu duyệt cũ hết nghĩa
         d[i] = mdong.ghi_canh(d[i], cs)
@@ -870,7 +907,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             cs[j]["goc"] = "eye"
         muc = [{"id": ma, "voice": d[i].get("en", ""), "canh": c["t"],
                 "thu_tu": f"{j + 1}/{len(cs)}", "khung": _khung(cs[j]).rstrip("."),
-                "giay": _giay_clip()}]
+                "giay": _giay_clip(tap, cs[j])}]
         try:
             ra = ky_thuat.ky_thuat(muc, so)
         except Exception as exc:  # noqa: BLE001
@@ -987,8 +1024,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Trích khung cuối hỏng: {exc}") from exc
         try:
-            tid = ve_video.bat_dau(_prompt_video(tap, c), dau_vao,
-                                   _giay_clip(), False)
+            m = _mo_hinh(tap, c, "video")
+            tid = ve_video.bat_dau(_prompt_video(tap, c), dau_vao, _giay_clip(tap, c),
+                                   False, **({"model": m} if m else {}))
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         cs = mdong.doc_canh(d[i])
@@ -1107,7 +1145,7 @@ class _VeAnh:
     báo "chưa cấp"). Truyền khoá vào tận tay.
     """
 
-    def gen_anh(self, prompt, dich, ref=None):
+    def gen_anh(self, prompt, dich, ref=None, model=None):
         from autoedit.treatment.dich import doc_ket_viec
 
         cd = doc_ket_viec("gen_canh") or {}
@@ -1115,7 +1153,7 @@ class _VeAnh:
             raise RuntimeError(
                 "Chưa có khoá vẽ ảnh — Owner cấp ở General › API Keys › "
                 "Theo app › Treatment › gen_canh.")
-        return _may_ve(cd).gen_anh(prompt, dich, ref=ref)
+        return _may_ve(cd).gen_anh(prompt, dich, ref=ref, **({"model": model} if model else {}))
 
 
 class _VeVideo:
@@ -1149,8 +1187,35 @@ class _VeVideo:
         except Exception:  # noqa: BLE001 — chưa cấp khoá thì vẫn ghép prompt được
             return GIAY_VIDEO
 
-    def bat_dau(self, prompt, anh, giay, am):
-        return self._may().gen_video_i2v(prompt, anh, giay=giay, am=am)
+    @property
+    def giay_theo_model(self):
+        """Độ dài theo từng model video (UI cần để bày và để cảnh đè)."""
+        try:
+            from autoedit.aigen.seedvis import GIAY_THEO_MODEL
+            return dict(GIAY_THEO_MODEL) if "seedvis" in type(self._may()).__name__.lower() else {}
+        except Exception:  # noqa: BLE001
+            return {}
+
+    @property
+    def danh_sach(self):
+        """Model đang mở ở nhà đang nối — cho bảng chọn. ModelArk: không có bảng."""
+        try:
+            m = self._may()
+            return m.ds_model() if hasattr(m, "ds_model") else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    @property
+    def credit(self):
+        try:
+            m = self._may()
+            return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def bat_dau(self, prompt, anh, giay, am, model=None):
+        kw = {"model": model} if model else {}
+        return self._may().gen_video_i2v(prompt, anh, giay=giay, am=am, **kw)
 
     def trang_thai(self, tid):
         return self._may().trang_thai_video(tid)
