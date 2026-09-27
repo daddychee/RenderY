@@ -985,6 +985,50 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _luu_canh(tap, chuong, d, ai)
         return {"ok": True, "so_cu": doi, "so_y": len(y)}
 
+    @app.post("/api/tap/{tap}/{chuong}/dong/{i}/bo-tro")
+    def bo_tro_dong(tap: str, chuong: str, i: int, request: Request):
+        """Đợt 2 (Owner 27/09): chen cú BỔ TRỢ vào giữa các cú chính đã breakdown.
+        Chỉ thêm khi voice còn chỗ (~3 s/cú); cú chính giữ nguyên, cú mới có id mới."""
+        ai = _ghi_duoc(request)
+        if ky_thuat is None or not hasattr(ky_thuat, "bo_tro"):
+            raise HTTPException(503, "Chưa bật bộ sinh prompt.")
+        d = kho.doc(tap, chuong)["dong"]
+        if not 0 <= i < len(d):
+            raise HTTPException(404, "Không có phân cảnh này.")
+        cs = [c for c in mdong.doc_canh(d[i]) if (c.get("t") or "").strip()]
+        if not cs:
+            raise HTTPException(400, "Phân cảnh chưa có cú máy nào — breakdown trước đã.")
+        voice = d[i].get("en") or ""
+        giay = max(1, round(len(voice.split()) / TU_MOI_GIAY))
+        toi_da = max(0, min(3, round(giay / GIAY_MOI_CU) - len(cs)))
+        if not toi_da:
+            return {"ok": True, "them": 0, "giay": giay, "so_cu": len(cs)}
+        so = [t for t in kho.ds_so(tap) if t.get("loai") in ("nhan_vat", "dao_cu", "boi_canh")]
+        try:
+            ra = ky_thuat.bo_tro(voice, cs, giay, toi_da, so)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Sinh cú bổ trợ hỏng: {exc}") from exc
+        them = []
+        for r in (ra or [])[:toi_da]:
+            t = str((r or {}).get("t") or "").strip()
+            sau = r.get("sau")
+            if not t or not isinstance(sau, int) or not 0 <= sau <= len(cs):
+                continue
+            c = {"t": t}
+            for khoa, bang in (("co", CO_CHU), ("goc", GOC_CHU), ("cd", CD_CHU)):
+                v = str(r.get(khoa) or "").strip()
+                v = v.upper() if khoa == "co" else v
+                if v in bang:
+                    c[khoa] = v
+            them.append((sau, c))
+        # chen từ SAU ra TRƯỚC để chỉ số `sau` của các cú còn lại không trôi
+        for sau, c in sorted(them, key=lambda x: -x[0]):
+            cs.insert(sau, c)
+        if them:
+            d[i] = mdong.ghi_canh(d[i], cs)
+            _luu_canh(tap, chuong, d, ai)
+        return {"ok": True, "them": len(them), "giay": giay, "so_cu": len(cs)}
+
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
         ai = _ghi_duoc(request)
@@ -1319,6 +1363,41 @@ _LENH_BREAKDOWN = (
     "\"cd\": \"push_in\", \"ly_do\": \"...\"}]}")
 
 TU_MOI_GIAY = 2.6      # cùng con số với trang (`TU_MOI_GIAY`) để ước giây voice
+GIAY_MOI_CU = 3.0      # mỗi cú cần ~3 giây voice; thiếu chỗ thì KHÔNG thêm cú bổ trợ
+
+# Cú BỔ TRỢ (Owner 27/09, đợt 2): chen insert / cutaway / establishing vào giữa
+# các cú chính đã breakdown. Đo trên H đã breakdown (8 lượt Opus): 8/8 mã + vị
+# trí hợp lệ, 4/4 lượt không đủ chỗ trả rỗng đúng. `%d` = tối đa · giây · số cú.
+_LENH_BO_TRO = (
+    "Bạn là trợ lý đạo diễn. Phân cảnh dưới đây ĐÃ được breakdown thành các cú máy "
+    "chính (mỗi cú = một ý của người dựng). Việc của bạn: đề xuất thêm CÚ BỔ TRỢ — insert "
+    "chi tiết, cutaway, phản ứng, establishing — chen vào giữa các cú chính để mạch dựng "
+    "giàu hơn, KHÔNG thay đổi cú chính nào.\n\n"
+    "LUẬT:\n"
+    "1. Cú bổ trợ phải phục vụ cú chính bên cạnh nó: chi tiết của chính thứ đang thấy, "
+    "phản ứng của người đang có mặt, hoặc toàn cảnh của đúng không gian đó. KHÔNG bịa "
+    "nhân vật, đồ vật, địa điểm ngoài voice + cú chính + danh sách asset. KHÔNG lặp lại "
+    "nội dung một cú chính đã có.\n"
+    "2. Số cú bổ trợ: tối đa %d (voice ~%d giây, hiện có %d cú, mỗi cú cần ~3 giây). "
+    "Không đủ chỗ thì trả về danh sách rỗng — thà ít còn hơn nhồi.\n"
+    "3. `sau`: số thứ tự cú chính mà cú bổ trợ đứng NGAY SAU (0 = đứng trước cú 1).\n"
+    "4. Mô tả `t`: tiếng Việt, 1–2 câu, cụ thể: chủ thể + hành động + môi trường. Không tả "
+    "màu, không tả tông.\n"
+    "5. `co`/`goc`/`cd` CHỈ lấy mã trong ba bảng dưới; chọn theo nghĩa; cỡ phải KHÁC cú "
+    "chính đứng liền trước và liền sau nó.\n"
+    "6. `ly_do`: một câu vì sao cú này bổ trợ cho cú chính nào.\n\n"
+    "BẢNG CỠ: " + "; ".join(f"{k}: {v}" for k, v in CO_CHU.items()) + "\n"
+    "BẢNG GÓC: " + "; ".join(f"{k}: {v}" for k, v in GOC_CHU.items()) + "\n"
+    "BẢNG CHUYỂN ĐỘNG: " + "; ".join(f"{k}: {v}" for k, v in CD_CHU.items()) + "\n\n"
+    "Trả về JSON: {\"them\": [{\"sau\": 1, \"t\": \"...\", \"co\": \"CU\", \"goc\": \"eye\", "
+    "\"cd\": \"static\", \"ly_do\": \"...\"}]}")
+
+
+def _than_bo_tro(voice: str, canh: list[dict], giay: int, tai_san: list[dict]) -> str:
+    chinh = "\n".join(f"{k + 1}) [{c.get('co') or '?'} · {c.get('goc') or '?'} · {c.get('cd') or '?'}] "
+                      f"{(c.get('t') or '').strip()}" for k, c in enumerate(canh))
+    so = "\n".join(f"- {t.get('ten', '')}" for t in tai_san) or "(tập chưa lập sổ asset)"
+    return f"VOICE (~{giay} giây): {voice}\n\nCÚ CHÍNH ĐÃ CÓ:\n{chinh}\n\nASSET CỦA TẬP:\n{so}"
 
 
 def _than_breakdown(voice: str, y: list[str], giay: int, tai_san: list[dict]) -> str:
@@ -1343,6 +1422,13 @@ class _KyThuat:
 
         ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_BREAKDOWN, _than_breakdown(voice, y, giay, tai_san))
         return list(ra.get("canh") or []) if isinstance(ra, dict) else []
+
+    def bo_tro(self, voice, canh, giay, toi_da, tai_san):
+        from autoedit.treatment.dich import LLM
+
+        ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_BO_TRO % (toi_da, giay, len(canh)),
+                                       _than_bo_tro(voice, canh, giay, tai_san))
+        return list(ra.get("them") or []) if isinstance(ra, dict) else []
 
 
 def _ky_thuat_mac_dinh(kho: Kho):

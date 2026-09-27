@@ -35,6 +35,14 @@ class BreakdownGia:
         self.goi.append({"voice": voice, "y": list(y), "giay": giay, "tai_san": [t["ten"] for t in tai_san]})
         return self.tra
 
+    them = [{"sau": 0, "t": "Toàn cảnh khoang trước.", "co": "WS", "goc": "high", "cd": "static"},
+            {"sau": 3, "t": "Cận mặt thuyền trưởng.", "co": "cu", "goc": "eye", "cd": "push_in"},
+            {"sau": 9, "t": "vị trí sai", "co": "MS", "goc": "eye", "cd": "static"}]
+
+    def bo_tro(self, voice, canh, giay, toi_da, tai_san):
+        self.goi.append({"bo_tro": True, "n": len(canh), "giay": giay, "toi_da": toi_da})
+        return self.them
+
 
 def _bo(tmp_path, kt=None):
     kho = Kho(tmp_path / "k.db")
@@ -148,3 +156,55 @@ def test_trang_co_MOT_nut_breakdown_CA_CHUONG_goi_tung_phan_canh():
     assert "/dong/" in t and '"/breakdown"' in t and "for(" in t, "gọi máy chủ từng phân cảnh, không một request cả chương"
     assert "confirm(" in t and "luuNgay()" in t and "taiLaiChuong(" in t and "SUA_DUOC" in t
     assert "hong" in t, "phân cảnh hỏng phải được báo, không nuốt"
+
+
+
+# ═══════ đợt 2: cú BỔ TRỢ ═══════════════════════════════════════════════════
+def test_bo_tro_chen_dung_vi_tri_id_moi_cu_chinh_giu_nguyen(tmp_path):
+    c, kho, kt = _bo(tmp_path)
+    # voice 26 từ ~10 s, 3 cú -> còn chỗ 0. Cho voice dài hơn để có chỗ: 60 từ ~23 s -> 8 - 3 = 3 (trần 3)
+    d = kho.doc("SE001", "H")["dong"]; d[0]["en"] = " ".join(["word"] * 60)
+    kho.luu("SE001", "H", d, "", "thu")
+    cu = _canh(kho)
+    r = c.post("/api/tap/SE001/H/dong/0/bo-tro")
+    assert r.status_code == 200 and r.json() == {"ok": True, "them": 2, "giay": 23, "so_cu": 5}
+    assert kt.goi[-1]["toi_da"] == 3 and kt.goi[-1]["n"] == 3
+    moi = _canh(kho)
+    assert [x["t"] for x in moi] == ["Toàn cảnh khoang trước.", cu[0]["t"], cu[1]["t"], cu[2]["t"], "Cận mặt thuyền trưởng."]
+    assert [x["id"] for x in moi[1:4]] == [x["id"] for x in cu], "cú chính giữ id"
+    assert moi[0]["id"] and moi[4]["id"] and moi[0]["id"] != moi[4]["id"]
+    assert (moi[0]["co"], moi[4]["co"], moi[4]["cd"]) == ("WS", "CU", "push_in")
+    assert moi[1].get("pa") == "OLD EN", "cú chính không bị đụng (kể cả prompt cũ)"
+
+
+def test_bo_tro_KHONG_goi_LLM_khi_khong_du_cho(tmp_path):
+    c, kho, kt = _bo(tmp_path)                    # 26 từ ~10 s, 3 cú -> round(10/3) - 3 = 0
+    r = c.post("/api/tap/SE001/H/dong/0/bo-tro")
+    assert r.status_code == 200 and r.json() == {"ok": True, "them": 0, "giay": 10, "so_cu": 3}
+    assert not any(g.get("bo_tro") for g in kt.goi), "không đủ chỗ thì không tốn một lượt LLM"
+
+
+def test_bo_tro_can_quyen_sua():
+    pass
+
+
+def test_lenh_bo_tro_mang_ba_bang_va_luat_khong_lap():
+    l = mapp._LENH_BO_TRO % (2, 14, 3)
+    for chu in ("KHÔNG lặp lại", "KHÔNG bịa", "tối đa 2 (voice ~14 giây, hiện có 3 cú", "0 = đứng trước cú 1"):
+        assert chu in l, chu
+    for bang in (mapp.CO_CHU, mapp.GOC_CHU, mapp.CD_CHU):
+        for k, v in bang.items():
+            assert f"{k}: {v}" in l, k
+    than = mapp._than_bo_tro("V", [{"t": "a", "co": "MS", "goc": "eye", "cd": "static"}], 9, [{"ten": "X"}])
+    assert "1) [MS · eye · static] a" in than and "- X" in than
+
+
+def test_trang_co_nut_bo_tro_trong_hop_canh():
+    html = HTML.read_text(encoding="utf-8")
+    i = html.index("function moCanh(")
+    m = html[i:html.index(chr(10) + "}", i)]
+    assert m.count("boTroDong(") == 1 and "Cú bổ trợ phân cảnh" in m
+    j = html.index("async function boTroDong(")
+    t = html[j:html.index(chr(10) + "}", j)]
+    assert '"/bo-tro"' in t and "maCanhChac()" in t and "taiLaiChuong(" in t and "SUA_DUOC" in t
+    assert "không còn chỗ" in t, "không đủ chỗ phải nói rõ cho người dùng"

@@ -1488,6 +1488,25 @@ async function createPrompt(ev){
         !r.gan_asset);
   });
 }
+/* CÚ BỔ TRỢ cho phân cảnh đang mở (Owner 27/09, đợt 2). Máy chủ tự tính còn
+   chỗ hay không theo giây voice; không đủ chỗ thì nói rõ, không nhồi. */
+async function boTroDong(ev){
+  if(!SUA_DUOC) return;
+  var x = await maCanhChac(); if(!x) return;
+  await banRon(ev && ev.target, "Đang sinh cú bổ trợ…", async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/dong/" + x.di + "/bo-tro", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    await taiLaiChuong(x.ch); veSb();
+    var y = canhTrongPham(dungCanhTap()).filter(function(c){ return c.id === x.id; })[0];
+    moCanh(y ? y.ma : canhDangMo);
+    if(!r.them)
+      return bao("Phân cảnh " + x.pc + " <b>không còn chỗ</b> cho cú bổ trợ: voice ~" + r.giay +
+                 " s mà đã có " + r.so_cu + " cú (mỗi cú cần ~3 s).", true);
+    bao("Đã thêm <b>" + r.them + " cú bổ trợ</b> vào phân cảnh " + x.pc + " (nay " + r.so_cu +
+        " cú). Bấm <b>Create Prompt</b> cho cú mới khi ưng.");
+  });
+}
 /* BREAKDOWN CẢ CHƯƠNG (Owner 27/09: "1 nút breakdown cho cả chương, mỗi ý 1 cú").
    Gọi máy chủ TỪNG PHÂN CẢNH (mỗi lượt ~30 s với Opus) thay vì một request dài
    cả chương: chương 30 phân cảnh là 15 phút, một request như thế đứt giữa chừng
@@ -1592,6 +1611,10 @@ function moCanh(ma){
     '” · ~' + Math.round(g) + ' giây · ' + x.n + ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
     (moi > giayCanh(x) ? ' · <span class="canh-bao">dài hơn 1 clip ' + giayCanh(x) + 's</span>' : '') +
     '</i></div>' +
+    (SUA_DUOC ? '<button class="x" onclick="boTroDong(event)" title="LLM chen thêm cú bổ trợ ' +
+      '(insert · cutaway · establishing) vào giữa các cú của phân cảnh ' + x.pc + '. Chỉ thêm ' +
+      'khi voice còn chỗ (~3 s mỗi cú). Sai thì sửa hoặc xoá tay.">+ Cú bổ trợ phân cảnh ' +
+      x.pc + '</button>' : '') +
     '<button class="x"' + (k <= 0 ? ' disabled' : '') + ' onclick="moCanh(\'' +
       (truoc ? truoc.ma : "") + '\')">‹ trước</button>' +
     '<button class="x"' + (k >= ds.length-1 ? ' disabled' : '') + ' onclick="moCanh(\'' +
