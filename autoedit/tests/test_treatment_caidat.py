@@ -183,3 +183,43 @@ def test_KHONG_CO_JSON_thi_bao_loi_co_ten_model(monkeypatch):
     with pytest.raises(mdich.DichLoi) as e:
         mdich.LLM().dich(["x"])
     assert "claude-sonnet-5" in str(e.value)
+
+
+# ══════ 27/09: model RIÊNG cho việc sinh prompt ══════════════════════════════
+# Két đã chia theo VIỆC (`dich`, `gen_canh`) nhưng cả bốn việc LLM đều bám vào
+# `dich`. User 27/09: "LLM sinh prompt đang bị ngu quá" — đo cảnh 11.3, Opus 3/3
+# vs Sonnet 2/3 (n=3, chưa kết luận). Cho đổi model ở két, không đụng code.
+
+def _ket(muc):
+    def doc(viec="dich"):
+        return muc.get(viec) or {}
+    return doc
+
+
+def test_LLM_doc_ket_theo_VIEC_sinh_prompt(monkeypatch):
+    from autoedit.treatment import dich as mdich
+    monkeypatch.setattr(mdich, "doc_ket_viec", _ket({
+        "dich": {"key": "k1", "model": "claude-sonnet-5", "base_url": "https://api.mwapi.dev/v1"},
+        "sinh_prompt": {"key": "k2", "model": "claude-opus-5", "base_url": "https://api.mwapi.dev/v1"}}))
+    assert mdich.LLM().model == "claude-sonnet-5"
+    m = mdich.LLM(mdich.VIEC_SINH_PROMPT)
+    assert (m.model, m.key) == ("claude-opus-5", "k2")
+
+
+def test_chua_cap_viec_sinh_prompt_thi_ROI_VE_dich(monkeypatch):
+    """Owner chưa thêm việc mới thì mọi thứ chạy y như hôm nay — không được
+    chết vì một việc chưa ai cấp."""
+    from autoedit.treatment import dich as mdich
+    monkeypatch.setattr(mdich, "doc_ket_viec", _ket({
+        "dich": {"key": "k1", "model": "claude-sonnet-5", "base_url": "https://api.mwapi.dev/v1"}}))
+    m = mdich.LLM(mdich.VIEC_SINH_PROMPT)
+    assert (m.model, m.key) == ("claude-sonnet-5", "k1")
+
+
+def test_duong_sinh_prompt_cua_app_DUNG_viec_sinh_prompt():
+    """Chỉ việc sinh prompt đổi model; dịch cả chương vẫn `dich` cho rẻ."""
+    from pathlib import Path
+    from autoedit.treatment import app as mapp
+    src = Path(mapp.__file__).read_text(encoding="utf-8")
+    assert "LLM(VIEC_SINH_PROMPT).ky_thuat(" in src
+    assert "LLM().dich(" in src

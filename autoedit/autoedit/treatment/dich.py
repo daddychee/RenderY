@@ -84,6 +84,10 @@ Trả về JSON: {"tai_san": [{"loai": "...", "ten": "...", "ly_do": "..."}], \
 # là lý do `pv` viết cho 5 giây rồi 5 giây cuối clip đứng hình.
 GIAY_VIDEO = 15
 
+# Việc sinh prompt có thể dùng model KHÁC việc dịch: Owner thêm việc này ở
+# General › API Keys › Theo app › Treatment. Chưa thêm thì dùng chung `dich`.
+VIEC_SINH_PROMPT = "sinh_prompt"
+
 _LENH_KY_THUAT = """Bạn là đạo diễn hình cho kênh video tư liệu (stock/AI footage + voice over).
 
 Bạn nhận một loạt CẢNH. Mỗi cảnh có: lời đọc của phân cảnh (voice), mô tả cảnh \
@@ -242,8 +246,14 @@ def than_goi(model: str, he: str, than: str) -> dict:
 class LLM:
     """Một lượt gọi LLM kiểu OpenAI, cấu hình lấy từ két mỗi lần khởi tạo."""
 
-    def __init__(self) -> None:
-        cd = doc_ket_viec() or {}
+    def __init__(self, viec: str = VIEC) -> None:
+        # Két chia theo VIỆC. Việc nào Owner chưa cấp thì rơi về `dich` — để
+        # đổi model cho riêng việc sinh prompt (user 27/09) mà không bắt cấp
+        # lại cả bốn việc, và không chết vì một việc chưa ai cấp.
+        cd = (doc_ket_viec(viec) or {}) if viec != VIEC else {}
+        if not cd.get("key"):
+            cd = doc_ket_viec() or {}
+        self.viec = viec
         self.key = cd.get("key", "")
         self.model = cd.get("model") or "claude-sonnet-5"
         self.url = dia_chi_chat(cd.get("base_url", ""))

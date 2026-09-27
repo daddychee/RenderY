@@ -153,7 +153,7 @@ TONG_MAC_DINH = [
 
 # Mã cỡ cảnh -> chữ nhà AI hiểu. `CO_HOP_LE` là bộ mã hợp lệ LLM được phép
 # trả về; bảng này là bản dịch ra ngôn ngữ của prompt.
-from autoedit.treatment.dich import GIAY_VIDEO
+from autoedit.treatment.dich import GIAY_VIDEO, VIEC_SINH_PROMPT
 
 CO_CHU = {"EWS": "extreme wide shot", "WS": "wide shot", "MS": "medium shot",
           "MCU": "medium close-up", "CU": "close-up", "ECU": "extreme close-up",
@@ -1137,7 +1137,7 @@ class _KyThuat:
     def ky_thuat(self, muc, tai_san):
         from autoedit.treatment.dich import LLM
 
-        return LLM().ky_thuat(muc, tai_san)
+        return LLM(VIEC_SINH_PROMPT).ky_thuat(muc, tai_san)
 
 
 def _ky_thuat_mac_dinh(kho: Kho):
