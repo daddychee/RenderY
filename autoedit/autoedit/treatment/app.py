@@ -930,6 +930,61 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _luu_canh(tap, chuong, d, ai)
         return {"ok": True, "gan_asset": len(c.get("ts") or [])}
 
+    @app.post("/api/tap/{tap}/{chuong}/dong/{i}/breakdown")
+    def breakdown_dong(tap: str, chuong: str, i: int, request: Request):
+        """Owner 27/09: người viết DIRECTION vắn tắt cho phân cảnh, LLM viết lại
+        chi tiết + đặt góc · cỡ · máy, ghi THẲNG vào cảnh của dòng — không bảng
+        duyệt ("sai thì tôi tự sửa như sửa prompt"). Đo ⑮ trên chương H.
+
+        Cảnh cũ cùng vị trí giữ `id` (ảnh/video đã vẽ không mất dấu), giữ ts/td/
+        tong/mda/mdv; bỏ prompt cũ (viết theo `t` cũ) và con dấu duyệt.
+        """
+        ai = _ghi_duoc(request)
+        if ky_thuat is None or not hasattr(ky_thuat, "breakdown"):
+            raise HTTPException(503, "Chưa bật bộ sinh prompt.")
+        d = kho.doc(tap, chuong)["dong"]
+        if not 0 <= i < len(d):
+            raise HTTPException(404, "Không có phân cảnh này.")
+        cs = mdong.doc_canh(d[i])
+        y = [(c.get("t") or "").strip() for c in cs if (c.get("t") or "").strip()]
+        if not y:
+            raise HTTPException(400, "Phân cảnh chưa có direction — viết trước đã.")
+        voice = d[i].get("en") or ""
+        giay = max(1, round(len(voice.split()) / TU_MOI_GIAY))
+        so = [t for t in kho.ds_so(tap) if t.get("loai") in ("nhan_vat", "dao_cu", "boi_canh")]
+        try:
+            ra = ky_thuat.breakdown(voice, y, giay, so)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Breakdown hỏng: {exc}") from exc
+        # ÉP 1:1 theo vị trí (Owner: mỗi ý một cú): cú k viết lại cảnh có ý k.
+        # LLM trả thừa thì bỏ phần thừa; trả thiếu thì cảnh còn lại GIỮ NGUYÊN
+        # — không mất ý nào của người dựng, không đẻ thêm cảnh.
+        co_y = [k for k, c in enumerate(cs) if (c.get("t") or "").strip()]
+        ra = list(ra or [])
+        moi = [dict(c) for c in cs]
+        doi = 0
+        for k, r in zip(co_y, ra):
+            t = str((r or {}).get("t") or "").strip()
+            if not t:
+                continue
+            c = moi[k]
+            for khoa in ("lap", "pa", "pv", "sfx", "pat", "pvt", "duyet"):
+                c.pop(khoa, None)
+            c["t"] = t
+            doi += 1
+            for khoa, bang in (("co", CO_CHU), ("goc", GOC_CHU), ("cd", CD_CHU)):
+                v = str(r.get(khoa) or "").strip()
+                v = v.upper() if khoa == "co" else v
+                if v in bang:
+                    c[khoa] = v
+                else:
+                    c.pop(khoa, None)      # mã lạ thì bỏ, đừng gửi chữ tự do xuống prompt
+        if not doi:
+            raise HTTPException(502, "LLM không trả về cú máy nào.")
+        d[i] = mdong.ghi_canh(d[i], moi)
+        _luu_canh(tap, chuong, d, ai)
+        return {"ok": True, "so_cu": doi, "so_y": len(y)}
+
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
         ai = _ghi_duoc(request)
@@ -1234,6 +1289,47 @@ def _ve_anh_mac_dinh(kho: Kho):
     return _VeAnh()
 
 
+# ── BREAKDOWN direction -> cú máy (Owner 27/09) ─────────────────────────────
+# Đo trên chương H thật (trang ⑮, 12 lượt Opus): 54/54 mã đúng bảng, static
+# 19% / eye 20% (LLM tự chọn không direction: 48% / 53%), ràng buộc của người
+# dựng giữ 12/12. Luật 2 đổi sau đó theo Owner: MỖI Ý = MỘT CÚ (đo lại trên
+# H: 4/7/4/3 ý -> 4/7/4/3 cú). Máy chủ vẫn ép 1:1 theo vị trí, không tin LLM.
+_LENH_BREAKDOWN = (
+    "Bạn là trợ lý đạo diễn. Người dựng đưa cho bạn MỘT DÒNG voice (tiếng Anh) và "
+    "DIRECTION của họ cho dòng đó (tiếng Việt, viết vắn tắt, có thể chỉ vài chữ mỗi ý). "
+    "Việc của bạn: BREAKDOWN direction đó thành các CÚ MÁY dựng được — viết lại mô tả "
+    "cho rõ, và đặt góc máy · cỡ cảnh · chuyển động máy phù hợp với nghĩa của từng cú.\n\n"
+    "LUẬT:\n"
+    "1. TRUNG THÀNH với direction: mỗi ý người dựng đã ghi phải thành ít nhất một cú máy, "
+    "đúng thứ tự. KHÔNG bịa thêm nhân vật, đồ vật, địa điểm ngoài voice + direction + "
+    "danh sách asset. Ràng buộc người dựng ghi (ví dụ \"không show trọn vẹn tàu\") là luật.\n"
+    "2. MỖI Ý = ĐÚNG MỘT CÚ MÁY, cùng thứ tự: direction có K ý thì trả về đúng K cú, "
+    "cú thứ k viết lại ý thứ k. Không gộp, không tách, không thêm cú.\n"
+    "3. Mô tả `t`: tiếng Việt, 1–2 câu, CỤ THỂ: chủ thể + hành động + môi trường ngay "
+    "trong câu (dưới nước thì nói dưới nước). Không tả màu sắc, không tả tông phim.\n"
+    "4. Góc máy `goc`, cỡ `co`, chuyển động `cd` CHỈ lấy trong ba bảng dưới, ghi đúng MÃ. "
+    "Chọn theo nghĩa của cú máy (nhỏ bé/bị theo dõi → high angle; sức nặng → low angle; "
+    "chi tiết → CU/ECU; bao quát → WS/EWS), KHÔNG chọn theo thứ tự bảng. Hai cú liền "
+    "nhau không cùng cỡ; không quá 1/3 số cú là static.\n"
+    "5. `ly_do`: một câu ngắn vì sao chọn góc/cỡ/máy đó.\n\n"
+    "BẢNG CỠ (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CO_CHU.items()) + "\n"
+    "BẢNG GÓC (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in GOC_CHU.items()) + "\n"
+    "BẢNG CHUYỂN ĐỘNG (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CD_CHU.items()) + "\n\n"
+    "Trả về JSON: {\"canh\": [{\"t\": \"...\", \"co\": \"MS\", \"goc\": \"eye\", "
+    "\"cd\": \"push_in\", \"ly_do\": \"...\"}]}")
+
+TU_MOI_GIAY = 2.6      # cùng con số với trang (`TU_MOI_GIAY`) để ước giây voice
+
+
+def _than_breakdown(voice: str, y: list[str], giay: int, tai_san: list[dict]) -> str:
+    loai = {"nhan_vat": "người", "dao_cu": "vật", "boi_canh": "bối cảnh"}
+    so = "\n".join(f"- {t.get('ten', '')} ({loai.get(t.get('loai'), t.get('loai'))})"
+                   for t in tai_san) or "(tập chưa lập sổ asset)"
+    dr = "\n".join(f"{k + 1}) {t}" for k, t in enumerate(y))
+    return (f"VOICE (tiếng Anh, ~{giay} giây): {voice}\n\nDIRECTION của người dựng "
+            f"({len(y)} ý, giữ thứ tự):\n{dr}\n\nASSET CỦA TẬP (chỉ dùng thứ đã có):\n{so}")
+
+
 class _KyThuat:
     """Đọc KÉT mỗi lượt — Owner đổi khoá/model ở General là ăn ngay."""
 
@@ -1241,6 +1337,12 @@ class _KyThuat:
         from autoedit.treatment.dich import LLM
 
         return LLM(VIEC_SINH_PROMPT).ky_thuat(muc, tai_san)
+
+    def breakdown(self, voice, y, giay, tai_san):
+        from autoedit.treatment.dich import LLM
+
+        ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_BREAKDOWN, _than_breakdown(voice, y, giay, tai_san))
+        return list(ra.get("canh") or []) if isinstance(ra, dict) else []
 
 
 def _ky_thuat_mac_dinh(kho: Kho):

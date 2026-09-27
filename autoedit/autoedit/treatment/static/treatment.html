@@ -497,6 +497,8 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <select id="locNhanSu" onchange="veSb()" title="Cụm màu = phân nhân sự">
       <option value="0">Nhân sự: tất cả</option>
     </select>
+    <button class="icon-btn chi-sua" id="nutBreakdown" onclick="breakdownChuong(event)"
+            title="LLM viết lại chi tiết mọi cảnh của chương từ direction anh ghi — mỗi ý một cú máy, đặt góc · cỡ · máy. Sai thì sửa tay như sửa prompt.">Breakdown chương</button>
     <button class="icon-btn" id="nutTaiSan" onclick="doiMan('as')">Asset</button>
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tone</button>
     <button class="icon-btn" id="nutMoHinh" onclick="moMoHinh()"
@@ -1484,6 +1486,36 @@ async function createPrompt(ev){
                     : "Đã tạo prompt — <b>không gắn asset nào</b>. Lập sổ Asset " +
                       "rồi tạo lại thì ảnh mới khớp mood giữa các cảnh.",
         !r.gan_asset);
+  });
+}
+/* BREAKDOWN CẢ CHƯƠNG (Owner 27/09: "1 nút breakdown cho cả chương, mỗi ý 1 cú").
+   Gọi máy chủ TỪNG PHÂN CẢNH (mỗi lượt ~30 s với Opus) thay vì một request dài
+   cả chương: chương 30 phân cảnh là 15 phút, một request như thế đứt giữa chừng
+   là mất cả. Hỏng phân cảnh nào báo phân cảnh đó, bấm lại là chạy tiếp. */
+async function breakdownChuong(ev){
+  if(!SUA_DUOC || !chonCh) return;
+  var ds = ((DU[chonCh] || {}).dong || []), muc = [];
+  ds.forEach(function(d, i){
+    if(docCanh(d).some(function(c){ return (c.t || "").trim(); })) muc.push(i); });
+  if(!muc.length) return bao("Chương " + chonCh + " chưa có direction nào để breakdown.", true);
+  if(!confirm("Breakdown cả chương " + chonCh + ": " + muc.length + " phân cảnh, mỗi ý một " +
+              "cú máy. Mô tả và góc/cỡ/máy hiện có sẽ bị VIẾT LẠI, prompt cũ bỏ. Chạy?")) return;
+  await luuNgay();
+  var ch = chonCh, y = 0, cu = 0, hong = [];
+  await banRon(ev && ev.target, "Đang breakdown…", async function(){
+    for(var k = 0; k < muc.length; k++){
+      tt("Breakdown phân cảnh " + (k + 1) + "/" + muc.length + "…");
+      try {
+        var r = await api("/api/tap/" + TAP_MA + "/" + ch + "/dong/" + muc[k] + "/breakdown", "POST");
+        y += r.so_y; cu += r.so_cu;
+      } catch(e){ hong.push(muc[k] + 1); }
+    }
+    await taiLaiChuong(ch); veSb();
+    if(canhDangMo) moCanh(canhDangMo);
+    tt(hong.length ? "✕ breakdown hỏng " + hong.length : "✓ Đã breakdown", hong.length ? "loi" : "xong");
+    bao("Đã breakdown chương " + ch + ": <b>" + y + " ý → " + cu + " cú máy</b>." +
+        (hong.length ? " <b>Hỏng phân cảnh " + hong.join(", ") + "</b> — bấm lại là chạy tiếp." : "") +
+        " Prompt cũ đã bỏ — bấm <b>Create Prompt</b> từng cảnh khi ưng.", !!hong.length);
   });
 }
 /* Máy chủ trả về NGAY kèm mã task (một clip mất 70-150 giây, đo 26/09), nên
