@@ -108,6 +108,12 @@ Với MỖI cảnh, trả về:
 captain's face and cap, the rung and his gripping hand at the frame edge". Cỡ \
 rộng: "the captain full-length on the ladder, the hatch and compartment above \
 him". Hệ thống ghép thành câu ĐẦU prompt: "{khung}: {lap}."
+  MÔI TRƯỜNG PHẢI CÓ MẶT NGAY TRONG `lap` khi nó không hiển nhiên — dưới nước, \
+ban đêm, trong mưa, trong khói, ngoài không gian — bằng một từ rõ ("submerged \
+underwater", "at night in heavy rain"). Đo 27/09, cảnh 11.3: tàu ngầm "đã chìm \
+hẳn" mà `lap` chỉ ghi "against open water" thì ảnh ra tàu nổi trên mặt biển, chân \
+vịt lơ lửng trong không khí — ảnh tham chiếu của vật là nền trắng, không mang \
+môi trường nào, và câu đầu là câu nhà AI nghe to nhất. Có luật này: 6/6 dưới nước.
 - `pa`: BỐN đoạn tiếng Anh nối liền, theo thứ tự, tả khung hình tĩnh:
   1. chủ thể + HÀNH ĐỘNG cụ thể đang xảy ra — cơ học của động tác (tay nào nắm \
 đâu, chân ở bậc nào, thân nghiêng thế nào), 20-35 từ. Không phải trạng thái \

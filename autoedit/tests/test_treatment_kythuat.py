@@ -338,3 +338,13 @@ def test_than_goi_LLM_ghi_ro_day_la_ASSET_CUA_CANH():
                  [{"ma": "k129", "ten": "Tàu K-129", "chu": "Soviet Golf-II"}])
     assert "ĐÃ GÁN CHO CẢNH" in bat["than"], bat["than"][:200]
     assert "Soviet Golf-II" in bat["than"], "mô tả asset vẫn phải đưa làm ngữ cảnh"
+
+
+def test_lenh_bat_lap_NOI_MOI_TRUONG_khi_khong_hien_nhien():
+    """Cảnh 11.3 (27/09): kịch bản "tàu ngầm đã chìm hẳn", `lap` chỉ ghi
+    "against open water" -> ảnh ra tàu nổi trên mặt biển, chân vịt lơ lửng.
+    Ảnh ref của vật là nền trắng, không mang môi trường; câu đầu prompt là câu
+    nhà AI nghe to nhất. Đo 3 ô × 3 lượt: không có luật, `lap` không nói
+    "underwater" 3/3; có luật, 6/6 nói "submerged underwater" và 6/6 ảnh dưới nước."""
+    from autoedit.treatment.dich import _LENH_KY_THUAT as L
+    assert "MÔI TRƯỜNG" in L and "submerged underwater" in L
