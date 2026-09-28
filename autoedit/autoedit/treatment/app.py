@@ -22,7 +22,7 @@ from fastapi import Body, FastAPI, File, HTTPException, Request, Response, Uploa
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from autoedit.treatment import dong as mdong
-from autoedit.treatment.kho import Kho, KhoaBiGiu
+from autoedit.treatment.kho import DongVuaDoi, Kho, KhoaBiGiu
 
 TRANG = Path(__file__).parent / "static" / "treatment.html"
 
@@ -647,10 +647,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     def luu(tap: str, chuong: str, request: Request, than: dict = Body(...)):
         ai = _ghi_duoc(request)
         try:
-            kho.luu(tap, chuong, than.get("dong") or [], than.get("outline") or "", ai)
+            giu = kho.luu_tu_trang(tap, chuong, than.get("dong") or [],
+                                   than.get("outline") or "", ai,
+                                   hop_rieng=bool(than.get("hop_rieng")))
         except KhoaBiGiu as exc:
             raise HTTPException(409, str(exc)) from exc
-        return {"ok": True}
+        return {"ok": True, "giu_ban_moi": giu}
 
     @app.post("/api/tap/{tap}/{chuong}/nap")
     def nap(tap: str, chuong: str, request: Request, than: dict = Body(...)):
@@ -725,13 +727,21 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     # ------------------------------------------------------------- ảnh
 
-    def _luu_canh(tap: str, chuong: str, d: list, ai: str) -> None:
-        """Mọi đường ghi của phần ảnh đi qua đây. Không bắt `KhoaBiGiu` thì
-        chương đang bị người khác giữ sẽ nổ 500 và trang chỉ hiện "HTTP 500"
-        (đo thật 24/09) — trong khi mọi đường ghi khác đều trả 409 kèm tên."""
+    def _va_canh(tap: str, chuong: str, ma: str, va, ai: str) -> dict:
+        """Kết quả MÁY làm ghi qua đây: vá đúng một cảnh trên bản mới nhất,
+        không cần khoá chương (đo 28/09: 409 ở chỗ này làm mất một clip đã trả
+        tiền, và ghi cả chương thì đè bản sửa của người khác)."""
         try:
-            kho.luu(tap, chuong, d, kho.doc(tap, chuong)["outline"], ai)
-        except KhoaBiGiu as exc:
+            return kho.sua_canh(tap, chuong, ma, va, ai)
+        except KeyError as exc:
+            raise HTTPException(404, f"Không có cảnh mã '{ma}' trong chương {chuong}.") from exc
+
+    def _sua_dong(tap: str, chuong: str, i: int, dau: list, lam, ai: str) -> None:
+        """Breakdown / cú bổ trợ ghi qua đây: áp kết quả LLM lên bản MỚI NHẤT của
+        phân cảnh; phân cảnh đổi trong lúc chờ thì 409, không đè."""
+        try:
+            kho.sua_dong(tap, chuong, i, dau, lam, ai)
+        except (KhoaBiGiu, DongVuaDoi) as exc:
             raise HTTPException(409, str(exc)) from exc
 
     def _tim_canh(tap: str, chuong: str, ma: str):
@@ -874,9 +884,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         m = _mo_hinh(tap, c, "anh")
         ve_anh.gen_anh(_prompt_anh(tap, c), kho.duong_anh(tap, c["id"]), ref=ref,
                        **({"model": m} if m else {}))
-        cs = mdong.doc_canh(d[i])
-        cs[j].pop("duyet", None)      # ảnh đổi thì con dấu duyệt cũ hết nghĩa
-        d[i] = mdong.ghi_canh(d[i], cs)
+        # ảnh đổi thì con dấu duyệt cũ hết nghĩa — vá trên bản MỚI NHẤT
+        _va_canh(tap, chuong, c["id"], lambda x: x.pop("duyet", None), ai)
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/ky-thuat")
     def create_prompt(tap: str, chuong: str, ma: str, request: Request):
@@ -920,14 +929,20 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
         # LLM chỉ còn viết CHỮ theo khung: `lap`, `pa`, `pv`, `sfx`. `co`/`goc`/
         # `cd` là của người dựng — LLM có trả cũng LỜ ĐI, không ghi đè.
-        for khoa in ("lap", "pa", "pv", "sfx"):
-            if (x.get(khoa) or "").strip():
-                cs[j][khoa] = str(x[khoa]).strip()
         # KHÔNG đụng `ts`: người dùng chọn asset, không phải LLM (user chốt
         # 25/09 — "Không để LLM tự nhớ"). Bớt một chỗ nó bịa mã, và bấm Create
         # Prompt lần hai không xoá lựa chọn có chủ đích của người dùng.
-        d[i] = mdong.ghi_canh(d[i], cs)
-        _luu_canh(tap, chuong, d, ai)
+        # Vá trên bản MỚI NHẤT (đo 28/09: ghi cả chương đọc từ trước lượt LLM
+        # là xoá bản sửa của người khác trong 30-60 s chờ).
+        def va(y):
+            for khoa, mac in (("co", "MS"), ("goc", "eye")):
+                if not (y.get(khoa) or "").strip():
+                    y[khoa] = mac
+            for khoa in ("lap", "pa", "pv", "sfx"):
+                if (x.get(khoa) or "").strip():
+                    y[khoa] = str(x[khoa]).strip()
+
+        _va_canh(tap, chuong, ma, va, ai)
         return {"ok": True, "gan_asset": len(c.get("ts") or [])}
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/breakdown")
@@ -946,6 +961,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not 0 <= i < len(d):
             raise HTTPException(404, "Không có phân cảnh này.")
         cs = mdong.doc_canh(d[i])
+        dau = kho.dau_dong(d[i])
         y = [(c.get("t") or "").strip() for c in cs if (c.get("t") or "").strip()]
         if not y:
             raise HTTPException(400, "Phân cảnh chưa có direction — viết trước đã.")
@@ -959,30 +975,34 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         # ÉP 1:1 theo vị trí (Owner: mỗi ý một cú): cú k viết lại cảnh có ý k.
         # LLM trả thừa thì bỏ phần thừa; trả thiếu thì cảnh còn lại GIỮ NGUYÊN
         # — không mất ý nào của người dựng, không đẻ thêm cảnh.
-        co_y = [k for k, c in enumerate(cs) if (c.get("t") or "").strip()]
         ra = list(ra or [])
-        moi = [dict(c) for c in cs]
-        doi = 0
-        for k, r in zip(co_y, ra):
-            t = str((r or {}).get("t") or "").strip()
-            if not t:
-                continue
-            c = moi[k]
-            for khoa in ("lap", "pa", "pv", "sfx", "pat", "pvt", "duyet"):
-                c.pop(khoa, None)
-            c["t"] = t
-            doi += 1
-            for khoa, bang in (("co", CO_CHU), ("goc", GOC_CHU), ("cd", CD_CHU)):
-                v = str(r.get(khoa) or "").strip()
-                v = v.upper() if khoa == "co" else v
-                if v in bang:
-                    c[khoa] = v
-                else:
-                    c.pop(khoa, None)      # mã lạ thì bỏ, đừng gửi chữ tự do xuống prompt
+
+        def lam(cs):
+            co_y = [k for k, c in enumerate(cs) if (c.get("t") or "").strip()]
+            moi = [dict(c) for c in cs]
+            for k, r in zip(co_y, ra):
+                t = str((r or {}).get("t") or "").strip()
+                if not t:
+                    continue
+                c = moi[k]
+                for khoa in ("lap", "pa", "pv", "sfx", "pat", "pvt", "duyet"):
+                    c.pop(khoa, None)
+                c["t"] = t
+                for khoa, bang in (("co", CO_CHU), ("goc", GOC_CHU), ("cd", CD_CHU)):
+                    v = str(r.get(khoa) or "").strip()
+                    v = v.upper() if khoa == "co" else v
+                    if v in bang:
+                        c[khoa] = v
+                    else:
+                        c.pop(khoa, None)      # mã lạ thì bỏ, đừng gửi chữ tự do xuống prompt
+            return moi
+
+        doi = sum(1 for _, r in zip(y, ra) if str((r or {}).get("t") or "").strip())
         if not doi:
             raise HTTPException(502, "LLM không trả về cú máy nào.")
-        d[i] = mdong.ghi_canh(d[i], moi)
-        _luu_canh(tap, chuong, d, ai)
+        # Ghi lên bản MỚI NHẤT của phân cảnh (đo 28/09: Opus 30-60 s/dòng, ghi
+        # cả chương đọc từ trước là xoá mọi thứ người khác sửa trong lúc chờ).
+        _sua_dong(tap, chuong, i, dau, lam, ai)
         return {"ok": True, "so_cu": doi, "so_y": len(y)}
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/bo-tro")
@@ -995,6 +1015,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         d = kho.doc(tap, chuong)["dong"]
         if not 0 <= i < len(d):
             raise HTTPException(404, "Không có phân cảnh này.")
+        dau = kho.dau_dong(d[i])
         cs = [c for c in mdong.doc_canh(d[i]) if (c.get("t") or "").strip()]
         if not cs:
             raise HTTPException(400, "Phân cảnh chưa có cú máy nào — breakdown trước đã.")
@@ -1021,13 +1042,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 if v in bang:
                     c[khoa] = v
             them.append((sau, c))
-        # chen từ SAU ra TRƯỚC để chỉ số `sau` của các cú còn lại không trôi
-        for sau, c in sorted(them, key=lambda x: -x[0]):
-            cs.insert(sau, c)
+        def lam(moi):
+            moi = [c for c in moi if (c.get("t") or "").strip()]
+            # chen từ SAU ra TRƯỚC để chỉ số `sau` của các cú còn lại không trôi
+            for sau, c in sorted(them, key=lambda x: -x[0]):
+                moi.insert(sau, dict(c))
+            return moi
+
         if them:
-            d[i] = mdong.ghi_canh(d[i], cs)
-            _luu_canh(tap, chuong, d, ai)
-        return {"ok": True, "them": len(them), "giay": giay, "so_cu": len(cs)}
+            _sua_dong(tap, chuong, i, dau, lam, ai)
+        return {"ok": True, "them": len(them), "giay": giay, "so_cu": len(cs) + len(them)}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
@@ -1041,8 +1065,44 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Vẽ ảnh hỏng: {exc}") from exc
-        _luu_canh(tap, chuong, d, ai)
         return {"ok": True}
+
+    # Trường NGƯỜI sửa trong hộp cảnh. `duyet`/`vid`/`pa`/`pv`/`sfx` chỉ máy chủ
+    # viết — trang tự đặt `duyet` là lách cổng tiền video.
+    TRUONG_TAY = ("t", "lap", "pat", "pvt", "co", "goc", "cd", "ts", "td", "tong",
+                  "mda", "mdv")
+
+    @app.patch("/api/tap/{tap}/{chuong}/canh/{ma}")
+    def sua_mot_canh(tap: str, chuong: str, ma: str, request: Request,
+                     than: dict = Body(...)):
+        """Hộp cảnh ghi RIÊNG một cảnh, chỉ ĐÚNG trường vừa đổi, không cần khoá
+        chương (28/09: hai người hai cảnh cùng chương thì người sau phải chờ).
+        Rỗng = xoá khoá. Trả `v` để trang giữ số bản mới."""
+        ai = _ghi_duoc(request)
+        truong = than.get("truong")
+        if not isinstance(truong, dict) or not truong:
+            raise HTTPException(400, "Thiếu `truong`.")
+        la = [k for k in truong if k not in TRUONG_TAY]
+        if la:
+            raise HTTPException(400, f"Không sửa được {', '.join(la)} từ hộp cảnh.")
+        for k, gt in truong.items():
+            if k == "ts":
+                hop_le = isinstance(gt, list) and all(isinstance(x, str) for x in gt)
+            else:
+                hop_le = isinstance(gt, str)
+            if not hop_le:
+                raise HTTPException(400, f"`{k}` sai kiểu.")
+
+        def va(c):
+            for k, gt in truong.items():
+                gt = [x.strip() for x in gt if x.strip()] if k == "ts" else gt.strip()
+                if gt:
+                    c[k] = gt
+                else:
+                    c.pop(k, None)
+
+        c = _va_canh(tap, chuong, ma, va, ai)
+        return {"ok": True, "v": c.get("v", "")}
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
     def xem_anh(tap: str, chuong: str, ma: str):
@@ -1059,13 +1119,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         """Cổng duyệt. Luật của `aigen` (user chốt 03/09): tiền video chỉ đốt
         SAU cổng này — ảnh ~$0,03/tấm, video đắt gấp năm."""
         ai = _ghi_duoc(request)
-        d, i, j, _ = _tim_canh(tap, chuong, ma)
+        _tim_canh(tap, chuong, ma)
         if not kho.duong_anh(tap, ma).exists():
             raise HTTPException(400, "Cảnh này chưa có ảnh để duyệt.")
-        cs = mdong.doc_canh(d[i])
-        cs[j]["duyet"] = "1"
-        d[i] = mdong.ghi_canh(d[i], cs)
-        _luu_canh(tap, chuong, d, ai)
+        _va_canh(tap, chuong, ma, lambda x: x.update(duyet="1"), ai)
         return {"ok": True}
 
     # ------------------------------------------------------------ video
@@ -1128,10 +1185,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                    False, **({"model": m} if m else {}))
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
-        cs = mdong.doc_canh(d[i])
-        cs[j]["vid"] = str(tid)
-        d[i] = mdong.ghi_canh(d[i], cs)
-        _luu_canh(tap, chuong, d, ai)
+        # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
+        _va_canh(tap, chuong, ma, lambda x: x.update(vid=str(tid)), ai)
         return {"ok": True, "vid": str(tid)}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/video-kiem")
@@ -1156,10 +1211,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         tt = str(r.get("status") or "").lower()
 
         def _quen_ma():
-            cs = mdong.doc_canh(d[i])
-            cs[j].pop("vid", None)
-            d[i] = mdong.ghi_canh(d[i], cs)
-            _luu_canh(tap, chuong, d, ai)
+            _va_canh(tap, chuong, ma, lambda x: x.pop("vid", None), ai)
 
         if tt == "succeeded":
             try:

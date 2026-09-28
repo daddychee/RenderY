@@ -281,10 +281,12 @@ def test_ma_canh_la_thi_404(bo):
     assert c.post("/api/tap/SE001/H/canh/khong-co/ky-thuat").status_code == 404
 
 
-def test_nguoi_khac_giu_chuong_thi_409(bo):
+def test_nguoi_khac_giu_chuong_van_tao_prompt_duoc(bo):
+    """28/09: Create Prompt chỉ vá đúng một cảnh trên bản mới nhất — không
+    cần khoá chương, không đè chữ người đang giữ."""
     c, kho, _ = bo
     kho.giu("SE001", "H", "nguoi_khac")
-    assert _goi(c, kho).status_code == 409
+    assert _goi(c, kho).status_code == 200
 
 
 # ------------------------------------------------------- cửa gác

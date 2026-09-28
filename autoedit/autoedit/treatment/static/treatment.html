@@ -884,10 +884,19 @@ async function luuNgay(){
     var ma = ds[i];
     if(!(await giuKhoa(ma))) { delete canLuu[ma]; continue; }
     try {
-      await api("/api/tap/" + TAP_MA + "/" + ma, "PUT",
-                {dong: cua(ma).dong, outline: cua(ma).outline});
+      // `hop_rieng`: trang này ghi hộp cảnh bằng PATCH -> máy chủ chỉ nhận chữ
+      // `t` của cảnh đã có. Tab JS cũ không gửi cờ thì máy chủ giữ luật cũ.
+      var r = await api("/api/tap/" + TAP_MA + "/" + ma, "PUT",
+                        {dong: cua(ma).dong, outline: cua(ma).outline, hop_rieng: 1});
       delete canLuu[ma];
       tt("✓ Đã lưu " + gio(), "xong");
+      // Có cảnh người khác vừa sửa ở hộp cảnh (máy chủ giữ bản của họ): nạp lại
+      // để màn hình khỏi nói dối, và báo để người đang gõ biết mà xem lại.
+      if(r && r.giu_ban_moi && r.giu_ban_moi.length){
+        await taiLaiChuong(ma); ve(); if(MAN_HINH === "sb") veSb();
+        bao("<b>" + r.giu_ban_moi.length + " cảnh</b> vừa được người khác sửa ở hộp " +
+            "cảnh — đã giữ bản của họ. Xem lại chỗ bạn vừa gõ.", true);
+      }
     } catch(e){
       tt("✕ " + e.message, "loi"); bao(e.message, true);
       delete canLuu[ma];
@@ -1247,7 +1256,8 @@ function datKhoaCanh(x, khoa, gt){
   if(!c) return;
   ghiNho();
   if(gt) c[khoa] = gt; else delete c[khoa];
-  ghiCanhVao(x.ch, x.di, ds);
+  var truong = {}; truong[khoa] = gt || "";
+  ghiMotCanh(x, ds, truong);
 }
 
 /* Sửa xong mà chữ TRÙNG KHÍT bản tự ghép thì bỏ luôn cờ đè: người ta vừa sửa
@@ -1308,7 +1318,7 @@ function dungCanhTap(){
                  anh: cn.anh || "",
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
                  sfx: cn.sfx || "", video: cn.video || "", vid: cn.vid || "",
-                 mda: cn.mda || "", mdv: cn.mdv || "",
+                 mda: cn.mda || "", mdv: cn.mdv || "", v: cn.v || "",
                  n: docCanh(d).length});
       });
     });
@@ -1853,7 +1863,7 @@ function doiTaiSan(ma, ngay){
   if(k >= 0) ts.splice(k, 1); else ts.push(ma);
   ghiNho();
   if(ts.length) c.ts = ts; else delete c.ts;
-  ghiCanhVao(x.ch, x.di, ds);
+  ghiMotCanh(x, ds, {ts: ts});
   moCanh(canhDangMo);
 }
 
@@ -2277,15 +2287,41 @@ function dongCanh(){
 function canhCuaDong(ch, di){
   return docCanh(((DU[ch] || {}).dong || [])[di]);
 }
-function ghiCanhVao(ch, di, ds){
-  var d = ((DU[ch] || {}).dong || [])[di]; if(!d) return;
+function datCanhTrongTay(ch, di, ds){
+  var d = ((DU[ch] || {}).dong || [])[di]; if(!d) return false;
   var sach = (ds || []).map(function(c){
     return Object.assign({}, c, {t: (c.t || "").trim()}); });
   delete d.tr;                       // dọn kiểu cũ, đừng giữ hai bản
   // Còn ÍT NHẤT MỘT cảnh có chữ thì giữ nguyên cả danh sách, kể cả ô rỗng vừa
   // mở. TẤT CẢ rỗng = dòng chưa viết treatment -> xoá hẳn, đừng đẻ cảnh ma.
   if(sach.some(function(c){ return c.t; })) d.canh = sach; else delete d.canh;
-  henLuu(ch);
+  return true;
+}
+function ghiCanhVao(ch, di, ds){
+  if(datCanhTrongTay(ch, di, ds)) henLuu(ch);
+}
+/* Hộp cảnh ghi RIÊNG MỘT CẢNH (PATCH theo mã), chỉ ĐÚNG trường vừa đổi —
+   không qua tự lưu cả chương, nên không cần khoá chương (28/09: hai người hai
+   cảnh cùng chương thì người sau phải chờ người trước). Gửi cả cảnh là đè
+   trường khác bằng bản cũ trong tay. Cảnh chưa có mã (vừa đẻ ở trang) thì chưa
+   PATCH được -> đường cũ. Xếp hàng để hai cú bấm liền không tới máy chủ ngược
+   thứ tự. */
+var hangGhiCanh = Promise.resolve();
+function ghiMotCanh(x, ds, truong){
+  var c = ds[x.ci];
+  if(!c || !c.id) return ghiCanhVao(x.ch, x.di, ds);
+  if(!datCanhTrongTay(x.ch, x.di, ds)) return;
+  tt("Đang lưu…");
+  var duong = "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + c.id;
+  hangGhiCanh = hangGhiCanh.then(function(){
+    return api(duong, "PATCH", {truong: truong}).then(function(r){
+      // Giữ số bản mới: tự lưu cả chương mang `v` cũ sẽ bị coi là lỗi thời.
+      ((DU[x.ch] || {}).dong || []).forEach(function(dg){
+        (dg.canh || []).forEach(function(k){ if(k.id === c.id) k.v = r.v; });
+      });
+      tt("✓ Đã lưu " + gio(), "xong");
+    });
+  }).catch(function(e){ tt("✕ " + e.message, "loi"); bao(e.message, true); });
 }
 function luuNoiCanh(x, chu){
   if(!SUA_DUOC) return;
@@ -2293,7 +2329,7 @@ function luuNoiCanh(x, chu){
   if(!ds[x.ci] || ds[x.ci].t === chu.trim()) return;
   ghiNho();
   ds[x.ci] = Object.assign({}, ds[x.ci], {t: chu.trim()});
-  ghiCanhVao(x.ch, x.di, ds);
+  ghiMotCanh(x, ds, {t: chu.trim()});
   veSb();
 }
 /* Tông mặc định nằm ở TẬP; cảnh chỉ giữ phần GHI ĐÈ. Cảnh nào không đè thì
@@ -2501,7 +2537,7 @@ function datTong(t){
   if(!ds[x.ci]) return;
   ghiNho();
   if(t) ds[x.ci].tong = t; else delete ds[x.ci].tong;
-  ghiCanhVao(x.ch, x.di, ds);
+  ghiMotCanh(x, ds, {tong: t || ""});
   veSb(); moCanh(canhDangMo);
 }
 function chepPrompt(b){
@@ -2551,6 +2587,10 @@ async function doiMan(m){
   document.getElementById("manKb").style.display = m === "kb" ? "flex" : "none";
   document.getElementById("manSb").style.display = m === "sb" ? "flex" : "none";
   document.getElementById("manAs").style.display = m === "as" ? "flex" : "none";
+  // Vẽ lại màn Kịch bản mỗi lần quay về (đo Chrome 28/09): sửa `t` ở hộp cảnh
+  // xong quay lại vẫn thấy chữ CŨ, bấm vào-ra một ô là `canhHienTai()` đọc
+  // chữ cũ trên màn hình và ghi đè bản vừa sửa.
+  if(m === "kb") ve();
   if(m === "as"){
     // Màn Asset đếm "dùng ở N cảnh" nên cũng phải có đủ chương trong tay.
     for(var k = 0; k < DS_CHUONG.length; k++){

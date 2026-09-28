@@ -358,7 +358,10 @@ def test_doi_tong_ghi_vao_CHINH_CANH(html):
     i = html.index("function datTong(")
     than = html[i:html.index(chr(10) + "}", i)]
     assert ".tong =" in than
-    assert "ghiCanhVao(" in than, "đổi tông phải đi qua đường ghi cảnh"
+    # 28/09: hộp cảnh ghi riêng một cảnh (`ghiMotCanh`); cảnh chưa có mã thì
+    # nó rơi về `ghiCanhVao` — vẫn một đường ghi cảnh cho cả hai màn.
+    assert "ghiMotCanh(" in than, "đổi tông phải đi qua đường ghi cảnh"
+    assert "ghiCanhVao(" in _than(html, "ghiMotCanh")
     j = html.index("function ghiCanhVao(")
     assert "henLuu(" in html[j:html.index(chr(10) + "}", j)],         "đường ghi cảnh phải hẹn lưu — một đường ghi duy nhất cho cả hai màn"
 
@@ -621,7 +624,9 @@ def test_JS_va_PYTHON_cung_mot_luat_ve_canh_rong(html):
     """Vá tầng Python mà quên tầng JS thì DU trên trình duyệt vẫn lọc cảnh rỗng
     — đúng lỗi user báo vẫn còn (đo 24/09). Hai bên phải cùng luật: giữ cảnh
     rỗng khi còn ít nhất một cảnh có chữ."""
-    for ten in ("docCanh", "ghiCanhVao"):
+    # 28/09: phần cập nhật bản trong tay tách ra `datCanhTrongTay` để hộp cảnh
+    # (PATCH) và tự lưu (PUT) dùng chung.
+    for ten in ("docCanh", "datCanhTrongTay"):
         i = html.index("function %s(" % ten)
         than = html[i:html.index(chr(10) + "}", i)]
         # cấm LỌC theo nội dung cảnh; TRIM nội dung thì vẫn đúng
@@ -629,8 +634,9 @@ def test_JS_va_PYTHON_cung_mot_luat_ve_canh_rong(html):
             if than.startswith(".filter(", k):
                 than_loc = than[k:k + 160]
                 assert "c.t" not in than_loc.split(")")[0] + ")",                     f"{ten} còn lọc bỏ cảnh rỗng"
-    i = html.index("function ghiCanhVao(")
-    assert "some(" in html[i:html.index(chr(10) + "}", i)],         "ghiCanhVao phải kiểm CÒN cảnh nào có chữ không, thay vì lọc từng cảnh"
+    i = html.index("function datCanhTrongTay(")
+    assert "some(" in html[i:html.index(chr(10) + "}", i)],         "datCanhTrongTay phải kiểm CÒN cảnh nào có chữ không, thay vì lọc từng cảnh"
+    assert "datCanhTrongTay(" in _than(html, "ghiCanhVao")
 
 
 # ═══════════════════ icon: chỉ dấu hình học đơn sắc ═════════════════════════
@@ -1379,7 +1385,11 @@ def test_khung_nhin_cua_trang_CHO_DU_moi_khoa_cua_canh(html):
 
     i = html.index("function dungCanhTap(")
     than = html[i:html.index(chr(10) + "}", i)]
-    thieu = [k for k in KHOA_CANH if (k + ":") not in than]
+    import re
+
+    # Ranh giới từ: dò chữ "v:" trần thì `pv:`/`vid:` đã có sẵn — xanh giả
+    # khi thêm khoá `v` (28/09).
+    thieu = [k for k in KHOA_CANH if not re.search(r"\b" + k + ":", than)]
     assert not thieu, (
         "khung nhìn `dungCanhTap()` thiếu khoá %s — sửa được, ghi được, "
         "nhưng vẽ lại màn hình là mất" % ", ".join(thieu))
@@ -1480,3 +1490,36 @@ def test_hop_canh_DE_model_bang_mda_mdv_va_giay_theo_model_cua_canh(html):
     v = _than(html, "ghepPromptVideo")
     assert "x.mdv" in v and "MO_HINH.giay" in v, "prompt video phải theo model video của CHÍNH cảnh"
     assert "giayCanh(x)" in html[html.index("function moCanh("):], "cảnh báo dài hơn 1 clip theo model của cảnh"
+
+
+# ═══════ 28/09: ngày đầu vận hành — hai màn lệch nhau, hộp cảnh ghi cả chương ═══
+def test_ve_lai_man_Kich_ban_moi_lan_chuyen_sang(html):
+    """Đo trong Chrome 28/09 (bản sao 9131): sửa `t` ở hộp cảnh -> máy chủ lưu
+    đúng; về màn Kịch bản vẫn hiện chữ CŨ vì `doiMan` chỉ vẽ lại Asset và
+    Storyboard; bấm vào một ô BẤT KỲ rồi bấm ra là `canhHienTai()` đọc chữ cũ
+    trên màn hình và ghi đè bản vừa sửa."""
+    t = _than(html, "doiMan")
+    assert 'm === "kb"' in t and "ve()" in t
+
+
+def test_hop_canh_ghi_RIENG_tung_canh_bang_PATCH(html):
+    """Hộp cảnh không đi qua tự lưu cả chương (cần khoá chương): hai người làm
+    hai cảnh của cùng chương thì người sau phải chờ người trước. Chỉ gửi ĐÚNG
+    trường vừa đổi — gửi cả cảnh là đè trường khác bằng bản cũ trong tay."""
+    g = _than(html, "ghiMotCanh")
+    assert '"PATCH"' in g and "/canh/" in g
+    for ham in ("datKhoaCanh", "luuNoiCanh", "doiTaiSan", "datTong"):
+        t = _than(html, ham)
+        assert "ghiMotCanh(" in t, ham + " phải ghi riêng một cảnh"
+        assert "ghiCanhVao(" not in t, ham
+
+
+def test_tu_luu_bao_khi_may_chu_giu_ban_cua_nguoi_khac(html):
+    t = _than(html, "luuNgay")
+    assert "giu_ban_moi" in t and "taiLaiChuong(" in t
+
+
+def test_tu_luu_gui_co_hop_rieng(html):
+    """Không có cờ thì máy chủ coi là tab JS cũ và nhận cả trường hộp cảnh từ
+    tự lưu — trang mới phải báo mình ghi hộp cảnh bằng PATCH."""
+    assert "hop_rieng: 1" in _than(html, "luuNgay")

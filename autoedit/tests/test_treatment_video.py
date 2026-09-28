@@ -234,12 +234,14 @@ def test_chua_bat_bo_video_thi_503(tmp_path):
     assert t.post(f"/api/tap/SE001/H/canh/{ma}/video").status_code == 503
 
 
-def test_nguoi_khac_giu_chuong_thi_409(tmp_path):
+def test_nguoi_khac_giu_chuong_van_giu_ma_task(tmp_path):
+    """Đo 28/09: video gửi Seedvis xong mới 409 lúc lưu mã -> clip đã trả tiền
+    mất dấu. Mã task phải xuống kho dù ai đang giữ chương."""
     c, kho, ma = _bo(tmp_path)
     kho.giu("SE001", "H", "nguoi_khac")
     r = c.post(f"/api/tap/SE001/H/canh/{ma}/video")
-    assert r.status_code == 409
-    assert "nguoi_khac" in r.json()["detail"]
+    assert r.status_code == 200
+    assert _canh(kho)["vid"] == "task-gia-1"
 
 
 def test_bo_video_nga_thi_502(tmp_path):

@@ -270,22 +270,21 @@ def test_chua_cap_khoa_thi_bao_CHO_BAM(tmp_path):
         mdich.doc_ket_viec = cu
 
 
-def test_nguoi_khac_giu_chuong_thi_409_KHONG_phai_500(tmp_path):
-    """Đo thật 24/09: bấm Sinh ảnh khi chương đang bị người khác giữ -> 500
-    Internal Server Error, trang chỉ hiện "HTTP 500". Mọi đường ghi khác đều
-    trả 409 kèm tên người đang giữ; đường này bỏ sót."""
+def test_nguoi_khac_giu_chuong_van_ve_duoc(tmp_path):
+    """24/09 đường này nổ 500, vá thành 409. 28/09 (ngày đầu vận hành) 409 lại
+    chính là lỗi: hai người cùng chương chặn nhau 28 lần. Vẽ ảnh chỉ vá đúng
+    một cảnh trên bản mới nhất nên không cần khoá chương."""
     c, kho = _bo(tmp_path)
     kho.giu("SE001", "H", "nguoi_khac")
-    r = c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
-    assert r.status_code == 409
-    assert "nguoi_khac" in r.json()["detail"]
+    assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh").status_code == 200
+    assert kho.ai_giu("SE001", "H") == "nguoi_khac"
 
 
-def test_duyet_cung_tra_409(tmp_path):
+def test_duyet_khi_nguoi_khac_giu_chuong(tmp_path):
     c, kho = _bo(tmp_path)
     c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/anh")
     kho.giu("SE001", "H", "nguoi_khac")
-    assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/duyet").status_code == 409
+    assert c.post(f"/api/tap/SE001/H/canh/{_ma(kho)}/duyet").status_code == 200
 
 
 # ─────────────────────────────────────────────────────────── tông đi vào prompt

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -30,6 +31,10 @@ KHOA_GIAY = 180      # nhả sau 3 phút không gõ
 
 class KhoaBiGiu(RuntimeError):
     """Chương đang do người khác giữ — không được ghi đè."""
+
+
+class DongVuaDoi(RuntimeError):
+    """Phân cảnh đổi (thêm/bớt/đổi chỗ cảnh) trong lúc chờ LLM — ghi là đè."""
 
 
 _SCHEMA = """
@@ -64,6 +69,9 @@ class Kho:
         self.duong.parent.mkdir(parents=True, exist_ok=True)
         self.cn = sqlite3.connect(self.duong, check_same_thread=False)
         self.cn.row_factory = sqlite3.Row
+        # Một kết nối dùng chung mọi luồng của uvicorn: đọc-vá-ghi phải trọn một
+        # nhịp, không thì hai lượt vá cùng chương xen nhau và lượt sau đè lượt trước.
+        self._khoa = threading.RLock()
         self.cn.executescript(_SCHEMA)
         # Cột thêm sau: `CREATE TABLE IF NOT EXISTS` không đụng bảng đã có, nên
         # kho cũ phải vá tại chỗ. Rẻ và chạy mỗi lần mở, không cần sổ phiên bản.
@@ -309,9 +317,10 @@ class Kho:
 
     # ------------------------------------------------------------- lưu / đọc
     def doc(self, tap: str, chuong: str) -> dict:
-        r = self.cn.execute(
-            "SELECT dong, outline, sua_luc, sua_boi FROM chuong WHERE tap=? AND ma=?",
-            (tap, chuong)).fetchone()
+        with self._khoa:
+            r = self.cn.execute(
+                "SELECT dong, outline, sua_luc, sua_boi FROM chuong WHERE tap=? AND ma=?",
+                (tap, chuong)).fetchone()
         if r is None:
             return {"dong": [], "outline": "", "sua_luc": None, "sua_boi": None}
         d = dict(r)
@@ -326,10 +335,17 @@ class Kho:
         # và áp luật cảnh rỗng. Một chỗ duy nhất, mọi đường ghi đều qua đây.
         dong = [ghi_canh(d, doc_canh(d)) if isinstance(d, dict) else d
                 for d in (dong or [])]
-        giu = self.ai_giu(tap, chuong)
-        if giu and giu != nguoi:
-            raise KhoaBiGiu(f"{giu} đang sửa chương {chuong}.")
-        cu = self.doc(tap, chuong)
+        with self._khoa:
+            giu = self.ai_giu(tap, chuong)
+            if giu and giu != nguoi:
+                raise KhoaBiGiu(f"{giu} đang sửa chương {chuong}.")
+            cu = self.doc(tap, chuong)
+            self._ghi(tap, chuong, dong, outline, nguoi)
+        _ = cu
+
+    def _ghi(self, tap: str, chuong: str, dong: list, outline: str, nguoi: str) -> None:
+        """Ghi xuống + đẻ bản lùi. KHÔNG gác khoá chương — người gọi tự lo, và
+        người gọi đang cầm `self._khoa`."""
         self.cn.execute(
             "INSERT INTO ban_cu(tap, chuong, luc, boi, dong, outline) VALUES(?,?,?,?,?,?)",
             (tap, chuong, time.time(), nguoi,
@@ -343,7 +359,115 @@ class Kho:
              json.dumps(dong, ensure_ascii=False), outline, time.time(), nguoi))
         self._don_ban_cu(tap, chuong)
         self.cn.commit()
-        _ = cu
+
+    # ------------------------------------------------ nhiều người một chương
+    # Đo 28/09 (ngày đầu vận hành): hai người cùng chương C2 chặn nhau 28 lần,
+    # một clip đã trả tiền mất dấu vì mã task bị 409 lúc lưu, và sửa trong lúc
+    # đang vẽ ảnh thì vẽ xong là mất — mọi đường máy đều đọc cả chương TRƯỚC khi
+    # gọi AI rồi ghi đè cả chương SAU khi xong. Ba hàm dưới vá đúng chỗ, trên bản
+    # MỚI NHẤT, trong một nhịp khoá.
+
+    @staticmethod
+    def _tang_v(c: dict) -> None:
+        c["v"] = str(int(c.get("v") or 0) + 1)
+
+    def sua_canh(self, tap: str, chuong: str, ma: str, va, nguoi: str) -> dict:
+        """Vá ĐÚNG MỘT cảnh (`va(canh)` sửa tại chỗ). Không gác khoá chương:
+        chỉ đụng một cảnh trên bản mới nhất nên không đè được ai. Chữ `t` đổi
+        thì tăng `v` để lượt tự lưu cầm bản cũ không đè lại."""
+        with self._khoa:
+            d = self.doc(tap, chuong)
+            for i, dg in enumerate(d["dong"]):
+                if not isinstance(dg, dict):
+                    continue
+                cs = doc_canh(dg)
+                for c in cs:
+                    if c.get("id") != ma:
+                        continue
+                    t0 = c.get("t", "")
+                    va(c)
+                    if c.get("t", "") != t0:
+                        self._tang_v(c)
+                    d["dong"][i] = ghi_canh(dg, cs)
+                    self._ghi(tap, chuong, d["dong"], d["outline"], nguoi)
+                    return c
+        raise KeyError(ma)
+
+    @staticmethod
+    def dau_dong(dg: dict) -> list:
+        """Dấu của một phân cảnh: (mã, chữ) từng cảnh theo thứ tự."""
+        return [(c.get("id"), c.get("t", "")) for c in doc_canh(dg)]
+
+    def sua_dong(self, tap: str, chuong: str, i: int, dau: list, lam,
+                 nguoi: str) -> list[dict]:
+        """Viết lại cảnh của MỘT phân cảnh sau lượt LLM (breakdown, cú bổ trợ).
+
+        Đọc lại bản mới nhất: phân cảnh còn đúng `dau` (mã + chữ lúc gửi LLM)
+        thì áp `lam` lên CHÍNH bản mới (giữ asset/tông ai vừa gán trong lúc
+        chờ); cảnh bị thêm/bớt/đổi chỗ/sửa chữ thì DỪNG — ghép kết quả LLM viết
+        theo chữ cũ vào là đè nhầm. Vẫn gác khoá chương: đây là viết lại chữ
+        của người dựng."""
+        with self._khoa:
+            d = self.doc(tap, chuong)
+            ds = d["dong"]
+            if not (0 <= i < len(ds) and isinstance(ds[i], dict)
+                    and self.dau_dong(ds[i]) == list(dau)):
+                raise DongVuaDoi("Phân cảnh vừa bị sửa trong lúc chờ LLM — bấm lại.")
+            cs = doc_canh(ds[i])
+            truoc = {c.get("id"): c.get("t", "") for c in cs}
+            moi = lam(cs)
+            for c in moi:
+                if c.get("id") in truoc and c.get("t", "") != truoc[c.get("id")]:
+                    self._tang_v(c)
+            ds[i] = ghi_canh(ds[i], moi)
+            self.luu(tap, chuong, ds, d["outline"], nguoi)
+            return doc_canh(ds[i])
+
+    # Trường chỉ MÁY CHỦ viết. Trang nào cũng chỉ mang theo bản chép lại.
+    TRUONG_MAY = ("duyet", "vid", "pa", "pv", "sfx")
+
+    def luu_tu_trang(self, tap: str, chuong: str, dong: list, outline: str,
+                     nguoi: str, hop_rieng: bool = False) -> list[str]:
+        """Đường TỰ LƯU cả chương của trang (vẫn gác khoá chương).
+
+        Trang MỚI (`hop_rieng`) ghi hộp cảnh bằng PATCH, nên ở đây nó chỉ sửa
+        được CHỮ `t` của cảnh đã có: lấy bản máy chủ làm gốc, chỉ nhận `t`.
+        Tab JS CŨ (mở trước lúc deploy — bẫy đắt nhất, 24/09) vẫn gửi sửa hộp
+        cảnh qua đây: nhận trường của nó, chỉ giữ `TRUONG_MAY` theo máy chủ —
+        dấu duyệt, mã task video, prompt máy vừa viết không bị bản cũ xoá.
+        `t` của trang cũ hơn máy chủ (`v` nhỏ hơn) thì giữ `t` máy chủ. Trả mã
+        các cảnh giữ chữ máy chủ mà KHÁC trang — để trang nạp lại và báo."""
+        with self._khoa:
+            moi_nhat = {c["id"]: c
+                        for dg in self.doc(tap, chuong)["dong"] if isinstance(dg, dict)
+                        for c in doc_canh(dg) if c.get("id")}
+            giu, ra = [], []
+            for dg in dong or []:
+                if not isinstance(dg, dict) or not (dg.get("canh") or dg.get("tr")):
+                    ra.append(dg)
+                    continue
+                cs = []
+                for c in doc_canh(dg):
+                    s = moi_nhat.get(c.get("id"))
+                    if s is None:
+                        cs.append(c)
+                        continue
+                    t = c.get("t", "")
+                    if int(s.get("v") or 0) > int(c.get("v") or 0):
+                        if t != s.get("t", ""):
+                            giu.append(s["id"])
+                        t = s.get("t", "")
+                    if hop_rieng:
+                        goc = dict(s)
+                    else:
+                        goc = {k: x for k, x in c.items() if k not in self.TRUONG_MAY}
+                        goc.update({k: s[k] for k in self.TRUONG_MAY if k in s})
+                        goc["v"] = s.get("v", "")
+                    goc["t"] = t
+                    cs.append(goc)
+                ra.append(ghi_canh(dg, cs))
+            self.luu(tap, chuong, ra, outline, nguoi)
+            return giu
 
     def _don_ban_cu(self, tap: str, chuong: str) -> None:
         self.cn.execute(
@@ -382,15 +506,16 @@ class Kho:
     def giu(self, tap: str, chuong: str, nguoi: str, giay: int = KHOA_GIAY) -> bool:
         """Giành/gia hạn khoá. Người đang giữ gia hạn được; người khác thì không,
         cho tới khi khoá hết hạn (không gõ `giay` giây)."""
-        dang = self.ai_giu(tap, chuong)
-        if dang and dang != nguoi:
-            return False
-        self.cn.execute(
-            "INSERT INTO khoa(tap, chuong, nguoi, den) VALUES(?,?,?,?) "
-            "ON CONFLICT(tap, chuong) DO UPDATE SET nguoi=excluded.nguoi, den=excluded.den",
-            (tap, chuong, nguoi, time.time() + giay))
-        self.cn.commit()
-        return True
+        with self._khoa:
+            dang = self.ai_giu(tap, chuong)
+            if dang and dang != nguoi:
+                return False
+            self.cn.execute(
+                "INSERT INTO khoa(tap, chuong, nguoi, den) VALUES(?,?,?,?) "
+                "ON CONFLICT(tap, chuong) DO UPDATE SET nguoi=excluded.nguoi, den=excluded.den",
+                (tap, chuong, nguoi, time.time() + giay))
+            self.cn.commit()
+            return True
 
     def nha(self, tap: str, chuong: str, nguoi: str) -> None:
         self.cn.execute("DELETE FROM khoa WHERE tap=? AND chuong=? AND nguoi=?",
