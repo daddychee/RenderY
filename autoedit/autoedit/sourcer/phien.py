@@ -92,6 +92,28 @@ def co_phien(nha: str) -> bool:
                ("Default/Network/Cookies", "Default/Cookies", "Cookies"))
 
 
+TU_TRANG_LOGIN = ("sign_in", "login", "auth")
+
+# Trang "Hey there! You're already signed into your Envato account as X" —
+# nút Continue ở đó là thẻ <a>, không phải <button> (đo 01/10/2026).
+O_NUT_TIEP = ('a:has-text("Continue as"), button:has-text("Continue as"), '
+              'a:has-text("Continue to")')
+
+
+def doc_trang_login(url: str, so_o_email: int) -> str:
+    """Trang đang mở là gì: `da_vao` | `da_dang_nhap` | `can_dien`.
+
+    KHÔNG đoán bằng mỗi URL nữa. Đo thật 01/10: phiên Envato còn sống thì vào
+    `/sign_in` KHÔNG bị chuyển hướng — URL giữ nguyên, nhưng trang đổi thành
+    "You're already signed in as ... [Continue as ...]" và **không còn ô
+    username**. Luật cũ (chỉ nhìn URL) kết luận là chưa đăng nhập, rồi bắt
+    người dùng chờ đủ 300s mới trả về một lỗi captcha không có thật.
+    """
+    if not any(x in (url or "") for x in TU_TRANG_LOGIN):
+        return "da_vao"
+    return "can_dien" if so_o_email > 0 else "da_dang_nhap"
+
+
 def dang_nhap(nha: str, cho_captcha_s: int = 300, log=None) -> dict:
     """Tự điền email|mật_khẩu từ két; captcha thì hiện cửa sổ trên desktop server.
 
@@ -117,9 +139,20 @@ def dang_nhap(nha: str, cho_captcha_s: int = 300, log=None) -> dict:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             page.goto(cfg["url_login"], timeout=60_000)
             time.sleep(2)
-            # đã đăng nhập sẵn từ lần trước? (bị redirect khỏi trang login)
-            if "sign_in" not in page.url and "login" not in page.url:
+            tt = doc_trang_login(page.url, page.locator(cfg["o_email"]).count())
+            if tt == "da_vao":
                 ghi("phiên cũ còn sống — khỏi đăng nhập")
+            elif tt == "da_dang_nhap":
+                # Envato giữ NGUYÊN url /sign_in và hiện "You're already signed
+                # in as ... [Continue as ...]". Bấm Continue là xong; không bấm
+                # được cũng không sao — phiên vẫn sống, đừng bắt chờ 300s rồi
+                # trả một lỗi captcha không có thật (user báo 01/10).
+                ghi("đã đăng nhập sẵn — bấm Continue")
+                try:
+                    page.locator(O_NUT_TIEP).first.click(timeout=15_000)
+                    time.sleep(3)
+                except Exception:  # noqa: BLE001
+                    ghi("không thấy nút Continue — coi như phiên còn sống")
             else:
                 try:
                     page.fill(cfg["o_email"], email, timeout=15_000)
@@ -132,8 +165,11 @@ def dang_nhap(nha: str, cho_captcha_s: int = 300, log=None) -> dict:
                 het = time.time() + cho_captcha_s
                 while time.time() < het:
                     time.sleep(2)
-                    if "sign_in" not in page.url and "login" not in page.url \
-                            and "auth" not in page.url:
+                    # Dùng chung luật với trên: người bấm xong captcha có thể
+                    # vẫn ở /sign_in nhưng trang đã thành "already signed in".
+                    if doc_trang_login(
+                            page.url,
+                            page.locator(cfg["o_email"]).count()) != "can_dien":
                         break
                 else:
                     return {"ok": False,
