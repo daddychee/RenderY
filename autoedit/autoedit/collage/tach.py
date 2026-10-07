@@ -218,6 +218,26 @@ class TachSam:
         sc = o.iou_scores[0, 0].numpy()
         return [(m[i], float(sc[i])) for i in range(len(m))]
 
+    def tach_khung(self, rgb: np.ndarray, khung) -> np.ndarray:
+        """Box prompt: khung (x0, y0, x1, y1) pixel -> mask. Đo thật 07/10 trên ảnh đồ hoạ nhiều mảnh:
+        khung ra đủ chữ/nhà/cây (SAM tự chấm 0,89–0,98), bấm điểm thì vớ bậy."""
+        import torch
+        from PIL import Image
+        from transformers import Sam2Model
+
+        if TachSam._model is None:
+            TachSam._model = Sam2Model.from_pretrained(SAM_ID).eval()
+        H, W = rgb.shape[:2]
+        im = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8)).resize((1024, 1024), Image.BILINEAR)
+        x = (np.asarray(im, np.float32) / 255 - np.float32([0.485, 0.456, 0.406])) / np.float32([0.229, 0.224, 0.225])
+        x0, y0, x1, y1 = khung
+        b = torch.tensor([[[x0 * 1024 / W, y0 * 1024 / H, x1 * 1024 / W, y1 * 1024 / H]]], dtype=torch.float32)
+        with torch.no_grad():
+            o = TachSam._model(pixel_values=torch.from_numpy(x).permute(2, 0, 1)[None], input_boxes=b,
+                               multimask_output=False)
+        return torch.nn.functional.interpolate(o.pred_masks[0].float(), (H, W), mode="bilinear",
+                                               align_corners=False)[0, 0].numpy() > 0
+
 
 _LAMA = None
 

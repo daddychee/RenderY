@@ -1,7 +1,7 @@
-"""Tool VOX — test TRONG CHROME THẬT (Playwright), máy chủ thật, thợ GIẢ.
+"""Tool VOX — test TRONG CHROME THẬT (Playwright), máy chủ thật, SAM/độ sâu GIẢ.
 
-Vì sao: luồng chọn ảnh / gửi / bấm điểm tách lại nằm ở JS. Bài học repo: test chuỗi xanh mà
-trang chết là chuyện đã xảy ra nhiều lần ("sửa JS phải mở Chrome thật").
+Vì sao: bước chọn lớp (kéo khung, máy đề xuất, xoá) + khung hình + style nằm ở JS. Bài học repo:
+test chuỗi xanh mà trang chết là chuyện đã xảy ra nhiều lần ("sửa JS phải mở Chrome thật").
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 
 from autoedit.collage.hang_doi import HangDoi
-from autoedit.collage.kho_tach import KhoTach
 from autoedit.vox.app import tao_app
 
 
@@ -30,6 +29,20 @@ class _Tiem:
             scope = dict(scope, headers=list(scope["headers"]) + [(b"x-remote-user", b"an"),
                                                                   (b"x-remote-actions", b"vao,dung")])
         await self.app(scope, receive, send)
+
+
+class _MayLopGia:
+    def de_xuat(self, rgb):
+        return [[0.1, 0.1, 0.3, 0.4]]
+
+    def cat(self, rgb, khung_lop):
+        h, w = rgb.shape[:2]
+        ra = []
+        for x0, y0, x1, y1 in khung_lop:
+            m = np.zeros((h, w), bool)
+            m[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)] = True
+            ra.append(m)
+        return ra
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +64,8 @@ def may(tmp_path):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         cong = s.getsockname()[1]
-    sv = uvicorn.Server(uvicorn.Config(_Tiem(tao_app(goc)), host="127.0.0.1", port=cong, log_level="warning"))
+    sv = uvicorn.Server(uvicorn.Config(_Tiem(tao_app(goc, may_lop=_MayLopGia())), host="127.0.0.1", port=cong,
+                                       log_level="warning"))
     th = threading.Thread(target=sv.run, daemon=True)
     th.start()
     for _ in range(100):
@@ -63,10 +77,10 @@ def may(tmp_path):
     th.join(5)
 
 
-def _anh(tmp_path, ten, mau):
+def _anh(tmp_path, ten, w, h, mau=(90, 120, 150)):
     from PIL import Image
     p = tmp_path / ten
-    Image.new("RGB", (320, 180), mau).save(p)
+    Image.new("RGB", (w, h), mau).save(p)
     return p
 
 
@@ -79,74 +93,51 @@ def _cho(f, lan=100):
     return f()
 
 
-def test_chon_hai_anh_nhap_giay_gui_roi_xem_video_va_tach_lai(chrome, may, tmp_path):
+def test_chon_lop_bang_keo_khung_de_xuat_xoa_roi_dung_style(chrome, may, tmp_path):
     url, goc = may
     pg = chrome.new_context(viewport={"width": 1400, "height": 900}).new_page()
     loi = []
     pg.on("pageerror", lambda e: loi.append(str(e)))
     pg.goto(url)
     pg.wait_for_selector(".tha")
-    assert "an" in pg.inner_text("#ai")
-
-    # ảnh 1: Pop-up 2,5 s
+    assert pg.locator("select").count() == 2, "chỉ còn ô Khung + Style — đã bỏ Mẫu/Camera/Nối"
     with pg.expect_file_chooser() as fc:
         pg.click(".tha >> nth=0")
-    fc.value.set_files(str(_anh(tmp_path, "a.png", (200, 60, 60))))
-    pg.fill(".anh >> nth=0 >> input[type=number]", "2.5")
-    pg.select_option(".anh >> nth=0 >> select >> nth=0", "popup")
-    # ảnh 2: Chiều sâu 3 s, nối cắt thẳng
-    pg.click("#them")
-    with pg.expect_file_chooser() as fc:
-        pg.click(".tha >> nth=1")
-    fc.value.set_files(str(_anh(tmp_path, "b.png", (60, 60, 200))))
-    pg.fill(".anh >> nth=1 >> input[type=number]", "3")
-    pg.select_option(".noi select", "cat")
-    assert "tổng 5,5 giây" in pg.inner_text("#tong")
+    fc.value.set_files(str(_anh(tmp_path, "a.png", 320, 180)))
+    pg.fill(".anh >> nth=0 >> input[type=number]", "3")
+
+    pg.click(".chon-lop")
+    pg.wait_for_selector("#hop.mo")
+    pg.wait_for_function("document.getElementById('xemLop').naturalWidth > 0")
+    pg.click("#nutDeXuat")                                         # máy đề xuất 1 khung
+    pg.wait_for_function("document.querySelectorAll('#dsLop .lop').length === 1")
+    pg.wait_for_function("document.getElementById('xemLop').src.startsWith('data:image/jpeg')")
+    hop = pg.locator("#xemLop").bounding_box()                     # kéo thêm một khung 50%..90% x 20%..80%
+    pg.mouse.move(hop["x"] + hop["width"] * 0.5, hop["y"] + hop["height"] * 0.2)
+    pg.mouse.down()
+    pg.mouse.move(hop["x"] + hop["width"] * 0.7, hop["y"] + hop["height"] * 0.5, steps=5)
+    pg.mouse.move(hop["x"] + hop["width"] * 0.9, hop["y"] + hop["height"] * 0.8, steps=5)
+    pg.mouse.up()
+    pg.wait_for_function("document.querySelectorAll('#dsLop .lop').length === 2")
+    pg.click("#dsLop .lop >> nth=0 >> button")                     # bỏ khung máy đề xuất
+    pg.wait_for_function("document.querySelectorAll('#dsLop .lop').length === 1")
+    time.sleep(0.4)
+    pg.click("#nutXong")
+    assert "1 lớp" in pg.inner_text(".anh >> nth=0")
+
+    pg.select_option("#style", "black_grid")
     pg.click("#dung")
     pg.wait_for_selector(".viec")
-    assert "chờ · thứ 1" in pg.inner_text(".viec")
-
-    hd = HangDoi(goc / "hang_doi.db")
-    v = hd.cua("an")[0]
+    v = _cho(lambda: HangDoi(goc / "hang_doi.db").cua("an"))[0]
     ch = json.loads(v["chuoi"])
-    assert [x["giay"] for x in ch["anh"]] == [2.5, 3.0] and ch["noi"] == ["cat"]
-    assert [x["mau"] for x in ch["anh"]] == ["popup", "chieu_sau"]
-
-    # thợ giả: dựng xong + máy gắn ▲ cho ảnh Pop-up
-    from autoedit.collage import tach
-    m = np.zeros((180, 320), bool)
-    m[40:, 100:200] = True
-    KhoTach(goc).ghi(ch["anh"][0]["nhan"], "x", tach.KetQuaTach(
-        [(m, 5.0)], np.zeros((180, 320, 3), np.float32), np.zeros((180, 320), np.float32), ["diem_sam_thap"]),
-        np.full((180, 320, 3), 0.5, np.float32))
-    hd.lay_tiep()
-    ra = tmp_path / "ra.mp4"
-    ra.write_bytes(b"\x00")
-    hd.xong(v["id"], str(ra))
-    pg.evaluate("napViec()")
-    pg.wait_for_selector(".viec video")
-    assert pg.locator(".viec .co").count() == 1 and "xong" in pg.inner_text(".viec .tt")
-
-    # bấm ảnh có ▲ -> hộp tách: trái vào vật, phải vào nền -> Tách lại = việc mới mang điểm
-    pg.click(".nho .o.bam")
-    pg.wait_for_selector("#hop.mo")
-    assert "không chắc" in pg.inner_text("#coTach")
-    pg.wait_for_function("document.getElementById('hopAnh').naturalWidth > 0")
-    hop = pg.locator("#hopAnh").bounding_box()
-    pg.mouse.click(hop["x"] + hop["width"] * 0.5, hop["y"] + hop["height"] * 0.6)
-    pg.mouse.click(hop["x"] + hop["width"] * 0.05, hop["y"] + hop["height"] * 0.1, button="right")
-    assert pg.locator(".diem").count() == 2
-    pg.click("#nutTach")
-    moi = _cho(lambda: [x for x in hd.cua("an") if x["id"] != v["id"]])
-    d = json.loads(moi[0]["chuoi"])["anh"][0]["diem"]
-    assert [x["dau"] for x in d] == [1, 0]
-    assert abs(d[0]["x"] - 0.5) < 0.02 and abs(d[0]["y"] - 0.6) < 0.02, d
+    assert ch["style"] == "black_grid" and ch["khung"] == "16:9" and ch["anh"][0]["giay"] == 3.0
+    (x0, y0, x1, y1), = ch["anh"][0]["khung_lop"]
+    assert abs(x0 - 0.5) < 0.02 and abs(y0 - 0.2) < 0.02 and abs(x1 - 0.9) < 0.02 and abs(y1 - 0.8) < 0.02, ch
+    assert "Black Grid" in pg.inner_text(".viec .dau")
     assert not loi, loi
 
 
-def test_khung_tu_theo_anh_dau_chon_tay_thi_giu(chrome, may, tmp_path):
-    """User chốt 07/10: ô chọn khung 16:9 / 4:5 / 9:16, mặc định theo ẢNH ĐẦU (ảnh dọc bị cắt
-    giữa vào 16:9 mất 63% — đo thật việc vox-2cef9833a944)."""
+def test_khung_tu_theo_anh_dau_chon_tay_thi_giu_doi_khung_thi_xoa_lop(chrome, may, tmp_path):
     url, goc = may
     pg = chrome.new_context(viewport={"width": 1400, "height": 900}).new_page()
     loi = []
@@ -157,23 +148,20 @@ def test_khung_tu_theo_anh_dau_chon_tay_thi_giu(chrome, may, tmp_path):
     for (w, h), mong in (((300, 375), "4:5"), ((180, 320), "9:16"), ((320, 180), "16:9")):
         with pg.expect_file_chooser() as fc:
             pg.click(".tha >> nth=0")
-        fc.value.set_files(str(_anh_co(tmp_path, f"a{w}.png", w, h)))
+        fc.value.set_files(str(_anh(tmp_path, f"a{w}.png", w, h)))
         pg.wait_for_function(f"document.getElementById('khungVid').value === '{mong}'", timeout=5000)
-    pg.select_option("#khungVid", "4:5")                          # chọn tay -> đổi ảnh không tự nhảy
-    with pg.expect_file_chooser() as fc:
+    # có lớp rồi mà đổi khung hình -> lớp bị xoá (khung lớp tính trên ảnh đã cắt khung hình)
+    pg.click(".chon-lop")
+    pg.wait_for_selector("#hop.mo")
+    pg.click("#nutDeXuat")
+    pg.wait_for_function("document.querySelectorAll('#dsLop .lop').length === 1")
+    pg.click("#nutXong")
+    assert "1 lớp" in pg.inner_text(".anh >> nth=0")
+    pg.select_option("#khungVid", "4:5")
+    assert "chưa chọn" in pg.inner_text(".anh >> nth=0") and "chọn lại lớp" in pg.inner_text("#bao")
+    with pg.expect_file_chooser() as fc:                           # chọn tay rồi: đổi ảnh không tự nhảy khung
         pg.click(".tha >> nth=0")
-    fc.value.set_files(str(_anh_co(tmp_path, "b.png", 180, 320)))
+    fc.value.set_files(str(_anh(tmp_path, "b.png", 180, 320)))
     time.sleep(0.5)
     assert pg.input_value("#khungVid") == "4:5"
-    pg.click("#dung")
-    pg.wait_for_selector(".viec")
-    assert json.loads(HangDoi(goc / "hang_doi.db").cua("an")[0]["chuoi"])["khung"] == "4:5"
-    assert "4:5" in pg.inner_text(".viec .dau")
     assert not loi, loi
-
-
-def _anh_co(tmp_path, ten, w, h):
-    from PIL import Image
-    p = tmp_path / ten
-    Image.new("RGB", (w, h), (90, 120, 150)).save(p)
-    return p

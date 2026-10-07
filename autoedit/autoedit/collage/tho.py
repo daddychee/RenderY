@@ -61,7 +61,10 @@ def dung_mac_dinh(viec: dict, goc=None) -> Path:
 
     ra = Path(viec["anh"]).parent / "ra.mp4"
     chuoi = json.loads(viec.get("chuoi") or "{}")
-    if chuoi.get("anh"):                                       # tool VOX riêng: chuỗi ảnh
+    if chuoi.get("style"):                                     # 07/10: style + lớp theo khung, máy biên đạo
+        W, H = mau.KHUNG[chuoi.get("khung") or "16:9"]
+        mau.dung_style(chuoi["anh"], ra, W=W, H=H, style=chuoi["style"])
+    elif chuoi.get("anh"):                                       # tool VOX riêng: chuỗi ảnh
         W, H = mau.KHUNG[chuoi.get("khung") or "16:9"]          # việc trước 07/10 không có khung
         mau.dung_chuoi(chuoi["anh"], chuoi.get("noi") or [], ra, KhoTach(goc or GOC_MAC_DINH), W=W, H=H)
     elif str(viec.get("model") or "").startswith("VOX-popup"):

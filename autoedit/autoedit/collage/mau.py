@@ -261,7 +261,7 @@ def diem_pixel(diem, w: int, h: int) -> list[dict]:
 PHONG_LIA = 0.15                  # phóng thêm lúc lia (ca1→ca2 đã duyệt: phóng 15% rồi lùi chậm)
 
 
-def ke_hoach_chuoi(ds_canh, ds_giay, ds_cd, ds_noi):
+def ke_hoach_chuoi(ds_canh, ds_giay, ds_cd, ds_noi, than=None):
     """-> [cam_cua(t) -> (cam, đang_lia)] theo giờ RIÊNG từng ảnh; ds_noi[i] = cú nối ảnh i -> i+1.
 
     Cú lia = MỘT cú trượt liền: ảnh trước tăng tốc (bậc 3) đẩy đi, ảnh sau nằm SÁT MÉP nó trượt
@@ -269,7 +269,8 @@ def ke_hoach_chuoi(ds_canh, ds_giay, ds_cd, ds_noi):
     được lấp bằng ẢNH KẾ BÊN (`cam_cua.ghep(t)` -> (j, cam_j, t_j)), không phản chiếu mép: đo thật
     07/10 phản chiếu ra người LỘN NGƯỢC ở chỗ nối, nhoè không xoá được."""
     n = len(ds_canh)
-    than = [ke_hoach(cd, g, c) for c, g, cd in zip(ds_canh, ds_giay, ds_cd)]
+    # `than`: camera riêng từng ảnh do máy biên đạo (bien_dao); không truyền thì theo mã camera cũ
+    than = than or [ke_hoach(cd, g, c) for c, g, cd in zip(ds_canh, ds_giay, ds_cd)]
     tv = [min(0.6, 0.35 * g) for g in ds_giay]
     noi = [ds_noi[i] if i < len(ds_noi) else "cat" for i in range(n - 1)]
 
@@ -363,3 +364,136 @@ def dung_chuoi(ds: list[dict], noi: list[str], ra: Path, kho_tach, W: int = 1920
     cams = ke_hoach_chuoi(ds_canh, giay, [x.get("cd") or "" for x in ds], list(noi))
     ve = [lambda t, i=i: khung_chuoi(ds_canh, cams, i, t, thiet_bi) for i in range(len(ds))]
     return _ghi_video(list(zip(ds_canh, giay, cams, ve)), ra, fps, thiet_bi, ffmpeg)
+
+
+# ═══════ 3 STYLE: Collage art / Black Grid / Non-Grid (user chốt 07/10/2026) ═══════════════
+STYLE = ("collage", "black_grid", "non_grid")
+
+
+def _the_anh(rgb, ti_le: float = 0.82):
+    """Black Grid mà không có lớp: cả ảnh thành MỘT tấm dán giữa lưới (thu nhỏ, chừa lưới quanh)."""
+    from PIL import Image
+
+    h, w = rgb.shape[:2]
+    nw, nh = int(w * ti_le), int(h * ti_le)
+    nho = np.asarray(Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8)).resize((nw, nh), Image.LANCZOS),
+                     np.float32) / 255
+    out = np.zeros_like(rgb)
+    m = np.zeros((h, w), bool)
+    y0, x0 = (h - nh) // 2, (w - nw) // 2
+    out[y0:y0 + nh, x0:x0 + nw] = nho
+    m[y0:y0 + nh, x0:x0 + nw] = True
+    return out, m
+
+
+def _canh_style(rgb, khung_lop, giay: float, style: str, W: int, H: int, sam, uoc, va_nen, seed: int):
+    """Một ảnh -> (Canh có lớp + nền theo style, kế hoạch biên đạo). Lớp từ KHUNG người chốt."""
+    from scipy import ndimage as ndi
+
+    from autoedit.collage import bien_dao, phong
+    from autoedit.collage import lop as mlop
+    from autoedit.collage.dung import Lop
+
+    PH, PW = rgb.shape[:2]
+    z = uoc(rgb)
+    hop = [mlop.khung_px(k, PW, PH) for k in khung_lop or []]
+    hop = [b for b in hop if b[2] - b[0] >= 4 and b[3] - b[1] >= 4]
+    masks = [m for m in (mlop.cat_theo_khung(rgb, hop, sam) if hop else []) if m.any()]
+    nguon = rgb
+    if not masks and style == "black_grid":
+        nguon, m = _the_anh(rgb)
+        masks = [m]
+    S0 = W / PW * ZOOM
+    tam = []                                                     # hình học thô từ mask -> vai trò -> Z
+    for m in masks:
+        ys, xs = np.nonzero(m)
+        tam.append(bien_dao.Vat(((xs.min() + xs.max() + 1) / 2 - PW / 2) * S0, ((ys.min() + ys.max() + 1) / 2 - PH / 2) * S0,
+                                (xs.max() + 1 - xs.min()) / 2 * S0, (ys.max() + 1 - ys.min()) / 2 * S0, 6.0,
+                                mlop.cham_mep(m), mlop.la_lo_lung(m, masks)))
+    zs = bien_dao.do_sau_theo_vai(tam, bien_dao.vai_tro(tam, W, H)) if masks else []
+    lo_lung = [v.lo_lung for v in tam]
+    masks = mlop.chia_vung(masks, zs) if masks else []
+    if style == "black_grid":
+        nen, z_nen = phong.nen_luoi(PH, PW), np.full((PH, PW), 40.0, np.float32)
+    elif masks:
+        nen, z_nen = mlop.nen_sach(rgb, masks, va_nen), np.full((PH, PW), 40.0, np.float32)
+    else:
+        nen, z_nen = rgb, z                                      # không lớp: cả ảnh có chiều sâu
+    canh = Canh(nen, z_nen, W, H, zoom=ZOOM)
+    s = 1 / canh.S0                                              # px nguồn cho mỗi px xuất
+    vats = []
+    for i, ((mau_, m), zz) in enumerate(zip(mlop.ve_bu(nguon, masks, zs, va_nen), zs)):
+        a = ndi.gaussian_filter(ndi.binary_dilation(m, iterations=max(1, round(3 * s))).astype(np.float32), 0.8)
+        if style != "collage":
+            mau_, a = phong.vien_giay(mau_, a, seed + i, s)
+        L = canh.them(Lop(np.dstack([mau_, a]), zz))
+        h_, w_ = L.anh.shape[:2]
+        vats.append(bien_dao.Vat(L.X, L.Y, w_ / 2 * L.k, h_ / 2 * L.k, zz, mlop.cham_mep(masks[i]), lo_lung[i]))
+    kh = bien_dao.lap(vats, giay, style, W, H)
+    for L, an in zip(canh.lop, kh.anims):
+        L.anim = an
+    return canh, kh
+
+
+def _dich_style(canh, cam_cua, t: float, dt: float) -> float:
+    """Quãng dịch lớn nhất (px) của nền + từng lớp giữa t và t+dt -> số mẫu nhoè chuyển động."""
+    a, b = cam_cua(t)[0], cam_cua(t + dt)[0]
+    d = (abs(b[0] - a[0]) + abs(b[1] - a[1])) / 40 + abs(b[4] - a[4]) + abs(b[5] - a[5])
+    for L in canh.lop:
+        p = []
+        for c, tt in ((a, t), (b, t + dt)):
+            ox, oy, r, sc, dz = (float(x) for x in L.anim(tt))
+            dd = max(L.Z0 + dz - c[2], 0.3)
+            kk = c[3] * L.Z0 / dd * L.k * sc * max(L.anh.shape[:2])
+            p.append((c[3] * ((L.X + ox) * L.Z0 - c[0]) / dd + c[4],
+                      c[3] * ((L.Y + oy) * L.Z0 - c[1]) / dd + c[5], kk, r))
+        (x0, y0, k0, r0), (x1, y1, k1, r1) = p
+        d = max(d, math.hypot(x1 - x0, y1 - y0) + abs(k1 - k0) / 2 + abs(r1 - r0) * k1 / 115)
+    return d
+
+
+def dung_style(ds: list[dict], ra: Path, W: int = 1920, H: int = 1080, style: str = "collage", sam=None,
+               uoc_do_sau=None, va_nen=None, thiet_bi: str | None = None, ffmpeg: str = "ffmpeg") -> Path:
+    """ds = [{anh, giay, khung_lop: [[x0,y0,x1,y1] tỉ lệ 0..1]}] -> MỘT mp4. Máy tự biên đạo nhịp +
+    camera (bien_dao), tự chọn cú nối (khung ngang: lia ngang; khung dọc: lia lên)."""
+    from autoedit.collage import phong, tach
+
+    if style not in STYLE:
+        raise ValueError(f"Style lạ: {style}")
+    sam = sam or tach.TachSam()
+    uoc = uoc_do_sau or globals()["uoc_do_sau"]
+    va = va_nen or tach.va_nen_lama
+    giay = [float(x["giay"]) for x in ds]
+    cap = [_canh_style(doc_anh_khung(x["anh"], W, H), x.get("khung_lop"), g, style, W, H, sam, uoc, va, 10 * i)
+           for i, (x, g) in enumerate(zip(ds, giay))]
+    ds_canh = [c for c, _ in cap]
+    noi = ["lia_ngang" if W >= H else "lia_len"] * (len(ds) - 1)
+    cams = ke_hoach_chuoi(ds_canh, giay, [""] * len(ds), noi, than=[kh.cam for _, kh in cap])
+    fps = phong.FPS[style]
+    ra = Path(ra)
+    ra.parent.mkdir(parents=True, exist_ok=True)
+    p = subprocess.Popen([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                          "-s", f"{W}x{H}", "-r", str(fps), "-i", "-", "-r", "30" if fps == 30 else "24",
+                          "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(ra)],
+                         stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    cua, so = 0.5 / 30, 0
+    try:
+        for i in range(len(ds)):
+            for f in range(max(1, round(giay[i] * fps))):
+                t = f / fps
+                if style == "collage":                           # 30 hình/giây + nhoè chuyển động
+                    k = so_mau(_dich_style(ds_canh[i], cams[i], t, cua))
+                    img = sum(khung_chuoi(ds_canh, cams, i, t + (cua * j / (k - 1) if k > 1 else 0.0), thiet_bi)
+                              for j in range(k)) / k
+                else:                                            # Vox: 12 hình/giây, nét
+                    img = khung_chuoi(ds_canh, cams, i, t, thiet_bi)
+                img = phong.hau_ky(img, so, t, style)
+                so += 1
+                p.stdin.write((img * 255 + 0.5).astype(np.uint8).tobytes())
+        p.stdin.close()
+    except BrokenPipeError:
+        pass
+    loi = p.stderr.read().decode("utf-8", "replace")
+    if p.wait() != 0:
+        raise RuntimeError(f"ffmpeg hỏng: {loi[-300:]}")
+    return ra

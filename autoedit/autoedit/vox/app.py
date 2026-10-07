@@ -1,8 +1,10 @@
 r"""Tool VOX — tầng web, CỔNG RIÊNG 9123 (user chốt 07/10/2026: tool riêng, UI riêng, treatment giữ nguyên).
 
-Người dùng thả 1–3 ảnh, nhập giây TỪNG ảnh, chọn mẫu + camera + cú nối -> một mp4. Web CHỈ xếp
-hàng (`collage.hang_doi`) và đọc kết quả; dựng nặng ở thợ `python -m autoedit.collage.tho`
-(tiến trình riêng) — web không kéo torch.
+Người dùng thả 1–3 ảnh, nhập giây TỪNG ảnh, chọn khung hình + STYLE (Collage art / Black Grid /
+Non-Grid), CHỐT LỚP bằng khung (máy đề xuất, người kéo / xoá) -> một mp4. KHÔNG có ô camera: máy tự
+lên nhịp + camera (`collage.bien_dao`). Dựng nặng ở thợ `python -m autoedit.collage.tho`.
+
+Bước Lớp cần SAM: nạp LƯỜI trong tiến trình web lần đầu có người dùng tới (khoá một lượt một).
 
 Danh tính + quyền do cổng 9000 tiêm (`X-Remote-User`, `X-Remote-Actions`), cùng khuôn treatment:
 bật `VOX_TRUST_PROXY=1` thì chỉ tin header từ loopback (gateway proxy từ 127.0.0.1).
@@ -12,43 +14,32 @@ Chạy:  python -m uvicorn autoedit.vox.app:tao_app_mac_dinh --factory --port 91
 
 from __future__ import annotations
 
-import hashlib
+import base64
 import io
 import json
 import os
-import shutil
+import threading
 import time
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+import numpy as np
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from autoedit.collage.hang_doi import GOC_MAC_DINH, HangDoi, ma_moi
-from autoedit.collage.kho_tach import KhoTach
 
 TRANG = Path(__file__).parent / "static" / "vox.html"
 HANH_DONG_DUNG = "dung"
 TOI_DA_ANH = 3
+TOI_DA_LOP = 12
 TOI_DA_MB = 30
 THO_CHET_SAU = 120                       # giây không thấy dấu sống của thợ -> cảnh báo
 
-# Bảng mã — CÙNG LUẬT với bộ dựng `collage.mau` (test đối chiếu); chép ra đây để web khỏi kéo torch.
-MAU = {"chieu_sau": "Chiều sâu", "popup": "Pop-up 2.5D"}
-NOI = {"lia_len": "Lia lên", "lia_ngang": "Lia ngang", "cat": "Cắt thẳng"}
+# CÙNG LUẬT với bộ dựng `collage.mau` (test đối chiếu); chép ra đây để web khỏi kéo torch khi không cần.
+STYLE = {"collage": "Collage art", "black_grid": "Black Grid", "non_grid": "Non-Grid"}
 KHUNG = {"16:9": "Ngang 16:9", "4:5": "Dọc 4:5", "9:16": "Đứng 9:16"}
-CAMERA = {"": "Tự nhiên (thở nhẹ)", "push_in": "Đẩy vào", "pull_out": "Lùi ra", "tilt_up": "Ngước lên",
-          "tilt_down": "Cúi xuống", "truck_left": "Trượt trái", "truck_right": "Trượt phải",
-          "track": "Bám theo", "pan_left": "Lia trái", "pan_right": "Lia phải", "arc": "Vòng cung",
-          "orbit": "Quay quanh", "crash_zoom": "Phóng giật", "static": "Đứng yên"}
-# KHÔNG có "Lia vút" (whip_pan): camera của clip lẻ, cuối clip phản chiếu mép chờ editor cắt che —
-# trong VOX nó nằm cuối video, lộ hình lộn ngược (đo 07/10). Chỗ nối giữa ảnh đã có cú "Lia".
-CO = {"khong_tach_duoc_vat": "Không tách được vật — đang dựng như Chiều sâu",
-      "diem_sam_thap": "Máy không chắc đường cắt", "mep_yeu": "Mép vật lẫn với nền"}
-
-
-def nhan_anh(du_lieu: bytes) -> str:
-    """Nhãn bản tách theo ẢNH — khớp `collage.mau.nhan_anh` (sha1 nội dung, 20 ký tự)."""
-    return "anh/" + hashlib.sha1(du_lieu).hexdigest()[:20]
+_TI_LE = {"16:9": 16 / 9, "4:5": 4 / 5, "9:16": 9 / 16}
+_MAU_LOP = [(255, 90, 60), (60, 200, 110), (70, 140, 255), (250, 200, 40), (210, 90, 230), (40, 210, 220)]
 
 
 def _tin_header(request: Request) -> bool:
@@ -78,29 +69,41 @@ def _ai_dung(request: Request) -> str:
     return ai
 
 
+def _kiem_khung_lop(ds) -> list[list[float]]:
+    ds = list(ds or [])
+    if len(ds) > TOI_DA_LOP:
+        raise ValueError(f"Mỗi ảnh tối đa {TOI_DA_LOP} lớp.")
+    ra = []
+    for k in ds:
+        x0, y0, x1, y1 = (float(v) for v in k)
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1 and x1 - x0 >= 0.01 and y1 - y0 >= 0.01):
+            raise ValueError("Khung lớp phải nằm trong ảnh và đủ lớn.")
+        ra.append([round(x0, 4), round(y0, 4), round(x1, 4), round(y1, 4)])
+    return ra
+
+
 def _kiem_cau_hinh(ch, so_anh: int) -> dict:
     try:
-        ds, noi = list(ch["anh"]), list(ch.get("noi") or [])
+        ds = list(ch["anh"])
         if not 1 <= len(ds) <= TOI_DA_ANH:
             raise ValueError(f"Mỗi video 1–{TOI_DA_ANH} ảnh.")
         if len(ds) != so_anh:
             raise ValueError("Số ảnh gửi lên không khớp cấu hình.")
-        if len(noi) != len(ds) - 1 or any(n not in NOI for n in noi):
-            raise ValueError("Mỗi chỗ nối giữa hai ảnh phải chọn một cú nối.")
         sach = []
         for x in ds:
             giay = float(x["giay"])
             if not 0.5 <= giay <= 60:
                 raise ValueError("Giây mỗi ảnh từ 0,5 đến 60.")
-            if x.get("mau") not in MAU or (x.get("cd") or "") not in CAMERA:
-                raise ValueError("Mẫu hoặc camera không có trong bảng.")
-            sach.append({"giay": round(giay, 2), "mau": x["mau"], "cd": x.get("cd") or ""})
+            sach.append({"giay": round(giay, 2), "khung_lop": _kiem_khung_lop(x.get("khung_lop"))})
         khung = ch.get("khung") or "16:9"
         if khung not in KHUNG:
             raise ValueError("Khung chỉ được 16:9, 4:5 hoặc 9:16.")
+        style = ch.get("style") or "collage"
+        if style not in STYLE:
+            raise ValueError("Style chỉ được Collage art, Black Grid hoặc Non-Grid.")
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(400, str(exc) if isinstance(exc, ValueError) else "Cấu hình hỏng.") from exc
-    return {"anh": sach, "noi": noi, "khung": khung}
+    return {"anh": sach, "khung": khung, "style": style}
 
 
 def _doc_anh_gui(f: UploadFile) -> tuple[bytes, str]:
@@ -118,13 +121,76 @@ def _doc_anh_gui(f: UploadFile) -> tuple[bytes, str]:
     return b, duoi
 
 
-def tao_app(goc: Path | str | None = None) -> FastAPI:
+def _anh_cat_khung(b: bytes, khung: str, rong_max: int = 1024) -> np.ndarray:
+    """Ảnh -> cắt GIỮA đúng tỉ lệ khung hình (như `mau.doc_anh_khung` lúc dựng) -> thu nhỏ cho SAM."""
+    from PIL import Image
+
+    im = Image.open(io.BytesIO(b)).convert("RGB")
+    w, h = im.size
+    tl = _TI_LE[khung]
+    if w / h > tl:
+        nw = round(h * tl)
+        im = im.crop(((w - nw) // 2, 0, (w - nw) // 2 + nw, h))
+    else:
+        nh = round(w / tl)
+        im = im.crop((0, (h - nh) // 2, w, (h - nh) // 2 + nh))
+    if im.size[0] > rong_max:
+        im = im.resize((rong_max, round(im.size[1] * rong_max / im.size[0])), Image.LANCZOS)
+    return np.asarray(im, np.float32) / 255
+
+
+def _anh_xem(rgb: np.ndarray, masks, khung_lop) -> str:
+    """Ảnh xem: phần máy cắt tô màu từng lớp + viền khung + số thứ tự -> data URL JPEG."""
+    from PIL import Image, ImageDraw
+
+    a = rgb.copy()
+    for i, m in enumerate(masks):
+        a[m] = a[m] * 0.45 + np.float32(_MAU_LOP[i % len(_MAU_LOP)]) / 255 * 0.55
+    im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
+    d = ImageDraw.Draw(im)
+    h, w = rgb.shape[:2]
+    for i, (x0, y0, x1, y1) in enumerate(khung_lop):
+        c = _MAU_LOP[i % len(_MAU_LOP)]
+        d.rectangle((x0 * w, y0 * h, x1 * w, y1 * h), outline=c, width=max(2, w // 400))
+        d.rectangle((x0 * w, y0 * h, x0 * w + 22, y0 * h + 20), fill=c)
+        d.text((x0 * w + 6, y0 * h + 4), str(i + 1), fill=(0, 0, 0))
+    b = io.BytesIO()
+    im.save(b, "JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(b.getvalue()).decode()
+
+
+class MayLop:
+    """SAM + độ sâu thật, nạp LƯỜI (chỉ khi có người dùng bước Lớp)."""
+
+    def __init__(self):
+        self._sam = None
+
+    def _s(self):
+        from autoedit.collage import tach
+
+        self._sam = self._sam or tach.TachSam()
+        return self._sam
+
+    def de_xuat(self, rgb) -> list[list[float]]:
+        from autoedit.collage import lop, mau
+
+        return lop.de_xuat_khung(rgb, mau.uoc_do_sau(rgb), self._s())
+
+    def cat(self, rgb, khung_lop) -> list[np.ndarray]:
+        from autoedit.collage import lop
+
+        h, w = rgb.shape[:2]
+        return lop.cat_theo_khung(rgb, [lop.khung_px(k, w, h) for k in khung_lop], self._s())
+
+
+def tao_app(goc: Path | str | None = None, may_lop=None) -> FastAPI:
     goc = Path(goc or GOC_MAC_DINH)
     hd = HangDoi(goc / "hang_doi.db")
-    kt = KhoTach(goc)
+    may = may_lop or MayLop()
+    khoa_may = threading.Lock()                              # một lượt SAM một lúc: CPU chung với thợ
     app = FastAPI(title="VOX")
 
-    def _viec_cua(ma: str, request: Request) -> dict:
+    def _viec_cua(ma: str) -> dict:
         v = hd.doc(ma)
         if not v or not json.loads(v.get("chuoi") or "{}").get("anh"):
             raise HTTPException(404, "Không thấy việc.")
@@ -160,7 +226,27 @@ def tao_app(goc: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/bang")
     def bang():
-        return {"mau": MAU, "noi": NOI, "camera": CAMERA, "co": CO, "khung": KHUNG, "toi_da_anh": TOI_DA_ANH}
+        return {"style": STYLE, "khung": KHUNG, "toi_da_anh": TOI_DA_ANH, "toi_da_lop": TOI_DA_LOP}
+
+    @app.post("/api/lop")
+    def lop(request: Request, anh: UploadFile = File(...), khung: str = Form("16:9"), khung_lop: str = Form(""),
+            de_xuat: str = Form("")):
+        """Bước LỚP: `de_xuat`=1 -> máy đề xuất khung; luôn trả ảnh xem phần máy CẮT trong từng khung
+        (trên ảnh đã cắt đúng khung hình, như lúc dựng)."""
+        _ai_dung(request)
+        if khung not in KHUNG:
+            raise HTTPException(400, "Khung chỉ được 16:9, 4:5 hoặc 9:16.")
+        try:
+            ds = _kiem_khung_lop(json.loads(khung_lop) if khung_lop else [])
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, str(exc) if isinstance(exc, ValueError) else "Khung lớp hỏng.") from exc
+        b, _ = _doc_anh_gui(anh)
+        rgb = _anh_cat_khung(b, khung)
+        with khoa_may:
+            if de_xuat:
+                ds = _kiem_khung_lop(may.de_xuat(rgb))
+            masks = may.cat(rgb, ds) if ds else []
+        return {"khung_lop": ds, "xem": _anh_xem(rgb, masks, ds)}
 
     @app.post("/api/viec")
     def gui(request: Request, anh: list[UploadFile] = File(...), cau_hinh: str = Form(...)):
@@ -176,8 +262,8 @@ def tao_app(goc: Path | str | None = None) -> FastAPI:
         for i, ((b, duoi), x) in enumerate(zip(doc, ch["anh"])):
             p = thu_muc / f"anh_{i}{duoi}"
             p.write_bytes(b)
-            x.update(anh=str(p), nhan=nhan_anh(b))
-        hd.tao(nguoi=ai, model="VOX-chuoi", giay=sum(x["giay"] for x in ch["anh"]), cd="",
+            x["anh"] = str(p)
+        hd.tao(nguoi=ai, model="VOX-style", giay=sum(x["giay"] for x in ch["anh"]), cd="",
                anh=ch["anh"][0]["anh"], nhan="", id=ma, chuoi=ch)
         return {"id": ma}
 
@@ -191,85 +277,26 @@ def tao_app(goc: Path | str | None = None) -> FastAPI:
             ch = json.loads(v.get("chuoi") or "{}")
             if not ch.get("anh"):
                 continue
-            anh = []
-            for x in ch["anh"]:
-                tt = kt.thong_tin(x["nhan"]) if x["mau"] == "popup" else None
-                anh.append({"giay": x["giay"], "mau": x["mau"], "cd": x["cd"],
-                            "co": (tt or {}).get("co", []), "co_tach": tt is not None})
             ra.append({"id": v["id"], "tao": v["tao"], "trang_thai": v["trang_thai"], "loi": v.get("loi") or "",
                        "thu_tu": hd.thu_tu(v["id"]) if v["trang_thai"] == "cho" else 0,
-                       "giay": v["giay"], "anh": anh, "noi": ch.get("noi") or [], "khung": ch.get("khung") or "16:9",
+                       "giay": v["giay"], "khung": ch.get("khung") or "16:9", "style": STYLE.get(ch.get("style"), ""),
+                       "anh": [{"giay": x["giay"], "so_lop": len(x.get("khung_lop") or [])} for x in ch["anh"]],
                        "bat_dau": v.get("bat_dau"), "xong_luc": v.get("xong_luc")})
         return {"viec": ra}
 
     @app.get("/api/viec/{ma}/video")
-    def video(ma: str, request: Request):
-        v = _viec_cua(ma, request)
+    def video(ma: str):
+        v = _viec_cua(ma)
         if v["trang_thai"] != "xong" or not v.get("ra") or not Path(v["ra"]).exists():
             raise HTTPException(409, "Video chưa dựng xong.")
         return FileResponse(v["ra"], media_type="video/mp4", filename=f"vox_{ma}.mp4")
 
-    def _anh_thu(v: dict, i: int) -> dict:
-        ds = json.loads(v["chuoi"])["anh"]
+    @app.get("/api/viec/{ma}/anh/{i}")
+    def anh_goc(ma: str, i: int):
+        ds = json.loads(_viec_cua(ma)["chuoi"])["anh"]
         if not 0 <= i < len(ds):
             raise HTTPException(404, "Không có ảnh này.")
-        return ds[i]
-
-    @app.get("/api/viec/{ma}/anh/{i}")
-    def anh_goc(ma: str, i: int, request: Request):
-        return FileResponse(_anh_thu(_viec_cua(ma, request), i)["anh"])
-
-    @app.get("/api/viec/{ma}/tach/{i}")
-    def doc_tach(ma: str, i: int, request: Request):
-        x = _anh_thu(_viec_cua(ma, request), i)
-        tt = kt.thong_tin(x["nhan"]) if x["mau"] == "popup" else None
-        if not tt:
-            raise HTTPException(404, "Ảnh này chưa có bản tách (chưa dựng xong hoặc là Chiều sâu).")
-        return {"co": tt["co"], "diem": tt["diem"], "so_vat": tt["so_vat"]}
-
-    @app.get("/api/viec/{ma}/tach/{i}/xem")
-    def xem_tach(ma: str, i: int, request: Request):
-        x = _anh_thu(_viec_cua(ma, request), i)
-        tt = kt.thong_tin(x["nhan"])
-        if not tt or not Path(tt["xem"]).exists():
-            raise HTTPException(404, "Chưa có ảnh xem bản tách.")
-        return FileResponse(tt["xem"], headers={"Cache-Control": "no-store"})
-
-    @app.post("/api/viec/{ma}/tach/{i}")
-    def tach_lai(ma: str, i: int, request: Request, than: dict = Body(default={})):
-        """Bấm điểm lên ảnh Pop-up (tỉ lệ 0..1; dau 1 = thuộc vật, 0 = nền) -> dựng lại CẢ chuỗi
-        thành việc mới; ảnh khác dùng lại bản tách đã lưu nên không tách lại."""
-        ai = _ai_dung(request)
-        v = _viec_cua(ma, request)
-        if v["nguoi"] != ai:
-            raise HTTPException(403, "Chỉ người gửi việc mới tách lại được.")
-        x = _anh_thu(v, i)
-        if x["mau"] != "popup":
-            raise HTTPException(400, "Tách lại chỉ dùng cho ảnh chọn mẫu Pop-up 2.5D.")
-        try:
-            diem = [{"x": float(d["x"]), "y": float(d["y"]), "dau": int(d["dau"])} for d in than.get("diem") or []]
-        except (KeyError, TypeError, ValueError) as exc:
-            raise HTTPException(400, "Điểm bấm hỏng.") from exc
-        if not 1 <= len(diem) <= 20 or not all(0 <= d["x"] <= 1 and 0 <= d["y"] <= 1 and d["dau"] in (0, 1)
-                                                for d in diem):
-            raise HTTPException(400, "Cần 1–20 điểm nằm trong ảnh.")
-        if not any(d["dau"] == 1 for d in diem):
-            raise HTTPException(400, "Cần ít nhất một điểm chuột TRÁI vào vật.")
-        ch = json.loads(v["chuoi"])
-        for j, y in enumerate(ch["anh"]):
-            y.pop("diem", None)
-            if j == i:
-                y["diem"] = diem
-        moi = ma_moi()
-        thu_muc = goc / "viec" / moi
-        thu_muc.mkdir(parents=True, exist_ok=True)
-        for y in ch["anh"]:                                  # chép ảnh: việc cũ bị dọn không làm hỏng việc mới
-            p = thu_muc / Path(y["anh"]).name
-            shutil.copyfile(y["anh"], p)
-            y["anh"] = str(p)
-        hd.tao(nguoi=ai, model="VOX-chuoi", giay=v["giay"], cd="", anh=ch["anh"][0]["anh"], nhan="",
-               id=moi, chuoi=ch)
-        return {"id": moi}
+        return FileResponse(ds[i]["anh"])
 
     return app
 
