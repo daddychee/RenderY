@@ -142,3 +142,38 @@ def test_chon_hai_anh_nhap_giay_gui_roi_xem_video_va_tach_lai(chrome, may, tmp_p
     assert [x["dau"] for x in d] == [1, 0]
     assert abs(d[0]["x"] - 0.5) < 0.02 and abs(d[0]["y"] - 0.6) < 0.02, d
     assert not loi, loi
+
+
+def test_khung_tu_theo_anh_dau_chon_tay_thi_giu(chrome, may, tmp_path):
+    """User chốt 07/10: ô chọn khung 16:9 / 4:5 / 9:16, mặc định theo ẢNH ĐẦU (ảnh dọc bị cắt
+    giữa vào 16:9 mất 63% — đo thật việc vox-2cef9833a944)."""
+    url, goc = may
+    pg = chrome.new_context(viewport={"width": 1400, "height": 900}).new_page()
+    loi = []
+    pg.on("pageerror", lambda e: loi.append(str(e)))
+    pg.goto(url)
+    pg.wait_for_selector(".tha")
+    assert pg.input_value("#khungVid") == "16:9"
+    for (w, h), mong in (((300, 375), "4:5"), ((180, 320), "9:16"), ((320, 180), "16:9")):
+        with pg.expect_file_chooser() as fc:
+            pg.click(".tha >> nth=0")
+        fc.value.set_files(str(_anh_co(tmp_path, f"a{w}.png", w, h)))
+        pg.wait_for_function(f"document.getElementById('khungVid').value === '{mong}'", timeout=5000)
+    pg.select_option("#khungVid", "4:5")                          # chọn tay -> đổi ảnh không tự nhảy
+    with pg.expect_file_chooser() as fc:
+        pg.click(".tha >> nth=0")
+    fc.value.set_files(str(_anh_co(tmp_path, "b.png", 180, 320)))
+    time.sleep(0.5)
+    assert pg.input_value("#khungVid") == "4:5"
+    pg.click("#dung")
+    pg.wait_for_selector(".viec")
+    assert json.loads(HangDoi(goc / "hang_doi.db").cua("an")[0]["chuoi"])["khung"] == "4:5"
+    assert "4:5" in pg.inner_text(".viec .dau")
+    assert not loi, loi
+
+
+def _anh_co(tmp_path, ten, w, h):
+    from PIL import Image
+    p = tmp_path / ten
+    Image.new("RGB", (w, h), (90, 120, 150)).save(p)
+    return p

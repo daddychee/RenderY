@@ -35,6 +35,7 @@ THO_CHET_SAU = 120                       # giây không thấy dấu sống củ
 # Bảng mã — CÙNG LUẬT với bộ dựng `collage.mau` (test đối chiếu); chép ra đây để web khỏi kéo torch.
 MAU = {"chieu_sau": "Chiều sâu", "popup": "Pop-up 2.5D"}
 NOI = {"lia_len": "Lia lên", "lia_ngang": "Lia ngang", "cat": "Cắt thẳng"}
+KHUNG = {"16:9": "Ngang 16:9", "4:5": "Dọc 4:5", "9:16": "Đứng 9:16"}
 CAMERA = {"": "Tự nhiên (thở nhẹ)", "push_in": "Đẩy vào", "pull_out": "Lùi ra", "tilt_up": "Ngước lên",
           "tilt_down": "Cúi xuống", "truck_left": "Trượt trái", "truck_right": "Trượt phải",
           "track": "Bám theo", "pan_left": "Lia trái", "pan_right": "Lia phải", "arc": "Vòng cung",
@@ -92,9 +93,12 @@ def _kiem_cau_hinh(ch, so_anh: int) -> dict:
             if x.get("mau") not in MAU or (x.get("cd") or "") not in CAMERA:
                 raise ValueError("Mẫu hoặc camera không có trong bảng.")
             sach.append({"giay": round(giay, 2), "mau": x["mau"], "cd": x.get("cd") or ""})
+        khung = ch.get("khung") or "16:9"
+        if khung not in KHUNG:
+            raise ValueError("Khung chỉ được 16:9, 4:5 hoặc 9:16.")
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(400, str(exc) if isinstance(exc, ValueError) else "Cấu hình hỏng.") from exc
-    return {"anh": sach, "noi": noi}
+    return {"anh": sach, "noi": noi, "khung": khung}
 
 
 def _doc_anh_gui(f: UploadFile) -> tuple[bytes, str]:
@@ -154,7 +158,7 @@ def tao_app(goc: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/bang")
     def bang():
-        return {"mau": MAU, "noi": NOI, "camera": CAMERA, "co": CO, "toi_da_anh": TOI_DA_ANH}
+        return {"mau": MAU, "noi": NOI, "camera": CAMERA, "co": CO, "khung": KHUNG, "toi_da_anh": TOI_DA_ANH}
 
     @app.post("/api/viec")
     def gui(request: Request, anh: list[UploadFile] = File(...), cau_hinh: str = Form(...)):
@@ -192,7 +196,7 @@ def tao_app(goc: Path | str | None = None) -> FastAPI:
                             "co": (tt or {}).get("co", []), "co_tach": tt is not None})
             ra.append({"id": v["id"], "tao": v["tao"], "trang_thai": v["trang_thai"], "loi": v.get("loi") or "",
                        "thu_tu": hd.thu_tu(v["id"]) if v["trang_thai"] == "cho" else 0,
-                       "giay": v["giay"], "anh": anh, "noi": ch.get("noi") or [],
+                       "giay": v["giay"], "anh": anh, "noi": ch.get("noi") or [], "khung": ch.get("khung") or "16:9",
                        "bat_dau": v.get("bat_dau"), "xong_luc": v.get("xong_luc")})
         return {"viec": ra}
 

@@ -75,7 +75,22 @@ def test_diem_goi_y_nam_trong_mang_gan():
     v[vat] = 0.9
     nhom = tach.diem_goi_y(v)
     assert nhom, "phải thấy ít nhất một mảng gần"
-    assert all(vat[y, x] for x, y in nhom[0])
+    # vật PHẲNG to (ảnh cắt dán) không "nhô" so với ô quét -> do nhóm mảng GẦN phía sau bắt (07/10)
+    assert any(all(vat[y, x] for x, y in g) for g in nhom), nhom
+
+
+def test_diem_goi_y_nguoi_dung_tren_mat_dat_gan():
+    """Đo thật 07/10 ảnh KeyVisual: cô gái đứng trên mặt cỏ + cây bút cũng GẦN máy -> ngưỡng Otsu
+    gộp người + đất thành MỘT mảng, điểm gợi ý rơi vào cây bút -> 0 vật. Gợi ý phải theo độ NHÔ
+    so với xung quanh: mặt đất dốc đều không nhô, người dựng lên thì nhô."""
+    h, w = 120, 200
+    v = np.zeros((h, w), np.float32)
+    v[50:] = np.linspace(0.45, 0.95, h - 50, dtype=np.float32)[:, None]   # mặt đất gần dần về đáy
+    nguoi = _vat(y0=15, y1=100, x0=92, x1=112)                             # người đứng, chân chạm đất
+    v[nguoi] = 1.0
+    nhom = tach.diem_goi_y(v)
+    assert nhom, "phải thấy người"
+    assert all(nguoi[y, x] for x, y in nhom[0]), f"điểm gợi ý rơi ra ngoài người: {nhom[0]}"
 
 
 class _SamGia:

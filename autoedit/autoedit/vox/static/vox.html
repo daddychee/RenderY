@@ -76,6 +76,9 @@ h2{font-size:14px;margin:0 0 10px;font-weight:700}
 .nut:disabled{opacity:.45;cursor:not-allowed}
 .nut.phu{background:var(--panel);color:var(--text);border:1px solid var(--line);font-weight:600}
 #tong{color:var(--muted);font-size:13px}
+.hang.khung{margin:0 0 12px;font-size:13px}
+.hang.khung label{color:var(--muted)}
+.hang.khung select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
 #bao{font-size:13px}
 #bao.loi{color:var(--bad)}
 
@@ -124,7 +127,8 @@ video{width:100%;border-radius:7px;background:#000;display:block}
   <section class="khoi">
     <h2>Video mới</h2>
     <p class="goi-y">Thả 1–3 ảnh theo thứ tự, nhập số giây cho từng ảnh. Các ảnh nối liền thành MỘT video.
-      Ảnh lệch tỉ lệ 16:9 sẽ được cắt giữa.</p>
+      Khung tự theo ảnh đầu tiên; ảnh lệch tỉ lệ khung sẽ được cắt giữa.</p>
+    <div class="hang khung"><label for="khungVid">Khung</label><select id="khungVid"></select></div>
     <div id="chuoi"></div>
     <div class="hang">
       <button class="nut phu" id="them" type="button">+ Thêm ảnh</button>
@@ -161,6 +165,7 @@ video{width:100%;border-radius:7px;background:#000;display:block}
 <script>
 "use strict";
 var BANG = null, DUNG_DUOC = false, CHUOI = [], NOI = [], VIEC = [], HOP = null, HEN = null;
+var KHUNG_TAY = false;            /* người đã chọn khung bằng tay -> không tự đổi theo ảnh nữa */
 
 async function api(duong, cach, than){
   var o = {method: cach || "GET", headers: {}};
@@ -244,6 +249,18 @@ function datTep(i, tep){
   CHUOI[i].tep = tep; CHUOI[i].url = URL.createObjectURL(tep);
   bao("");
   veChuoi();
+  if(i === 0 && !KHUNG_TAY){
+    var im = new Image();
+    im.onload = function(){ document.getElementById("khungVid").value = khungGan(im.naturalWidth / im.naturalHeight); };
+    im.src = CHUOI[0].url;
+  }
+}
+function khungGan(tl){
+  var ds = {"16:9": 16 / 9, "4:5": 4 / 5, "9:16": 9 / 16}, tot = "16:9";
+  Object.keys(ds).forEach(function(k){
+    if(Math.abs(Math.log(tl / ds[k])) < Math.abs(Math.log(tl / ds[tot]))) tot = k;
+  });
+  return tot;
 }
 function boAnh(i){
   if(CHUOI[i].url) URL.revokeObjectURL(CHUOI[i].url);
@@ -266,12 +283,13 @@ async function dung(){
   var fd = new FormData();
   CHUOI.forEach(function(o){ fd.append("anh", o.tep, o.tep.name); });
   fd.append("cau_hinh", JSON.stringify({
-    anh: CHUOI.map(function(o){ return {giay: o.giay, mau: o.mau, cd: o.cd}; }), noi: NOI}));
+    anh: CHUOI.map(function(o){ return {giay: o.giay, mau: o.mau, cd: o.cd}; }), noi: NOI,
+    khung: document.getElementById("khungVid").value}));
   try {
     await api("/api/viec", "POST", fd);
     bao("Đã xếp hàng. Video hiện ở cột bên phải khi dựng xong.");
     CHUOI.forEach(function(o){ if(o.url) URL.revokeObjectURL(o.url); });
-    CHUOI = [oMoi()]; NOI = [];
+    CHUOI = [oMoi()]; NOI = []; KHUNG_TAY = false;
     veChuoi();
     napViec();
   } catch(e){ bao(e.message, true); capNhat(); }
@@ -296,7 +314,7 @@ function veViec(){
     var d = el("div", "dau");
     var tt = nhanTT(v);
     d.appendChild(el("span", "tt " + tt[0], tt[1]));
-    d.appendChild(el("span", "mo", v.anh.length + " ảnh · " + giay(v.giay) + " s · " +
+    d.appendChild(el("span", "mo", v.anh.length + " ảnh · " + giay(v.giay) + " s · " + v.khung + " · " +
       new Date(v.tao * 1000).toLocaleString("vi-VN", {hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit"})));
     h.appendChild(d);
     var nho = el("div", "nho");
@@ -402,6 +420,10 @@ async function batDau(){
     document.getElementById("ai").textContent = toi.nguoi
       ? toi.nguoi + (DUNG_DUOC ? "" : " · chỉ xem (chưa có quyền dựng)") : "chưa đăng nhập — mở qua cổng 9000";
   } catch(e){}
+  var kh = document.getElementById("khungVid");
+  Object.keys(BANG.khung).forEach(function(k){ var o = el("option", "", BANG.khung[k]); o.value = k; kh.appendChild(o); });
+  kh.value = "16:9";
+  kh.onchange = function(){ KHUNG_TAY = true; };
   CHUOI = [oMoi()];
   veChuoi();
   document.getElementById("them").onclick = function(){

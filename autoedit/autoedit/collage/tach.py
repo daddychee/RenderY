@@ -76,26 +76,54 @@ def hop_le(m: np.ndarray, diem_sam: float, v: np.ndarray) -> bool:
     return buoc_mep(m, v) > BUOC_MEP_TOI_THIEU
 
 
-def diem_goi_y(v: np.ndarray, so_diem: int = 6, toi_da: int = 3) -> list[list[list[int]]]:
-    """Mảng GẦN theo độ sâu (Otsu) -> mỗi mảng `so_diem` điểm nằm sâu bên trong."""
-    if float(v.max() - v.min()) < 1e-6:
-        return []
+def do_nho(v: np.ndarray, phan: int = 2) -> np.ndarray:
+    """Độ NHÔ so với xung quanh (top-hat): độ chênh trừ nền "mở xám" ô cỡ 1/`phan` cạnh ngắn.
+    Mặt đất/mặt biển dốc đều -> ~0; vật dựng lên (người, xe, tháp) -> cao. Tính ở 1/4 độ phân giải."""
+    from PIL import Image
+
     h, w = v.shape
-    k = max(1, int(min(h, w) * 0.004))
-    gan = ndi.binary_closing(ndi.binary_opening(v > otsu(v), iterations=k), iterations=int(k * 1.6) + 1)
-    nhan, n = ndi.label(gan)
+    nho_ = v[::4, ::4]
+    th = np.clip(nho_ - ndi.grey_opening(nho_, size=(max(3, min(nho_.shape) // phan),) * 2), 0, 1)
+    return np.asarray(Image.fromarray(th.astype(np.float32)).resize((w, h), Image.BILINEAR))
+
+
+def _mang(m: np.ndarray, v: np.ndarray, so_diem: int, toi_da: int, nho_nhat: float) -> list:
+    """Mảng liền lớn nhất của mặt nạ `m` -> mỗi mảng `so_diem` điểm nằm sâu bên trong."""
+    nhan, n = ndi.label(m)
     if not n:
         return []
     dt = ndi.sum(np.ones_like(v), nhan, range(1, n + 1))
     ra = []
     for i in np.argsort(-dt)[:toi_da]:
-        if dt[i] < 0.015 * v.size:
+        if dt[i] < nho_nhat * v.size:
             continue
         d = ndi.distance_transform_edt(nhan == i + 1)
         ys, xs = np.nonzero(d > 0.5 * d.max())
         idx = np.linspace(0, len(xs) - 1, so_diem).astype(int)
         ra.append([[int(xs[j]), int(ys[j])] for j in idx])
     return ra
+
+
+def diem_goi_y(v: np.ndarray, so_diem: int = 6, toi_da: int = 3) -> list[list[list[int]]]:
+    """Nhóm điểm gợi ý cho SAM: mảng NHÔ trước, rồi mảng GẦN (Otsu độ chênh) như cũ.
+
+    Đo thật 07/10, 7 ảnh: chỉ mảng gần -> vật chính đúng 2/7 (KeyVisual: người + mặt cỏ + cây bút
+    gộp một mảng, điểm rơi vào cây bút -> 0 vật). Mảng nhô (top-hat ô 1/2) bắt được người đứng
+    trên đất gần, nhưng BỎ SÓT vật phẳng to hơn ô (ảnh cắt dán lớn) -> giữ cả mảng gần phía sau.
+    Gộp: 5/7 đúng vật chính. Trùng nhau thì `tach_lop` bỏ."""
+    if float(v.max() - v.min()) < 1e-6:
+        return []
+    h, w = v.shape
+    k = max(1, int(min(h, w) * 0.004))
+
+    def lam_min(m):
+        return ndi.binary_closing(ndi.binary_opening(m, iterations=k), iterations=int(k * 1.6) + 1)
+
+    ra = []
+    th = do_nho(v)
+    if float(th.max()) >= 1e-3:
+        ra += _mang(lam_min(th > otsu(th / th.max()) * th.max()), v, so_diem, toi_da, 0.01)
+    return ra + _mang(lam_min(v > otsu(v)), v, so_diem, toi_da, 0.015)
 
 
 def do_chenh(z: np.ndarray) -> np.ndarray:
@@ -123,6 +151,8 @@ def tach_lop(rgb, z, sam=None, va_nen=None, uoc_do_sau=None, toi_da: int = 3) ->
         vat.append((m, float(np.median(z[m]))))
         co += [c for c, xau in (("diem_sam_thap", sc < DIEM_SAM_CHAC), ("mep_yeu", b < MEP_CHAC))
                if xau and c not in co]
+        if len(vat) >= toi_da:
+            break
     if not vat:
         return KetQuaTach([], rgb, z, ["khong_tach_duoc_vat"])
     return _va(rgb, z, vat, co, va_nen, uoc_do_sau)

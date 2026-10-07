@@ -199,3 +199,20 @@ def test_tho_giu_cong_de_start_all_biet_da_chay_va_khong_bat_trung():
             pass                                              # Test-Cong của start-all nối được
     finally:
         giu.close()
+
+
+def test_khung_luu_theo_viec_va_mac_dinh_16_9(c, tmp_path):
+    hd = HangDoi(tmp_path / "collage" / "hang_doi.db")
+    ma = _gui(c, dict(CH, khung="4:5")).json()["id"]
+    assert json.loads(hd.doc(ma)["chuoi"])["khung"] == "4:5"
+    ma = _gui(c).json()["id"]
+    assert json.loads(hd.doc(ma)["chuoi"])["khung"] == "16:9"
+    assert _gui(c, dict(CH, khung="21:9")).status_code == 400
+    assert c.get("/api/bang").json()["khung"] == {"16:9": "Ngang 16:9", "4:5": "Dọc 4:5", "9:16": "Đứng 9:16"}
+    assert c.get("/api/viec", headers=AI).json()["viec"][0]["khung"] == "16:9"
+
+
+def test_bang_khung_khop_bo_dung():
+    pytest.importorskip("torch")
+    from autoedit.collage import mau
+    assert set(vapp.KHUNG) == set(mau.KHUNG)

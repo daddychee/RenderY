@@ -232,6 +232,7 @@ def _ghi_video(ds, ra: Path, fps: int, thiet_bi, ffmpeg: str) -> Path:
 
 # ═══════ CHUỖI 2–3 ảnh -> MỘT video (tool VOX riêng, user chốt 07/10/2026) ══════════
 NOI = ("lia_len", "lia_ngang", "cat")
+KHUNG = {"16:9": (1920, 1080), "4:5": (1080, 1350), "9:16": (1080, 1920)}   # user chốt 07/10
 MAU_ANH = ("chieu_sau", "popup")
 
 
@@ -352,7 +353,8 @@ def dung_chuoi(ds: list[dict], noi: list[str], ra: Path, kho_tach, W: int = 1920
         rgb = doc_anh_khung(x["anh"], W, H)
         if x.get("mau") == "popup":
             d = x.get("diem") or None
-            ds_canh.append(_canh_popup(rgb, bam_anh(Path(x["anh"])), nhan_anh(x["anh"]), kho_tach,
+            # bản tách làm trên ảnh ĐÃ CẮT KHUNG -> dấu băm kèm khung: đổi khung thì tách lại
+            ds_canh.append(_canh_popup(rgb, f"{bam_anh(Path(x['anh']))}@{W}x{H}", nhan_anh(x["anh"]), kho_tach,
                                        diem_pixel(d, rgb.shape[1], rgb.shape[0]) if d else None, d,
                                        W, H, uoc, tach_lop, tach_theo_diem))
         else:

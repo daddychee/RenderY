@@ -199,3 +199,39 @@ def test_hang_doi_cu_chua_co_cot_chuoi_van_mo_duoc(tmp_path):
     from autoedit.collage.hang_doi import HangDoi
     hd = HangDoi(p)
     assert json.loads(hd.doc(hd.tao(nguoi="an", model="VOX-chuoi", giay=1, cd="", anh="a", nhan=""))["chuoi"]) == {}
+
+
+# ═══════ khung chọn được (user chốt 07/10: ô chọn 16:9 / 4:5 / 9:16) ═════════════════
+def test_bang_khung():
+    assert mau.KHUNG == {"16:9": (1920, 1080), "4:5": (1080, 1350), "9:16": (1080, 1920)}
+
+
+def test_tho_dung_dung_khung_cua_viec(tmp_path, monkeypatch):
+    from autoedit.collage import tho
+    goi = []
+    monkeypatch.setattr(mau, "dung_chuoi", lambda ds, noi, ra, kt, **k: goi.append((k.get("W"), k.get("H"))))
+    for khung, ra in (("4:5", (1080, 1350)), (None, (1920, 1080))):
+        ch = {"anh": [{"anh": "a.png", "giay": 2.0, "mau": "chieu_sau", "cd": ""}], "noi": []}
+        if khung:
+            ch["khung"] = khung
+        tho.dung_mac_dinh({"id": "vox-1", "model": "VOX-chuoi", "anh": str(tmp_path / "a.png"), "giay": 2,
+                           "cd": "", "nhan": "", "chuoi": json.dumps(ch)}, goc=tmp_path / "collage")
+        assert goi[-1] == ra, "việc cũ không có khung -> 16:9 như trước"
+
+
+@pytest.mark.skipif(not CO_FFMPEG, reason="máy không có ffmpeg")
+def test_doi_khung_thi_tach_lai_cung_khung_thi_dung_lai(tmp_path):
+    """Bản tách làm trên ảnh ĐÃ CẮT KHUNG: đổi khung mà dùng lại mask cũ là lệch cỡ."""
+    from autoedit.collage.kho_tach import KhoTach
+    kt = KhoTach(tmp_path / "collage")
+    a = _anh(tmp_path, "a.png", 0, w=320, h=400)
+    goi = []
+
+    def tach_gia(rgb, z, **k):
+        goi.append(rgb.shape[:2])
+        return tach.KetQuaTach([], rgb, z, ["khong_tach_duoc_vat"])
+
+    ds = [{"anh": str(a), "giay": 0.5, "mau": "popup", "cd": ""}]
+    for W_, H_ in ((160, 90), (72, 90), (72, 90)):
+        mau.dung_chuoi(ds, [], tmp_path / "ra.mp4", kt, W=W_, H=H_, fps=12, uoc_do_sau=do_sau_gia, tach_lop=tach_gia)
+    assert goi == [(180, 320), (400, 320)], f"tách lại khi đổi khung, dùng lại khi giữ khung: {goi}"
