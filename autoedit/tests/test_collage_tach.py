@@ -61,6 +61,23 @@ def test_loai_mask_qua_nho_qua_lon_hoac_diem_sam_thap():
     assert not tach.hop_le(vua, 0.3, v), "SAM tự chấm thấp"
 
 
+def test_loai_mask_manh_nhu_vanh_cung():
+    """Đo thật 07/10 (quả cam khung 9:16): SAM ra VÀNH VỎ cam hình cung — mép gãy độ sâu rõ nên thắng,
+    bật lên một mình thành vệt cong lơ lửng. Đo 8 ảnh: mảnh sai dày 0,040 (vành) / 0,063 (dải biển),
+    vật đúng mỏng nhất 0,104 -> loại dưới 0,08 (bề dày lớn nhất / cạnh dài hộp bao)."""
+    h, w = 120, 200
+    yy, xx = np.mgrid[0:h, 0:w]
+    r = np.hypot(yy - 110, xx - 100)
+    cung = (r > 70) & (r < 76) & (yy < 105)                     # vành cung dày 6 px, dài ~150 px
+    v = np.zeros((h, w), np.float32)
+    v[cung] = 0.9
+    assert tach.buoc_mep(cung, v) > tach.BUOC_MEP_TOI_THIEU, "mép rõ — chỉ luật độ dày mới chặn được"
+    assert not tach.hop_le(cung, 0.9, v)
+    nguoi = _vat(y0=20, y1=110, x0=90, x1=115)                  # người đứng: dày 12,5 / dài 90 = 0,14
+    v2 = np.zeros((h, w), np.float32); v2[nguoi] = 0.9
+    assert tach.hop_le(nguoi, 0.9, v2)
+
+
 def test_lam_sach_lap_lo_va_giu_mang_lon_nhat():
     m = _vat()
     m[60:70, 90:100] = False                            # lỗ giữa

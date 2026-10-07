@@ -39,7 +39,9 @@ KHUNG = {"16:9": "Ngang 16:9", "4:5": "Dọc 4:5", "9:16": "Đứng 9:16"}
 CAMERA = {"": "Tự nhiên (thở nhẹ)", "push_in": "Đẩy vào", "pull_out": "Lùi ra", "tilt_up": "Ngước lên",
           "tilt_down": "Cúi xuống", "truck_left": "Trượt trái", "truck_right": "Trượt phải",
           "track": "Bám theo", "pan_left": "Lia trái", "pan_right": "Lia phải", "arc": "Vòng cung",
-          "orbit": "Quay quanh", "crash_zoom": "Phóng giật", "whip_pan": "Lia vút", "static": "Đứng yên"}
+          "orbit": "Quay quanh", "crash_zoom": "Phóng giật", "static": "Đứng yên"}
+# KHÔNG có "Lia vút" (whip_pan): camera của clip lẻ, cuối clip phản chiếu mép chờ editor cắt che —
+# trong VOX nó nằm cuối video, lộ hình lộn ngược (đo 07/10). Chỗ nối giữa ảnh đã có cú "Lia".
 CO = {"khong_tach_duoc_vat": "Không tách được vật — đang dựng như Chiều sâu",
       "diem_sam_thap": "Máy không chắc đường cắt", "mep_yeu": "Mép vật lẫn với nền"}
 

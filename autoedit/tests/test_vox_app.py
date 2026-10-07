@@ -45,7 +45,9 @@ def _gui(c, ch=CH, anh=None, h=AI):
 def test_bang_ma_khop_bo_dung():
     pytest.importorskip("torch")
     from autoedit.collage import mau
-    assert set(vapp.CAMERA) == set(mau.MA_CAMERA) | {""}
+    # "Lia vút" là camera của CLIP LẺ (cuối clip phản chiếu mép, editor cắt che). Trong VOX nó nằm cuối
+    # video -> lộ hình lộn ngược (đo thật 07/10 việc vox-d6e908530275). Chỗ nối đã có cú "Lia".
+    assert set(vapp.CAMERA) == (set(mau.MA_CAMERA) - {"whip_pan"}) | {""}
     assert set(vapp.NOI) == set(mau.NOI) and set(vapp.MAU) == set(mau.MAU_ANH)
 
 
@@ -75,6 +77,7 @@ def test_gui_chuoi_hai_anh_xep_hang_dung_cau_hinh(c, tmp_path):
     {"anh": [{"giay": 0, "mau": "popup", "cd": ""}] * 2, "noi": ["cat"]},          # 0 giây
     {"anh": [{"giay": 2, "mau": "la", "cd": ""}] * 2, "noi": ["cat"]},             # mẫu lạ
     {"anh": [{"giay": 2, "mau": "popup", "cd": "bay"}] * 2, "noi": ["cat"]},       # camera lạ
+    {"anh": [{"giay": 2, "mau": "popup", "cd": "whip_pan"}] * 2, "noi": ["cat"]},  # lia vút: lộ phản chiếu cuối video
     {"anh": [{"giay": 2, "mau": "popup", "cd": ""}] * 2, "noi": ["xoay"]},         # nối lạ
 ])
 def test_cau_hinh_sai_bi_chan(c, sai):

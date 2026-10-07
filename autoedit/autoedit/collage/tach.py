@@ -66,12 +66,25 @@ def cham_bien(m: np.ndarray, le: int = 2) -> dict:
             "tren": bool(m[:le].any()), "duoi": bool(m[-le:].any())}
 
 
+DAY_TOI_THIEU = 0.08               # bề dày / cạnh dài: vành cung 0,040, dải biển 0,063, vật đúng >= 0,104
+
+
+def do_day(m: np.ndarray) -> float:
+    """Bề dày lớn nhất (khoảng cách tới mép) chia cạnh dài hộp bao — vành, que, dải mỏng thì nhỏ."""
+    ys, xs = np.nonzero(m)
+    if not len(ys):
+        return 0.0
+    return float(ndi.distance_transform_edt(m).max()) / max(np.ptp(ys) + 1, np.ptp(xs) + 1)
+
+
 def hop_le(m: np.ndarray, diem_sam: float, v: np.ndarray) -> bool:
     phu = float(m.mean())
     b = cham_bien(m)
     if not (0.01 < phu < 0.6) or diem_sam <= 0.5:
         return False
     if (b["trai"] and b["phai"]) or (b["tren"] and b["duoi"]):      # mặt phẳng nền trải ngang/dọc khung
+        return False
+    if do_day(m) < DAY_TOI_THIEU:                                    # vành vỏ cam / dải biển (đo 07/10)
         return False
     return buoc_mep(m, v) > BUOC_MEP_TOI_THIEU
 
