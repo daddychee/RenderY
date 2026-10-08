@@ -28,14 +28,16 @@ def nen_luoi(h: int, w: int) -> np.ndarray:
 
 
 def vien_giay(rgb, a, seed: int = 0, s: float = 1.0):
-    """Viền giấy kem răng cưa ~7 px + bóng đổ lệch (12, 9) mờ 9 (bản collage đã duyệt). `s`: px nguồn
-    cho mỗi px xuất. Trả (màu alpha THẲNG, alpha)."""
+    """Viền trắng kiểu STICKER ~7 px + bóng đổ lệch (12, 9) mờ 9. User chốt 08/10 (ảnh Non-Grid nhóm CIA):
+    viền giấy xé cộng nhiễu ±2,2 px trông nham nhở -> "tròn liền khối": dày ĐỀU, mép ngoài TRÒN TRƠN (làm mượt
+    trường khoảng cách), khe hẹp hơn 2 lần viền lấp liền. `s`: px nguồn cho mỗi px xuất; `seed` giữ để tương
+    thích lời gọi cũ. Trả (màu alpha THẲNG, alpha)."""
     a = np.asarray(a, np.float32)
-    r = np.random.default_rng(seed)
-    nhieu = ndi.gaussian_filter(r.normal(0, 1, a.shape).astype(np.float32), 3 * s)
-    nhieu /= nhieu.std() + 1e-6
-    xa = ndi.distance_transform_edt(a < 0.5)
-    v = np.clip(7 * s + 2.2 * s * nhieu - xa, 0, 1)
+    R = 7 * s
+    trong = a >= 0.5
+    kc = (ndi.distance_transform_edt(~trong) - ndi.distance_transform_edt(trong)).astype(np.float32)  # >0: ngoài vật
+    kc = ndi.gaussian_filter(kc, 0.35 * R)                             # bo tròn đường viền, mất bậc thang
+    v = np.clip((R - kc) / max(s, 1e-3) + 0.5, 0, 1)                    # mép ngoài mềm ~1 px xuất
     # dịch KHÔNG cuộn vòng: đo thật 07/10 np.roll đẩy bóng tảng đá sát đáy lên tận mép trên -> hộp bao
     # lớp phủ cả khung, camera Black Grid không còn cú nào
     mo, dy, dx = ndi.gaussian_filter(v, 9 * s), round(9 * s), round(12 * s)

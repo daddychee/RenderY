@@ -522,13 +522,8 @@ def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed
     f = min(3, math.ceil(mag * 1.6)) if mag * 1.6 > 1.2 else 1
     ds = [(c, *_lam_muot(m, a, f, tron=max(1.0, 1.6 / mag), mem=max(0.6, 1.0 / mag)))
           for c, m, a in ds if (a > 0.01).any()]
-    if f > 1:
-        import torch
-        t = torch.nn.functional.interpolate(torch.from_numpy(np.ascontiguousarray(nen4.transpose(2, 0, 1)))[None],
-                                            scale_factor=f, mode="bicubic", align_corners=False)[0]
-        nen4 = np.clip(t.permute(1, 2, 0).numpy(), 0, 1)
     ds = [(_dai_giay_chu(m, a) if style != "collage" and chu.get(c) else (m, a)) for c, m, a in ds]
-    PH, PW = nen4.shape[:2]
+    PH, PW = nen4.shape[0] * f, nen4.shape[1] * f
     masks = [a > 0.01 for _, a in ds]
     zs, lo_lung = _z_theo_vai(masks, PW, PH, W, H)
     zs = sorted(zs, reverse=True)                                # dưới cùng xa nhất -> trên cùng gần nhất
@@ -537,9 +532,14 @@ def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed
     else:
         nen = np.ascontiguousarray(nen4[..., :3])
         lo = nen4[..., 3] < 0.5
-        if lo.any():                                             # team chưa vẽ kín nền sau khối -> vá
+        if lo.any():  # team chưa vẽ kín nền sau khối -> vá, ở cỡ GỐC (đo 08/10: vá ở cỡ đã phóng 3 lần LaMa đòi 29,7 GB)
             lo = ndi.binary_dilation(lo, iterations=2)
             nen = np.where(lo[..., None], np.asarray(va_nen(nen, lo), np.float32), nen)
+        if f > 1:
+            import torch
+            t = torch.nn.functional.interpolate(torch.from_numpy(np.ascontiguousarray(nen.transpose(2, 0, 1)))[None],
+                                                scale_factor=f, mode="bicubic", align_corners=False)[0]
+            nen = np.ascontiguousarray(np.clip(t.permute(1, 2, 0).numpy(), 0, 1))
     return _ghep_canh(nen, np.full((PH, PW), 40.0, np.float32), ds, masks, zs, lo_lung, giay, style, W, H, seed)
 
 

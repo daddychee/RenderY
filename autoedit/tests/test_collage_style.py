@@ -161,9 +161,11 @@ def test_psd_nen_trong_duoc_va(tmp_path):
         return a * 0 + 0.5
 
     canh, _ = mau._canh_psd(_psd_canh(tmp_path, lo_nen=True), [1, 2], 3.0, "non_grid", W, H, va_nen=va, seed=0)
+    # vá ở độ phân giải GỐC rồi mới phóng — đo thật 08/10: vá sau khi phóng 3 lần (3840x2160) LaMa đòi 29,7 GB, chết
+    assert vao and vao[0].shape == (H, W), "LaMa chạy ở cỡ PSD gốc, không ở cỡ đã phóng"
+    assert vao[0][80, 90] and not vao[0][10, 10], "chỉ vá đúng chỗ nền trống"
     k = canh.PW // W                                                 # PSD nhỏ được phóng trước khi dựng
-    assert vao and vao[0][80 * k, 90 * k] and not vao[0][10 * k, 10 * k], "chỉ vá đúng chỗ nền trống"
-    assert np.allclose(canh.nen[80 * k, 90 * k], 0.5)
+    assert np.allclose(canh.nen[80 * k, 90 * k], 0.5, atol=0.02)
 
 
 @pytest.mark.skipif(not CO_FFMPEG, reason="máy không có ffmpeg")
@@ -256,3 +258,53 @@ def test_psd_nho_phong_len_mep_khong_rang_cua():
 def test_psd_do_phan_giai_thap_duoc_phong_truoc_khi_dung(tmp_path):
     canh, _ = mau._canh_psd(_psd_canh(tmp_path), [1, 2], 3.0, "collage", W, H, va_nen=lambda a, m: a, seed=0)
     assert canh.PW == 2 * W, "PSD cỡ bằng khung xuất (phóng tới 1,15 x 1,6) -> làm việc ở 2 lần"
+
+
+# ═══════ viền trắng kiểu sticker: tròn, liền khối, dày đều (user chốt 08/10) ═════════════════════════
+def _do_day_vien(al_vien: np.ndarray, a: np.ndarray, buoc: int = 6) -> list[float]:
+    """Độ dày viền đo theo nhiều hướng từ tâm vật: từ mép vật (a>=0,5) tới mép viền (alpha>=0,5)."""
+    cy, cx = (np.array(np.nonzero(a >= 0.5)).mean(1))
+    ra = []
+    for goc in np.arange(0, 360, buoc):
+        dy, dx = np.sin(np.radians(goc)), np.cos(np.radians(goc))
+        r = np.arange(0, 200, 0.25)
+        ys, xs = (cy + r * dy).astype(int), (cx + r * dx).astype(int)
+        ok = (ys >= 0) & (ys < a.shape[0]) & (xs >= 0) & (xs < a.shape[1])
+        ys, xs, r = ys[ok], xs[ok], r[ok]
+        vat, vien = a[ys, xs] >= 0.5, al_vien[ys, xs] >= 0.5
+        if vat.any() and vien.any():
+            ra.append(r[np.nonzero(vien)[0].max()] - r[np.nonzero(vat)[0].max()])
+    return ra
+
+
+def test_vien_trang_day_deu_khong_nham_nho():
+    """User 08/10 (ảnh Non-Grid nhóm CIA): viền trắng nham nhở — viền cộng nhiễu ±2,2 px giả giấy xé.
+    Muốn viền tròn liền khối: dày ĐỀU quanh vật, không phụ thuộc hạt ngẫu nhiên."""
+    yy, xx = np.mgrid[0:120, 0:120]
+    a = (((yy - 60) ** 2 + (xx - 60) ** 2) < 30 ** 2).astype(np.float32)
+    rgb = np.zeros((120, 120, 3), np.float32)
+    _, al1 = phong.vien_giay(rgb, a, seed=1)
+    _, al2 = phong.vien_giay(rgb, a, seed=7)
+    vien1 = np.where(a < 0.5, al1, 0)
+    day = _do_day_vien(vien1, a)
+    assert np.std(day) < 0.8 and 5.5 < np.mean(day) < 8.5, f"dày {np.mean(day):.1f} ± {np.std(day):.2f} px"
+    assert np.abs(al1 - al2).max() < 1e-6, "viền không phụ thuộc hạt ngẫu nhiên"
+
+
+def test_vien_trang_lien_khoi_lap_khe_hep():
+    """Hai phần vật cách khe 6 px (như tay và súng): viền lấp kín khe thành một mảng liền."""
+    a = np.zeros((80, 120), np.float32)
+    a[20:60, 20:57] = 1
+    a[20:60, 63:100] = 1
+    _, al = phong.vien_giay(np.zeros((80, 120, 3), np.float32), a, seed=1)
+    assert al[40, 60] > 0.95, "khe hẹp giữa hai phần được viền lấp liền"
+
+
+def test_vien_trang_mep_ngoai_tron_khong_bac_thang():
+    """Vật có mép chéo bậc thang (cắt độ phân giải thấp): mép ngoài của viền phải trơn."""
+    n = 90
+    yy, xx = np.mgrid[0:n, 0:n]
+    a = (xx > (0.6 * yy).astype(int) * 1.0 + 30).astype(np.float32)   # bậc thang 1 px
+    _, al = phong.vien_giay(np.zeros((n, n, 3), np.float32), a, seed=1)
+    ngoai = 1 - al                                                     # mép ngoài viền = nơi al cắt 0,5
+    assert _bac_thang(1 - ngoai[10:-10]) < 0.2
