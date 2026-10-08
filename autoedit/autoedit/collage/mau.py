@@ -483,6 +483,29 @@ def _dai_giay_chu(mau_, a):
     return giay_mau * (1 - a[..., None]) + mau_ * a[..., None], al
 
 
+def _lam_muot(mau_, a, f: int, tron: float = 1.0, mem: float = 0.6):
+    """Mép lớp TRÒN + FEATHER (như Smooth + Feather của Select and Mask). User báo 08/10: PSD PayPal 1280 px ở
+    Collage art viền răng cưa rất nhiều — alpha sắc cạnh bị phóng ~2,8 lần bằng nội suy tuyến tính thành bậc thang;
+    user: "tạo feather cho lớp cắt viền để trông tròn gọn và mượt".
+    1) kéo màu mép lan vào vùng trong suốt (phóng không ám màu rác) · 2) phóng bicubic f lần ·
+    3) SMOOTH: làm mượt hình `tron` px gốc (đường biên tròn đều) rồi kéo alpha lại chỉ còn FEATHER `mem` px gốc.
+    Đo mép chéo 08/10: chỉ feather 0,6 px -> bậc thang 0,69 -> 0,41 px và mép nhoè 7 px; smooth 1 + feather 0,6
+    -> 0,24 px, mép 5 px (phóng 3 lần)."""
+    import torch
+    from scipy import ndimage as ndi
+
+    if (a < 0.5).any() and (a >= 0.5).any():
+        iy, ix = ndi.distance_transform_edt(a < 0.5, return_distances=False, return_indices=True)
+        mau_ = mau_[iy, ix]
+    if f > 1:
+        t = torch.from_numpy(np.ascontiguousarray(np.dstack([mau_, a]).transpose(2, 0, 1)))[None]
+        t = torch.nn.functional.interpolate(t, scale_factor=f, mode="bicubic", align_corners=False)[0]
+        mau_, a = t[:3].permute(1, 2, 0).numpy(), t[3].numpy()
+    a = ndi.gaussian_filter(np.clip(a, 0, 1).astype(np.float32), tron * f)
+    a = (a - 0.5) * (tron / mem) + 0.5                       # đường 0,5 giữ nguyên chỗ, mép thu về độ rộng feather
+    return np.ascontiguousarray(np.clip(mau_, 0, 1), np.float32), np.clip(a, 0, 1)
+
+
 def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed: int):
     """Ảnh PSD (user chốt 08/10): lớp = layer NGƯỜI cắt (alpha mềm, phần bị che đã vẽ đủ) — không máy cắt,
     không vẽ bù. Gần/xa theo THỨ TỰ XẾP CHỒNG của PSD (layer trên = gần); luật vai trò chỉ chia các mức Z."""
@@ -493,8 +516,18 @@ def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed
 
     chu = {x["chi_so"]: x.get("chu") for x in mpsd.doc(duong)["lop"]}
     nen4, ds = mpsd.tach(duong, chon, W, H, rong_max=2 * W)
-    ds = [(_dai_giay_chu(m, a) if style != "collage" and chu.get(c) else (m, a)) for c, m, a in ds
-          if (a > 0.01).any()]
+    # PSD nhỏ hơn mức camera phóng tới (1,15 x 1,6) -> làm việc ở f lần (tối đa 3); smooth/feather tính theo px
+    # XUẤT (>= 1,6 / 1 px) để PSD to hay nhỏ đều mượt như nhau
+    mag = W * ZOOM / nen4.shape[1]
+    f = min(3, math.ceil(mag * 1.6)) if mag * 1.6 > 1.2 else 1
+    ds = [(c, *_lam_muot(m, a, f, tron=max(1.0, 1.6 / mag), mem=max(0.6, 1.0 / mag)))
+          for c, m, a in ds if (a > 0.01).any()]
+    if f > 1:
+        import torch
+        t = torch.nn.functional.interpolate(torch.from_numpy(np.ascontiguousarray(nen4.transpose(2, 0, 1)))[None],
+                                            scale_factor=f, mode="bicubic", align_corners=False)[0]
+        nen4 = np.clip(t.permute(1, 2, 0).numpy(), 0, 1)
+    ds = [(_dai_giay_chu(m, a) if style != "collage" and chu.get(c) else (m, a)) for c, m, a in ds]
     PH, PW = nen4.shape[:2]
     masks = [a > 0.01 for _, a in ds]
     zs, lo_lung = _z_theo_vai(masks, PW, PH, W, H)

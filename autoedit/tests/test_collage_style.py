@@ -161,8 +161,9 @@ def test_psd_nen_trong_duoc_va(tmp_path):
         return a * 0 + 0.5
 
     canh, _ = mau._canh_psd(_psd_canh(tmp_path, lo_nen=True), [1, 2], 3.0, "non_grid", W, H, va_nen=va, seed=0)
-    assert vao and vao[0][80, 90] and not vao[0][10, 10], "chỉ vá đúng chỗ nền trống"
-    assert np.allclose(canh.nen[80, 90], 0.5)
+    k = canh.PW // W                                                 # PSD nhỏ được phóng trước khi dựng
+    assert vao and vao[0][80 * k, 90 * k] and not vao[0][10 * k, 10 * k], "chỉ vá đúng chỗ nền trống"
+    assert np.allclose(canh.nen[80 * k, 90 * k], 0.5)
 
 
 @pytest.mark.skipif(not CO_FFMPEG, reason="máy không có ffmpeg")
@@ -218,3 +219,40 @@ def test_psd_layer_chu_dan_dai_giay_o_style_vox_khong_o_collage(tmp_path, monkey
     goi.clear()
     mau._canh_psd(duong, [1, 2], 3.0, "collage", W, H, va_nen=lambda a, m: a, seed=0)
     assert not goi, "Collage art không có giấy"
+
+
+def _bac_thang(a: np.ndarray) -> float:
+    """Độ răng cưa của mép chéo: mỗi hàng lấy vị trí alpha cắt 0,5 (nội suy), lệch khỏi đường thẳng khớp nhất."""
+    x = []
+    for hang in a:
+        i = int(np.argmax(hang >= 0.5))
+        x.append(i - 1 + (0.5 - hang[i - 1]) / max(hang[i] - hang[i - 1], 1e-6) if 0 < i else np.nan)
+    y = np.arange(len(x), dtype=np.float64)
+    x = np.asarray(x)
+    ok = ~np.isnan(x)
+    k = np.polyfit(y[ok], x[ok], 1)
+    return float(np.sqrt(np.mean((x[ok] - np.polyval(k, y[ok])) ** 2)))
+
+
+def test_psd_nho_phong_len_mep_khong_rang_cua():
+    """User báo 08/10 (PSD PayPal 1280 px, Collage art): viền răng cưa rất nhiều — alpha sắc cạnh 1280 px bị
+    phóng ~2,8 lần chỉ bằng nội suy tuyến tính -> mỗi điểm ảnh gốc thành một bậc thang. Mép phải đều."""
+    import torch
+    n = 48
+    yy, xx = np.mgrid[0:n, 0:n]
+    a = (xx > 0.6 * yy + 8).astype(np.float32)                     # mép chéo sắc cạnh
+    rgb = np.zeros((n, n, 3), np.float32)
+    rgb[a > 0] = (0.9, 0.1, 0.1)                                     # ngoài vật: màu RÁC đen
+    thuong = torch.nn.functional.interpolate(torch.from_numpy(a)[None, None], scale_factor=3, mode="bilinear",
+                                             align_corners=False)[0, 0].numpy()
+    m3, a3 = mau._lam_muot(rgb, a, 3)
+    assert a3.shape == (3 * n, 3 * n) and m3.shape == (3 * n, 3 * n, 3)
+    cu, moi = _bac_thang(thuong[6:-6]), _bac_thang(a3[6:-6])
+    assert moi < 0.5 * cu, f"bậc thang {cu:.2f} px -> {moi:.2f} px"
+    vien = (a3 > 0.1) & (a3 < 0.9)
+    assert m3[vien][:, 0].min() > 0.8, "mép không ám màu rác đen của vùng trong suốt"
+
+
+def test_psd_do_phan_giai_thap_duoc_phong_truoc_khi_dung(tmp_path):
+    canh, _ = mau._canh_psd(_psd_canh(tmp_path), [1, 2], 3.0, "collage", W, H, va_nen=lambda a, m: a, seed=0)
+    assert canh.PW == 2 * W, "PSD cỡ bằng khung xuất (phóng tới 1,15 x 1,6) -> làm việc ở 2 lần"
