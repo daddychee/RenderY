@@ -106,7 +106,9 @@ video{width:100%;border-radius:7px;background:#000;display:block}
 .lop button:hover{color:var(--bad)}
 #baoLop{font-size:13px;color:var(--muted)}
 #san.psd{cursor:default}
-.canh-bao{color:#e0a800;font-size:12.5px;margin:6px 0 0;line-height:1.45}
+.canh-bao{color:var(--bad);background:var(--bad-soft);font-size:13px;font-weight:600;margin:0 0 8px;
+  line-height:1.45;border-radius:6px;padding:6px 10px}
+.anh > .canh-bao{grid-column:1/-1;margin:0}
 .o-psd{position:absolute;border:2px solid var(--accent);background:rgba(80,140,255,.15);pointer-events:none;border-radius:3px}
 .khoi-psd{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;
   font-size:12.5px;background:var(--bg);cursor:pointer}
@@ -208,6 +210,10 @@ function veChuoi(){
   g.textContent = "";
   CHUOI.forEach(function(o, i){
     var hop = el("div", "anh");
+    var sao = khoiConSao(o);                       /* user báo 08/10: cảnh báo nhỏ dưới ô bị lướt qua -> đỏ, TRÊN ô */
+    if(sao.length) hop.appendChild(el("p", "canh-bao", "⚠ Nền PSD còn chứa " + sao.length + " khối đang chọn (" +
+      sao.map(function(x){ return x.ten; }).join(", ") + ") — video sẽ lộ 2 bản. Xoá chúng khỏi layer nền trong " +
+      "Photoshop rồi thả lại file."));
     var tha = el("div", "tha");
     tha.appendChild(el("span", "so", "Ảnh " + (i + 1)));
     if(o.url){ var im = el("img"); im.src = o.url; im.alt = "ảnh " + (i + 1); tha.appendChild(im); }
@@ -240,9 +246,6 @@ function veChuoi(){
       t.appendChild(b);
     }
     hop.appendChild(t);
-    var sao = khoiConSao(o);
-    if(sao.length) hop.appendChild(el("p", "canh-bao", "⚠ Nền còn chứa " + sao.length +
-      " khối đang chọn — xoá chúng khỏi layer nền trong Photoshop rồi thả lại, không thì video lộ 2 bản."));
     g.appendChild(hop);
   });
   capNhat();
@@ -312,6 +315,12 @@ function capNhat(){
 function bao(chu, loi){ var b = document.getElementById("bao"); b.textContent = chu; b.className = loi ? "loi" : ""; }
 
 async function dung(){
+  var sao = CHUOI.map(function(o, i){
+    var k = khoiConSao(o);
+    return k.length ? "ảnh " + (i + 1) + ": " + k.map(function(x){ return x.ten; }).join(", ") : "";
+  }).filter(Boolean);
+  if(sao.length && !window.confirm("Nền PSD còn chứa khối đang chọn (" + sao.join("; ") + ") — khối sẽ bay đè lên " +
+    "chính nó, video lộ 2 bản. Vẫn dựng?")) return;
   var n = document.getElementById("dung");
   n.disabled = true; bao("Đang gửi…");
   var fd = new FormData();

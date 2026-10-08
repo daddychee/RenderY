@@ -246,7 +246,27 @@ def test_psd_nen_con_chua_khoi_thi_canh_bao_xoa_trong_photoshop(chrome, may, tmp
     with pg.expect_file_chooser() as fc:
         pg.click(".tha >> nth=0")
     fc.value.set_files(str(f))
-    pg.wait_for_function("document.querySelector('.anh').innerText.indexOf('Nền còn chứa') >= 0", timeout=15000)
+    pg.wait_for_function("document.querySelector('.anh').innerText.indexOf('Nền PSD còn chứa') >= 0", timeout=15000)
+    # user báo 08/10: cảnh báo vàng nhỏ dưới ô bị lướt qua -> ĐỎ, nằm TRÊN ô ảnh
+    vi_tri = pg.evaluate("""() => { const c = document.querySelector('.anh .canh-bao'), t = document.querySelector('.anh .tha');
+        return [getComputedStyle(c).color, c.getBoundingClientRect().bottom <= t.getBoundingClientRect().top + 1]; }""")
+    assert vi_tri[1], "cảnh báo nằm trên ô ảnh"
+    r, g, b_ = (int(v) for v in vi_tri[0][vi_tri[0].index("(") + 1:vi_tri[0].index(")")].split(",")[:3])
+    assert r > 180 and g < 120 and b_ < 120, f"cảnh báo màu đỏ, ra {vi_tri[0]}"
+    # bấm Dựng khi nền còn bản sao -> hỏi lại; Huỷ thì không tạo việc, OK thì xếp hàng
+    hoi = []
+    pg.once("dialog", lambda d: (hoi.append(d.message), d.dismiss()))
+    pg.click("#dung")
+    time.sleep(0.5)
+    assert hoi and "Elon" in hoi[0] and "2 bản" in hoi[0], hoi
+    assert not HangDoi(goc / "hang_doi.db").cua("an"), "bấm Huỷ thì không gửi"
+    pg.once("dialog", lambda d: d.accept())
+    pg.click("#dung")
+    assert _cho(lambda: HangDoi(goc / "hang_doi.db").cua("an")), "bấm OK thì vẫn dựng (tool chỉ cảnh báo)"
+    with pg.expect_file_chooser() as fc:                               # thả lại để kiểm hộp chọn lớp
+        pg.click(".tha >> nth=0")
+    fc.value.set_files(str(f))
+    pg.wait_for_function("document.querySelector('.anh').innerText.indexOf('Nền PSD còn chứa') >= 0", timeout=15000)
     pg.click(".chon-lop")
     pg.wait_for_selector("#hop.mo")
     assert "Elon" in pg.inner_text("#baoNen") and "Photoshop" in pg.inner_text("#baoNen")
