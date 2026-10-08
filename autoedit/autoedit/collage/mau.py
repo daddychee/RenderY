@@ -390,9 +390,8 @@ def _canh_style(rgb, khung_lop, giay: float, style: str, W: int, H: int, sam, uo
     """Một ảnh -> (Canh có lớp + nền theo style, kế hoạch biên đạo). Lớp từ KHUNG người chốt."""
     from scipy import ndimage as ndi
 
-    from autoedit.collage import bien_dao, phong
+    from autoedit.collage import phong
     from autoedit.collage import lop as mlop
-    from autoedit.collage.dung import Lop
 
     PH, PW = rgb.shape[:2]
     z = uoc(rgb)
@@ -403,15 +402,7 @@ def _canh_style(rgb, khung_lop, giay: float, style: str, W: int, H: int, sam, uo
     if not masks and style == "black_grid":
         nguon, m = _the_anh(rgb)
         masks = [m]
-    S0 = W / PW * ZOOM
-    tam = []                                                     # hình học thô từ mask -> vai trò -> Z
-    for m in masks:
-        ys, xs = np.nonzero(m)
-        tam.append(bien_dao.Vat(((xs.min() + xs.max() + 1) / 2 - PW / 2) * S0, ((ys.min() + ys.max() + 1) / 2 - PH / 2) * S0,
-                                (xs.max() + 1 - xs.min()) / 2 * S0, (ys.max() + 1 - ys.min()) / 2 * S0, 6.0,
-                                mlop.cham_mep(m), mlop.la_lo_lung(m, masks)))
-    zs = bien_dao.do_sau_theo_vai(tam, bien_dao.vai_tro(tam, W, H)) if masks else []
-    lo_lung = [v.lo_lung for v in tam]
+    zs, lo_lung = _z_theo_vai(masks, PW, PH, W, H)
     masks = mlop.chia_vung(masks, zs) if masks else []
     if style == "black_grid":
         nen, z_nen = phong.nen_luoi(PH, PW), np.full((PH, PW), 40.0, np.float32)
@@ -419,11 +410,38 @@ def _canh_style(rgb, khung_lop, giay: float, style: str, W: int, H: int, sam, uo
         nen, z_nen = mlop.nen_sach(rgb, masks, va_nen), np.full((PH, PW), 40.0, np.float32)
     else:
         nen, z_nen = rgb, z                                      # không lớp: cả ảnh có chiều sâu
+    s = PW / (W * ZOOM)                                          # px nguồn cho mỗi px xuất
+    lop_mau = [(mau_, ndi.gaussian_filter(ndi.binary_dilation(m, iterations=max(1, round(3 * s))).astype(np.float32),
+                                          0.8)) for mau_, m in mlop.ve_bu(nguon, masks, zs, va_nen)]
+    return _ghep_canh(nen, z_nen, lop_mau, masks, zs, lo_lung, giay, style, W, H, seed)
+
+
+def _z_theo_vai(masks, PW: int, PH: int, W: int, H: int):
+    """Hình học thô từ mask -> vai trò -> Z (+ cờ vật lơ lửng)."""
+    from autoedit.collage import bien_dao
+    from autoedit.collage import lop as mlop
+
+    S0 = W / PW * ZOOM
+    tam = []
+    for m in masks:
+        ys, xs = np.nonzero(m)
+        tam.append(bien_dao.Vat(((xs.min() + xs.max() + 1) / 2 - PW / 2) * S0, ((ys.min() + ys.max() + 1) / 2 - PH / 2) * S0,
+                                (xs.max() + 1 - xs.min()) / 2 * S0, (ys.max() + 1 - ys.min()) / 2 * S0, 6.0,
+                                mlop.cham_mep(m), mlop.la_lo_lung(m, masks)))
+    zs = bien_dao.do_sau_theo_vai(tam, bien_dao.vai_tro(tam, W, H)) if masks else []
+    return zs, [v.lo_lung for v in tam]
+
+
+def _ghep_canh(nen, z_nen, lop_mau, masks, zs, lo_lung, giay: float, style: str, W: int, H: int, seed: int):
+    """Nền + (màu, alpha) từng lớp -> Canh (viền giấy cho Black Grid / Non-Grid) + kế hoạch biên đạo."""
+    from autoedit.collage import bien_dao, phong
+    from autoedit.collage import lop as mlop
+    from autoedit.collage.dung import Lop
+
     canh = Canh(nen, z_nen, W, H, zoom=ZOOM)
-    s = 1 / canh.S0                                              # px nguồn cho mỗi px xuất
+    s = 1 / canh.S0
     vats = []
-    for i, ((mau_, m), zz) in enumerate(zip(mlop.ve_bu(nguon, masks, zs, va_nen), zs)):
-        a = ndi.gaussian_filter(ndi.binary_dilation(m, iterations=max(1, round(3 * s))).astype(np.float32), 0.8)
+    for i, ((mau_, a), zz) in enumerate(zip(lop_mau, zs)):
         if style != "collage":
             mau_, a = phong.vien_giay(mau_, a, seed + i, s)
         L = canh.them(Lop(np.dstack([mau_, a]), zz))
@@ -433,6 +451,63 @@ def _canh_style(rgb, khung_lop, giay: float, style: str, W: int, H: int, sam, uo
     for L, an in zip(canh.lop, kh.anims):
         L.anim = an
     return canh, kh
+
+
+def _dai_giay_chu(mau_, a):
+    """Layer CHỮ ở Black Grid / Non-Grid: dán lên MỘT dải giấy liền (kiểu Vox) thay vì viền giấy quanh
+    TỪNG NÉT — đo thật PSD Toyota 08/10: viền từng nét làm chữ nhỏ nhoè, khó đọc. Giấy theo độ tương phản:
+    chữ tối -> giấy kem; chữ SÁNG -> giấy tối (chữ trắng trên giấy kem gần như không đọc được)."""
+    from scipy import ndimage as ndi
+
+    from autoedit.collage import phong
+
+    o = a > 0.3
+    if not o.any():
+        return mau_, a
+    lab, _ = ndi.label(o)
+    cao = float(np.median([sl[0].stop - sl[0].start for sl in ndi.find_objects(lab)]))  # cao một chữ
+    r, le = max(2, round(0.5 * cao)), max(1, round(0.2 * cao))     # lấp khe giữa chữ / lề giấy quanh chữ
+    ys, xs = np.nonzero(o)
+    pad = r + le + 2
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    k = np.pad(o[y0:y1, x0:x1], pad)
+    giay = ndi.binary_dilation(ndi.binary_fill_holes(ndi.binary_closing(k, iterations=r)), iterations=le)
+    vung = np.zeros(a.shape, np.float32)
+    Y0, X0 = y0 - pad, x0 - pad
+    cy0, cx0 = max(0, Y0), max(0, X0)
+    cy1, cx1 = min(a.shape[0], Y0 + giay.shape[0]), min(a.shape[1], X0 + giay.shape[1])
+    vung[cy0:cy1, cx0:cx1] = giay[cy0 - Y0:cy1 - Y0, cx0 - X0:cx1 - X0]
+    al = np.maximum(ndi.gaussian_filter(vung, 0.8), a)
+    sang = float((mau_[o] @ np.float32([0.299, 0.587, 0.114])).mean())
+    giay_mau = np.float32(phong.KEM) if sang < 0.55 else np.float32([0.07, 0.07, 0.08])
+    return giay_mau * (1 - a[..., None]) + mau_ * a[..., None], al
+
+
+def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed: int):
+    """Ảnh PSD (user chốt 08/10): lớp = layer NGƯỜI cắt (alpha mềm, phần bị che đã vẽ đủ) — không máy cắt,
+    không vẽ bù. Gần/xa theo THỨ TỰ XẾP CHỒNG của PSD (layer trên = gần); luật vai trò chỉ chia các mức Z."""
+    from scipy import ndimage as ndi
+
+    from autoedit.collage import phong
+    from autoedit.collage import psd as mpsd
+
+    chu = {x["chi_so"]: x.get("chu") for x in mpsd.doc(duong)["lop"]}
+    nen4, ds = mpsd.tach(duong, chon, W, H, rong_max=2 * W)
+    ds = [(_dai_giay_chu(m, a) if style != "collage" and chu.get(c) else (m, a)) for c, m, a in ds
+          if (a > 0.01).any()]
+    PH, PW = nen4.shape[:2]
+    masks = [a > 0.01 for _, a in ds]
+    zs, lo_lung = _z_theo_vai(masks, PW, PH, W, H)
+    zs = sorted(zs, reverse=True)                                # dưới cùng xa nhất -> trên cùng gần nhất
+    if style == "black_grid":
+        nen = phong.nen_luoi(PH, PW)
+    else:
+        nen = np.ascontiguousarray(nen4[..., :3])
+        lo = nen4[..., 3] < 0.5
+        if lo.any():                                             # team chưa vẽ kín nền sau khối -> vá
+            lo = ndi.binary_dilation(lo, iterations=2)
+            nen = np.where(lo[..., None], np.asarray(va_nen(nen, lo), np.float32), nen)
+    return _ghep_canh(nen, np.full((PH, PW), 40.0, np.float32), ds, masks, zs, lo_lung, giay, style, W, H, seed)
 
 
 def _dich_style(canh, cam_cua, t: float, dt: float) -> float:
@@ -454,7 +529,7 @@ def _dich_style(canh, cam_cua, t: float, dt: float) -> float:
 
 def dung_style(ds: list[dict], ra: Path, W: int = 1920, H: int = 1080, style: str = "collage", sam=None,
                uoc_do_sau=None, va_nen=None, thiet_bi: str | None = None, ffmpeg: str = "ffmpeg") -> Path:
-    """ds = [{anh, giay, khung_lop: [[x0,y0,x1,y1] tỉ lệ 0..1]}] -> MỘT mp4. Máy tự biên đạo nhịp +
+    """ds = [{anh, giay, khung_lop: [[x0,y0,x1,y1] tỉ lệ 0..1] | psd_lop: [chỉ số khối PSD]}] -> MỘT mp4. Máy tự biên đạo nhịp +
     camera (bien_dao), tự chọn cú nối (khung ngang: lia ngang; khung dọc: lia lên)."""
     from autoedit.collage import phong, tach
 
@@ -464,7 +539,8 @@ def dung_style(ds: list[dict], ra: Path, W: int = 1920, H: int = 1080, style: st
     uoc = uoc_do_sau or globals()["uoc_do_sau"]
     va = va_nen or tach.va_nen_lama
     giay = [float(x["giay"]) for x in ds]
-    cap = [_canh_style(doc_anh_khung(x["anh"], W, H), x.get("khung_lop"), g, style, W, H, sam, uoc, va, 10 * i)
+    cap = [_canh_psd(x["anh"], x["psd_lop"], g, style, W, H, va, 10 * i) if x.get("psd_lop") else
+           _canh_style(doc_anh_khung(x["anh"], W, H), x.get("khung_lop"), g, style, W, H, sam, uoc, va, 10 * i)
            for i, (x, g) in enumerate(zip(ds, giay))]
     ds_canh = [c for c, _ in cap]
     noi = ["lia_ngang" if W >= H else "lia_len"] * (len(ds) - 1)

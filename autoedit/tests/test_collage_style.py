@@ -117,3 +117,104 @@ def test_bong_do_khong_cuon_sang_mep_doi_dien():
     b[10:50, 60:] = 1                                       # vật chạm mép phải
     _, al = phong.vien_giay(np.zeros((80, 80, 3), np.float32), b, seed=1)
     assert al[:, :20].max() < 0.01, "mép trái không được có bóng"
+
+
+# ═══════ nhập PSD: dùng THẲNG layer người cắt (user chốt 08/10) ══════════════════════════════════════
+def _psd_canh(tmp_path, lo_nen=False):
+    """Canvas 192x108 từ dưới lên: Nen · 'Chu' (dải cao giữa trời — luật vai trò xếp 'rơi', GẦN) ·
+    'De' (khối to chạm đáy — luật vai trò xếp 'đế', XA). PSD bảo De nằm TRÊN Chu -> De phải gần hơn."""
+    pytest.importorskip("psd_tools")
+    from PIL import Image
+    from psd_tools import PSDImage
+    from psd_tools.api.layers import PixelLayer
+
+    p = PSDImage.new("RGB", (W, H), color=(0, 0, 0))
+    nen = Image.new("RGBA", (W, H), (40, 80, 160, 255))
+    if lo_nen:
+        nen.paste((0, 0, 0, 0), (60, 60, 130, 108))
+    p.append(PixelLayer.frompil(nen, p, "Nen", 0, 0))
+    p.append(PixelLayer.frompil(Image.new("RGBA", (90, 14), (250, 250, 250, 255)), p, "Chu", 4, 50))
+    p.append(PixelLayer.frompil(Image.new("RGBA", (110, 50), (200, 40, 40, 255)), p, "De", 58, 40))
+    duong = tmp_path / "a.psd"
+    p.save(str(duong))
+    return duong
+
+
+class _SamCam:
+    """Nhánh PSD KHÔNG được gọi máy cắt."""
+
+    def __getattr__(self, ten):
+        raise AssertionError(f"nhánh PSD gọi máy cắt: {ten}")
+
+
+def test_psd_lop_gan_xa_theo_thu_tu_xep_chong_cua_psd(tmp_path):
+    canh, _ = mau._canh_psd(_psd_canh(tmp_path), [1, 2], 3.0, "non_grid", W, H, va_nen=lambda a, m: a, seed=0)
+    z = [L.Z0 for L in canh.lop]
+    assert len(z) == 2 and z[1] < z[0], f"De nằm trên Chu trong PSD -> phải gần hơn (Z nhỏ hơn), ra {z}"
+
+
+def test_psd_nen_trong_duoc_va(tmp_path):
+    vao = []
+
+    def va(a, m):
+        vao.append(m.copy())
+        return a * 0 + 0.5
+
+    canh, _ = mau._canh_psd(_psd_canh(tmp_path, lo_nen=True), [1, 2], 3.0, "non_grid", W, H, va_nen=va, seed=0)
+    assert vao and vao[0][80, 90] and not vao[0][10, 10], "chỉ vá đúng chỗ nền trống"
+    assert np.allclose(canh.nen[80, 90], 0.5)
+
+
+@pytest.mark.skipif(not CO_FFMPEG, reason="máy không có ffmpeg")
+def test_dung_style_anh_psd_dung_layer_khong_goi_may_cat(tmp_path, monkeypatch):
+    """Ảnh .psd có psd_lop -> dựng từ layer (không thì Pillow mở PSD thành ảnh PHẲNG, mất hết layer)."""
+    goi, that = [], mau._canh_psd
+    monkeypatch.setattr(mau, "_canh_psd", lambda *a, **k: goi.append(a[1]) or that(*a, **k))
+    ds = [{"anh": str(_psd_canh(tmp_path)), "giay": 1.0, "khung_lop": [], "psd_lop": [1, 2]}]
+    ra = tmp_path / "ra.mp4"
+    mau.dung_style(ds, ra, W=W, H=H, style="black_grid", sam=_SamCam(),
+                   uoc_do_sau=lambda x: np.full(x.shape[:2], 20.0, np.float32), va_nen=lambda a, m: a)
+    giay, n, r = _giay_va_so_khung(ra)
+    assert goi == [[1, 2]] and abs(giay - 1.0) < 0.15 and r == "24/1"
+
+
+def _chu_hai_net():
+    """Hai 'chữ cái' trắng cao 20 px, cách nhau khe 8 px (như khoảng giữa hai chữ)."""
+    a = np.zeros((60, 120), np.float32)
+    a[20:40, 30:50] = 1
+    a[20:40, 58:78] = 1
+    rgb = np.ones((60, 120, 3), np.float32)
+    return rgb, a
+
+
+def test_chu_dan_len_dai_giay_lien_khong_vien_tung_net():
+    """Đo thật PSD Toyota 08/10 (Non-Grid): viền giấy bao TỪNG NÉT chữ -> chữ nhỏ nhoè, khó đọc. Layer chữ
+    phải dán lên MỘT dải giấy kem liền (kiểu Vox), chữ giữ màu."""
+    rgb, a = _chu_hai_net()
+    mau_, al = mau._dai_giay_chu(rgb * 0.1, a)                       # chữ TỐI
+    assert al[30, 54] > 0.9, "khe giữa hai chữ được lấp thành dải giấy"
+    assert np.allclose(mau_[30, 54], phong.KEM, atol=0.05), "chữ tối -> giấy kem"
+    assert np.allclose(mau_[30, 40], 0.1, atol=0.02), "trong nét chữ giữ màu chữ"
+    assert al[5, 5] < 0.05, "xa chữ vẫn trong suốt"
+
+
+def test_chu_sang_dan_len_giay_toi_cho_doc_duoc():
+    """Đo thật PSD Toyota 08/10: chữ TRẮNG dán lên giấy kem -> gần như không đọc được. Chữ sáng -> giấy tối."""
+    rgb, a = _chu_hai_net()
+    mau_, al = mau._dai_giay_chu(rgb, a)                             # chữ TRẮNG
+    assert mau_[30, 54].max() < 0.2 and np.allclose(mau_[30, 40], 1, atol=0.02), "chữ trắng trên giấy tối"
+
+
+def test_psd_layer_chu_dan_dai_giay_o_style_vox_khong_o_collage(tmp_path, monkeypatch):
+    from autoedit.collage import psd as mpsd
+    duong = _psd_canh(tmp_path)
+    that = mpsd.doc
+    monkeypatch.setattr(mpsd, "doc", lambda n: {**(d := that(n)), "lop": [dict(x, chu=x["ten"] == "Chu")
+                                                                       for x in d["lop"]]})
+    goi = []
+    monkeypatch.setattr(mau, "_dai_giay_chu", lambda m, a: goi.append(a.shape) or (m, a))
+    mau._canh_psd(duong, [1, 2], 3.0, "non_grid", W, H, va_nen=lambda a, m: a, seed=0)
+    assert len(goi) == 1, "chỉ layer chữ được dán dải giấy"
+    goi.clear()
+    mau._canh_psd(duong, [1, 2], 3.0, "collage", W, H, va_nen=lambda a, m: a, seed=0)
+    assert not goi, "Collage art không có giấy"

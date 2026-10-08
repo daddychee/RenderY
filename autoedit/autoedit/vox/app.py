@@ -24,8 +24,9 @@ from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
+from autoedit.collage import psd as mpsd
 from autoedit.collage.hang_doi import GOC_MAC_DINH, HangDoi, ma_moi
 
 TRANG = Path(__file__).parent / "static" / "vox.html"
@@ -33,6 +34,7 @@ HANH_DONG_DUNG = "dung"
 TOI_DA_ANH = 3
 TOI_DA_LOP = 12
 TOI_DA_MB = 30
+TOI_DA_MB_PSD = 200                      # PSD nhiều layer nặng (PSD thật của team: 5–46 MB)
 THO_CHET_SAU = 120                       # giây không thấy dấu sống của thợ -> cảnh báo
 
 # CÙNG LUẬT với bộ dựng `collage.mau` (test đối chiếu); chép ra đây để web khỏi kéo torch khi không cần.
@@ -94,7 +96,16 @@ def _kiem_cau_hinh(ch, so_anh: int) -> dict:
             giay = float(x["giay"])
             if not 0.5 <= giay <= 60:
                 raise ValueError("Giây mỗi ảnh từ 0,5 đến 60.")
-            sach.append({"giay": round(giay, 2), "khung_lop": _kiem_khung_lop(x.get("khung_lop"))})
+            muc = {"giay": round(giay, 2), "khung_lop": _kiem_khung_lop(x.get("khung_lop"))}
+            try:
+                psd_lop = sorted({int(i) for i in (x.get("psd_lop") or [])})
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Khối PSD hỏng.") from exc
+            if len(psd_lop) > TOI_DA_LOP or any(i < 0 for i in psd_lop):
+                raise ValueError(f"Mỗi ảnh tối đa {TOI_DA_LOP} lớp.")
+            if psd_lop:
+                muc["psd_lop"] = psd_lop
+            sach.append(muc)
         khung = ch.get("khung") or "16:9"
         if khung not in KHUNG:
             raise ValueError("Khung chỉ được 16:9, 4:5 hoặc 9:16.")
@@ -109,7 +120,15 @@ def _kiem_cau_hinh(ch, so_anh: int) -> dict:
 def _doc_anh_gui(f: UploadFile) -> tuple[bytes, str]:
     from PIL import Image
 
-    b = f.file.read(TOI_DA_MB * 1024 * 1024 + 1)
+    b = f.file.read(TOI_DA_MB_PSD * 1024 * 1024 + 1)
+    if mpsd.la_psd(b):
+        if len(b) > TOI_DA_MB_PSD * 1024 * 1024:
+            raise HTTPException(400, f"PSD quá {TOI_DA_MB_PSD} MB.")
+        try:
+            mpsd.doc(b)
+        except Exception as exc:  # noqa: BLE001 — mọi kiểu hỏng đều là "PSD không đọc được"
+            raise HTTPException(400, f"'{f.filename}' là PSD hỏng hoặc không đọc được.") from exc
+        return b, ".psd"
     if len(b) > TOI_DA_MB * 1024 * 1024:
         raise HTTPException(400, f"Ảnh quá {TOI_DA_MB} MB.")
     try:
@@ -117,8 +136,33 @@ def _doc_anh_gui(f: UploadFile) -> tuple[bytes, str]:
         im.verify()
         duoi = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}[im.format]
     except Exception as exc:  # noqa: BLE001 — mọi kiểu hỏng đều là "không phải ảnh dùng được"
-        raise HTTPException(400, f"'{f.filename}' không phải ảnh PNG/JPG/WEBP.") from exc
+        raise HTTPException(400, f"'{f.filename}' không phải ảnh PNG/JPG/WEBP/PSD.") from exc
     return b, duoi
+
+
+def _kiem_khoi_psd(b: bytes, duoi: str, muc: dict) -> None:
+    """Đối chiếu khối chọn với CHÍNH file gửi lên: khối có thật, đang hiện, và còn ít nhất 1 khối làm nền."""
+    chon = muc.get("psd_lop") or []
+    if duoi != ".psd":
+        if chon:
+            raise HTTPException(400, "Chỉ ảnh PSD mới chọn khối theo layer.")
+        return
+    if muc["khung_lop"]:
+        raise HTTPException(400, "Ảnh PSD chọn khối theo layer, không kéo khung.")
+    lop = mpsd.doc(b)["lop"]
+    for i in chon:
+        if i >= len(lop):
+            raise HTTPException(400, f"PSD không có khối số {i}.")
+        if not lop[i]["hien"]:
+            raise HTTPException(400, f"Khối '{lop[i]['ten']}' đang ẩn trong PSD.")
+    if chon and not any(x["hien"] and x["chi_so"] not in chon for x in lop):
+        raise HTTPException(400, "Phải chừa ít nhất 1 khối đang hiện làm nền.")
+
+
+def _url_anh(im, kieu: str) -> str:
+    b = io.BytesIO()
+    im.save(b, kieu, **({"quality": 85} if kieu == "JPEG" else {}))
+    return f"data:image/{kieu.lower()};base64," + base64.b64encode(b.getvalue()).decode()
 
 
 def _anh_cat_khung(b: bytes, khung: str, rong_max: int = 1024) -> np.ndarray:
@@ -248,6 +292,20 @@ def tao_app(goc: Path | str | None = None, may_lop=None) -> FastAPI:
             masks = may.cat(rgb, ds) if ds else []
         return {"khung_lop": ds, "xem": _anh_xem(rgb, masks, ds)}
 
+    @app.post("/api/psd")
+    def doc_psd(request: Request, anh: UploadFile = File(...)):
+        """PSD -> khối cấp ngoài cùng (ảnh nhỏ từng khối) + ảnh xem cả canvas + khối máy tick sẵn."""
+        _ai_dung(request)
+        b, duoi = _doc_anh_gui(anh)
+        if duoi != ".psd":
+            raise HTTPException(400, "Không phải file PSD.")
+        d = mpsd.doc(b)
+        for x, im in zip(d["lop"], mpsd.anh_nho(b)):
+            x["nho"] = _url_anh(im, "PNG") if im is not None else ""
+        de_xuat = mpsd.de_xuat(d["lop"])
+        return dict(d, de_xuat=de_xuat, con_trong_nen=mpsd.khoi_con_trong_nen(b, de_xuat) if de_xuat else [],
+                    xem=_url_anh(mpsd.anh_xem(b), "JPEG"))
+
     @app.post("/api/viec")
     def gui(request: Request, anh: list[UploadFile] = File(...), cau_hinh: str = Form(...)):
         ai = _ai_dung(request)
@@ -256,6 +314,8 @@ def tao_app(goc: Path | str | None = None, may_lop=None) -> FastAPI:
         except json.JSONDecodeError as exc:
             raise HTTPException(400, "Cấu hình hỏng.") from exc
         doc = [_doc_anh_gui(f) for f in anh]
+        for (b, duoi), x in zip(doc, ch["anh"]):
+            _kiem_khoi_psd(b, duoi, x)
         ma = ma_moi()
         thu_muc = goc / "viec" / ma
         thu_muc.mkdir(parents=True, exist_ok=True)
@@ -280,7 +340,8 @@ def tao_app(goc: Path | str | None = None, may_lop=None) -> FastAPI:
             ra.append({"id": v["id"], "tao": v["tao"], "trang_thai": v["trang_thai"], "loi": v.get("loi") or "",
                        "thu_tu": hd.thu_tu(v["id"]) if v["trang_thai"] == "cho" else 0,
                        "giay": v["giay"], "khung": ch.get("khung") or "16:9", "style": STYLE.get(ch.get("style"), ""),
-                       "anh": [{"giay": x["giay"], "so_lop": len(x.get("khung_lop") or [])} for x in ch["anh"]],
+                       "anh": [{"giay": x["giay"], "so_lop": len(x.get("psd_lop") or x.get("khung_lop") or []),
+                                "psd": str(x["anh"]).lower().endswith(".psd")} for x in ch["anh"]],
                        "bat_dau": v.get("bat_dau"), "xong_luc": v.get("xong_luc")})
         return {"viec": ra}
 
@@ -296,6 +357,10 @@ def tao_app(goc: Path | str | None = None, may_lop=None) -> FastAPI:
         ds = json.loads(_viec_cua(ma)["chuoi"])["anh"]
         if not 0 <= i < len(ds):
             raise HTTPException(404, "Không có ảnh này.")
+        if str(ds[i]["anh"]).lower().endswith(".psd"):          # trình duyệt không xem được PSD
+            b = io.BytesIO()
+            mpsd.anh_xem(ds[i]["anh"], rong_max=800).save(b, "JPEG", quality=85)
+            return Response(b.getvalue(), media_type="image/jpeg")
         return FileResponse(ds[i]["anh"])
 
     return app

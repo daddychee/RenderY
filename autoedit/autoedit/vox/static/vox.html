@@ -105,6 +105,14 @@ video{width:100%;border-radius:7px;background:#000;display:block}
 .lop button{background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px}
 .lop button:hover{color:var(--bad)}
 #baoLop{font-size:13px;color:var(--muted)}
+#san.psd{cursor:default}
+.canh-bao{color:#e0a800;font-size:12.5px;margin:6px 0 0;line-height:1.45}
+.o-psd{position:absolute;border:2px solid var(--accent);background:rgba(80,140,255,.15);pointer-events:none;border-radius:3px}
+.khoi-psd{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;
+  font-size:12.5px;background:var(--bg);cursor:pointer}
+.khoi-psd img{width:48px;height:32px;object-fit:contain;border-radius:3px;
+  background:repeating-conic-gradient(#777 0 25%,#aaa 0 50%) 0 0/10px 10px}
+.khoi-psd.an{opacity:.5;cursor:not-allowed}
 #baoLop.loi{color:var(--bad)}
 </style>
 </head>
@@ -116,8 +124,8 @@ video{width:100%;border-radius:7px;background:#000;display:block}
 <main>
   <section class="khoi">
     <h2>Video mới</h2>
-    <p class="goi-y">Thả 1–3 ảnh theo thứ tự, nhập số giây cho từng ảnh, chọn lớp cho từng ảnh. Máy tự lên nhịp,
-      camera và cú nối giữa các ảnh.</p>
+    <p class="goi-y">Thả 1–3 ảnh (PNG, JPG hoặc PSD đã chia layer) theo thứ tự, nhập số giây cho từng ảnh, chọn lớp
+      cho từng ảnh. Máy tự lên nhịp, camera và cú nối giữa các ảnh.</p>
     <div class="chon">
       <span><label for="khungVid">Khung</label><select id="khungVid"></select></span>
       <span><label for="style">Style</label><select id="style"></select></span>
@@ -131,7 +139,7 @@ video{width:100%;border-radius:7px;background:#000;display:block}
       <button class="nut" id="dung" type="button" disabled>Dựng video</button>
       <span id="bao"></span>
     </div>
-    <input type="file" id="chon" accept="image/png,image/jpeg,image/webp" hidden>
+    <input type="file" id="chon" accept="image/png,image/jpeg,image/webp,.psd,image/vnd.adobe.photoshop" hidden>
   </section>
   <section class="khoi">
     <h2>Video của tôi</h2>
@@ -142,15 +150,14 @@ video{width:100%;border-radius:7px;background:#000;display:block}
 <div id="hop" role="dialog" aria-modal="true">
   <div class="khoi">
     <h2>Chọn lớp — ảnh <span id="hopSo"></span></h2>
-    <p class="goi-y">Giữ chuột và KÉO một khung quanh từng thứ muốn chuyển động riêng (chữ, người, toà nhà…).
-      Máy cắt đúng đường viền bên trong khung và tô màu để anh/chị xem. Không chọn lớp nào thì cả ảnh chuyển động
-      theo chiều sâu.</p>
+    <p class="goi-y" id="goiYLop"></p>
     <div class="hang" style="margin:0 0 10px">
       <button class="nut phu nho" id="nutDeXuat" type="button">Máy đề xuất</button>
       <button class="nut phu nho" id="nutXoaHet" type="button">Xoá hết</button>
       <button class="nut nho" id="nutXong" type="button">Xong</button>
       <span id="baoLop"></span>
     </div>
+    <p id="baoNen" class="canh-bao" hidden></p>
     <div id="san"><img id="xemLop" alt="ảnh chọn lớp"></div>
     <div id="dsLop"></div>
   </div>
@@ -162,6 +169,10 @@ var BANG = null, DUNG_DUOC = false, CHUOI = [], VIEC = [], HEN = null;
 var KHUNG_TAY = false;            /* người đã chọn khung bằng tay -> không tự đổi theo ảnh nữa */
 var LOP = null;                   /* hộp chọn lớp đang mở: {i, khung_lop, lan} */
 var TI_LE = {"16:9": 16 / 9, "4:5": 4 / 5, "9:16": 9 / 16};
+var GOI_Y_KHUNG = "Giữ chuột và KÉO một khung quanh từng thứ muốn chuyển động riêng (chữ, người, toà nhà…). " +
+  "Máy cắt đúng đường viền bên trong khung và tô màu để anh/chị xem. Không chọn lớp nào thì cả ảnh chuyển động theo chiều sâu.";
+var GOI_Y_PSD = "Tick từng khối (layer / nhóm ngoài cùng của PSD) muốn chuyển động riêng — dùng thẳng layer team đã cắt. " +
+  "Khối không tick ghép lại thành nền, nên phải chừa ít nhất một khối làm nền.";
 
 async function api(duong, cach, than){
   var o = {method: cach || "GET", headers: {}};
@@ -183,7 +194,14 @@ function giay(x){ return (Math.round(x * 10) / 10).toString().replace(".", ",");
 function khung(){ return document.getElementById("khungVid").value; }
 
 /* ═══════════ chuỗi ảnh ═══════════ */
-function oMoi(){ return {tep: null, url: "", giay: 4, khung_lop: []}; }
+function oMoi(){ return {tep: null, url: "", giay: 4, khung_lop: [], psd: null, psd_lop: [], dangDoc: false}; }
+/* khối đang chọn mà layer nền PSD vẫn còn bản sao (máy chủ so điểm ảnh) — user chốt 08/10: team tự xoá */
+function khoiConSao(o, chon){
+  if(!o.psd || !o.psd.con_trong_nen) return [];
+  chon = chon || o.psd_lop;
+  return o.psd.lop.filter(function(x){ return o.psd.con_trong_nen.indexOf(x.chi_so) >= 0 && chon.indexOf(x.chi_so) >= 0; });
+}
+function laPsd(tep){ return /\.psd$/i.test(tep.name) || tep.type === "image/vnd.adobe.photoshop"; }
 
 function veChuoi(){
   var g = document.getElementById("chuoi");
@@ -193,7 +211,7 @@ function veChuoi(){
     var tha = el("div", "tha");
     tha.appendChild(el("span", "so", "Ảnh " + (i + 1)));
     if(o.url){ var im = el("img"); im.src = o.url; im.alt = "ảnh " + (i + 1); tha.appendChild(im); }
-    else tha.appendChild(el("span", "", "Bấm để chọn ảnh hoặc kéo thả vào đây"));
+    else tha.appendChild(el("span", "", o.dangDoc ? "Đang đọc PSD…" : "Bấm để chọn ảnh hoặc kéo thả vào đây"));
     tha.onclick = function(){ moChon(i); };
     tha.ondragover = function(e){ e.preventDefault(); tha.classList.add("keo"); };
     tha.ondragleave = function(){ tha.classList.remove("keo"); };
@@ -209,8 +227,9 @@ function veChuoi(){
     t.appendChild(gi);
     t.appendChild(el("label", "", "Lớp"));
     var dong = el("span");
-    dong.appendChild(el("span", "so-lop", o.khung_lop.length ? o.khung_lop.length + " lớp  " : "chưa chọn  "));
-    var nl = el("button", "nut phu nho chon-lop", "Chọn lớp"); nl.type = "button"; nl.disabled = !o.tep;
+    var so = o.psd ? o.psd_lop.length : o.khung_lop.length;
+    dong.appendChild(el("span", "so-lop", (so ? so + " lớp" : "chưa chọn") + (o.psd ? " · PSD  " : "  ")));
+    var nl = el("button", "nut phu nho chon-lop", "Chọn lớp"); nl.type = "button"; nl.disabled = !o.tep || o.dangDoc;
     nl.onclick = function(){ moLop(i); };
     dong.appendChild(nl);
     t.appendChild(dong);
@@ -221,17 +240,37 @@ function veChuoi(){
       t.appendChild(b);
     }
     hop.appendChild(t);
+    var sao = khoiConSao(o);
+    if(sao.length) hop.appendChild(el("p", "canh-bao", "⚠ Nền còn chứa " + sao.length +
+      " khối đang chọn — xoá chúng khỏi layer nền trong Photoshop rồi thả lại, không thì video lộ 2 bản."));
     g.appendChild(hop);
   });
   capNhat();
 }
 var DANG_CHON = 0;
 function moChon(i){ DANG_CHON = i; var c = document.getElementById("chon"); c.value = ""; c.click(); }
-function datTep(i, tep){
-  if(!/^image\/(png|jpeg|webp)$/.test(tep.type)){ bao("Chỉ nhận ảnh PNG, JPG hoặc WEBP.", true); return; }
-  if(CHUOI[i].url) URL.revokeObjectURL(CHUOI[i].url);
-  CHUOI[i].tep = tep; CHUOI[i].url = URL.createObjectURL(tep); CHUOI[i].khung_lop = [];
+async function datTep(i, tep){
+  var psd = laPsd(tep);
+  if(!psd && !/^image\/(png|jpeg|webp)$/.test(tep.type)){ bao("Chỉ nhận ảnh PNG, JPG, WEBP hoặc file PSD.", true); return; }
+  var o = CHUOI[i];
+  if(o.url) URL.revokeObjectURL(o.url);
+  o.tep = tep; o.url = ""; o.khung_lop = []; o.psd = null; o.psd_lop = [];
   bao("");
+  if(psd){
+    /* trình duyệt không xem được PSD: máy chủ đọc layer + trả ảnh xem + khối tick sẵn */
+    o.dangDoc = true; veChuoi();
+    try {
+      var fd = new FormData(); fd.append("anh", tep, tep.name);
+      var j = await api("/api/psd", "POST", fd);
+      if(o.tep !== tep) return;                                   /* đã đổi ảnh khác trong lúc đọc */
+      o.psd = j; o.psd_lop = j.de_xuat.slice(); o.url = j.xem;
+    } catch(e){ if(o.tep === tep){ o.tep = null; bao(e.message, true); } }
+    o.dangDoc = false;
+    veChuoi();
+    if(i === 0 && !KHUNG_TAY && o.psd) datKhung(khungGan(o.psd.rong / o.psd.cao));
+    return;
+  }
+  o.url = URL.createObjectURL(tep);
   veChuoi();
   if(i === 0 && !KHUNG_TAY){
     var im = new Image();
@@ -267,7 +306,7 @@ function capNhat(){
   var tong = CHUOI.reduce(function(a, o){ return a + (o.giay || 0); }, 0);
   document.getElementById("tong").textContent = CHUOI.length + " ảnh · tổng " + giay(tong) + " giây";
   document.getElementById("them").hidden = CHUOI.length >= BANG.toi_da_anh;
-  var du = CHUOI.every(function(o){ return o.tep && o.giay >= 0.5 && o.giay <= 60; });
+  var du = CHUOI.every(function(o){ return o.tep && !o.dangDoc && o.giay >= 0.5 && o.giay <= 60; });
   document.getElementById("dung").disabled = !DUNG_DUOC || !du;
 }
 function bao(chu, loi){ var b = document.getElementById("bao"); b.textContent = chu; b.className = loi ? "loi" : ""; }
@@ -278,7 +317,7 @@ async function dung(){
   var fd = new FormData();
   CHUOI.forEach(function(o){ fd.append("anh", o.tep, o.tep.name); });
   fd.append("cau_hinh", JSON.stringify({
-    anh: CHUOI.map(function(o){ return {giay: o.giay, khung_lop: o.khung_lop}; }),
+    anh: CHUOI.map(function(o){ return {giay: o.giay, khung_lop: o.khung_lop, psd_lop: o.psd ? o.psd_lop : []}; }),
     khung: khung(), style: document.getElementById("style").value}));
   try {
     await api("/api/viec", "POST", fd);
@@ -308,7 +347,11 @@ function anhCatKhung(url, k){
   });
 }
 async function moLop(i){
+  if(CHUOI[i].psd) return moLopPsd(i);
   LOP = {i: i, khung_lop: CHUOI[i].khung_lop.slice(), lan: 0};
+  document.getElementById("goiYLop").textContent = GOI_Y_KHUNG;
+  document.getElementById("baoNen").hidden = true;
+  document.getElementById("san").classList.remove("psd");
   document.getElementById("hopSo").textContent = i + 1;
   document.getElementById("xemLop").src = await anhCatKhung(CHUOI[i].url, khung());
   baoLop("");
@@ -346,9 +389,75 @@ async function xemCat(deXuat){
     baoLop(deXuat && !j.khung_lop.length ? "Máy không tìm được vật nào — kéo khung bằng tay." : "");
   } catch(e){ if(LOP && lan === LOP.lan) baoLop(e.message, true); }
 }
+/* PSD: tick khối layer — KHÔNG kéo khung, không máy cắt (user chốt 08/10) */
+async function moLopPsd(i){
+  var o = CHUOI[i];
+  LOP = {i: i, psd: true, chon: o.psd_lop.slice()};
+  document.getElementById("hopSo").textContent = i + 1;
+  document.getElementById("goiYLop").textContent = GOI_Y_PSD;
+  document.getElementById("san").classList.add("psd");
+  xoaOPsd();
+  document.getElementById("xemLop").src = await anhCatKhung(o.url, khung());
+  baoLop("");
+  veLopPsd();
+  document.getElementById("hop").classList.add("mo");
+}
+function xoaOPsd(){
+  Array.prototype.slice.call(document.querySelectorAll("#san .o-psd")).forEach(function(e){ e.remove(); });
+}
+function hopPsd(x){
+  /* hộp khối trên canvas PSD -> tỉ lệ trong ảnh đã cắt GIỮA đúng khung hình (như máy chủ cắt lúc dựng) */
+  var p = CHUOI[LOP.i].psd, w = p.rong, h = p.cao, tl = TI_LE[khung()], cw = w, ch = h, x0 = 0, y0 = 0;
+  if(w / h > tl){ cw = Math.round(h * tl); x0 = Math.floor((w - cw) / 2); }
+  else { ch = Math.round(w / tl); y0 = Math.floor((h - ch) / 2); }
+  function k(v){ return Math.min(1, Math.max(0, v)); }
+  return [k((x.hop[0] - x0) / cw), k((x.hop[1] - y0) / ch), k((x.hop[2] - x0) / cw), k((x.hop[3] - y0) / ch)];
+}
+function veLopPsd(){
+  var o = CHUOI[LOP.i], d = document.getElementById("dsLop"), san = document.getElementById("san");
+  var im = document.getElementById("xemLop");
+  var sao = khoiConSao(o, LOP.chon), bn = document.getElementById("baoNen");
+  bn.hidden = !sao.length;
+  bn.textContent = sao.length ? "⚠ Nền PSD vẫn còn: " + sao.map(function(x){ return x.ten; }).join(", ") +
+    ". Khi các khối này bay đi, video sẽ lộ 2 bản — xoá chúng khỏi layer nền trong Photoshop " +
+    "(Content-Aware Fill) rồi thả lại file." : "";
+  d.textContent = "";
+  o.psd.lop.forEach(function(x){
+    var dong = el("label", "khoi-psd" + (x.hien ? "" : " an"));
+    var cb = el("input"); cb.type = "checkbox"; cb.checked = LOP.chon.indexOf(x.chi_so) >= 0; cb.disabled = !x.hien;
+    cb.onchange = function(){ doiKhoiPsd(x.chi_so, cb.checked); };
+    dong.appendChild(cb);
+    if(x.nho){ var t = el("img"); t.src = x.nho; t.alt = ""; dong.appendChild(t); }
+    dong.appendChild(el("span", "", x.ten + (x.hien ? "" : " (đang ẩn)")));
+    d.appendChild(dong);
+  });
+  function dat(){
+    xoaOPsd();
+    var r = im.getBoundingClientRect(), sr = san.getBoundingClientRect();
+    o.psd.lop.forEach(function(x){
+      if(LOP.chon.indexOf(x.chi_so) < 0) return;
+      var k = hopPsd(x), b = el("div", "o-psd");
+      b.style.left = (r.left - sr.left + k[0] * r.width) + "px"; b.style.top = (r.top - sr.top + k[1] * r.height) + "px";
+      b.style.width = (k[2] - k[0]) * r.width + "px"; b.style.height = (k[3] - k[1]) * r.height + "px";
+      san.appendChild(b);
+    });
+  }
+  if(im.complete && im.naturalWidth) dat(); else im.onload = function(){ im.onload = null; dat(); };
+}
+function doiKhoiPsd(c, co){
+  var lop = CHUOI[LOP.i].psd.lop, chon = LOP.chon.filter(function(v){ return v !== c; });
+  if(co){
+    if(chon.length >= BANG.toi_da_lop){ baoLop("Tối đa " + BANG.toi_da_lop + " lớp mỗi ảnh.", true); veLopPsd(); return; }
+    var conNen = lop.some(function(x){ return x.hien && x.chi_so !== c && chon.indexOf(x.chi_so) < 0; });
+    if(!conNen){ baoLop("Phải chừa ít nhất một khối đang hiện làm nền.", true); veLopPsd(); return; }
+    chon.push(c); chon.sort(function(a, b){ return a - b; });
+  }
+  LOP.chon = chon; baoLop(""); veLopPsd();
+}
 function xongLop(){
   if(!LOP) return;
-  CHUOI[LOP.i].khung_lop = LOP.khung_lop;
+  if(LOP.psd){ CHUOI[LOP.i].psd_lop = LOP.chon; xoaOPsd(); }
+  else CHUOI[LOP.i].khung_lop = LOP.khung_lop;
   document.getElementById("hop").classList.remove("mo");
   LOP = null;
   veChuoi();
@@ -360,7 +469,7 @@ function ganKeoKhung(){
     return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)), r];
   }
   san.addEventListener("pointerdown", function(e){
-    if(!LOP || e.button !== 0) return;
+    if(!LOP || LOP.psd || e.button !== 0) return;
     e.preventDefault();
     bd = viTri(e);
     ve = el("div", "ve"); san.appendChild(ve);
@@ -469,8 +578,12 @@ async function batDau(){
   };
   document.getElementById("chon").onchange = function(e){ if(e.target.files.length) datTep(DANG_CHON, e.target.files[0]); };
   document.getElementById("dung").onclick = dung;
-  document.getElementById("nutDeXuat").onclick = function(){ xemCat(true); };
-  document.getElementById("nutXoaHet").onclick = function(){ LOP.khung_lop = []; veLop(); xemCat(false); };
+  document.getElementById("nutDeXuat").onclick = function(){
+    if(LOP && LOP.psd){ LOP.chon = CHUOI[LOP.i].psd.de_xuat.slice(); baoLop(""); veLopPsd(); } else xemCat(true);
+  };
+  document.getElementById("nutXoaHet").onclick = function(){
+    if(LOP && LOP.psd){ LOP.chon = []; baoLop(""); veLopPsd(); } else { LOP.khung_lop = []; veLop(); xemCat(false); }
+  };
   document.getElementById("nutXong").onclick = xongLop;
   ganKeoKhung();
   napViec();

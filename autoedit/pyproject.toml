@@ -36,6 +36,9 @@ dependencies = [
     # (Windows: `winget install --id UB-Mannheim.TesseractOCR -e`) — thiếu binary
     # thì retention/doc_anh.py tự rơi về neo "đầu~100%" cũ, KHÔNG chết luồng đo.
     "pytesseract>=0.3.10",
+    # VOX nhập PSD (08/10/2026): đọc layer team đã chia — Pillow đọc được tên layer nhưng KHÔNG lấy được
+    # điểm ảnh từng layer. [composite] kéo aggdraw (có wheel Windows) để vẽ hiệu ứng layer (viền, phủ màu…).
+    "psd-tools[composite]>=1.24",
 ]
 
 # Dependency của các milestone sau, cài dần để M0 nhẹ:

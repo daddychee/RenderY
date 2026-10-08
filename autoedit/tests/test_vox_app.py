@@ -222,3 +222,91 @@ def test_tho_giu_cong_de_start_all_biet_da_chay_va_khong_bat_trung():
             pass
     finally:
         giu.close()
+
+
+# ═══════ nhập PSD team đã chia layer (user chốt 08/10) ══════════════════════════════════════════════
+def _psd_bytes():
+    pytest.importorskip("psd_tools")
+    from PIL import Image
+    from psd_tools import PSDImage
+    from psd_tools.api.layers import PixelLayer
+
+    p = PSDImage.new("RGB", (320, 180), color=(0, 0, 0))
+    p.append(PixelLayer.frompil(Image.new("RGBA", (320, 180), (40, 80, 160, 255)), p, "Nen", 0, 0))
+    p.append(PixelLayer.frompil(Image.new("RGBA", (80, 60), (250, 20, 20, 255)), p, "Nguoi", 60, 120))
+    an = PixelLayer.frompil(Image.new("RGBA", (20, 20), (0, 255, 0, 255)), p, "An", 5, 5)
+    an.visible = False
+    p.append(an)
+    p.append(PixelLayer.frompil(Image.new("RGBA", (100, 20), (240, 220, 30, 255)), p, "Chu", 10, 110))
+    b = io.BytesIO()
+    p.save(b)
+    return b.getvalue()
+
+
+def _psd(c, b=None, h=AI):
+    return c.post("/api/psd", headers=h, files=[("anh", ("a.psd", b or _psd_bytes(), "image/vnd.adobe.photoshop"))])
+
+
+def test_psd_doc_tra_khoi_anh_xem_va_de_xuat(c):
+    r = _psd(c)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert (j["rong"], j["cao"]) == (320, 180)
+    assert [x["ten"] for x in j["lop"]] == ["Nen", "Nguoi", "An", "Chu"]
+    assert j["de_xuat"] == [1, 3], "máy tick sẵn mọi khối đang hiện, chừa nền dưới cùng"
+    assert j["xem"].startswith("data:image/jpeg;base64,"), "trình duyệt không xem được PSD -> máy chủ trả ảnh xem"
+    assert all(x["nho"].startswith("data:image/png;base64,") for x in j["lop"] if x["hien"])
+    assert j["con_trong_nen"] == [], "nền xanh không chứa khối nào"
+
+
+def test_psd_bao_nen_con_chua_khoi(c):
+    """Nền (Layer 1) còn bản sao khối -> trả tên để trang cảnh báo team xoá trong Photoshop."""
+    pytest.importorskip("psd_tools")
+    from PIL import Image
+    from psd_tools import PSDImage
+    from psd_tools.api.layers import PixelLayer
+
+    p = PSDImage.new("RGB", (320, 180), color=(0, 0, 0))
+    nen = Image.new("RGBA", (320, 180), (40, 80, 160, 255))
+    nen.paste((250, 20, 20, 255), (120, 60, 200, 120))
+    p.append(PixelLayer.frompil(nen, p, "Layer 1", 0, 0))
+    p.append(PixelLayer.frompil(Image.new("RGBA", (80, 60), (250, 20, 20, 255)), p, "Elon", 60, 120))
+    b = io.BytesIO()
+    p.save(b)
+    j = _psd(c, b=b.getvalue()).json()
+    assert j["de_xuat"] == [1] and j["con_trong_nen"] == [1]
+
+
+def test_psd_chan_sai(c):
+    assert _psd(c, b=_png()).status_code == 400
+    assert _psd(c, h={"X-Remote-User": "an", "X-Remote-Actions": "vao"}).status_code == 403
+
+
+def _gui_psd(c, psd_lop, anh=None):
+    ch = {"anh": [{"giay": 3, "khung_lop": [], "psd_lop": psd_lop}], "khung": "16:9", "style": "non_grid"}
+    return c.post("/api/viec", headers=AI, data={"cau_hinh": json.dumps(ch)},
+                  files=[("anh", ("a.psd", anh or _psd_bytes(), "image/vnd.adobe.photoshop"))])
+
+
+def test_gui_psd_luu_file_psd_va_khoi_da_chon(c, tmp_path):
+    r = _gui_psd(c, [3, 1])
+    assert r.status_code == 200, r.text
+    v = HangDoi(tmp_path / "collage" / "hang_doi.db").doc(r.json()["id"])
+    ch = json.loads(v["chuoi"])
+    assert ch["anh"][0]["anh"].endswith(".psd") and ch["anh"][0]["psd_lop"] == [1, 3]
+    ds = c.get("/api/viec", headers=AI).json()["viec"][0]
+    assert ds["anh"][0]["so_lop"] == 2 and ds["anh"][0]["psd"] is True
+    im = c.get(f"/api/viec/{r.json()['id']}/anh/0")
+    assert im.status_code == 200 and im.headers["content-type"] == "image/jpeg", "ảnh nhỏ của việc PSD xem được"
+
+
+@pytest.mark.parametrize("psd_lop, bao", [([9], "không có khối"), ([2], "đang ẩn"), ([0, 1, 3], "nền")])
+def test_gui_psd_chan_khoi_sai(c, psd_lop, bao):
+    r = _gui_psd(c, psd_lop)
+    assert r.status_code == 400 and bao in r.json()["detail"], r.text
+
+
+def test_gui_anh_thuong_khong_duoc_khai_khoi_psd(c):
+    ch = {"anh": [{"giay": 3, "khung_lop": [], "psd_lop": [1]}], "khung": "16:9", "style": "non_grid"}
+    r = c.post("/api/viec", headers=AI, data={"cau_hinh": json.dumps(ch)}, files=[("anh", ("a.png", _png(), "image/png"))])
+    assert r.status_code == 400
