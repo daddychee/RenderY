@@ -433,7 +433,8 @@ def _z_theo_vai(masks, PW: int, PH: int, W: int, H: int):
 
 
 def _ghep_canh(nen, z_nen, lop_mau, masks, zs, lo_lung, giay: float, style: str, W: int, H: int, seed: int):
-    """Nền + (màu, alpha) từng lớp -> Canh (viền giấy cho Black Grid / Non-Grid) + kế hoạch biên đạo."""
+    """Nền + (màu, alpha) từng lớp -> Canh (viền trắng sticker MỌI style — user chốt 08/10: "bản chất collage art
+    là sẽ có viền trắng xung quanh element") + kế hoạch biên đạo."""
     from autoedit.collage import bien_dao, phong
     from autoedit.collage import lop as mlop
     from autoedit.collage.dung import Lop
@@ -442,8 +443,7 @@ def _ghep_canh(nen, z_nen, lop_mau, masks, zs, lo_lung, giay: float, style: str,
     s = 1 / canh.S0
     vats = []
     for i, ((mau_, a), zz) in enumerate(zip(lop_mau, zs)):
-        if style != "collage":
-            mau_, a = phong.vien_giay(mau_, a, seed + i, s)
+        mau_, a = phong.vien_giay(mau_, a, seed + i, s)
         L = canh.them(Lop(np.dstack([mau_, a]), zz))
         h_, w_ = L.anh.shape[:2]
         vats.append(bien_dao.Vat(L.X, L.Y, w_ / 2 * L.k, h_ / 2 * L.k, zz, mlop.cham_mep(masks[i]), lo_lung[i]))
@@ -454,7 +454,7 @@ def _ghep_canh(nen, z_nen, lop_mau, masks, zs, lo_lung, giay: float, style: str,
 
 
 def _dai_giay_chu(mau_, a):
-    """Layer CHỮ ở Black Grid / Non-Grid: dán lên MỘT dải giấy liền (kiểu Vox) thay vì viền giấy quanh
+    """Layer CHỮ (mọi style đều có viền trắng): dán lên MỘT dải giấy liền (kiểu Vox) thay vì viền giấy quanh
     TỪNG NÉT — đo thật PSD Toyota 08/10: viền từng nét làm chữ nhỏ nhoè, khó đọc. Giấy theo độ tương phản:
     chữ tối -> giấy kem; chữ SÁNG -> giấy tối (chữ trắng trên giấy kem gần như không đọc được)."""
     from scipy import ndimage as ndi
@@ -522,7 +522,7 @@ def _canh_psd(duong, chon, giay: float, style: str, W: int, H: int, va_nen, seed
     f = min(3, math.ceil(mag * 1.6)) if mag * 1.6 > 1.2 else 1
     ds = [(c, *_lam_muot(m, a, f, tron=max(1.0, 1.6 / mag), mem=max(0.6, 1.0 / mag)))
           for c, m, a in ds if (a > 0.01).any()]
-    ds = [(_dai_giay_chu(m, a) if style != "collage" and chu.get(c) else (m, a)) for c, m, a in ds]
+    ds = [(_dai_giay_chu(m, a) if chu.get(c) else (m, a)) for c, m, a in ds]
     PH, PW = nen4.shape[0] * f, nen4.shape[1] * f
     masks = [a > 0.01 for _, a in ds]
     zs, lo_lung = _z_theo_vai(masks, PW, PH, W, H)

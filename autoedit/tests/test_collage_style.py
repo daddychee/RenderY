@@ -208,7 +208,10 @@ def test_chu_sang_dan_len_giay_toi_cho_doc_duoc():
     assert mau_[30, 54].max() < 0.2 and np.allclose(mau_[30, 40], 1, atol=0.02), "chữ trắng trên giấy tối"
 
 
-def test_psd_layer_chu_dan_dai_giay_o_style_vox_khong_o_collage(tmp_path, monkeypatch):
+@pytest.mark.parametrize("style", ["non_grid", "black_grid", "collage"])
+def test_psd_layer_chu_dan_dai_giay_moi_style(tmp_path, monkeypatch, style):
+    """Mọi style đều có viền trắng (user chốt 08/10: "bản chất collage art là có viền trắng quanh element") ->
+    layer chữ ở mọi style dán dải giấy, không viền từng nét."""
     from autoedit.collage import psd as mpsd
     duong = _psd_canh(tmp_path)
     that = mpsd.doc
@@ -216,11 +219,19 @@ def test_psd_layer_chu_dan_dai_giay_o_style_vox_khong_o_collage(tmp_path, monkey
                                                                        for x in d["lop"]]})
     goi = []
     monkeypatch.setattr(mau, "_dai_giay_chu", lambda m, a: goi.append(a.shape) or (m, a))
-    mau._canh_psd(duong, [1, 2], 3.0, "non_grid", W, H, va_nen=lambda a, m: a, seed=0)
+    mau._canh_psd(duong, [1, 2], 3.0, style, W, H, va_nen=lambda a, m: a, seed=0)
     assert len(goi) == 1, "chỉ layer chữ được dán dải giấy"
-    goi.clear()
-    mau._canh_psd(duong, [1, 2], 3.0, "collage", W, H, va_nen=lambda a, m: a, seed=0)
-    assert not goi, "Collage art không có giấy"
+
+
+@pytest.mark.parametrize("style", ["collage", "non_grid"])
+def test_moi_style_deu_co_vien_trang_quanh_element(tmp_path, monkeypatch, style):
+    """User chốt 08/10: "bản chất collage art là sẽ có viền trắng xung quanh element" -> Collage art cũng có viền
+    sticker (trước chỉ Black Grid / Non-Grid có)."""
+    goi = []
+    that = phong.vien_giay
+    monkeypatch.setattr(phong, "vien_giay", lambda *a, **k: goi.append(1) or that(*a, **k))
+    mau._canh_psd(_psd_canh(tmp_path), [1, 2], 3.0, style, W, H, va_nen=lambda a, m: a, seed=0)
+    assert len(goi) == 2, "mỗi element một viền trắng"
 
 
 def _bac_thang(a: np.ndarray) -> float:
