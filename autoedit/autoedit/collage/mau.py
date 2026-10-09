@@ -329,15 +329,18 @@ def ke_hoach_chuoi(ds_canh, ds_giay, ds_cd, ds_noi, than=None):
     return [lam(i) for i in range(n)]
 
 
-def khung_chuoi(ds_canh, cams, i: int, t: float, thiet_bi: str | None = None) -> np.ndarray:
-    """MỘT mẫu khung của ảnh i ở giờ t; lúc lia thì lấp chỗ trống bằng ảnh kế bên."""
+def khung_chuoi(ds_canh, cams, i: int, t: float, thiet_bi: str | None = None, tensor: bool = False):
+    """MỘT mẫu khung của ảnh i ở giờ t; lúc lia thì lấp chỗ trống bằng ảnh kế bên. `tensor`: giữ trên thiết bị."""
     cam, lia = cams[i](t)
     g = cams[i].ghep(t)
     if g is None:
-        return dung_khung(ds_canh[i], cam, t, thiet_bi=thiet_bi, phan_xa=lia)[0]
+        return dung_khung(ds_canh[i], cam, t, thiet_bi=thiet_bi, phan_xa=lia, tensor=tensor)[0]
     j, cam_j, tj = g
-    a, _, phu = dung_khung(ds_canh[i], cam, t, thiet_bi=thiet_bi, tra_phu=True)
-    b = dung_khung(ds_canh[j], cam_j, tj, thiet_bi=thiet_bi, phan_xa=True)[0]
+    a, _, phu = dung_khung(ds_canh[i], cam, t, thiet_bi=thiet_bi, tra_phu=True, tensor=tensor)
+    b = dung_khung(ds_canh[j], cam_j, tj, thiet_bi=thiet_bi, phan_xa=True, tensor=tensor)[0]
+    if tensor:
+        import torch
+        return torch.where(phu[..., None], a, b)
     return np.where(phu[..., None], a, b)
 
 
@@ -564,6 +567,8 @@ def dung_style(ds: list[dict], ra: Path, W: int = 1920, H: int = 1080, style: st
                uoc_do_sau=None, va_nen=None, thiet_bi: str | None = None, ffmpeg: str = "ffmpeg") -> Path:
     """ds = [{anh, giay, khung_lop: [[x0,y0,x1,y1] tỉ lệ 0..1] | psd_lop: [chỉ số khối PSD]}] -> MỘT mp4. Máy tự biên đạo nhịp +
     camera (bien_dao), tự chọn cú nối (khung ngang: lia ngang; khung dọc: lia lên)."""
+    import torch
+
     from autoedit.collage import phong, tach
 
     if style not in STYLE:
@@ -590,15 +595,16 @@ def dung_style(ds: list[dict], ra: Path, W: int = 1920, H: int = 1080, style: st
         for i in range(len(ds)):
             for f in range(max(1, round(giay[i] * fps))):
                 t = f / fps
+                # khung hình là tensor TRÊN thiết bị suốt dựng -> nhoè -> hậu kỳ; chép về CPU một lần lúc xuất
                 if style == "collage":                           # 30 hình/giây + nhoè chuyển động
                     k = so_mau(_dich_style(ds_canh[i], cams[i], t, cua))
-                    img = sum(khung_chuoi(ds_canh, cams, i, t + (cua * j / (k - 1) if k > 1 else 0.0), thiet_bi)
-                              for j in range(k)) / k
+                    img = sum(khung_chuoi(ds_canh, cams, i, t + (cua * j / (k - 1) if k > 1 else 0.0), thiet_bi,
+                                          tensor=True) for j in range(k)) / k
                 else:                                            # Vox: 12 hình/giây, nét
-                    img = khung_chuoi(ds_canh, cams, i, t, thiet_bi)
+                    img = khung_chuoi(ds_canh, cams, i, t, thiet_bi, tensor=True)
                 img = phong.hau_ky(img, so, t, style)
                 so += 1
-                p.stdin.write((img * 255 + 0.5).astype(np.uint8).tobytes())
+                p.stdin.write((img * 255 + 0.5).to(torch.uint8).cpu().numpy().tobytes())
         p.stdin.close()
     except BrokenPipeError:
         pass

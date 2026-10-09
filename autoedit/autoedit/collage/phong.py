@@ -49,31 +49,50 @@ def vien_giay(rgb, a, seed: int = 0, s: float = 1.0):
     return p_rgb / np.maximum(p_a2, 1e-6)[..., None], p_a2
 
 
-def _hat(h: int, w: int, seed: int, cuong_do: float) -> np.ndarray:
-    g = ndi.gaussian_filter(np.random.default_rng(seed).normal(0, 1, (h, w)).astype(np.float32), 0.65)
-    return np.clip(0.5 + 0.11 * cuong_do * g / (g.std() + 1e-6), 0, 1)[..., None]
+def _hat(h: int, w: int, seed: int, cuong_do: float, tb):
+    """Hạt phim: nhiễu chuẩn làm mờ 0,65 px, chuẩn hoá, quanh 0,5 — sinh NGAY trên thiết bị của khung hình."""
+    import torch
+    import torch.nn.functional as Fn
+
+    g = torch.Generator(device=tb).manual_seed(int(seed))
+    n = torch.randn((1, 1, h, w), generator=g, device=tb)
+    k = torch.exp(-0.5 * (torch.arange(-3, 4, device=tb, dtype=torch.float32) / 0.65) ** 2)
+    k = k / k.sum()
+    n = Fn.conv2d(Fn.pad(n, (3, 3, 0, 0), mode="reflect"), k.view(1, 1, 1, -1))
+    n = Fn.conv2d(Fn.pad(n, (0, 0, 3, 3), mode="reflect"), k.view(1, 1, -1, 1))[0, 0]
+    return (0.5 + 0.11 * cuong_do * n / (n.std() + 1e-6)).clamp(0, 1)[..., None]
 
 
 def _overlay(nen, lop, dam):
-    o = np.where(nen < 0.5, 2 * nen * lop, 1 - 2 * (1 - nen) * (1 - lop))
+    import torch
+
+    o = torch.where(nen < 0.5, 2 * nen * lop, 1 - 2 * (1 - nen) * (1 - lop))
     return nen + (o - nen) * dam
 
 
 _TOI_VIEN: dict = {}
 
 
-def hau_ky(img: np.ndarray, i: int, t: float, style: str) -> np.ndarray:
+def hau_ky(img, i: int, t: float, style: str):
     """Collage art: hạt nhẹ 15%. Black Grid / Non-Grid: nhấp nháy máy chiếu 3,5% (đổi 6 lần/giây)
-    + hạt 33%. Cả ba: tối viền 28%."""
-    h, w = img.shape[:2]
-    if (h, w) not in _TOI_VIEN:
-        yy, xx = np.mgrid[0:h, 0:w]
-        _TOI_VIEN[(h, w)] = (1 - 0.28 * (((xx - w / 2) / (w / 2)) ** 2 + ((yy - h / 2) / (h / 2)) ** 2) / 2
-                             )[..., None].astype(np.float32)
-    img = np.clip(img, 0, 1)
+    + hạt 33%. Cả ba: tối viền 28%. Nhận tensor torch (chạy NGAY trên thiết bị của nó — đo 09/10 GTX 1070 Ti:
+    hậu kỳ numpy CPU 504 ms/khung, dựng khung trên card chỉ 17 ms) hoặc mảng numpy; trả cùng kiểu."""
+    import torch
+
+    la_np = not isinstance(img, torch.Tensor)
+    x = torch.from_numpy(np.ascontiguousarray(img, np.float32)) if la_np else img
+    h, w = x.shape[:2]
+    tb = x.device
+    if (h, w, str(tb)) not in _TOI_VIEN:
+        yy, xx = torch.meshgrid(torch.arange(h, device=tb, dtype=torch.float32),
+                                torch.arange(w, device=tb, dtype=torch.float32), indexing="ij")
+        _TOI_VIEN[(h, w, str(tb))] = (1 - 0.28 * (((xx - w / 2) / (w / 2)) ** 2 + ((yy - h / 2) / (h / 2)) ** 2) / 2
+                                      )[..., None]
+    x = x.clamp(0, 1)
     if style == "collage":
-        img = _overlay(img, _hat(h, w, i, 0.8), 0.15)
+        x = _overlay(x, _hat(h, w, i, 0.8, tb), 0.15)
     else:
-        img = np.clip(img * (1 + 0.035 * nhieu_muot(9, 2, posterize(t, 6))), 0, 1)
-        img = _overlay(img, _hat(h, w, i, 1.2), 0.33)
-    return np.clip(img * _TOI_VIEN[(h, w)], 0, 1)
+        x = (x * (1 + 0.035 * nhieu_muot(9, 2, posterize(t, 6)))).clamp(0, 1)
+        x = _overlay(x, _hat(h, w, i, 1.2, tb), 0.33)
+    x = (x * _TOI_VIEN[(h, w, str(tb))]).clamp(0, 1)
+    return x.numpy() if la_np else x

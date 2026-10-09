@@ -16,6 +16,7 @@ assets/
 __pycache__/
 *.py[cod]
 .venv/
+.venv_gpu/
 *.egg-info/
 .pytest_cache/
 build/

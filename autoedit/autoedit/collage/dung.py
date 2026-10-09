@@ -101,11 +101,13 @@ def _lay_mau(img: torch.Tensor, mx: torch.Tensor, my: torch.Tensor, phan_xa: boo
 
 
 def dung_khung(canh: Canh, cam, t: float, thiet_bi: str | None = None, phan_xa: bool = False,
-               tra_phu: bool = False):
+               tra_phu: bool = False, tensor: bool = False):
     """Dựng 1 khung. cam = (tx, ty, Tz, F, pan_x, pan_y). Trả (ảnh HxWx3 float32, tỉ lệ lộ mép).
 
     `lo` = phần khung lấy mẫu RA NGOÀI tấm nền (lộ mép) — phải = 0 ngoài lúc lia vút.
     `tra_phu`: trả thêm mặt nạ HxW (bool) chỗ tấm nền PHỦ — để ghép ảnh kế bên vào chỗ trống.
+    `tensor`: trả tensor torch NGAY TRÊN thiết bị (không chép về CPU) — dựng bằng card thì nhoè + hậu kỳ chạy
+    tiếp trên card, mỗi khung chỉ chép về một lần lúc xuất.
     """
     tb = _thiet_bi(thiet_bi)
     tx, ty, tz, F, px, py = (float(v) for v in cam)
@@ -159,9 +161,10 @@ def dung_khung(canh: Canh, cam, t: float, thiet_bi: str | None = None, phan_xa: 
             P = P * ((Z[y0:y1, x0:x1] - Zc) / (0.06 * Zc) + 0.5).clamp(0, 1)[None]
         roi = out[:, y0:y1, x0:x1]
         out[:, y0:y1, x0:x1] = P[:3] + roi * (1 - P[3:4])
+    anh = out.permute(1, 2, 0) if tensor else out.permute(1, 2, 0).cpu().numpy()
     if tra_phu:
-        return out.permute(1, 2, 0).cpu().numpy(), lo, (~ngoai).cpu().numpy()
-    return out.permute(1, 2, 0).cpu().numpy(), lo
+        return anh, lo, (~ngoai if tensor else (~ngoai).cpu().numpy())
+    return anh, lo
 
 
 def so_mau(quang_dich_px: float, tran: int = 16) -> int:

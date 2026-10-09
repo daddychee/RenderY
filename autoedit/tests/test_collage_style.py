@@ -319,3 +319,35 @@ def test_vien_trang_mep_ngoai_tron_khong_bac_thang():
     _, al = phong.vien_giay(np.zeros((n, n, 3), np.float32), a, seed=1)
     ngoai = 1 - al                                                     # mép ngoài viền = nơi al cắt 0,5
     assert _bac_thang(1 - ngoai[10:-10]) < 0.2
+
+
+# ═══════ chạy bằng card (user lắp GTX 1070 Ti 09/10): khung hình ở dạng tensor suốt dựng -> nhoè -> hậu kỳ ═══════
+def test_hau_ky_nhan_tensor_tra_tensor_toi_goc_dung():
+    """Đo 09/10 trên GPU: dựng 1 khung 17 ms nhưng hậu kỳ numpy CPU 504 ms/khung (150/169 s của video 10 s)
+    -> hậu kỳ chạy bằng torch, ngay trên thiết bị của khung hình."""
+    import torch
+    img = torch.full((H, W, 3), 0.5)
+    ra = phong.hau_ky(img, 3, 1.0, "collage")
+    assert isinstance(ra, torch.Tensor) and ra.shape == img.shape and ra.device == img.device
+    assert 0 <= float(ra.min()) and float(ra.max()) <= 1
+    goc, giua = float(ra[:12, :12].mean()), float(ra[H // 2 - 6:H // 2 + 6, W // 2 - 6:W // 2 + 6].mean())
+    yy, xx = np.mgrid[0:H, 0:W]
+    vien = 1 - 0.28 * (((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2) / 2      # tối viền 28%
+    mong = vien[:12, :12].mean() / vien[H // 2 - 6:H // 2 + 6, W // 2 - 6:W // 2 + 6].mean()
+    assert abs(goc / giua - mong) < 0.02, f"tối góc: góc/giữa = {goc / giua:.3f}, đúng công thức {mong:.3f}"
+    np_ra = phong.hau_ky(np.full((H, W, 3), 0.5, np.float32), 3, 1.0, "collage")
+    assert isinstance(np_ra, np.ndarray), "vẫn nhận mảng numpy"
+
+
+def test_dung_khung_tra_tensor_giong_het_numpy():
+    import torch
+    from autoedit.collage.dung import Canh, Lop, dung_khung
+    nen = np.random.default_rng(0).random((H, W, 3)).astype(np.float32)
+    canh = Canh(nen, np.full((H, W), 40.0, np.float32), W, H, zoom=1.15)
+    vat = np.zeros((H, W, 4), np.float32)
+    vat[30:70, 60:120] = (0.9, 0.2, 0.2, 1)
+    canh.them(Lop(vat, 6.0))
+    cam = (5.0, -3.0, 0.4, 1.0, 0.0, 0.0)
+    a = dung_khung(canh, cam, 1.0, thiet_bi="cpu")[0]
+    b = dung_khung(canh, cam, 1.0, thiet_bi="cpu", tensor=True)[0]
+    assert isinstance(b, torch.Tensor) and np.abs(a - b.numpy()).max() < 1e-6
