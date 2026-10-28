@@ -17,6 +17,8 @@ import math
 import re
 from pathlib import Path
 
+# Model vẽ asset khi CẢ tập lẫn General chưa chọn (user báo 28/10: đổi model ở General
+# mà tool vẫn GPT2 — ghi cứng là lỗi; app đọc tập > General > hằng này).
 MODEL_ANH = "gpt-image-2"
 MODEL_DU_PHONG = "GEM_PIX_2"      # Nano Banana Pro: Padoma `bo_anh.MODEL_DU_PHONG` khi GPT Image 2 bảo trì
 # Credit một ảnh Seedvis (Padoma TOM-TAT-API 19/10: tạo mới 4, sửa từ ảnh 5) và giây một
@@ -86,7 +88,13 @@ def thieu_mo_ta(x: dict) -> bool:
     return not chu or la_tieng_viet(chu)
 
 
-def ke_hoach(so: list[dict], co_anh: set[str], tim_do_vat: bool) -> dict:
+def gia_anh(model: str, sua: bool) -> int:
+    """GPT Image: 4 tạo mới, 5 sửa từ ảnh; Nano Banana: 4 cả hai (Padoma TOM-TAT-API)."""
+    return GIA_SUA if sua and (model or "").startswith("gpt-image") else GIA_ANH
+
+
+def ke_hoach(so: list[dict], co_anh: set[str], tim_do_vat: bool, model: str = MODEL_ANH,
+             du_phong: str = MODEL_DU_PHONG) -> dict:
     """Việc của nút "Gen toàn bộ asset" trên sổ hiện tại. Đồ vật LLM sắp tìm thì chưa
     tính credit (chưa biết số)."""
     ma_so = {x["ma"] for x in so}
@@ -95,14 +103,17 @@ def ke_hoach(so: list[dict], co_anh: set[str], tim_do_vat: bool) -> dict:
     goc = [x for x in ve if x["loai"] == "nhan_vat" and x not in phu]
     khac = [x for x in ve if x["loai"] != "nhan_vat"]
     anh = 2 * len(goc) + 2 * len(phu) + len(khac)
+
+    def credit(m):
+        return ((gia_anh(m, False) + gia_anh(m, True)) * len(goc) + 2 * gia_anh(m, True) * len(phu)
+                + gia_anh(m, False) * len(khac))
+
     return {"do_vat": tim_do_vat,
             "mo_ta": sum(1 for x in so if x["loai"] in TI_LE and thieu_mo_ta(x) and (x.get("yc") or "").strip()),
             "nhan_vat": len(goc), "phu": len(phu),
             "noi": sum(1 for x in khac if x["loai"] == "boi_canh"),
             "dao_cu": sum(1 for x in khac if x["loai"] == "dao_cu"),
-            "anh": anh,
-            "credit": (GIA_ANH + GIA_SUA) * len(goc) + 2 * GIA_SUA * len(phu) + GIA_ANH * len(khac),
-            "credit_du_phong": GIA_ANH * anh,          # Nano Banana Pro: 4 cả tạo mới lẫn sửa
+            "anh": anh, "credit": credit(model), "credit_du_phong": credit(du_phong),
             "phut": math.ceil(anh * GIAY_ANH / (60 * LUONG)) + (2 if tim_do_vat else 0)}
 
 

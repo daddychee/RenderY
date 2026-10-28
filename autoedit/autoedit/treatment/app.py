@@ -642,7 +642,13 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 kho.duong_ref(tap, ma, d).unlink(missing_ok=True)
         return {"ok": True}
 
-    def _ref_khuon_2(tap: str, ma: str, muc: dict, model: str = mtai_san.MODEL_ANH) -> dict:
+    def _mo_hinh_tai_san(tap: str) -> str:
+        """Model vẽ asset: tập chọn (nút Model) > General (gen_canh) > GPT Image 2.
+        User báo 28/10: đổi model ở General mà tool vẫn vẽ GPT2 — từng ghi cứng."""
+        return ((kho.mo_hinh_tap(tap).get("anh") or "").strip()
+                or (getattr(ve_anh, "model_ket", "") or "").strip() or mtai_san.MODEL_ANH)
+
+    def _ref_khuon_2(tap: str, ma: str, muc: dict, model: str | None = None) -> dict:
         """Luật tài sản Padoma bằng GPT Image 2 (user chốt 27/10). Người: cận
         mặt 1:1 -> toàn thân 9:16 SỬA TỪ ảnh cận -> tấm gộp 4:3 (đây mới là ref);
         đồ vật nền trắng 1:1; nơi chốn 16:9 không người. Ảnh vẽ theo MÔ TẢ tiếng
@@ -662,7 +668,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             x["ma"] == goc for x in kho.ds_so(tap)) else None
         if mat_goc is not None and not mat_goc.exists():
             raise HTTPException(400, f"Bộ đồ phụ vẽ từ khuôn mặt của {goc} — vẽ {goc} trước.")
-        m = {"model": model}
+        m = {"model": model or _mo_hinh_tai_san(tap)}
         try:
             if loai == "nhan_vat":
                 can, toan = dich.with_name(ma + "__can.png"), dich.with_name(ma + "__toan.png")
@@ -715,21 +721,27 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             return {"anh": a, "video": vd, "chung": bool(getattr(ve_video, "cung_anh", a == vd))}
         return _nho("so_du", hoi, 10 if moi else 60)
 
+    def _model_tat_ca(tap: str) -> tuple[str, str]:
+        """(model hiệu lực, model dự phòng khi nó bảo trì)."""
+        m = _mo_hinh_tai_san(tap)
+        return m, (mtai_san.MODEL_DU_PHONG if m != mtai_san.MODEL_DU_PHONG else mtai_san.MODEL_ANH)
+
     def _ke_hoach_tap(tap: str) -> dict:
         so = kho.ds_so(tap)
         co_anh = {x["ma"] for x in so if kho.ref_dang_co(tap, x["ma"]) is not None}
         tim = kho.kieu_tap(tap)["loai"] == "drama" and not any(x["loai"] == "dao_cu" for x in so)
-        return mtai_san.ke_hoach(so, co_anh, tim)
+        return mtai_san.ke_hoach(so, co_anh, tim, *_model_tat_ca(tap))
 
     @app.get("/api/tap/{tap}/so/tat-ca")
     def xem_tat_ca(tap: str):
+        model, du = _model_tat_ca(tap)
         ds = _nho("ds_model", lambda: getattr(ve_video, "danh_sach", None) or [], 60)
-        m = next((x for x in ds if x.get("id") == mtai_san.MODEL_ANH), None)
+        m = next((x for x in ds if x.get("id") == model), None)
         with _KHOA_VIEC:
             v = _VIEC.get(tap)
             viec = dict(v, loi=list(v["loi"])) if v else None
         return {"ke_hoach": _ke_hoach_tap(tap), "viec": viec,
-                "model": {"id": mtai_san.MODEL_ANH, "du_phong": mtai_san.MODEL_DU_PHONG,
+                "model": {"id": model, "du_phong": du,
                           "bao_tri": bool(ds) and (m is None or (m.get("status") or "active") != "active")}}
 
     @app.post("/api/tap/{tap}/so/tat-ca")
@@ -740,10 +752,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if kho.kieu_tap(tap)["khuon"] != "2":
             raise HTTPException(400, "Tập cũ (trước 27/10) vẽ từng asset — nút này đi theo luật "
                                      "tài sản khuôn Padoma.")
-        model = str(than.get("model") or mtai_san.MODEL_ANH).strip()
-        if model not in (mtai_san.MODEL_ANH, mtai_san.MODEL_DU_PHONG):
-            raise HTTPException(400, f"Model '{model}' không dùng vẽ asset — chỉ GPT Image 2 "
-                                     "hoặc Nano Banana Pro.")
+        hl, du = _model_tat_ca(tap)
+        model = str(than.get("model") or hl).strip()
+        if model not in (hl, du):
+            raise HTTPException(400, f"Model '{model}' không phải model vẽ asset của tập này "
+                                     f"({hl}) hay model dự phòng ({du}).")
         kh = _ke_hoach_tap(tap)
         if not (kh["do_vat"] or kh["mo_ta"] or kh["anh"]):
             raise HTTPException(400, "Mọi asset đã có ảnh — vẽ lại cái nào thì bấm trong thẻ asset đó.")
@@ -2128,6 +2141,13 @@ class _VeAnh:
         # `ti_le` chỉ Seedvis nhận (tài sản khuôn Padoma: 1:1 / 9:16 / 16:9).
         return _may_ve(cd).gen_anh(prompt, dich, ref=ref, **({"model": model} if model else {}),
                                    **({"ti_le": ti_le} if ti_le else {}))
+
+    @property
+    def model_ket(self):
+        """Model Owner cấp cho việc vẽ ảnh ở General (gen_canh); chưa cấp -> ""."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        return (doc_ket_viec("gen_canh") or {}).get("model") or ""
 
     @property
     def credit(self):

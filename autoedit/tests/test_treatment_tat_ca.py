@@ -243,3 +243,42 @@ def test_so_du_nho_60_giay_moi_thi_hoi_lai_sau_10_giay(tmp_path, monkeypatch):
 def test_so_du_khong_phai_seedvis_thi_null(tmp_path):
     c = TestClient(tao_app(Kho(tmp_path / "k.db"), ve_anh=VeAnhGia(), ve_video=VeVideoGia()))
     assert c.get("/api/so-du").json() == {"anh": None, "video": None, "chung": True}
+
+
+# ═══════ model vẽ asset theo General (user báo 28/10: "đổi model trong General mà tool vẫn GPT2") ═══
+class VeAnhKet(VeAnhGia):
+    """Bộ vẽ có model Owner cấp ở General › API Keys › Treatment › gen_canh."""
+
+    def __init__(self, model_ket):
+        super().__init__()
+        self.model_ket = model_ket
+
+
+def test_ve_asset_theo_model_general_khong_ghi_cung_gpt(tmp_path):
+    va = VeAnhKet("GEM_PIX_2")
+    _, c = _bo(tmp_path, va=va)
+    _tap_drama(c)
+    assert c.post("/api/tap/D1/so/nv01/ref-sinh").status_code == 200
+    assert [g["model"] for g in va.goi] == ["GEM_PIX_2", "GEM_PIX_2"]
+
+
+def test_ve_asset_tap_chon_model_thi_de_general(tmp_path):
+    va = VeAnhKet("GEM_PIX_2")
+    _, c = _bo(tmp_path, va=va)
+    _tap_drama(c)
+    assert c.put("/api/tap/D1/mo-hinh", json={"anh": "NARWHAL", "video": ""}).status_code == 200
+    c.post("/api/tap/D1/so/nv01/ref-sinh")
+    assert {g["model"] for g in va.goi} == {"NARWHAL"}
+
+
+def test_gen_toan_bo_theo_model_general_credit_theo_model_do(tmp_path):
+    va = VeAnhKet("GEM_PIX_2")
+    _, c = _bo(tmp_path, va=va)
+    _tap_drama(c)
+    r = c.get("/api/tap/D1/so/tat-ca").json()
+    assert r["model"]["id"] == "GEM_PIX_2" and r["model"]["du_phong"] == "gpt-image-2"
+    assert r["ke_hoach"]["credit"] == 8 * 4, "Nano Banana Pro 4 credit mỗi ảnh"
+    assert r["ke_hoach"]["credit_du_phong"] == 2 * 9 + 10 + 2 * 4, "dự phòng GPT: 4 tạo mới, 5 sửa"
+    assert c.post("/api/tap/D1/so/tat-ca", json={}).status_code == 200
+    _cho_xong(c)
+    assert va.goi and {g["model"] for g in va.goi} == {"GEM_PIX_2"}
