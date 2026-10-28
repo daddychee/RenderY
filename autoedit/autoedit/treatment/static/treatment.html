@@ -89,7 +89,7 @@ select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;p
   display:flex;align-items:center;gap:9px}
 .nhac{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
   border-radius:8px;padding:8px 11px;font-size:12.5px;line-height:1.55}
-#banMoi.khoa{margin:8px 14px}
+#banMoi.khoa,#ketTatCa.khoa{margin:8px 14px}
 .khoa button{margin-left:auto;background:var(--warn);color:#0b0b0b;border:0;border-radius:6px;
   padding:4px 10px;font-weight:700;cursor:pointer}
 .dau{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;
@@ -428,6 +428,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   </div>
   <div class="chuong" id="chuong"></div>
   <div class="spacer"></div>
+  <span class="ai-toi" id="soDu"></span>
   <span class="ai-toi" id="aiToi"></span>
   <span class="luu" id="tt"></span>
   <button class="icon-btn" onclick="doiNen()" title="Đổi nền sáng/tối">◐</button>
@@ -516,13 +517,17 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <div class="vet-hop">
     <span class="nhan" style="margin:0">Asset của tập</span>
     <span class="tien-do" id="tienDoAs"></span>
+    <span class="tien-do" id="viecTatCa"></span>
     <span class="spacer"></span>
     <button class="icon-btn chi-sua" id="nutGoiY" onclick="goiYTaiSan()">Đọc kịch bản</button>
+    <button class="icon-btn chi-sua" id="nutTatCa" onclick="genTatCa()"
+            title="Tìm đồ vật, viết mô tả, vẽ ảnh mọi asset còn thiếu — máy chủ chạy nền, đóng tab không mất">Gen toàn bộ asset</button>
     <button class="icon-btn chi-sua" onclick="themAsset('nhan_vat')">+ nhân vật</button>
     <button class="icon-btn chi-sua" onclick="themAsset('boi_canh')">+ bối cảnh</button>
     <button class="icon-btn chi-sua" onclick="themAsset('dao_cu')">+ đạo cụ</button>
     <button class="icon-btn" onclick="moSo('tong')">Tone</button>
   </div>
+  <div id="ketTatCa"></div>
   <div class="sb-canvas" id="asCanvas"></div>
 </div>
 
@@ -1101,8 +1106,8 @@ async function napSo(){
 async function luuSoLen(){
   if(!SUA_DUOC) return;
   try { await api("/api/tap/" + TAP_MA + "/so", "PUT",
-                {so: SO, tong: TONG_TAP}); tt("✓ Đã lưu sổ", "xong"); }
-  catch(e){ bao(e.message, true); }
+                {so: SO, tong: TONG_TAP}); tt("✓ Đã lưu sổ", "xong"); return true; }
+  catch(e){ bao(e.message, true); return false; }
 }
 
 /* Owner sửa tông trong sổ thì MỌI prompt ăn theo — ghi cứng trong trang nghĩa
@@ -1722,6 +1727,7 @@ async function sinhAnh(ev){
   await banRon(nut, "Đang vẽ ảnh…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/anh", "POST"); }
     catch(e){ return bao(e.message, true); }
+    napSoDu(1);
     await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
   });
 }
@@ -1850,6 +1856,7 @@ async function genVideo(ev, noi){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
                     "/video", "POST", {noi: !!noi}); }
     catch(e){ return bao(e.message, true); }
+    napSoDu(1);
     await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
     theoDoiVideo(x.ch, x.id);
   });
@@ -2052,6 +2059,7 @@ async function sinhRef(ma, ev){
   await banRon(ev && ev.target, "Đang vẽ ref…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/so/" + ma + "/ref-sinh", "POST"); }
     catch(e){ return bao(e.message, true); }
+    napSoDu(1);
     await napSo(); veAsset(); veSb();
     if(trongHop) moAsset(ma);
     else if(canhDangMo) moCanh(canhDangMo);
@@ -2342,7 +2350,10 @@ function docHopAsset(){
 }
 async function chotAsset(){
   if(!docHopAsset()) return;
-  await luuSoLen(); await napSo(); dongCanh(); veAsset(); veSb();
+  // Lưu hỏng (vd 409 lúc đang Gen toàn bộ asset) thì GIỮ hộp: nạp sổ rồi đóng là mất
+  // chữ vừa gõ — asset mới chưa lưu biến mất luôn.
+  if(!(await luuSoLen())) return;
+  await napSo(); dongCanh(); veAsset(); veSb();
 }
 /* Lưu YÊU CẦU trước khi gọi: gõ xong bấm ngay mà không lưu thì máy chủ đọc bản
    cũ, LLM viết theo yêu cầu cũ, người dùng tưởng nó không nghe mình. */
@@ -2357,6 +2368,110 @@ async function sinhAsset(ev){
     await napSo(); moAsset(ma); veAsset();
     bao("Đã sinh mô tả. Xem lại rồi bấm <b>Sinh ref</b> để vẽ ảnh tham chiếu.");
   });
+}
+
+/* Gen toàn bộ asset (user duyệt 28/10, như Padoma): tìm đồ vật, viết mô tả, vẽ ảnh
+   mọi asset còn thiếu. Máy chủ chạy NỀN — đóng tab không mất — trang chỉ hỏi lại.
+   Hỏi kế hoạch TRƯỚC rồi mới hỏi người: số ảnh, credit, phút đều do máy chủ đếm. */
+var BUOC_TAT_CA = {do_vat: "tìm đồ vật", mo_ta: "viết mô tả", ve: "vẽ ảnh", xong: "xong"};
+async function genTatCa(){
+  if(!SUA_DUOC) return;
+  var duong = "/api/tap/" + TAP_MA + "/so/tat-ca";
+  await banRon(document.getElementById("nutTatCa"), "Đang tính…", async function(){
+    var r;
+    try { r = await api(duong); } catch(e){ return bao(e.message, true); }
+    if(r.viec && r.viec.chay){
+      theoDoiTatCaAsset();
+      return bao("Tập này đang gen toàn bộ asset rồi — tiến độ ở thanh trên.");
+    }
+    var k = r.ke_hoach, m = r.model, lam = [];
+    if(k.do_vat) lam.push("LLM tìm đồ vật trong kịch bản (đồ tìm ra CHƯA tính vào số dưới)");
+    if(k.mo_ta) lam.push("viết mô tả " + k.mo_ta + " asset");
+    if(k.anh) lam.push("vẽ " + k.anh + " ảnh: người " + k.nhan_vat + " · bộ đồ phụ " + k.phu +
+                       " · nơi " + k.noi + " · đồ " + k.dao_cu);
+    if(!lam.length) return bao("Asset của tập đã đủ — không còn gì để gen.");
+    // Bảo trì: NÓI ra và để người chọn vẽ bằng model dự phòng, không tự đổi.
+    var dung = m.bao_tri ? m.du_phong : m.id, so = document.getElementById("soDu").textContent;
+    if(!confirm("Gen toàn bộ asset của tập " + TAP_MA + ":\n• " + lam.join("\n• ") + "\n\n" +
+                (m.bao_tri ? tenMoHinh(m.id) + " đang bảo trì — bấm OK là vẽ bằng " +
+                             tenMoHinh(m.du_phong) + "."
+                           : "Vẽ bằng " + tenMoHinh(m.id) + ".") +
+                // Giá theo model SẼ vẽ: Nano Banana Pro 4 cr/ảnh, GPT 4 tạo mới / 5 sửa.
+                "\n≈ " + soCr(m.bao_tri ? k.credit_du_phong : k.credit) + " cr · ≈ " + k.phut + " phút" +
+                (so ? "\nSố dư: " + so : "") +
+                "\n\nMáy chủ chạy nền — đóng tab không mất.")) return;
+    try { await api(duong, "POST", {model: dung}); } catch(e){ return bao(e.message, true); }
+    theoDoiTatCaAsset(true);
+  });
+}
+/* Nạp sổ máy chủ mà GIỮ asset mới chưa lưu (`themAsset` chỉ sống trong trang): nạp
+   đè thẳng lúc hộp đang mở là nuốt nó, cùng bẫy `taiRef`. */
+async function napSoGiu(){
+  var cu = SO; await napSo();
+  cu.forEach(function(x){ if(!soTheoMa(x.ma)) SO.push(x); });
+}
+/* `hen` = vòng này đã thấy việc ĐANG CHẠY (hoặc vừa bấm chạy): xong thì báo và mở sẵn
+   danh sách lỗi. Cờ giữ suốt lúc chờ hẹn giờ, cùng bài `theoDoiVideo` — không thì mỗi
+   lần mở màn Asset đẻ thêm một vòng hỏi. Vòng mang theo mã tập: đổi tập thì vòng cũ tự tắt. */
+var DANG_TAT_CA = "", MOC_TAT_CA = "", LUOT_TAT_CA = "";
+async function theoDoiTatCaAsset(hen){
+  var tap = TAP_MA, e = document.getElementById("viecTatCa"), k = document.getElementById("ketTatCa");
+  if(DANG_TAT_CA === tap && !hen) return;
+  DANG_TAT_CA = tap;
+  var r = null;
+  try { r = await api("/api/tap/" + tap + "/so/tat-ca"); } catch(err){}
+  var lai = function(){ setTimeout(function(){
+    if(TAP_MA === tap) return theoDoiTatCaAsset(true);
+    if(DANG_TAT_CA === tap) DANG_TAT_CA = "";
+    e.textContent = ""; k.className = ""; k.innerHTML = ""; }, 5000); };
+  if(tap !== TAP_MA){ if(DANG_TAT_CA === tap) DANG_TAT_CA = ""; return; }
+  if(!r){ if(hen) return lai(); DANG_TAT_CA = ""; return; }   // mạng chớp giữa lúc chạy: hỏi tiếp
+  var v = r.viec, moc = v ? v.buoc + ":" + v.xong : "";
+  // Ảnh hiện dần: bước hay `xong` đổi thì nạp lại sổ — cả lượt XONG, không thì tab cầm
+  // bản cũ rồi ghi đè đồ vật / mô tả máy vừa thêm (PUT /so ghi cả sổ).
+  var so = v && (hen || v.chay) && moc !== MOC_TAT_CA;
+  // Lượt chạy tab CHƯA đồng bộ (vừa qua bước tìm đồ vật, hoặc tab mở từ trước lượt chạy):
+  // nạp lại một lần cả sổ lẫn CHƯƠNG — máy gán đồ vật mới vào `ts` của clip; DU cũ thì thẻ
+  // ghi "dùng ở 0 cảnh" và bấm chip asset trong hộp cảnh là PATCH ts cũ, xoá đồ vật khỏi clip.
+  var luot = v && v.buoc !== "do_vat" ? tap + "@" + v.bat_dau : "", ch = luot && luot !== LUOT_TAT_CA;
+  if(so || ch){
+    MOC_TAT_CA = moc; await napSoGiu();
+    if(ch){
+      LUOT_TAT_CA = luot;
+      if(v.do_vat_moi){
+        await luuNgay();                   // chữ kịch bản đang chờ lưu: ghi trước, đừng nạp đè
+        for(var m in DU) await taiLaiChuong(m);
+        if(MAN_HINH === "sb") veSb();
+      }
+    }
+    veAsset();
+  }
+  k.className = ""; k.innerHTML = "";
+  if(!v){ DANG_TAT_CA = ""; e.textContent = ""; return; }
+  var nl = v.loi.length ? ' · <span class="thieu">' + v.loi.length + " lỗi</span>" : " · 0 lỗi";
+  if(v.chay){
+    e.innerHTML = "Gen toàn bộ asset · <b>" + (BUOC_TAT_CA[v.buoc] || thoat(v.buoc)) +
+      (v.tong ? " " + v.xong + "/" + v.tong + " asset" : "…") + "</b>" + nl +
+      (v.nguoi ? " · " + thoat(v.nguoi) + " bấm" : "");
+    return lai();
+  }
+  DANG_TAT_CA = "";
+  // Lần gần nhất vẫn hiện khi mở lại (máy chủ giữ tới lần restart): người bấm rồi đóng
+  // tab cần biết asset nào hỏng. Danh sách lỗi gấp lại; vừa xong trước mắt thì mở sẵn.
+  e.innerHTML = "Lần gần nhất: xong " + v.xong + "/" + v.tong + nl;
+  if(v.loi.length){
+    k.className = "khoa";
+    k.innerHTML = '<details' + (hen ? ' open' : '') + '><summary>' + v.loi.length +
+      ' lỗi ở lần gen toàn bộ gần nhất</summary>' + v.loi.map(function(l){
+        // `ma` rỗng = lỗi của cả bước (vd "Tìm đồ vật").
+        return '• ' + [l.ma, l.ten].filter(Boolean).map(thoat).join(" · ") + ': ' + thoat(l.loi);
+      }).join("<br>") + '</details>';
+  }
+  if(!hen) return;
+  bao("Gen toàn bộ asset xong: " + v.xong + "/" + v.tong + " asset" +
+      (v.do_vat_moi ? " · tìm thêm " + v.do_vat_moi + " đồ vật" : "") + " · " + v.loi.length + " lỗi" +
+      (MAN_HINH === "as" ? "" : " — xem ở màn <b>Asset</b>."), v.loi.length > 0);
+  napSoDu(1);
 }
 
 /* Tông nào dùng cho CẢ TẬP. Một tập một mood — cảnh lệch thì tự đè trong hộp
@@ -2891,6 +3006,7 @@ async function doiMan(m){
       if(!DU[mc]) DU[mc] = await api("/api/tap/" + TAP_MA + "/" + mc);
     }
     veAsset();
+    theoDoiTatCaAsset();      // người khác đang gen toàn bộ thì vẫn thấy tiến độ
   }
   if(m === "sb"){
     // Storyboard nhìn cả tập nên phải có đủ chương trong tay.
@@ -3230,6 +3346,24 @@ async function aiDay(){
   e.onclick = khaiTen;
 }
 
+/* Số dư credit (user duyệt 28/10) — ai cũng thấy, ở cả ba màn. Máy chủ nhớ 60 s;
+   `moi` ép hỏi lại ngay sau một lần gen. Hỏi hỏng thì GIỮ số cũ, như `aiDay`. */
+var GIA_GROK = 108;                      // credit một clip Grok, 6/10/15 s cùng giá
+function soCr(n){ return Number(n).toLocaleString("vi-VN"); }
+async function napSoDu(moi){
+  var r;
+  try { r = await api("/api/so-du" + (moi ? "?moi=1" : "")); } catch(e){ return; }
+  var a = r.anh, v = r.video, e = document.getElementById("soDu");
+  // null = không phải Seedvis hoặc hỏi lỗi: bỏ vế đó, đừng in số 0 giả.
+  e.textContent = r.chung
+    ? (v == null ? "" : "Seedvis · " + soCr(v) + " cr · ≈ " + Math.floor(v / GIA_GROK) + " clip Grok")
+    : [a == null ? "" : "ảnh " + soCr(a), v == null ? "" : "video " + soCr(v)]
+        .filter(Boolean).join(" · ") + (a == null && v == null ? "" : " cr");
+  var it = v != null && v < GIA_GROK;
+  e.style.color = it ? "var(--bad)" : (v != null && v < 1000) ? "var(--warn)" : "";
+  e.title = it ? "Không đủ 1 clip Grok — báo Owner nạp" : "";
+}
+
 async function khaiTen(){
   // Chua noi vao cong CRM thi khong co danh tinh — hoi thang. Day KHONG phai
   // dang nhap: no de hai nguoi biet ai dang giu chuong nao, khong phai cua bao mat.
@@ -3255,6 +3389,7 @@ window.addEventListener("beforeunload", function(){
   await aiDay();
   batNutGhi();
   setInterval(aiDay, 60000);   // bản mới lên máy chủ thì tab đang mở biết ngay
+  napSoDu(); setInterval(napSoDu, 60000);
   await napTap();
   if(!TOI) khaiTen();
 })();
