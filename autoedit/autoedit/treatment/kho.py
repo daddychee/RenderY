@@ -71,7 +71,10 @@ class Kho:
     def __init__(self, duong: Path | str) -> None:
         self.duong = Path(duong)
         self.duong.parent.mkdir(parents=True, exist_ok=True)
-        self.cn = sqlite3.connect(self.duong, check_same_thread=False)
+        # `cached_statements=0`: câu lệnh soạn sẵn của kết nối dùng chung giữa các
+        # luồng — hai luồng chạy cùng câu là "bad parameter or other API misuse"
+        # (đo 28/10: 7/8 luồng đọc vỡ). SQLite bản này chạy chế độ serialized.
+        self.cn = sqlite3.connect(self.duong, check_same_thread=False, cached_statements=0)
         self.cn.row_factory = sqlite3.Row
         # Một kết nối dùng chung mọi luồng của uvicorn: đọc-vá-ghi phải trọn một
         # nhịp, không thì hai lượt vá cùng chương xen nhau và lượt sau đè lượt trước.

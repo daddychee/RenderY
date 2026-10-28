@@ -163,3 +163,29 @@ def test_ds_chuong_kem_SO_DONG_cua_tung_chuong(kho):
     kho.luu("SO001", "C1", [{"en": "b", "vi": "", "het": 0}] * 5, "", "ai")
     ds = {c["ma"]: c["so_dong"] for c in kho.ds_chuong("SO001")}
     assert ds == {"H": 3, "C1": 5, "C2": 0, "E": 0}
+
+
+# --------------------------------- nhiều luồng ------------------------------
+def test_nhieu_luong_cung_doc_mot_ket_noi_khong_vo(kho):
+    """Một kết nối dùng chung mọi luồng (uvicorn + việc nền Gen toàn bộ asset).
+    Câu lệnh đã soạn mà kết nối nhớ sẵn thì hai luồng chạy cùng câu là
+    `InterfaceError: bad parameter or other API misuse` (đo 28/10: 7/8 luồng vỡ)."""
+    import threading
+
+    kho.tao_tap("D1", "x", loai="drama", khuon="2")
+    loi = []
+
+    def doc():
+        try:
+            for _ in range(300):
+                kho.kieu_tap("D1")
+                kho.ds_so("D1")
+        except Exception as exc:  # noqa: BLE001
+            loi.append(repr(exc))
+
+    luong = [threading.Thread(target=doc) for _ in range(8)]
+    for t in luong:
+        t.start()
+    for t in luong:
+        t.join()
+    assert loi == []

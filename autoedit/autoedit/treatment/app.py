@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import os
 import re
+import threading
+import time
 import unicodedata
 from pathlib import Path
 from fastapi import Body, FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -102,6 +104,9 @@ def _co_hanh_dong(request: Request) -> set[str]:
 def _xem_duoc(request: Request) -> str:
     """Ai cũng xem được (đã qua cửa `vao` của gateway) — trả tên để ghi sổ."""
     return _nguoi(request)
+
+
+_gio = time.monotonic       # đồng hồ của bộ nhớ đệm số dư (test thay được)
 
 
 def _ghi_duoc(request: Request) -> str:
@@ -414,6 +419,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     @app.put("/api/tap/{tap}/so")
     def luu_so(tap: str, request: Request, than: dict = Body(...)):
         _ghi_duoc(request)
+        # Trang ghi CẢ sổ bằng bản nó đang cầm: ghi giữa lúc việc nền đang viết
+        # mô tả / thêm đồ vật là xoá im lặng phần máy vừa viết.
+        if (_VIEC.get(tap) or {}).get("chay"):
+            raise HTTPException(409, "Đang gen toàn bộ asset — đợi xong rồi lưu.")
         try:
             kho.luu_so(tap, than.get("so") or [])
         except ValueError as exc:
@@ -484,6 +493,27 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     for k in ("ten", "chu", "tb", "ly_do")}
         return {"goi_y": ds, "mood": mood, "quet": len(dong)}
 
+    _KHOA_SO = threading.Lock()     # đọc-vá-ghi sổ của máy (nút Sinh Asset, việc nền) trọn một nhịp
+
+    def _ghi_mo_ta_2(tap: str, ma: str, ra: dict, kieu: dict) -> dict | None:
+        """Ghi mô tả LLM vừa viết vào BẢN TRONG KHO (khuôn 2). Nhân vật drama giữ
+        cụm kịch bản; prompt ảnh là khuôn câu Python ghép (`tai_san.pr_mau`)."""
+        with _KHOA_SO:
+            kho_so, muc = kho.ds_so(tap), None
+            for x in kho_so:
+                if x["ma"] != ma:
+                    continue
+                giu_cum = (kieu["loai"] == "drama" and x["loai"] == "nhan_vat"
+                           and (x.get("chu") or "").strip())
+                if not giu_cum:
+                    x["chu"] = str(ra.get("chu") or "").strip()
+                if x["loai"] == "nhan_vat" and str(ra.get("tieng") or "").strip():
+                    x["tieng"] = str(ra["tieng"]).strip()
+                x["pr"] = mtai_san.pr_mau(x["loai"], x["chu"])
+                muc = x
+            kho.luu_so(tap, kho_so)
+        return muc
+
     @app.post("/api/tap/{tap}/so/{ma}/sinh")
     def sinh_asset_api(tap: str, ma: str, request: Request):
         """Viết hồ sơ nhận dạng cho MỘT asset, từ YÊU CẦU người dùng đã gõ.
@@ -514,19 +544,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 ra = sinh_asset.sinh_asset_2(muc, _tong_chu(so, ""))
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Sinh asset hỏng: {exc}") from exc
-            kho_so = kho.ds_so(tap)
-            for x in kho_so:
-                if x["ma"] != ma:
-                    continue
-                giu_cum = (kieu["loai"] == "drama" and x["loai"] == "nhan_vat"
-                           and (x.get("chu") or "").strip())
-                if not giu_cum:
-                    x["chu"] = str(ra.get("chu") or "").strip()
-                if x["loai"] == "nhan_vat" and str(ra.get("tieng") or "").strip():
-                    x["tieng"] = str(ra["tieng"]).strip()
-                x["pr"] = mtai_san.pr_mau(x["loai"], x["chu"])
-                muc = x
-            kho.luu_so(tap, kho_so)
+            muc = _ghi_mo_ta_2(tap, ma, ra, kieu) or muc
             return {"ok": True, "chu": muc.get("chu", ""), "pr": muc.get("pr", ""),
                     "tieng": muc.get("tieng", "")}
         try:
@@ -624,11 +642,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 kho.duong_ref(tap, ma, d).unlink(missing_ok=True)
         return {"ok": True}
 
-    def _ref_khuon_2(tap: str, ma: str, muc: dict) -> dict:
+    def _ref_khuon_2(tap: str, ma: str, muc: dict, model: str = mtai_san.MODEL_ANH) -> dict:
         """Luật tài sản Padoma bằng GPT Image 2 (user chốt 27/10). Người: cận
         mặt 1:1 -> toàn thân 9:16 SỬA TỪ ảnh cận -> tấm gộp 4:3 (đây mới là ref);
         đồ vật nền trắng 1:1; nơi chốn 16:9 không người. Ảnh vẽ theo MÔ TẢ tiếng
-        Anh — chưa có thì chặn, vẽ theo chữ Việt là ra ảnh sai."""
+        Anh — chưa có thì chặn, vẽ theo chữ Việt là ra ảnh sai. Bộ đồ phụ: cận mặt
+        SỬA TỪ cận mặt của bản gốc (Padoma F2), vẽ từ chữ là mỗi bộ đồ một khuôn mặt."""
         loai, chu = muc["loai"], (muc.get("chu") or "").strip()
         if not chu or mdrama.la_tieng_viet(chu):
             raise HTTPException(400, "Asset này chưa có mô tả tiếng Anh — bấm “Sinh Asset” "
@@ -638,11 +657,19 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             dich = kho.duong_ref(tap, ma, ".png")
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        m = {"model": mtai_san.MODEL_ANH}
+        goc = mtai_san.goc_cua(ma) if loai == "nhan_vat" else ""
+        mat_goc = dich.with_name(goc + "__can.png") if goc and any(
+            x["ma"] == goc for x in kho.ds_so(tap)) else None
+        if mat_goc is not None and not mat_goc.exists():
+            raise HTTPException(400, f"Bộ đồ phụ vẽ từ khuôn mặt của {goc} — vẽ {goc} trước.")
+        m = {"model": model}
         try:
             if loai == "nhan_vat":
                 can, toan = dich.with_name(ma + "__can.png"), dich.with_name(ma + "__toan.png")
-                ve_anh.gen_anh(pr, can, ti_le="1:1", **m)
+                if mat_goc is not None:
+                    ve_anh.gen_anh(mtai_san.PHIEN_BAN + " " + pr, can, ref=[mat_goc], ti_le="1:1", **m)
+                else:
+                    ve_anh.gen_anh(pr, can, ti_le="1:1", **m)
                 ve_anh.gen_anh(mtai_san.toan_than(chu), toan, ref=[can], ti_le="9:16", **m)
                 tam = mtai_san.ghep_tam(can, toan, dich.with_name(ma + "__tam.png"))
                 kho.xoa_ref(tap, ma)
@@ -657,6 +684,196 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             if d != ".png":
                 kho.duong_ref(tap, ma, d).unlink(missing_ok=True)
         return {"ok": True}
+
+    # ------------------------------------------------------ toàn bộ asset
+    # Nút "Gen toàn bộ asset" (user chốt 28/10: "làm giống padoma", `bo_anh.gen_thieu`).
+    # Chạy nền ở máy chủ: đóng tab không mất việc. Tiến độ chỉ nằm trong bộ nhớ —
+    # restart giữa chừng thì bấm lại, asset đã có ảnh được bỏ qua.
+    _VIEC: dict[str, dict] = {}
+    _KHOA_VIEC = threading.Lock()
+    _NHO: dict = {}
+    _KHOA_NHO = threading.Lock()
+
+    def _nho(khoa: str, ham, tuoi: float):
+        """Kết quả hỏi Seedvis nhớ `tuoi` giây, dùng chung mọi tab: trang hỏi mỗi
+        phút mà mỗi tab một lượt là dồn lệnh lên Seedvis (hỏi dồn bị 429)."""
+        with _KHOA_NHO:
+            o = _NHO.get(khoa)
+            if o is not None and _gio() - o[0] < tuoi:
+                return o[1]
+        gt = ham()
+        with _KHOA_NHO:
+            _NHO[khoa] = (_gio(), gt)
+        return gt
+
+    @app.get("/api/so-du")
+    def so_du(moi: int = 0):
+        """Số dư Seedvis của việc vẽ ảnh và việc dựng video. `moi` = vừa bấm gen:
+        hỏi lại nếu số đã cũ hơn 10 giây."""
+        def hoi():
+            a, vd = getattr(ve_anh, "credit", None), getattr(ve_video, "credit", None)
+            return {"anh": a, "video": vd, "chung": bool(getattr(ve_video, "cung_anh", a == vd))}
+        return _nho("so_du", hoi, 10 if moi else 60)
+
+    def _ke_hoach_tap(tap: str) -> dict:
+        so = kho.ds_so(tap)
+        co_anh = {x["ma"] for x in so if kho.ref_dang_co(tap, x["ma"]) is not None}
+        tim = kho.kieu_tap(tap)["loai"] == "drama" and not any(x["loai"] == "dao_cu" for x in so)
+        return mtai_san.ke_hoach(so, co_anh, tim)
+
+    @app.get("/api/tap/{tap}/so/tat-ca")
+    def xem_tat_ca(tap: str):
+        ds = _nho("ds_model", lambda: getattr(ve_video, "danh_sach", None) or [], 60)
+        m = next((x for x in ds if x.get("id") == mtai_san.MODEL_ANH), None)
+        with _KHOA_VIEC:
+            v = _VIEC.get(tap)
+            viec = dict(v, loi=list(v["loi"])) if v else None
+        return {"ke_hoach": _ke_hoach_tap(tap), "viec": viec,
+                "model": {"id": mtai_san.MODEL_ANH, "du_phong": mtai_san.MODEL_DU_PHONG,
+                          "bao_tri": bool(ds) and (m is None or (m.get("status") or "active") != "active")}}
+
+    @app.post("/api/tap/{tap}/so/tat-ca")
+    def chay_tat_ca(tap: str, request: Request, than: dict = Body(default={})):
+        ai = _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        if kho.kieu_tap(tap)["khuon"] != "2":
+            raise HTTPException(400, "Tập cũ (trước 27/10) vẽ từng asset — nút này đi theo luật "
+                                     "tài sản khuôn Padoma.")
+        model = str(than.get("model") or mtai_san.MODEL_ANH).strip()
+        if model not in (mtai_san.MODEL_ANH, mtai_san.MODEL_DU_PHONG):
+            raise HTTPException(400, f"Model '{model}' không dùng vẽ asset — chỉ GPT Image 2 "
+                                     "hoặc Nano Banana Pro.")
+        kh = _ke_hoach_tap(tap)
+        if not (kh["do_vat"] or kh["mo_ta"] or kh["anh"]):
+            raise HTTPException(400, "Mọi asset đã có ảnh — vẽ lại cái nào thì bấm trong thẻ asset đó.")
+        with _KHOA_VIEC:
+            v = _VIEC.get(tap)
+            if v and v["chay"]:
+                raise HTTPException(409, f"{v['nguoi']} đang chạy Gen toàn bộ asset cho tập này — đợi xong.")
+            _VIEC[tap] = {"chay": True, "buoc": "do_vat" if kh["do_vat"] else "mo_ta", "xong": 0,
+                          "tong": 0, "loi": [], "do_vat_moi": 0, "model": model, "nguoi": ai,
+                          "bat_dau": time.time(), "het": None}
+        threading.Thread(target=_chay_tat_ca, args=(tap, ai, model, kh["do_vat"]), daemon=True).start()
+        return {"ok": True}
+
+    def _loi_viec(tap: str, ma: str, ten: str, loi) -> None:
+        with _KHOA_VIEC:
+            _VIEC[tap]["loi"].append({"ma": ma, "ten": ten, "loi": str(loi)[:300]})
+
+    def _chay_tat_ca(tap: str, ai: str, model: str, tim_do_vat: bool) -> None:
+        """Đồ vật -> mô tả còn thiếu -> vẽ. Một asset hỏng không giết cả bộ."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        v = _VIEC[tap]
+        try:
+            if tim_do_vat:
+                try:
+                    v["do_vat_moi"] = _tim_do_vat(tap, ai)
+                except Exception as exc:  # noqa: BLE001 — thiếu đồ vật vẫn vẽ phần còn lại
+                    _loi_viec(tap, "", "Tìm đồ vật", getattr(exc, "detail", exc))
+            v["buoc"] = "mo_ta"
+            kieu, so = kho.kieu_tap(tap), _so_day_du(tap)
+            can = [x for x in so if x["loai"] in mtai_san.TI_LE and mtai_san.thieu_mo_ta(x)
+                   and (x.get("yc") or "").strip()]
+
+            def viet(x):
+                try:
+                    _ghi_mo_ta_2(tap, x["ma"], sinh_asset.sinh_asset_2(x, _tong_chu(so, "")), kieu)
+                except Exception as exc:  # noqa: BLE001
+                    _loi_viec(tap, x["ma"], x.get("ten", ""), f"Viết mô tả hỏng: {exc}")
+
+            if can and hasattr(sinh_asset, "sinh_asset_2"):
+                with ThreadPoolExecutor(max_workers=min(len(can), mtai_san.LUONG)) as ex:
+                    list(ex.map(viet, can))
+            v["buoc"] = "ve"
+            so = kho.ds_so(tap)
+            ma_so = {x["ma"] for x in so}
+            ve = [x for x in so if x["loai"] in mtai_san.TI_LE and kho.ref_dang_co(tap, x["ma"]) is None]
+            with _KHOA_VIEC:
+                v["tong"] = len(ve)
+
+            def ve_1(x):
+                try:
+                    _ref_khuon_2(tap, x["ma"], x, model)
+                except HTTPException as exc:
+                    _loi_viec(tap, x["ma"], x.get("ten", ""), exc.detail)
+                except Exception as exc:  # noqa: BLE001
+                    _loi_viec(tap, x["ma"], x.get("ten", ""), exc)
+                finally:
+                    with _KHOA_VIEC:
+                        v["xong"] += 1
+
+            phu = [x for x in ve if x["loai"] == "nhan_vat" and mtai_san.goc_cua(x["ma"]) in ma_so]
+            # Bản gốc trước: bộ đồ phụ sửa từ ảnh cận của bản gốc.
+            for dot in ([x for x in ve if x not in phu], phu):
+                if dot:
+                    with ThreadPoolExecutor(max_workers=min(len(dot), mtai_san.LUONG)) as ex:
+                        list(ex.map(ve_1, dot))
+        except Exception as exc:  # noqa: BLE001
+            _loi_viec(tap, "", "Gen toàn bộ asset", exc)
+        finally:
+            with _KHOA_VIEC:
+                v.update(chay=False, buoc="xong", het=time.time())
+
+    def _tim_do_vat(tap: str, ai: str) -> int:
+        """Đồ vật cần ảnh riêng (luật bảng tài sản Padoma): LLM mỗi chương một lượt,
+        song song; Python gộp trùng tên, bỏ mã clip lạ và mô tả chữ Việt, đánh mã
+        `doNN`, gán vào `ts` các clip thấy rõ đồ vật (tối đa ảnh Grok nhận)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        if ky_thuat is None or not hasattr(ky_thuat, "tim_do_vat"):
+            return 0
+        chuong, noi = [], {}
+        for ch in kho.ds_chuong(tap):
+            cs = [(dg, c) for dg in kho.doc(tap, ch["ma"])["dong"] for c in mdong.doc_canh(dg)
+                  if c.get("pm") and c.get("id")]
+            noi.update({c["pm"]: (ch["ma"], c["id"]) for _, c in cs})
+            if cs:
+                chuong.append(cs)
+        if not chuong:
+            return 0
+
+        def hoi(cs):
+            return ky_thuat.tim_do_vat("\n\n".join(f"{c['pm']} · {dg.get('en', '')}\n{c.get('t', '')}"
+                                                   for dg, c in cs)) or {}
+
+        with ThreadPoolExecutor(max_workers=min(len(chuong), 4)) as ex:
+            ra = list(ex.map(hoi, chuong))
+        gop: dict[str, dict] = {}
+        for r in ra:
+            for x in (r.get("do_vat") or []) if isinstance(r, dict) else []:
+                if not isinstance(x, dict):
+                    continue
+                ten, chu = str(x.get("ten") or "").strip(), str(x.get("chu") or "").strip()
+                clip = [p for p in (x.get("clip") or []) if isinstance(p, str) and p in noi]
+                if not ten or not chu or mdrama.la_tieng_viet(chu) or not clip:
+                    continue
+                g = gop.setdefault(ten.lower(), {"ten": ten, "chu": chu, "clip": []})
+                g["clip"] += [p for p in clip if p not in g["clip"]]
+        moi: dict[str, dict] = {}
+        with _KHOA_SO:
+            so = kho.ds_so(tap)
+            co, k = {x["ma"] for x in so}, 0
+            for g in gop.values():
+                k += 1
+                while f"do{k:02d}" in co:
+                    k += 1
+                ma = f"do{k:02d}"
+                co.add(ma)
+                moi[ma] = g
+                so.append({"ma": ma, "loai": "dao_cu", "ten": g["ten"], "chu": g["chu"],
+                           "pr": mtai_san.pr_mau("dao_cu", g["chu"]), "yc": "", "tb": ""})
+            if moi:
+                kho.luu_so(tap, so)
+        for ma, g in moi.items():
+            for pm in g["clip"]:
+                def them(c, ma=ma):
+                    ts = list(c.get("ts") or [])
+                    if ma not in ts and len(ts) < mdrama.ANH_TOI_DA:
+                        c["ts"] = ts + [ma]
+                _va_canh(tap, noi[pm][0], noi[pm][1], them, ai)
+        return len(moi)
 
     # ------------------------------------------------------------ drama
     @app.post("/api/tap/{tap}/drama")
@@ -1912,6 +2129,18 @@ class _VeAnh:
         return _may_ve(cd).gen_anh(prompt, dich, ref=ref, **({"model": model} if model else {}),
                                    **({"ti_le": ti_le} if ti_le else {}))
 
+    @property
+    def credit(self):
+        """Số dư tài khoản của việc vẽ ảnh; không phải Seedvis / lỗi -> None."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        try:
+            cd = doc_ket_viec("gen_canh") or {}
+            m = _may_ve(cd) if cd.get("key") else None
+            return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
+        except Exception:  # noqa: BLE001
+            return None
+
 
 class _VeVideo:
     """Seedance qua ArkClient, khoá lấy từ KÉT bằng slug của Treatment.
@@ -1969,6 +2198,15 @@ class _VeVideo:
             return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
         except Exception:  # noqa: BLE001
             return None
+
+    @property
+    def cung_anh(self):
+        """Việc video và việc vẽ ảnh dùng CÙNG một khoá (video chưa cấp thì đi nhờ
+        khoá ảnh) — trang hiện một số dư thay vì hai."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        v = (doc_ket_viec("gen_video") or {}).get("key")
+        return not v or v == (doc_ket_viec("gen_canh") or {}).get("key")
 
     def bat_dau(self, prompt, anh, giay, am, model=None):
         kw = {"model": model} if model else {}
@@ -2091,6 +2329,26 @@ _LENH_BREAKDOWN_DRAMA = (
     "\"cau\": [0], \"ly_do\": \"...\"}]}")
 
 
+# Luật đồ vật chép từ bảng tài sản Padoma (`bang_tai_san.py`, Spec 27 E) — chỉ phần đồ vật.
+_LENH_DO_VAT = (
+    "Bạn là trợ lý đạo diễn lập danh sách ĐỒ VẬT cần ảnh riêng cho một phim drama AI: Grok dựng mỗi clip từ "
+    "ảnh tham chiếu, đồ vật không có ảnh thì mỗi clip vẽ một kiểu. Bạn nhận các clip của một phần phim: mã "
+    "clip, tiêu đề cảnh, chữ biên kịch (`Hình:` tả từng shot, `Thoại:`).\n\n"
+    "LUẬT:\n"
+    "1. Chỉ lấy đồ vật LẶP LẠI qua nhiều clip hoặc CẦN NHÌN RÕ (được cầm, đưa, đọc, đặt giữa khung, là mấu "
+    "chốt câu chuyện). Bỏ đồ chỉ thoáng qua; đồ nội thất thuộc nơi chốn (giường, bàn, ghế, cửa sổ); quần áo, "
+    "trang sức người đang mặc (đã nằm trong tấm nhân vật); phụ kiện nhỏ (xích, khăn, vòng cổ).\n"
+    "2. `ten`: tên tiếng Việt ngắn 2–5 chữ, gọi như kịch bản gọi. Một đồ vật một mục.\n"
+    "3. `chu`: mô tả tiếng Anh 15–40 từ để vẽ ảnh đồ vật trên nền trắng: hình dáng, cỡ so với bàn tay, chất "
+    "liệu, màu, tình trạng (mới, cũ, rách, mở hay đóng). Không người, không tay. Đồ có chữ đọc được trong "
+    "phim (tên, chữ ký, ngày, số, biển, dòng khắc) thì chép NGUYÊN VĂN từng chữ trong ngoặc kép đúng như kịch "
+    "bản; giấy tờ có chữ mà kịch bản không ghi thì ghi chữ hợp cốt truyện trong ngoặc kép.\n"
+    "4. `clip`: mã các clip mà đồ vật THẤY RÕ trong khung và phải đúng hình. Clip chỉ nhắc tên mà không thấy "
+    "đồ vật thì không gán.\n"
+    "5. Không bịa đồ vật không có trong chữ biên kịch. Không có đồ vật nào đạt luật thì trả danh sách rỗng.\n\n"
+    'Trả về JSON: {"do_vat": [{"ten": "...", "chu": "...", "clip": ["P001"]}]}')
+
+
 def _than_bo_tro(voice: str, canh: list[dict], giay: int, tai_san: list[dict]) -> str:
     chinh = "\n".join(f"{k + 1}) [{c.get('co') or '?'} · {c.get('goc') or '?'} · {c.get('cd') or '?'}] "
                       f"{(c.get('t') or '').strip()}" for k, c in enumerate(canh))
@@ -2132,6 +2390,12 @@ class _KyThuat:
         from autoedit.treatment.dich import LLM
 
         ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_BREAKDOWN_DRAMA, than)
+        return ra if isinstance(ra, dict) else {}
+
+    def tim_do_vat(self, than):
+        from autoedit.treatment.dich import LLM
+
+        ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_DO_VAT, than)
         return ra if isinstance(ra, dict) else {}
 
     def drama_canh(self, than):
