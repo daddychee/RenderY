@@ -86,6 +86,7 @@ def test_mot_lan_bam_tim_do_vat_viet_mo_ta_roi_ve_het(tmp_path):
     so = {x["ma"]: x for x in kho.ds_so("D1")}
     hop = so["do01"]
     assert hop["loai"] == "dao_cu" and hop["ten"] == "hộp nhẫn" and "red velvet" in hop["chu"]
+    assert hop["yc"] == "hộp nhẫn", "thẻ asset không báo 'chưa có yêu cầu'"
     assert "pure white seamless background" in hop["pr"]
     assert not any(x["loai"] == "dao_cu" and x["ma"] != "do01" for x in so.values()), "trùng tên gộp, chữ Việt bỏ"
     assert "do01" in _clip(kho, j=0)["ts"] and "do01" in _clip(kho, j=1)["ts"], "gộp clip của mục trùng tên"

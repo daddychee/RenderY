@@ -876,7 +876,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 co.add(ma)
                 moi[ma] = g
                 so.append({"ma": ma, "loai": "dao_cu", "ten": g["ten"], "chu": g["chu"],
-                           "pr": mtai_san.pr_mau("dao_cu", g["chu"]), "yc": "", "tb": ""})
+                           "pr": mtai_san.pr_mau("dao_cu", g["chu"]), "yc": g["ten"], "tb": ""})
             if moi:
                 kho.luu_so(tap, so)
         for ma, g in moi.items():
