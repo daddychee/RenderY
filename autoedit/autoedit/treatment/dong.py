@@ -126,8 +126,14 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # trong UI, theo tập, cảnh đè được). Rỗng = theo tập, tập rỗng = theo két.
 # `v` = số lần chữ `t` bị sửa NGOÀI đường tự lưu cả chương (hộp cảnh, breakdown)
 # — tự lưu mang `v` cũ hơn máy chủ nghĩa là trang đang cầm chữ đã lỗi thời.
+# Drama thoại (27/10, `drama.py`): `pm` = mã clip P của kịch bản (dán lại khớp
+# theo mã này), `gi` = độ dài clip đã chọn (6/10/15), `pd` = phần prompt LLM
+# viết (JSON) — Python ghép khuôn lúc gửi theo `gi` đang chọn.
+# `sh` = các SHOT của clip drama (JSON, user chốt 28/10): mô tả + mã cỡ/góc/máy
+# như `co`/`goc`/`cd` của narration + `lap` + câu thoại của shot. Breakdown viết,
+# người dựng sửa mã; tách khỏi `pd` để Create Prompt không đè lựa chọn của họ.
 KHOA_CANH = ("id", "t", "co", "goc", "cd", "lap", "sfx", "tong", "ts", "td", "pa",
-             "pv", "pat", "pvt", "duyet", "vid", "mda", "mdv", "v")
+             "pv", "pat", "pvt", "duyet", "vid", "mda", "mdv", "v", "pm", "gi", "pd", "sh")
 
 
 def _ma_canh_moi(da_co: set[str]) -> str:

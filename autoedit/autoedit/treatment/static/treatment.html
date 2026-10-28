@@ -584,11 +584,16 @@ function batNutGhi(){
   });
 }
 
+/* Loại tập (27/10): "" = narration, "drama" = drama thoại (kịch bản khuôn Padoma).
+   `khuon` "2" = luật tài sản Padoma — mọi tập tạo từ 27/10, tập cũ giữ đường cũ. */
+var DS_TAP = [], TAP_LOAI = "", TAP_KHUON = "";
 async function napTap(){
   var ds = await api("/api/tap");
+  DS_TAP = ds;
   var s = document.getElementById("dsTap");
   s.innerHTML = ds.map(function(t){
-    return '<option value="' + t.ma + '">' + t.ma + " — " + t.ten + '</option>'; }).join("");
+    return '<option value="' + t.ma + '">' + t.ma + " — " + t.ten +
+           (t.loai === "drama" ? " · drama" : "") + '</option>'; }).join("");
   if(!ds.length){ s.innerHTML = '<option value="">(chưa có tập nào)</option>'; ve(); return; }
   TAP_MA = ds[0].ma; s.value = TAP_MA;
   await doiTap(TAP_MA);
@@ -597,6 +602,14 @@ async function napTap(){
 async function doiTap(ma){
   if(!ma) return;
   TAP_MA = ma; DU = {}; MAN = ""; chonCh = "";
+  var kt = DS_TAP.filter(function(t){ return t.ma === ma; })[0] || {};
+  TAP_LOAI = kt.loai || ""; TAP_KHUON = kt.khuon || "";
+  // Drama: chương và clip đến từ kịch bản dán vào — không chẻ cảnh tay. Breakdown thì
+  // CÓ (PA-B, user duyệt 28/10): chia mỗi clip của cảnh thành shot, đặt cỡ · góc · máy.
+  ["themCanh", "nutBreakdown"].forEach(function(id){
+    var b = document.getElementById(id);
+    if(b) b.hidden = (id === "themCanh" && TAP_LOAI === "drama") ||
+                     (b.classList.contains("chi-sua") && !SUA_DUOC); });
   await napSo(); veLocNhanSu(); await napMoHinh();
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   veChuong();
@@ -626,7 +639,7 @@ function veChuong(){
     return '<button class="ch ' + (MAN === c.ma ? "on" : "") +
            '" onclick="doiMan_chuong(\'' + c.ma + '\')">' + c.ma + ai + '</button>';
   }).join("");
-  if(SUA_DUOC) h += '<button class="ch them" onclick="taoChuong()">+ Chương</button>';
+  if(SUA_DUOC && TAP_LOAI !== "drama") h += '<button class="ch them" onclick="taoChuong()">+ Chương</button>';
   document.getElementById("chuong").innerHTML = h;
 }
 
@@ -666,6 +679,7 @@ function veScript(){
   var ds = hienThi(), h = "", oo = document.getElementById("script");
   document.getElementById("dauCot").hidden = !ds.length;
   if(!TAP_MA){ oo.innerHTML = '<div class="trong">Chưa có tập nào. Bấm <b>+ Tập</b> để mở tập đầu tiên.</div>'; return; }
+  if(TAP_LOAI === "drama" && !DS_CHUONG.length){ oo.innerHTML = oDanDrama(); return; }
   if(!ds.length){ oo.innerHTML = '<div class="trong">Tập này chưa có chương. Bấm <b>+ Chương</b> (H, C1, C2… hoặc E).</div>'; return; }
 
   if(MAN !== "TONG" && !cua(MAN).dong.length){
@@ -677,6 +691,10 @@ function veScript(){
     return;
   }
 
+  if(TAP_LOAI === "drama")
+    h += '<div class="mu"><b>Tập drama</b><span class="kh">mỗi dòng là một cảnh, chữ đến từ ' +
+         'kịch bản dán vào</span><span class="spacer"></span>' +
+         (SUA_DUOC ? '<button class="cp" onclick="moDanDrama()">⇪ Dán lại kịch bản</button>' : '') + '</div>';
   ds.forEach(function(ma){
     var khac = giuBoiNguoiKhac(ma), truoc = dongTruoc(ma);
     if(MAN === "TONG"){
@@ -689,7 +707,8 @@ function veScript(){
     h += '<div class="tap-ch' + (khac ? " ro" : "") +
          '" style="counter-reset:dong ' + truoc + '">';
     cua(ma).dong.forEach(function(d, i){
-      var sua = (khac || !SUA_DUOC) ? "" : " contenteditable";
+      // Drama: dòng là tiêu đề cảnh của kịch bản — sửa ở đây là lệch khỏi kịch bản.
+      var sua = (khac || !SUA_DUOC || TAP_LOAI === "drama") ? "" : " contenteditable";
       var mau = MAU_CUM[d.cum] || "";
       var dau_citation = (d.ct || "").trim() ? '<span class="dau_citation" title="có nguồn">※</span>' : "";
       h += '<div class="dong ' + (chonCh === ma && chonD === i ? "chon" : "") + '"' +
@@ -827,7 +846,11 @@ function doiTab(x){
 async function taoTap(){
   var ma = prompt("Mã tập (vd SH011):"); if(!ma) return;
   var ten = prompt("Tên tập:") || ma;
-  try { await api("/api/tap", "POST", {ma: ma.trim(), ten: ten.trim()}); }
+  var loai = prompt("Loại tập — gõ 1 hoặc 2:\n1 = Narration (voice-over, như cũ)\n" +
+                    "2 = Drama có thoại (dán kịch bản khuôn Padoma, gen bằng Grok)", "1");
+  if(loai === null) return;
+  try { await api("/api/tap", "POST", {ma: ma.trim(), ten: ten.trim(),
+                                       loai: loai.trim() === "2" ? "drama" : ""}); }
   catch(e){ return bao(e.message, true); }
   // Độ dài clip theo NHÀ đang dùng (Seedvis 8 s, ModelArk 15 s) — cảnh báo
   // "dài hơn 1 clip" và prompt video phải cùng con số với máy chủ.
@@ -1201,10 +1224,25 @@ function khungCanh(x){
   var lap = (x.lap || "").trim();
   return lap ? d + ": " + lap + "." : d + ".";
 }
+/* Tập khuôn 2 (27/10): ảnh tham chiếu đánh số kèm lời dặn lấy gì, bỏ gì — CÙNG
+   LUẬT với `_loi_ref` bên Python, chữ chép Y HỆT `tai_san.LOI_REF` (test so). */
+var LOI_REF = {
+  truong_doan: "Image {i} is the master frame of this sequence: keep its space, layout and light.",
+  nhan_vat: "Image {i} is a character sheet, one person shown twice (face close-up and full length): take the face, hair, body and clothing; ignore the caption band and the grey background.",
+  dao_cu: "Image {i} shows an object: take its shape, material and colour; ignore the white background.",
+  boi_canh: "Image {i} shows the location: take the place and its light."
+};
+function loiRef(x){
+  if(TAP_KHUON !== "2") return "";
+  var ds = anhSeGui(x);
+  if(!ds.length) return "";
+  return ds.map(function(t, i){
+    return (LOI_REF[t.loai] || LOI_REF.dao_cu).replace("{i}", i + 1); }).join(" ") + "\n\n";
+}
 function ghepPromptAnh(x){
   var k = khungCanh(x);
   return (k ? k + " " : "") + (x.pa || x.t) +
-         "\n\n" + moTaTaiSan(x) + boiler(x.tong);
+         "\n\n" + loiRef(x) + moTaTaiSan(x) + boiler(x.tong);
 }
 /* `pat`/`pvt` = bản người dùng SỬA TAY, ĐÈ HẲN bản tự ghép (user chốt 26/09:
    "đã sinh lại nhiều lần nhưng vẫn sai... cần tự sửa prompt trước khi gen").
@@ -1266,8 +1304,12 @@ function datKhoaCanh(x, khoa, gt){
 function luuPromptTay(khoa, o){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
+  // Clip drama: prompt máy chủ chưa tải về thì chưa biết "bản tự động" là gì — đừng lưu.
+  if(khoa === "pvt" && x.pm && PR_DRAMA[x.id] === undefined && !(x.pvt || "").trim()) return;
   var chu = docChu(o).trim();
-  var tu = (khoa === "pat" ? ghepPromptAnh(x) : ghepPromptVideo(x)).trim();
+  // Clip drama: bản tự ghép là của máy chủ (PR_DRAMA), trang không ghép lại.
+  var tu = (khoa === "pat" ? ghepPromptAnh(x)
+            : (x.pm ? (PR_DRAMA[x.id] || "") : ghepPromptVideo(x))).trim();
   var cu = (x[khoa] || "").trim(), moi = (chu === tu) ? "" : chu;
   if(moi === cu) return;              // không đổi thì đừng vẽ lại, mất cú bấm kế
   datKhoaCanh(x, khoa, moi);
@@ -1319,6 +1361,10 @@ function dungCanhTap(){
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
                  sfx: cn.sfx || "", video: cn.video || "", vid: cn.vid || "",
                  mda: cn.mda || "", mdv: cn.mdv || "", v: cn.v || "",
+                 pm: cn.pm || "", gi: cn.gi || "", pd: cn.pd || "", sh: cn.sh || "",
+                 tu: cn.tu || 0, ns: cn.ns || 0, day: !!cn.day,   // clip drama — máy chủ đếm
+                 // shot của clip drama: mốc giây, câu thoại, câu khung — MÁY CHỦ chia/ghép, trang chỉ hiện
+                 moc: cn.moc || [], thoai: cn.thoai || [], dau_shot: cn.dau_shot || [],
                  n: docCanh(d).length});
       });
     });
@@ -1357,14 +1403,208 @@ function nhayCanh(ma){
 }
 async function doiMan2(ch, ma){ await doiMan_chuong(ch); moCanh(ma); }
 
+/* ═══════════ DRAMA THOẠI (user chốt 27/10) ═══════════
+   Kịch bản khuôn Padoma (skill /bien-kich-grok) dán CẢ FILE: phần -> chương,
+   cảnh -> dòng, clip -> cảnh. Grok dựng từ ẢNH THAM CHIẾU (nơi chốn, tấm nhân
+   vật, đồ vật) — không khung đầu, nên không có bước vẽ ảnh / duyệt ảnh. Prompt
+   do MÁY CHỦ ghép (câu thoại nguyên văn, mốc giây theo độ dài đang chọn): trang
+   lấy về qua `/prompt`, không chép luật sang đây lần thứ hai.
+   PA-B (user duyệt 28/10): clip đi ĐÚNG flow narration — Breakdown, hộp cảnh chung
+   (bước 1–4), Create Prompt, Gen Video; Storyboard một kiểu thẻ. Một clip = một
+   video; shot nằm TRONG clip (`sh`). */
+var GIAY_DRAMA = [6, 10, 15], TU_MOI_GIAY_DRAMA = 3, PR_DRAMA = {};
+function oDanDrama(){
+  return '<div class="trong">Tập <b>drama thoại</b>: dán CẢ file <b>kich-ban.md</b> do skill ' +
+    '<b>/bien-kich-grok</b> viết. Máy kiểm khuôn trước — sai khuôn thì không nạp gì. Mỗi phần ' +
+    'thành một chương, mỗi cảnh một dòng, mỗi clip một cảnh. Dán lại sau này giữ nguyên video ' +
+    'và độ dài đã chọn của clip cùng mã P.</div>' +
+    '<textarea class="dan" id="oDanDrama" placeholder="Dán kich-ban.md vào đây…"></textarea>' +
+    '<button class="chinh" onclick="danDrama(event)">Nạp kịch bản drama</button>' +
+    '<pre id="loiDrama" class="ghi" style="white-space:pre-wrap"></pre>';
+}
+function moDanDrama(){
+  hopToan(false);
+  document.getElementById("hopCanh").innerHTML =
+    '<div class="hop-dau"><b>Dán lại kịch bản drama</b><span class="spacer"></span>' +
+    '<button class="x" onclick="dongCanh()">✕</button></div><div style="padding:15px">' +
+    oDanDrama() + '</div>';
+  document.getElementById("nenCanh").classList.add("mo");
+}
+async function danDrama(ev){
+  var o = document.getElementById("oDanDrama"), t = o ? o.value : "";
+  if(!t.trim()) return bao("Chưa dán gì cả.", true);
+  await luuNgay();
+  await banRon(ev && ev.target, "Đang kiểm và nạp…", async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/drama", "POST", {text: t}); }
+    catch(e){
+      // Danh sách lỗi dài: để ngay dưới ô dán (toast tắt sau vài giây).
+      var l = document.getElementById("loiDrama"); if(l) l.textContent = e.message;
+      return bao("Kịch bản chưa nạp — xem lỗi ngay dưới ô dán.", true);
+    }
+    dongCanh(); DU = {};
+    DS_CHUONG = await api("/api/tap/" + TAP_MA); await napSo(); veChuong();
+    if(DS_CHUONG.length) await doiMan_chuong(DS_CHUONG[0].ma); else ve();
+    bao("Đã nạp <b>" + r.chuong + " chương · " + r.clip + " clip</b>." +
+        (r.bo ? " <b>" + r.bo + " clip cũ</b> không còn trong kịch bản (video cũ vẫn trên đĩa)." : ""));
+  });
+}
+/* Shot của clip drama: `sh` (chuỗi JSON) là danh sách shot Breakdown viết, người
+   dựng sửa cỡ · góc · máy · lấp khung bằng đúng các nút của narration. Mốc giây,
+   câu thoại, câu khung do MÁY CHỦ chia/ghép (`moc`, `thoai`, `dau_shot`) — trang
+   chỉ hiện. Shot đang chọn giữ qua mỗi lần vẽ lại hộp, về shot 1 khi đổi clip. */
+var SHOT_CHON = 0, SHOT_CUA = "";
+function dsShot(x){
+  try { var a = JSON.parse(x.sh || "[]"); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function chonShot(k){ SHOT_CHON = k; moCanh(canhDangMo); }
+function soGiay(n){ return String(Math.round(n * 10) / 10).replace(".", ","); }
+function veAnhDrama(x){
+  var ds = (x.ts || []).map(soTheoMa).filter(Boolean);
+  if(!ds.length) return '<div class="ghi" style="margin:0">Chưa gán ảnh nào — Grok sẽ tự bịa mọi thứ.</div>';
+  return '<div class="hang-as">' + ds.map(function(t, i){
+    return '<div class="the-as"' + (t.ref ? ' ondblclick="xemAnh(\'' + duongRef(t.ma) + '\', \'ref-' +
+      t.ma + '.png\')" title="Bấm đúp để xem cỡ lớn"' : '') + '><div class="as-anh' + (t.ref ? '' : ' trong') + '">' +
+      (t.ref ? '<img src="' + duongRef(t.ma) + '">' : 'chưa có ảnh') +
+      '<span class="as-dau">' + (i + 1) + '</span></div><div class="as-ten">' + thoat(t.ten) + '</div></div>';
+  }).join("") + '</div>';
+}
+/* Mảnh RIÊNG của clip drama trong hộp cảnh chung (`moCanh`). */
+function dauHopDrama(x){
+  var gi = +(x.gi || 15), tran = TU_MOI_GIAY_DRAMA * gi;
+  return '<div><b>Clip ' + thoat(x.pm) + '</b><div class="nho">' + thoat(x.en) + ' · chương ' + x.ch +
+    '</div></div><div class="noidung"><p class="nhan">Nội dung clip</p>' +
+    '<div class="o-sua" id="oCanh" style="white-space:pre-wrap"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
+    thoat(x.t) + '</div><i>' + (x.tu || 0) + ' từ thoại · tối đa ' + tran + ' cho ' + gi + ' s (3 từ/giây)' +
+    ((x.tu || 0) > tran ? ' · <span class="canh-bao">quá trần — tăng giây hay bớt chữ</span>' : '') +
+    (x.day ? ' · <span class="canh-bao">' + x.ns + ' shot không đủ 2,5 giây mỗi shot — Breakdown clip ' +
+             'lại để gộp shot</span>' : '') + '</i></div>' +
+    (SUA_DUOC ? '<button class="x" onclick="breakdownClip(event)" title="LLM đọc Hình: của clip này, ' +
+      'chia shot, đặt góc · cỡ · máy. Sai thì sửa ở bước 2–4.">Breakdown clip</button>' : '');
+}
+/* Thanh chọn shot, rồi bước 2–4 của ĐÚNG shot đang chọn — cùng `veKhungCanh` /
+   `veMayCanh` với narration. Grok làm hỏng vòng 360 nên bỏ "orbit". */
+function veShotDrama(x){
+  var shs = dsShot(x);
+  if(!shs.length)
+    return '<div class="buoc"><div class="buoc-than"><div class="nhac" style="margin:0">Clip chưa chia ' +
+           'shot — bấm <b>Breakdown clip</b> (hoặc Breakdown cả cảnh ở màn Kịch bản) để chia shot và ' +
+           'đặt góc · cỡ · máy.</div></div></div>';
+  if(SHOT_CHON >= shs.length) SHOT_CHON = 0;
+  var s = shs[SHOT_CHON], m = (x.moc || [])[SHOT_CHON], th = x.thoai || [];
+  var cau = (s.cau || []).map(function(i){
+    var c = th[i];
+    return c ? '<div' + (c.nghi ? ' style="font-style:italic"' : '') + '><b>' + thoat(c.ten) +
+               (c.nghi ? ' · nghĩ' : '') + '</b> ' + thoat(c.cau) + '</div>' : '';
+  }).join("");
+  return '<div class="buoc"><div class="buoc-dau"><span class="so">◫</span><span class="ten">Shots' +
+         '<small>clip ' + thoat(x.pm) + ' có ' + shs.length + ' shot · chọn shot rồi đặt góc · cỡ · máy</small>' +
+         '</span></div><div class="buoc-than"><div class="hai" style="flex-wrap:wrap">' +
+         shs.map(function(_, k){
+           return '<button class="' + (k === SHOT_CHON ? 'on' : '') + '" onclick="chonShot(' + k + ')">Shot ' +
+                  (k + 1) + '</button>'; }).join("") + '</div></div></div>' +
+    '<div id="shotDang"><div class="buoc"><div class="buoc-than">' +
+      '<div class="nhom">Shot ' + (SHOT_CHON + 1) +
+      (m ? '<span class="nho"> · ' + soGiay(m[0]) + '–' + soGiay(m[1]) + ' s</span>' : '') + '</div><div style="white-space:pre-wrap">' + thoat(s.t || "") + '</div>' +
+      (cau || '<div class="nho">Shot này không có thoại.</div>') + '</div></div>' +
+      veKhungCanh(s, (x.dau_shot || [])[SHOT_CHON] || "") + veMayCanh(s, m ? m[1] - m[0] : 0, ["orbit"]) +
+    '</div>';
+}
+function cotHinhDrama(x){
+  var gi = +(x.gi || 15), tay = (x.pvt || "").trim(), co = !!((x.pd || "").trim() || tay);
+  return '<div class="khung-to">' + (x.video ? '<video controls preload="metadata" src="' + duongVideo(x) +
+      '"></video>' : '16:9 · chưa có video') + '</div>' +
+    // Kiểu chọn sẵn có của hộp cảnh (`.hai button.on`) — `.cp.on` không có luật CSS,
+    // nút đang chọn trông y hệt hai nút kia (Treatment V2 soi Chrome 28/10).
+    '<div class="dong-nho"><span>Độ dài</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(g){
+      return '<button class="' + (g === gi ? 'on' : '') + '"' + (SUA_DUOC ? ' onclick="datGiayClip(' + g +
+             ')"' : ' disabled') + '>' + g + ' s</button>'; }).join("") + '</div></div>' +
+    (SUA_DUOC ? '<div class="hang-nut"><button onclick="createPrompt(event)">' +
+      (co ? 'Create Prompt lại' : 'Create Prompt') + '</button>' +
+      '<button onclick="genVideo(event)"' + (x.vid ? ' disabled' : '') + '>' +
+      (x.vid ? 'Đang dựng video…' : (x.video ? 'Gen Video lại' : 'Gen Video')) + '</button>' +
+      '<span class="spacer"></span>' +
+      (x.video ? '<button class="cp" onclick="xemVideo(\'' + duongVideo(x) + '\', \'clip-' + x.pm +
+        '.mp4\')">⛶ Cỡ lớn</button><a class="cp" href="' + duongVideo(x) + '" download="clip-' + x.pm +
+        '.mp4">↓ Tải video</a>' : '') + '</div>' : '') +
+    (x.vid ? '<div class="nhac" style="margin-top:8px">Đang dựng video — khoảng <b>2–3 phút</b>. ' +
+             'Đóng tab cũng không sao, quay lại là thấy.</div>' : '') +
+    (co ? '' : '<div class="nhac" style="margin-top:8px">Clip chưa có prompt — bấm ' +
+      (dsShot(x).length ? '' : '<b>Breakdown clip</b> rồi ') + '<b>Create Prompt</b>.</div>') +
+    '<div class="ghi">Grok 1.5 · 720p · 108 credit một clip, 6/10/15 giây cùng giá.</div>' +
+    hopPrompt("Prompt video", "prVid", "pvt", tay || PR_DRAMA[x.id] || "", x);
+}
+async function breakdownClip(ev){
+  if(!SUA_DUOC) return;
+  var x = await maCanhChac(); if(!x || !x.pm) return;
+  if(!confirm("Breakdown clip " + x.pm + ": chia shot, đặt cỡ · góc · máy. Shot và prompt cũ của " +
+              "clip này sẽ bị viết lại. Chạy?")) return;
+  await banRon(ev && ev.target, "Đang breakdown…", async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/breakdown", "POST"); }
+    catch(e){
+      return bao(/HTTP 524/.test(e.message)
+        ? "Cổng LLM quá 100 giây chưa trả lời (HTTP 524) — bấm lại." : e.message, true);
+    }
+    SHOT_CHON = 0; delete PR_DRAMA[x.id];
+    await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
+    var l = (r && r.loi) || [];
+    bao("Đã breakdown clip <b>" + thoat(x.pm) + "</b>." +
+        (l.length ? "<br>Chưa được:<br>" + l.map(thoat).join("<br>") : ""), !!l.length);
+  });
+}
+/* Create Prompt của clip drama: LLM viết chữ từng shot theo mã đã đặt, máy chủ ghép. */
+async function vietPromptClip(nut, x){
+  await banRon(nut, "Đang viết prompt…", async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/prompt-drama", "POST"); }
+    catch(e){
+      return bao(/HTTP 524/.test(e.message)
+        ? "Cổng LLM quá 100 giây chưa trả lời (HTTP 524) — bấm lại." : e.message, true);
+    }
+    delete PR_DRAMA[x.id];
+    await taiLaiChuong(x.ch); await napSo(); veSb(); moCanh(canhDangMo);
+    var l = r.loi || [];
+    bao((r.viet ? "Đã viết prompt clip " : "Chưa viết được prompt clip ") + "<b>" + thoat(x.pm) + "</b>." +
+        (l.length ? "<br>" + l.map(thoat).join("<br>") : ""), !r.viet || !!l.length);
+  });
+}
+async function napPromptDrama(x){
+  var r;
+  try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/prompt"); }
+  catch(e){ return; }
+  PR_DRAMA[x.id] = r.video || "";
+  // Ô do `hopPrompt` dựng lúc mở hộp — hộp có thể đã đóng/đổi clip khi lời về.
+  var o = document.querySelector("#hopCanh #prVid");
+  if(o && canhDangMo === x.ma && !(x.pvt || "").trim()){
+    o.textContent = r.video || "";
+  }
+}
+async function datGiayClip(g){
+  var x = canhTheoMa(canhDangMo); if(!x || !SUA_DUOC) return;
+  datKhoaCanh(x, "gi", String(g));
+  await hangGhiCanh;            // máy chủ ghép mốc giây theo độ dài MỚI — chờ ghi xong mới hỏi lại
+  delete PR_DRAMA[x.id];
+  veSb(); moCanh(canhDangMo);
+}
+
 function veTheCanh(){
   var ds = canhTrongPham(dungCanhTap()), h = "", pcCu = -1, chCu = "";
   ds.forEach(function(x){
+    // Clip drama: dòng là CẢNH drama (C001 · nơi · lúc), mỗi thẻ một clip = một video.
+    var dr = !!x.pm, gi = +(x.gi || 15), tran = TU_MOI_GIAY_DRAMA * gi, ns = dsShot(x).length;
     if(x.pc !== pcCu){
       if(pcCu !== -1) h += '</div></div>';
       if(MAN === "TONG" && x.ch !== chCu){
         h += '<div class="ol-ten">CHƯƠNG ' + x.ch + '</div>'; chCu = x.ch;
       }
+      pcCu = x.pc;
+      if(dr){
+        var d = (cua(x.ch).dong || [])[x.di] || {};
+        h += '<div class="lo"><div class="lo-dau"><b>' + thoat(x.en) + '</b><span class="meta">' +
+             x.n + ' clip · ' + thoat(d.vi || "") + '</span></div><div class="hang">';
+      } else {
       var g = giayCua(x.en), moi = g / x.n, mau = MAU_CUM[x.cum];
       h += '<div class="lo" style="' + (mau ? "border-left-color:" + mau : "") + '">' +
            '<div class="lo-dau"><b>Phân cảnh ' + x.pc + '</b><span class="meta">' +
@@ -1374,26 +1614,33 @@ function veTheCanh(){
            (moi > GIAY_CLIP ? ' · <span class="canh-bao">~' + moi.toFixed(1) +
              's/cảnh › dài hơn 1 clip ' + GIAY_CLIP + 's</span>' : '') +
            '</span></div><div class="lo-voice">' + thoat(x.en) + '</div><div class="hang">';
-      pcCu = x.pc;
+      }
     }
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
-         '<div class="hinh ' + lopTong(x) + '">' +
+         '<div class="hinh ' + (dr ? '' : lopTong(x)) + '">' +
          (x.anh ? '<img src="' + duongAnh(x) + '">' : "") +
-         '<span class="ma">' + x.ma + '</span>' +
+         '<span class="ma">' + (dr ? thoat(x.pm) : x.ma) + '</span>' +
          (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
-                : '16:9 · chưa có ảnh') +
+                : (dr ? ((x.video || x.vid) ? '' : 'chưa có video') : '16:9 · chưa có ảnh')) +
          (x.video ? '<span class="co-video">▶ video</span>'
                   : (x.vid ? '<span class="co-video dang">⟳ đang dựng</span>'
                            : '')) + '</div>' +
-         '<div class="chu">' + (x.t ? thoat(x.t) :
+         '<div class="chu"' + (dr ? ' style="white-space:pre-wrap"' : '') + '>' + (x.t ? thoat(x.t) :
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
-         '<div class="chan">' + chip(NHAN_CO[(x.co || "").toUpperCase()] || x.co, "cỡ") +
+         '<div class="chan">' + (dr
+           ? chip(gi + " giây", "giây") + chip((x.tu || 0) + " từ", "từ") +
+             ((x.tu || 0) > tran ? '<span class="chip thieu">quá ' + tran + ' từ</span>' : '') +
+             (ns ? chip(ns + " shot", "shot") : '<span class="chip thieu">chưa breakdown</span>') +
+             (x.day ? '<span class="chip thieu">' + x.ns + ' shot quá dày</span>' : '') +
+             (((x.pd || "").trim() || (x.pvt || "").trim()) ? '' : '<span class="chip thieu">chưa có prompt</span>') +
+             '<span class="chip">' + (x.ts || []).length + ' ảnh</span>' : (
+         chip(NHAN_CO[(x.co || "").toUpperCase()] || x.co, "cỡ") +
          chip(NHAN_GOC[x.goc] || x.goc, "góc máy") + chip(NHAN_CD[x.cd] || x.cd, "chuyển động") +
          chip(x.sfx, "SFX") +
          (x.t && chuaDich(x)
             ? '<span class="chip thieu">chưa có prompt EN</span>' : '') +
          ((x.ts || []).length
-            ? '<span class="chip">' + x.ts.length + ' asset</span>' : '') +
+            ? '<span class="chip">' + x.ts.length + ' asset</span>' : ''))) +
          '</div></div>';
   });
   if(pcCu !== -1) h += '</div></div>';
@@ -1403,7 +1650,8 @@ function veTheCanh(){
   document.getElementById("sbCanvas").innerHTML = h || (caTap
     ? '<div class="ghi">Chương <b>' + MAN + '</b> chưa có cảnh nào. Cả tập đang có <b>' +
       caTap + ' cảnh</b> — bấm <b>Toàn bộ</b> hoặc chọn chương khác.</div>'
-    : '<div class="ghi">Tập này chưa có cảnh nào — viết treatment ở màn Kịch bản trước.</div>');
+    : '<div class="ghi">' + (TAP_LOAI === "drama" ? 'Chưa có clip nào — dán kịch bản drama ở màn Kịch bản.'
+                            : 'Tập này chưa có cảnh nào — viết treatment ở màn Kịch bản trước.') + '</div>');
 }
 
 /* ─── ĐỢT 2: ảnh Seedream ─────────────────────────────────────────────────
@@ -1483,6 +1731,7 @@ async function createPrompt(ev){
   if(!SUA_DUOC) return;
   var x = await maCanhChac(); if(!x) return;
   var nut = ev && ev.target;
+  if(x.pm) return vietPromptClip(nut, x);
   await banRon(nut, "Đang tạo prompt…", async function(){
     var r;
     try { r = await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
@@ -1535,8 +1784,11 @@ async function breakdownDong(ev){
   if(!d) return;
   var y = docCanh(d).filter(function(c){ return (c.t || "").trim(); }).length;
   if(!y) return bao("Phân cảnh " + (i + 1) + " chưa có direction nào để breakdown.", true);
-  if(!confirm("Breakdown phân cảnh " + (i + 1) + " chương " + ch + ": " + y + " ý → " + y +
-              " cú máy. Mô tả và góc/cỡ/máy hiện có sẽ bị VIẾT LẠI, prompt cũ bỏ. Chạy?")) return;
+  var dr = TAP_LOAI === "drama";
+  if(!confirm(dr ? "Breakdown cảnh " + (d.en || "") + ": " + y + " clip → chia shot, đặt cỡ · góc · máy. " +
+                   "Shot và prompt cũ của các clip này sẽ bị VIẾT LẠI. Chạy?"
+                 : "Breakdown phân cảnh " + (i + 1) + " chương " + ch + ": " + y + " ý → " + y +
+                   " cú máy. Mô tả và góc/cỡ/máy hiện có sẽ bị VIẾT LẠI, prompt cũ bỏ. Chạy?")) return;
   await luuNgay();
   await banRon(ev && ev.target, "Đang breakdown…", async function(){
     tt("Breakdown phân cảnh " + (i + 1) + "…");
@@ -1553,24 +1805,30 @@ async function breakdownDong(ev){
     await taiLaiChuong(ch); lichSu = []; lamLaiDuoc = []; ve(); veSb();
     if(canhDangMo) moCanh(canhDangMo);
     tt("✓ Đã breakdown", "xong");
-    bao("Đã breakdown phân cảnh " + (i + 1) + ": <b>" + r.so_y + " ý → " + r.so_cu + " cú máy</b>." +
-        " Prompt cũ đã bỏ — bấm <b>Create Prompt</b> từng cảnh khi ưng.");
+    var l = (dr && r.loi) || [];
+    bao(dr ? "Đã breakdown cảnh: <b>" + r.so_clip + " clip</b>. Prompt cũ đã bỏ — mở từng clip, chỉnh " +
+             "shot rồi bấm <b>Create Prompt</b>." + (l.length ? "<br>Chưa được:<br>" + l.map(thoat).join("<br>") : "")
+           : "Đã breakdown phân cảnh " + (i + 1) + ": <b>" + r.so_y + " ý → " + r.so_cu + " cú máy</b>." +
+             " Prompt cũ đã bỏ — bấm <b>Create Prompt</b> từng cảnh khi ưng.", !!l.length);
   });
 }
 /* Máy chủ trả về NGAY kèm mã task (một clip mất 70-150 giây, đo 26/09), nên
    trang phải tự hỏi lại. Không hỏi thì người dùng ngồi nhìn màn hình đứng im —
    đúng lỗi đã gặp với nút đọc kịch bản. */
 var DANG_DUNG = {};
-async function theoDoiVideo(ch, id){
-  if(DANG_DUNG[id]) return;
+/* Cờ giữ suốt lúc CHỜ hẹn giờ, không chỉ lúc đang gọi (`hen` = lượt chính vòng
+   này hẹn). Xoá cờ trước khi hẹn thì mỗi lần vẽ lại Storyboard / mở hộp clip đẻ
+   thêm một vòng: kiểm thử 28/10 đo 11–26 lượt/phút/clip thay vì 6. */
+async function theoDoiVideo(ch, id, hen){
+  if(DANG_DUNG[id] && !hen) return;
   DANG_DUNG[id] = 1;
   var r;
   try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/canh/" + id +
                       "/video-kiem", "POST"); }
   catch(e){ delete DANG_DUNG[id]; return bao(e.message, true); }
-  delete DANG_DUNG[id];
   if(r.trang_thai === "dang")
-    return setTimeout(function(){ theoDoiVideo(ch, id); }, 10000);
+    return setTimeout(function(){ theoDoiVideo(ch, id, true); }, 10000);
+  delete DANG_DUNG[id];
   await taiLaiChuong(ch); veSb();
   if(canhDangMo) moCanh(canhDangMo);
   if(r.trang_thai === "hong") bao("Dựng video hỏng: " + thoat(r.loi || ""), true);
@@ -1620,9 +1878,17 @@ function moCanh(ma){
   var x = ds[k], g = giayCua(x.en), moi = g / x.n;
   canhDangMo = ma;
   var truoc = ds[k - 1], gui = anhSeGui(x);
+  // Clip drama (PA-B 28/10): CÙNG hộp — bước 1–4 theo shot, Create Prompt, Gen Video. Grok
+  // dựng từ ảnh tham chiếu, không khung đầu: không Gen Image / Duyệt / Nối / Tone / Model.
+  var dr = !!x.pm;
+  if(dr){
+    if(SHOT_CUA !== x.id){ SHOT_CUA = x.id; SHOT_CHON = 0; }
+    // Luôn lấy lại từ máy chủ: sổ đổi (mô tả, giọng, ảnh) là prompt đổi (Chrome 28/10).
+    delete PR_DRAMA[x.id];
+  }
   hopToan(true);
   document.getElementById("hopCanh").innerHTML =
-    '<div class="hop-dau"><div><b>Cảnh ' + x.ma + '</b><div class="nho">phân cảnh ' +
+    '<div class="hop-dau">' + (dr ? dauHopDrama(x) : '<div><b>Cảnh ' + x.ma + '</b><div class="nho">phân cảnh ' +
     x.pc + ' · cảnh ' + (x.ci + 1) + '/' + x.n + ' · chương ' + x.ch + '</div></div>' +
     '<div class="noidung"><p class="nhan">Nội dung / hành động</p>' +
     '<div class="o-sua" id="oCanh"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
@@ -1634,7 +1900,7 @@ function moCanh(ma){
     (SUA_DUOC ? '<button class="x" onclick="boTroDong(event)" title="LLM chen thêm cú bổ trợ ' +
       '(insert · cutaway · establishing) vào giữa các cú của phân cảnh ' + x.pc + '. Chỉ thêm ' +
       'khi voice còn chỗ (~3 s mỗi cú). Sai thì sửa hoặc xoá tay.">+ Cú bổ trợ phân cảnh ' +
-      x.pc + '</button>' : '') +
+      x.pc + '</button>' : '')) +
     '<button class="x"' + (k <= 0 ? ' disabled' : '') + ' onclick="moCanh(\'' +
       (truoc ? truoc.ma : "") + '\')">‹ trước</button>' +
     '<button class="x"' + (k >= ds.length-1 ? ' disabled' : '') + ' onclick="moCanh(\'' +
@@ -1644,19 +1910,20 @@ function moCanh(ma){
     '<div class="than2"><div class="cot-buoc">' +
       // ── 1 · References ──
       '<div class="buoc"><div class="buoc-dau"><span class="so">1</span><span class="ten">' +
-      'References<small>chọn ref · ảnh đi kèm lượt vẽ, master đi đầu</small></span>' +
-      '<span class="chon">đã chọn <b>' + gui.length + ' / 4</b></span></div>' +
-      '<div class="buoc-than">' +
+      'References<small>' + (dr ? 'nơi chốn · nhân vật · đồ vật — Grok dựng từ các ảnh này, không khung đầu'
+                                : 'chọn ref · ảnh đi kèm lượt vẽ, master đi đầu') + '</small></span>' +
+      '<span class="chon">đã chọn <b>' + (dr ? (x.ts || []).length : gui.length + ' / 4') + '</b></span></div>' +
+      '<div class="buoc-than">' + (dr ? '' :
       '<div class="nhom">Sequence master · trường đoạn<span class="nho"> — nhóm cú máy cùng ' +
       'một không gian; khung master của nhóm đi kèm mọi lượt vẽ</span></div>' +
-      veTruongDoanCanh(x) +
+      veTruongDoanCanh(x)) +
       '<div class="nhom">Assets in this shot · asset của cảnh<span class="nho"> — bấm để chọn, ' +
       'bấm đúp để xem ref</span></div>' + veTaiSanCanh(x) +
       '<div class="nhom">Images sent · ảnh sẽ gửi đi<span class="nho"> — đúng thứ tự nhà AI ' +
-      'nhận</span></div>' + veAnhSeGui(x) + '</div></div>' +
-      // ── 2 · Camera angle · 3 · Shot size · 4 · Camera movement ──
-      veKhungCanh(x) + veMayCanh(x) +
-    '</div><div class="cot-hinh">' +
+      'nhận</span></div>' + (dr ? veAnhDrama(x) : veAnhSeGui(x)) + '</div></div>' +
+      // ── 2 · Camera angle · 3 · Shot size · 4 · Camera movement ── (drama: theo shot)
+      (dr ? veShotDrama(x) : veKhungCanh(x) + veMayCanh(x)) +
+    '</div><div class="cot-hinh">' + (dr ? cotHinhDrama(x) : (
       '<div class="tab-hinh">' +
       '<button class="on" onclick="doiTabHinh(this,\'anh\')">Ảnh</button>' +
       '<button' + (x.video ? '' : ' disabled') +
@@ -1709,11 +1976,12 @@ function moCanh(ma){
       'text-transform:none;letter-spacing:0"> — đè cho riêng cảnh này; độ dài clip' +
       ' theo model video</span></p>' + veMoHinhCanh(x) +
       hopPrompt("Prompt ảnh", "prAnh", "pat", promptAnh(x), x) +
-      hopPrompt("Prompt video", "prVid", "pvt", promptVideo(x), x) +
+      hopPrompt("Prompt video", "prVid", "pvt", promptVideo(x), x))) +
     '</div></div>';
   document.getElementById("nenCanh").classList.add("mo");
   var oc = document.getElementById("oCanh");
   if(oc) oc.addEventListener("blur", function(){ luuNoiCanh(x, docChu(oc)); });
+  if(dr && !(x.pvt || "").trim()) napPromptDrama(x);
   // Mở lại một cảnh đang dựng dở (kể cả sau khi đã đóng tab) thì bắt nhịp hỏi
   // tiếp — mã task nằm trong kho nên không mất dấu clip đã trả tiền.
   if(x.vid) theoDoiVideo(x.ch, x.id);
@@ -1999,6 +2267,12 @@ function moAsset(ma){
       : 'Mô tả — đính vào mọi prompt cảnh dùng asset này') + '</p>' +
     '<div class="prompt" data-chu="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.chu) + '</div>' +
+    (x.loai === "nhan_vat" && TAP_KHUON === "2"
+      ? '<p class="nhan">Tiếng — giọng nhân vật, tiếng Anh, không cảm xúc (đi vào mọi prompt video ' +
+        'có người này nói; Sinh Asset tự viết từ giọng của kịch bản)</p>' +
+        '<div class="prompt" data-tieng="' + ma + '"' + (SUA_DUOC ? ' contenteditable' : '') + '>' +
+        thoat(x.tieng || "") + '</div>'
+      : '') +
     '<p class="nhan dau-pr">Prompt tạo ref — dùng một lần<span class="spacer">' +
     '</span><button class="cp" onclick="chepPrompt(this)">⧉ Copy</button></p>' +
     '<div class="prompt" data-pr="' + ma + '"' +
@@ -2060,7 +2334,7 @@ function docHopAsset(){
   var x = soTheoMa(ASSET_DANG_MO); if(!x) return null;
   var t = document.querySelector("#hopCanh [data-so]");
   if(t) x.ten = t.value;
-  ["yc", "chu", "pr"].forEach(function(k){
+  ["yc", "chu", "pr", "tieng"].forEach(function(k){
     var o = document.querySelector("#hopCanh [data-" + k + "]");
     if(o) x[k] = docChu(o);
   });
@@ -2473,7 +2747,7 @@ function buocDau(so, ten, phu, chon){
 }
 /* Bước 2 góc máy rồi bước 3 cỡ cảnh (thứ tự Owner chốt); câu KHUNG vẫn ghép
    "cỡ, góc" vì đó là dạng đã đo ra chạy (`khungCanh`). */
-function veKhungCanh(x){
+function veKhungCanh(x, dau){       // `dau`: câu khung shot drama do máy chủ ghép
   return '<div class="buoc">' + buocDau(2, "Camera angle", "góc máy", NHAN_GOC[x.goc] || x.goc) +
          '<div class="buoc-than">' + nutMa("goc", x, GOC_CHU, NHAN_GOC, GOI_GOC) +
          chipCu("goc", x, GOC_CHU) + '</div></div>' +
@@ -2485,22 +2759,26 @@ function veKhungCanh(x){
          '<span class="nho"> — LLM viết theo cỡ + góc đã chọn khi Create Prompt, sửa được</span></div>' +
          '<div class="o-sua" id="oLap"' + (SUA_DUOC ? ' contenteditable onblur="luuLap(this)"' : '') +
          '>' + thoat(x.lap || "") + '</div>' +
-         '<div class="ghi" style="margin-top:6px">Câu đầu prompt: <b>' +
-         thoat(khungCanh(x) || "(chưa chọn cỡ / góc)") + '</b></div></div></div>';
+         '<div class="ghi" style="margin-top:6px">' + (dau === undefined ? 'Câu đầu prompt' : 'Câu khung shot') +
+         ': <b>' + thoat((dau === undefined ? khungCanh(x) : dau) || "(chưa chọn cỡ / góc)") +
+         '</b></div></div></div>';
 }
-function veMayCanh(x){
+function veMayCanh(x, giay, bo){      // shot drama: `giay` của shot, `bo` mã máy Grok làm hỏng
   var h = "";
   NHOM_CD.forEach(function(n){
-    h += '<div class="nhom">' + n[0] + '</div>' + nutMa("cd", x, CD_CHU, NHAN_CD, GOI_CD, n[1]);
+    var ma = n[1].filter(function(m){ return (bo || []).indexOf(m) < 0; });
+    h += '<div class="nhom">' + n[0] + '</div>' + nutMa("cd", x, CD_CHU, NHAN_CD, GOI_CD, ma);
   });
   return '<div class="buoc">' + buocDau(4, "Camera movement",
-           "chuyển động máy · đứng đầu prompt video, kéo suốt " + giayCanh(x) + " s",
+           "chuyển động máy · " + (giay ? "trong shot " + soGiay(giay) + " s"
+                                        : "đứng đầu prompt video, kéo suốt " + giayCanh(x) + " s"),
            NHAN_CD[x.cd] || x.cd) +
          '<div class="buoc-than">' + h + chipCu("cd", x, CD_CHU) + '</div></div>';
 }
 function datKhung(khoa, ma){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
+  if(x.pm) return datShot(x, khoa, ma, true);
   datKhoaCanh(x, khoa, (x[khoa] || "") === ma ? "" : ma);   // bấm lại là bỏ chọn
   moCanh(canhDangMo);
 }
@@ -2508,9 +2786,24 @@ function luuLap(o){
   if(!SUA_DUOC) return;
   var x = canhTheoMa(canhDangMo); if(!x) return;
   var moi = docChu(o).trim();
+  if(x.pm) return datShot(x, "lap", moi, false);
   if(moi === (x.lap || "").trim()) return;
   datKhoaCanh(x, "lap", moi);
   moCanh(canhDangMo);
+}
+/* Clip drama: đổi MỘT khoá của shot đang chọn, gửi CẢ danh sách `sh` (hợp đồng máy
+   chủ), rồi tải lại chương — câu khung `dau_shot` máy chủ ghép lại theo mã mới. */
+async function datShot(x, khoa, gt, bat){
+  var shs = dsShot(x), s = shs[SHOT_CHON];
+  if(!s) return;
+  var moi = (bat && (s[khoa] || "") === gt) ? "" : gt;    // bấm lại ô đang chọn là bỏ chọn
+  if((s[khoa] || "") === moi) return;
+  s[khoa] = moi;
+  datKhoaCanh(x, "sh", JSON.stringify(shs));
+  moCanh(canhDangMo);
+  await hangGhiCanh;
+  await taiLaiChuong(x.ch);
+  if(canhDangMo === x.ma) moCanh(canhDangMo);
 }
 
 function veTongCanh(x){
@@ -2637,6 +2930,14 @@ function veKhoi(d, ds){
   var oo = document.getElementById("tKhoi");
   if(!d){ oo.innerHTML = ""; return; }
   if(!ds) ds = docCanh(d);
+  if(TAP_LOAI === "drama"){
+    // Clip drama: chỉ xem ở đây; sửa chữ clip trong hộp clip (Storyboard) hoặc dán lại kịch bản.
+    oo.innerHTML = ds.map(function(c){
+      return '<div class="khoi"><span class="k">' + thoat(c.pm || "") + ' · ' + (c.gi || 15) + 's</span>' +
+             '<div class="c" style="white-space:pre-wrap">' + thoat(c.t) + '</div></div>';
+    }).join("") + '<div class="ghi">Sửa chữ clip trong hộp clip ở <b>Storyboard</b>, hoặc dán lại kịch bản.</div>';
+    return;
+  }
   var pc = soPhanCanh();
   if(!ds.length) ds = [{t: ""}];
   oo.innerHTML = ds.map(function(c, i){

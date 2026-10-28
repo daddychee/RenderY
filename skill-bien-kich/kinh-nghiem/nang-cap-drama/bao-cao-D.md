@@ -1,0 +1,11 @@
+# Báo cáo phiên D · skill, hai trợ lý, nhật ký (2026-10-02)
+
+- **SKILL.md** viết lại: bảng hỏi hai lượt (lượt 1 phim mẫu, tựa, thumbnail, 3 ý; lượt 2 độ dài, nạn nhân mở phim, cặp chính, bí mật, kẻ ác, trận, mức Seedance); khuôn dàn ý đúng kế hoạch mục 7; bước 2 đọc khung trọn, `drama-thoai.md` mục 1 và 6, mục lục khoảnh khắc và thoại `kho/drama-da-den/`; tự soát 6 điều máy không kiểm; `dan_y_drama.py kiem`; bước 3 báo cụm nạn nhân và cặp chính; mặc định dừng sau phần 1; gộp `dan_y_drama.py dau` → `kiem_drama.py gop` → `dan_y_drama.py phan`. Đã bỏ `gv2`, `dau_drama.py`, `tran-danh.md`.
+- **viet-phan-drama:** đọc `dan_y_drama.py doc`, ghi chú nối phần trước, `drama-thoai.md` trọn, khung đầu file tới hết mục 1 và mục 3, `doc_kho.py` đúng mã cột Mã kho; không đọc mục lục kho. Thêm luật 4 phút đầu, cú máy mục 8, cảnh đánh mục 9, Gieo và gặt nghe được bằng lời, dòng `Gieo, gặt:`.
+- **soat-phan-drama:** đọc thêm `dan_y_drama.py doc` và khung tới hết mục 1; 12 mục soát (thêm Gieo và gặt, ai biết gì, trái/phải, người yếu thế, phần 1 format và trả tựa, cú máy truyền hình); báo cáo thêm mỗi cảnh một dòng, tối đa 12.
+- **Số mục:** khung 0–5 và `drama-thoai.md` 1–9 trỏ đúng trong ba file (Grep). `drama-thoai.md` không còn trỏ số mục khung nào, không phải sửa. `CLAUDE.md` không nhắc `dau_drama.py`, không sửa.
+- **Lệnh:** `kiem`, `doc 1`, `doc 2`, `dau`, `phan`, `kiem_drama.py gop` chạy được trên bản sao `thu-drama-moi` (scratchpad, không ghi vào phim). `kiem` 3 LỖI dẫn sai (lỗ thật, để nguyên); `phan-01.md` 1 LỖI G01 P099 (dòng Gieo, gặt giả của phim thử).
+- **Token:** SKILL 5.438 → 4.502 (đích 4.500); viết 2.384 → 2.422; soát 1.763 → 2.132. Chat chính bước 1–2 khoảng 23.400 (đích 22.000; mục lục khoảnh khắc 7.644 là phần nặng nhất). Trợ lý viết khoảng 22.000–23.500 (đích 20.000).
+- **Lệch kế hoạch:** kho chi tiết khoảng 700 token mỗi mã; dàn ý `thu-drama-moi` có 10–11 mã mỗi phần (7.000–7.900 token) đẩy trợ lý viết lên khoảng 27.000. Đã thêm vào SKILL: cột Mã kho cả phần khoảng 6 mã. Mẫu dàn ý trong SKILL rút còn một dòng ví dụ mỗi bảng để giữ trần token.
+- **Còn lệch:** `.agents/`, `.codex/`, `AGENTS.md` chưa chép (còn trỏ `dau_drama.py` đã xóa). Dòng `Gieo, gặt:` phần 1 dài khoảng 30 mã (báo cáo C), chưa nới.
+- **Việc kế:** chép `.agents/`, `.codex/`, `AGENTS.md`; chọn ý tưởng phim mới, chạy `/bien-kich-drama`. Không commit.

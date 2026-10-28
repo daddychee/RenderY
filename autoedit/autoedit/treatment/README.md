@@ -87,6 +87,28 @@ nên sập bên này không kéo theo 9118.
 
 Kho dữ liệu riêng (`kichban.db`), tiến trình riêng, cổng riêng.
 
+## Drama thoại + luật tài sản khuôn Padoma (27–28/10)
+
+- Tạo tập chọn loại **2 = Drama có thoại**; dán cả `kich-ban.md` của skill `/bien-kich-grok`
+  (`skill-bien-kich/` ở gốc repo). `kiem_drama.py` là bản CHÉP NGUYÊN của Padoma — kịch bản sai
+  khuôn thì không nạp gì. Phần → chương Cn, cảnh → dòng, clip → cảnh (`pm` mã P, `gi` giây).
+- Prompt video drama: LLM viết phần cần hiểu cảnh (`pd`), **Python** ghép khuôn, chèn câu thoại
+  nguyên văn, chia giây từng shot theo `gi` (`drama.py`). Grok dựng từ ảnh tham chiếu, không khung đầu.
+- Shot (user chốt 28/10, đi theo flow narration): **Breakdown** (`…/dong/{i}/breakdown`, hay một clip
+  `…/canh/{ma}/breakdown`) chia clip thành shot theo `Hình:` và đặt mã cỡ/góc/máy bằng ĐÚNG ba bảng
+  narration (`CO_CHU`/`GOC_CHU`/`CD_DRAMA` = `CD_CHU` bỏ orbit) vào cột `sh`; người dựng sửa mã ở hộp
+  cảnh. Câu đầu mỗi shot Python ghép (`khung_shot`): "{cỡ}, {góc}: {lap}. {máy}". Máy đẩy vào/lùi
+  ra thì mã cỡ là cỡ LÚC BẮT ĐẦU (ghi cỡ cuối thì Grok mở ngay ở cỡ đó, gần như không đẩy — Đợt 0).
+- Hai lượt LLM viết chữ: phần CHUNG của cảnh (ánh sáng, trục, nền, giọng) một lượt, rồi mỗi clip một
+  lượt song song cho ĐÚNG các shot đã chốt (một lượt cả cảnh 5 clip quá 180 s, kiểm thử 28/10). Câu vị
+  trí và `lap` nhắc tên người ngoài khung thì không lưu clip đó (Grok vẽ thêm người đó). Viết lại một
+  clip: `POST …/canh/{ma}/prompt-drama`, dùng lại phần chung, không đụng clip khác.
+- Dán lại: clip đổi số câu thoại thì bỏ `pd` (trả `doi`, `mat_prompt`); `/cu` đánh dấu prompt và
+  video drama cũ khi chữ clip, giây hay tấm tham chiếu đổi sau lần gen.
+- Tập tạo từ 27/10 (`khuon = "2"`): tấm nhân vật GPT Image 2 cận 1:1 → toàn thân 9:16 → tấm 4:3;
+  đồ vật nền trắng; nơi chốn 16:9 (`tai_san.py`); prompt ảnh cảnh đánh số ảnh kèm lời dặn.
+- Test: `test_treatment_drama*.py` (có bản Chrome thật). Số đo: memory `drama-grok-do-that-27-10`.
+
 ## Bẫy đã trả giá — đừng giẫm lại
 
 - **Mọi lượt gọi ra ngoài đi bằng `requests`, không phải `urllib`.** Máy chủ nằm

@@ -192,6 +192,120 @@ tối om, tách nền không ra, đem làm tham chiếu thì hỏng.
 Trả về JSON: {"chu": "...", "pr": "..."}"""
 
 
+# Tập MỚI (khuôn "2", user chốt 27/10: luật tài sản Padoma cho cả narration lẫn
+# drama). LLM chỉ viết MÔ TẢ; prompt ảnh là khuôn câu cố định `tai_san.py` ghép.
+# Luật mô tả lấy từ Padoma `skill bien kich/kien-thuc/drama-thoai.md` mục 1
+# (cụm nhân vật) và `grok-phim.md` mục 2 (không chữ làm người nhỏ đi).
+_LENH_ASSET_2 = """Bạn viết HỒ SƠ NHẬN DẠNG cho một tài sản. Ảnh tham chiếu sẽ vẽ \
+theo khuôn câu cố định của hệ thống, chỉ chêm đoạn `chu` của bạn vào.
+
+Bạn nhận: loại, tên, YÊU CẦU CỦA ĐẠO DIỄN (tiếng Việt), mô tả và giọng đang có \
+(nếu có), mood của cả tập.
+
+Trả về:
+- `chu`: TIẾNG ANH, chỉ điều NHÌN THẤY được.
+  · nhân vật (`nhan_vat`): 30–60 từ, đúng thứ tự: tuổi bằng số ("about 24", "in \
+his early thirties"), giới, dáng, da, nét mặt, tóc (màu, kiểu), quần áo (màu, kiểu), \
+phụ kiện (mũ, kính, túi), dấu riêng ghi trái/phải CỦA CHÍNH nhân vật ("a small \
+scar on the left side of his chin"). Không tên riêng, không cảm xúc, không bối \
+cảnh. KHÔNG chữ làm người nhỏ đi (small, tiny, petite, frail, slight, \
+diminutive, little old lady), trừ trẻ em.
+  · đồ vật (`dao_cu`): 1–2 câu: hình dáng, cỡ so với bàn tay, chất liệu, màu, vết \
+mòn. Chữ in trên vật ghi trong ngoặc kép đúng từng chữ.
+  · bối cảnh (`boi_canh`): 2–3 câu tả nơi chốn KHÔNG CÓ NGƯỜI: bố cục, tường, sàn, \
+cửa, đồ đạc chính, vật liệu; rồi một câu bắt đầu bằng "Light:" — nguồn sáng ở \
+đâu, chiếu hướng nào, phơi sáng bình thường, góc xa vẫn đọc được, không đen \
+kịt, bảng màu nhẹ.
+- `tieng`: CHỈ cho nhân vật, tiếng Anh, một câu theo mẫu "<Tên>'s voice: a woman \
+of about 28, medium pitch, clear with a light husky edge, African American \
+English from Chicago, even and quiet pace, natural, not exaggerated, not a comedy \
+voice." — tuổi, độ trầm, chất giọng, vùng, nhịp; KHÔNG cảm xúc. Có giọng đang có \
+(tiếng Việt) thì dịch đúng ý đó. Loại khác: "".
+
+Luật:
+- BÁM YÊU CẦU CỦA ĐẠO DIỄN; mô tả đang có bằng tiếng Anh là của kịch bản — giữ \
+nguyên ý, không mâu thuẫn.
+- Không ghép mood tối / ánh sáng của tập vào nhân vật và đồ vật: ảnh tham chiếu \
+là bản mặt, không phải một cảnh trong phim.
+
+Trả về JSON: {"chu": "...", "tieng": "..."}"""
+
+
+# Drama thoại (27/10): khuôn và chữ cố định do Python ghép (`drama.prompt_clip`,
+# đo 27/10 thoại 12/12); LLM chỉ viết phần cần hiểu cảnh. Luật lấy từ Padoma
+# `seedance-drama.md` mục 2, `grok-phim.md`. HAI lượt (kiểm thử 28/10: một lượt cả
+# cảnh 5 clip quá 180 s 2/2 lần): phần CHUNG của cảnh một lượt, rồi mỗi clip một
+# lượt chạy song song, dùng lại y nguyên phần chung.
+LENH_DRAMA_CANH = """Bạn là đạo diễn hình viết prompt video cho Grok Imagine 1.5, \
+phim DRAMA CÓ THOẠI.
+
+Bạn nhận MỘT CẢNH: nơi chốn, người (nhận dạng tiếng Anh, giọng), và các CLIP của \
+cảnh theo thứ tự (mã, số giây, ai trong khung, chữ của biên kịch tiếng Việt: dòng \
+đầu là việc của clip, `Hình:` là shot và nét mặt; câu thoại tiếng Anh đánh số). \
+Lượt này CHỈ viết phần CHUNG của cảnh — giống nhau ở mọi clip, lệch giữa các clip \
+là lộ khi dựng. Từng clip do lượt sau viết.
+
+- `look`: tiếng Anh: ánh sáng và màu của nơi này lúc này — nguồn sáng ở đâu, \
+hướng nào, độ tương phản, bảng màu; da tối màu giàu, mờ, tự nhiên, không cam, \
+không xám tro; da người thật có lỗ chân lông, không bóng. Trong nhà một nguồn \
+sáng rõ (đèn trần, cửa sổ, đèn bếp).
+- `truc`: tiếng Anh: chỗ đứng / ngồi của MỌI người trong cảnh — ai bên trái khung, \
+ai bên phải, giữ suốt cảnh. Câu này KHÔNG gửi máy dựng, chỉ làm mốc cho lượt viết \
+từng clip.
+- `nen`: tiếng Anh, 2–3 tiếng nền của nơi chốn.
+- `tieng`: CHỈ cho người ở dòng "CẦN CÂU GIỌNG", {"Tên": "<Tên>'s voice: a woman \
+of about 28, medium pitch, clear with a light husky edge, African American \
+English from Chicago, even and quiet pace, natural, not exaggerated, not a comedy \
+voice."} — tuổi, độ trầm, chất giọng, vùng, nhịp; KHÔNG cảm xúc (cảm xúc ở \
+DELIVERY). Có giọng tiếng Việt thì dịch đúng ý đó.
+
+Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}}"""
+
+LENH_DRAMA_CLIP = """Bạn là đạo diễn hình viết prompt video cho Grok Imagine 1.5, \
+phim DRAMA CÓ THOẠI.
+
+Bạn nhận MỘT CLIP của một cảnh: nơi chốn, chỗ đứng chung của cảnh (TRỤC CẢNH), \
+người TRONG KHUNG (nhận dạng tiếng Anh), mã clip, số giây, chữ của biên kịch \
+(tiếng Việt: dòng đầu là việc của clip, `Hình:` là shot và nét mặt), câu \
+thoại TIẾNG ANH ĐÃ CHỐT đánh số [0], [1]… (`Lời nghĩ` là câu nghĩ trong đầu), \
+và các SHOT ĐÃ CHỐT ("- Shot k · khung · ý · câu nói"): người dựng đã chọn cỡ, \
+góc, chuyển động máy và câu nào nói ở shot nào.
+
+HỆ THỐNG tự ghép khuôn, tự đặt câu khung (cỡ, góc, máy) đầu mỗi shot, tự chèn \
+NGUYÊN VĂN câu thoại, tự tính mốc giây. Bạn KHÔNG đổi khung, KHÔNG chép câu \
+thoại, KHÔNG viết mốc giây — chỉ viết chữ cho ĐÚNG từng shot đã chốt.
+
+- `truc`: tiếng Anh, MỘT câu: người trong khung ai bên trái, ai bên phải, theo \
+TRỤC CẢNH. CHỈ nhắc người TRONG KHUNG: người ngoài khung (kể cả người nói từ ngoài \
+khung) không được có tên trong câu này — nhắc tên là máy vẽ thêm người đó.
+- `y`: tiếng Anh: chuyện gì đang xảy ra, ai biết gì, một câu "The audience must \
+feel ...", cung cảm xúc từng người (từ đâu tới đâu), cường độ, đỉnh ở câu nào.
+- `size`: "SIZE: ..." khi có người già, người ngồi cạnh người đứng, hay chênh \
+vóc: người đó là người lớn cao bình thường, neo vào đồ vật ("she sits up in an \
+ordinary hospital bed, the bed rail at her waist"); không so với một người cụ \
+thể. Không cần thì "".
+- `giu`: tiếng Anh, quần áo + phụ kiện của TỪNG người trong khung (mũ, kính, túi \
+— Grok bỏ món nào chữ không nhắc), nối bằng dấu chấm phẩy.
+- `shots`: ĐÚNG bằng số SHOT ĐÃ CHỐT, cùng thứ tự, mỗi shot:
+  · `lap`: tiếng Anh, CÁI GÌ LẤP KHUNG theo đúng cỡ và góc đã chốt — ai, ở đâu \
+trong khung (trái/phải theo trục), thấy tới đâu (cận thì mặt và thứ sau lưng, \
+qua vai thì vai ai ở tiền cảnh). Hệ thống ghép thành "{cỡ}, {góc}: {lap}." Không \
+lặp lại tên cỡ/góc/máy. CHỈ nhắc người TRONG KHUNG. Không dolly zoom, không vòng 360.
+  · `cach`: DELIVERY tiếng Anh — nhịp, ngắt, nhấn, chỗ giọng vỡ (theo cách nói \
+trong ngoặc của biên kịch).
+  · `mat`: FACE AND BODY tiếng Anh — nét mặt, động tác thấy được theo thứ tự, trạng \
+thái cuối. Viết "eyes glistening", không "red eyes". Shot không thoại: phản ứng, \
+"mouth closed".
+  · `am`: tiếng động gắn khoảnh khắc của shot, có thể "".
+
+Luật Grok: không chữ làm người nhỏ đi (small, tiny, petite, frail, slight, little \
+old lady), trừ trẻ em; không hành động nặng (xô ngã, đánh nhau, kéo lê) — chạm nhẹ \
+một động tác thì được; người phụ, đám đông chỉ thấy lưng hay mờ phía sau.
+
+Trả về JSON: {"truc": "...", "y": "...", "size": "", "giu": "...", "shots": \
+[{"lap": "...", "cach": "...", "mat": "...", "am": ""}]}"""
+
+
 class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""
 
@@ -335,6 +449,17 @@ class LLM:
         ra = self.goi(_LENH_ASSET, than)
         return {"chu": str(ra.get("chu") or "").strip(),
                 "pr": str(ra.get("pr") or "").strip()}
+
+    def sinh_asset_2(self, muc: dict, tong: str) -> dict:
+        """Khuôn Padoma: chỉ MÔ TẢ (+ giọng nhân vật), prompt ảnh Python ghép."""
+        than = ("YÊU CẦU CỦA ĐẠO DIỄN:" + chr(10) + (muc.get("yc") or "") +
+                chr(10) * 2 + "TÀI SẢN: %s (%s)" % (muc.get("ten", ""), muc.get("loai", "")) +
+                chr(10) * 2 + "MÔ TẢ ĐANG CÓ: " + (muc.get("chu") or "(chưa có)") +
+                chr(10) + "GIỌNG ĐANG CÓ: " + (muc.get("tieng") or "(chưa có)") +
+                chr(10) * 2 + "MOOD CỦA CẢ TẬP:" + chr(10) + (tong or "(chưa đặt)"))
+        ra = self.goi(_LENH_ASSET_2, than)
+        return {"chu": str(ra.get("chu") or "").strip(),
+                "tieng": str(ra.get("tieng") or "").strip()}
 
     def goi_y(self, kich_ban: str) -> dict:
         """CẢ kịch bản tiếng Anh -> {tai_san, mood}, MỘT lượt gọi.

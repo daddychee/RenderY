@@ -230,3 +230,75 @@ def test_giay_cua_client_theo_model_video():
     assert _may([], model_video="seedance_2.5").giay == 30
     assert _may([], model_video="seedance_2.0_fast").giay == 15
     assert _may([], model_video="Omni-Flash").giay == 8
+
+
+# ═══════ GPT Image 2 (tấm nhân vật, user chốt 27/10) + Grok 1.5 (drama) ═══════
+# Đo thật 27/10 (scratchpad drama_thu): GPT trả CẢ HAI dạng — có lượt trả ngay
+# kiểu OpenAI {"data":[{"url"}]}, có lượt trả job 202 phải poll. Grok nhận 6/10/15
+# giây, cùng giá 108 credit; 1080p kèm ảnh bị chặn nên chỉ 720p.
+def _anh_that(tmp_path, ten="r.png", co=(2400, 1800)):
+    from PIL import Image
+    p = tmp_path / ten
+    Image.new("RGB", co, (120, 90, 60)).save(p)
+    return p
+
+
+def test_gpt_khong_ref_di_images_generations_size_la_ti_le(tmp_path):
+    c = _may([_Tra(200, {"data": [{"url": "https://cdn/g.png"}]}), _Tra(200, b"G")])
+    c.gen_anh("a face", tmp_path / "g.png", model="gpt-image-2", ti_le="1:1")
+    g = c._session.goi[0]
+    assert g["url"].endswith("/images/generations")
+    assert g["json"] == {"model": "gpt-image-2", "prompt": "a face", "n": 1, "size": "1:1"}
+    assert (tmp_path / "g.png").read_bytes() == b"G"
+
+
+def test_gpt_co_ref_di_images_edits_anh_jpeg_thu_nho_va_poll_khi_202(tmp_path):
+    ref = _anh_that(tmp_path)
+    c = _may([_Tra(202, {"data": {"id": "g2", "status": "queued", "is_final": False,
+                                  "next": {"url": "https://seedvis.com/api/v1/developer/generations/g2?wait=30",
+                                           "after_seconds": 0}}}),
+              _Tra(200, {"data": {"id": "g2", "status": "completed", "is_final": True,
+                                  "outputs": [{"url": "https://cdn/t.png"}]}}),
+              _Tra(200, b"T")])
+    c.gen_anh("same person full length", tmp_path / "t.png", ref=[ref], model="gpt-image-2", ti_le="9:16")
+    g = c._session.goi[0]
+    assert g["url"].endswith("/images/edits") and g["json"]["size"] == "9:16"
+    du = g["json"]["image"][0]
+    assert du.startswith("data:image/jpeg;base64,"), "Padoma: PNG nặng làm đứt SSL — gửi JPEG"
+    import base64, io
+    from PIL import Image
+    im = Image.open(io.BytesIO(base64.b64decode(du.split(",", 1)[1])))
+    assert max(im.size) <= 1600
+    assert [x["method"] for x in c._session.goi] == ["POST", "GET", "GET"]
+
+
+def test_grok_nhieu_anh_tham_chieu_720p_va_giay_hop_le(tmp_path):
+    from autoedit.aigen.seedvis import MODEL_GROK, giay_grok
+    anh = [_anh_that(tmp_path, f"{i}.png") for i in range(3)]
+    c = _may([_Tra(202, {"data": {"id": "k1", "status": "queued", "is_final": False}})])
+    tid = c.gen_video_ref("[REFERENCES] ...", anh, giay=10)
+    assert tid == "k1"
+    j = c._session.goi[0]["json"]
+    assert c._session.goi[0]["url"].endswith("/developer/generations")
+    assert j["model"] == MODEL_GROK == "grok-imagine-video-1.5"
+    assert j["mode"] == "multi-image-to-video" and j["duration"] == "10s"
+    assert j["resolution"] == "720p" and j["aspect_ratio"] == "16:9"
+    assert len(j["referenceImages"]) == 3
+    assert all(x.startswith("data:image/jpeg;base64,") for x in j["referenceImages"])
+    assert [giay_grok(g) for g in (4, 6, 9, 10, 12, 15, 30)] == [6, 6, 6, 10, 10, 15, 15]
+
+
+def test_grok_khung_dau_khong_bi_ep_ve_8s(tmp_path):
+    """Narration chọn Grok trong bảng model: trước đây đi nhánh Omni/Veo, gửi "8s"."""
+    anh = _anh_that(tmp_path)
+    c = _may([_Tra(202, {"data": {"id": "k2", "status": "queued", "is_final": False}})])
+    c.gen_video_i2v("p", anh, giay=15, model="grok-imagine-video-1.5")
+    j = c._session.goi[0]["json"]
+    assert j["mode"] == "image-to-video" and j["duration"] == "15s"
+    assert j["resolution"] == "720p" and j["image"].startswith("data:image/")
+
+
+def test_giay_theo_model_biet_grok():
+    from autoedit.aigen.seedvis import giay_theo_model
+    assert giay_theo_model("grok-imagine-video-1.5") == 15
+    assert _may([], model_video="grok-imagine-video-1.5").giay == 15

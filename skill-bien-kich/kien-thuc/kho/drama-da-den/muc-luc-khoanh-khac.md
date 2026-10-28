@@ -1,0 +1,80 @@
+# Mục lục kho thủ pháp biên kịch: khoảnh khắc · drama da đen mỹ
+
+Đọc ở bước bảng phân clip. Đọc cùng `chung/muc-luc-khoanh-khac.md`. Chọn mã (cả ba nhóm cộng lại khoảng 1 mục mỗi phút phim), ghi mã vào bảng phân clip, rồi in chi tiết đúng các mã đã chọn: `py -3 cong-cu/doc_kho.py <mã> <mã> …` (hay `--hoi <00-nhip.md> <số hồi>` in các mã của một hồi).
+
+File do `kiem-chung/dong_bo_skill_bien_kich.py` của repo GEN VIDEO xuất từ web. Không sửa tay.
+
+- KB209 · ít thoại · Chặn đường bằng một bước chân · Người mạnh không cần nói 'đứng lại'; chỉ cần cơ thể chiếm lối ra.
+- KB210 · cả hai · Chèn hồi tưởng lý do đúng lúc nhân vật gật đầu điều xấu hổ · Khi nhân vật sắp chấp nhận một điều khiến khán giả phán xét (bán thân, ăn cắp, phản bội), cắt ngay vào hình ảnh lý do (người thân bệnh) vài giây.
+- KB211 · ít thoại · Gồng tới khi khuất mắt rồi mới sụp · Nhân vật giữ mặt bình thản trước người làm mình tổn thương, đi thật bình thường cho tới chỗ không ai thấy, rồi cơ thể mới sụp (chống gối, thở dốc).
+- KB212 · cả hai · Sáng hôm sau lạnh như biên lai · Sau một đêm ấm, người mạnh xử lý buổi sáng như một giao dịch (bắt đọc lại số tài khoản, đưa thuốc, đặt ranh giới).
+- KB213 · cả hai · Đồng tiền nhục quay về túi người trả · Tiền nhân vật phải hạ mình để có lại chảy về đúng người đã trả (mua đất, trả nợ, đóng phí cho công ty của hắn).
+- KB214 · ít thoại · Chạm đáy bằng một cú hắt nhỏ trước khi người kia xuất hiện · Ngay sau chuyện đau lớn (tang), thêm một nỗi nhục nhỏ, vô danh, không ai chủ ý (xe tạt nước bùn).
+- KB215 · nhiều thoại · Cái tát đảo quyền lực trong không gian kín · Người yếu đánh trả người mạnh ở nơi hắn thấy an toàn nhất (xe riêng, phòng riêng), và cú đánh không lọt vào khung, chỉ thấy hậu quả (tay ôm má, mắt ngơ ngác).
+- KB216 · cả hai · Nhận ra mình đang ở trong hang cọp qua một bức ảnh · Nhân vật vừa có khởi đầu mới, rồi phát hiện nơi mới thuộc về đúng người mình đã đụng độ, qua một hình ảnh treo sau lưng (chân dung, bảng tên).
+- KB217 · cả hai · Kẻ bắt nạt đổi giọng khi người trên bước tới · Kẻ bắt nạt đang cao giọng thì người có quyền bước vào; hắn lập tức ngọt giọng, cúi đầu.
+- KB218 · nhiều thoại · Tin sốc đến ngay khi vừa có khởi đầu mới · Nhân vật vừa được nhận việc, vừa đứng thẳng trước kẻ bắt nạt, thì một tin làm sụp nền móng (có thai) đến trong phòng khám.
+- KB219 · cả hai · Lòng tốt khi chính mình đang khổ · Ngay lúc nhân vật vừa nhận tin tồi tệ nhất, cô dừng lại giúp một người lạ.
+- KB220 · cả hai · Câu nói đùa chạm trúng bí mật khán giả biết · Nhân vật khác nói một câu phóng đại (va phải cô rồi kêu 'tôi giết con người ta rồi') mà không biết đúng sự thật cô đang mang.
+- KB221 · nhiều thoại · Kế thoát thành chính cái bẫy · Nhân vật tung ra bí mật của mình để thoát khỏi điều bị ép (nói có thai để khỏi cưới), nhưng chính bí mật đó lại là thứ người ép muốn nhất.
+- KB222 · nhiều thoại · Ép bằng tình thương · Người thân dùng chính mình làm con tin (dọa bỏ thuốc, bỏ ăn) để ép.
+- KB223 · ít thoại · Khoảng trống giữa hai người trên giường · Hai người buộc phải ngủ chung, máy đứng yên chính diện giường, mỗi người nằm sát một mép, giữa là khoảng trống lớn, không ai nói.
+- KB224 · cả hai · Vu oan món quà, chủ thật lật bằng một câu hỏi · Kẻ ác bêu nhân vật trước đám đông vì món đồ quý không hợp thân phận, rồi lôi tới người có quyền để xử.
+- KB225 · cả hai · Ra tay vì người thương mà không nói lý do · Nhân vật lạnh lùng nghe người kia than một chuyện nhỏ, không đáp gì, rồi lập tức đi xử tận gốc chuyện đó dưới vỏ công việc.
+- KB226 · nhiều thoại · Tình cảm lộ qua lời người thứ ba · Người thân lâu năm của nhân vật lạnh lùng mang cái gì đó tới và buột miệng 'tôi chưa từng thấy cậu ấy lo cho ai như vậy'.
+- KB227 · cả hai · Trốn ngay dưới chân đối thủ · Nhân vật phải trốn ở chỗ gần nhất có thể với người không được thấy mình (dưới gầm bàn trong khi đối thủ ngồi đối diện).
+- KB228 · cả hai · Cứu tinh nghe thấy mà bỏ đi · Nhân vật mắc kẹt kêu cứu, có người đi ngang, dừng lại nghe, rồi tự thuyết phục là không có gì và bỏ đi.
+- KB229 · cả hai · Chứng cứ khách quan rồi bắt phe ác chọn · Hạ kẻ ác bằng chứng cứ khách quan (camera, dấu vân tay) chứ không bằng lời nhân vật chính.
+- KB230 · cả hai · Người ngoài chỉ ra cặp đôi vẫn là người dưng · Một người lạ không liên quan (y tá, nhân viên quầy) hỏi câu thủ tục bình thường và vô tình lộ ra hai người chưa biết những điều cơ bản về nhau.
+- KB231 · cả hai · Gia đình mới tổ chức mừng cho người mồ côi · Người quen sống một mình lần đầu được một gia đình nhớ ngày của mình (sinh nhật) và hát mừng.
+- KB232 · ít thoại · Tờ giấy nói thay nhân vật · Khi sự thật được xác nhận bằng giấy tờ (xét nghiệm, bản án), cho máy cận thẳng vào dòng chữ quyết định, mặt người đọc mờ phía sau, không thoại.
+- KB233 · cả hai · Đám đông ép, người che chở uống thay · Trò chơi tập thể biến ép buộc thành 'vui' (hô 'hôn sếp'), người yếu không từ chối được mà không mất lòng.
+- KB234 · cả hai · Vết thương biến thành manh mối · Kẻ mạo danh làm hại nhân vật (hắt nước nóng), và chính vết thương buộc nhân vật phải lộ ra phần cơ thể mang dấu hiệu gốc (vết bớt).
+- KB235 · cả hai · Phép thử cơ thể lật kẻ mạo danh · Kẻ mạo danh thuộc lòng câu chuyện nhưng không thể giả được cơ thể (dị ứng, sẹo, thói quen).
+- KB236 · cả hai · Người mẹ quyền thế quỳ trước mộ người mẹ nghèo · Người giàu, từng vắng mặt, hạ thấp cơ thể (quỳ, áp tay lên bia) trước người nghèo đã làm thay phần mình.
+- KB237 · nhiều thoại · Đoàn tụ có khoảng cách thật · Khi tìm lại người thân ruột, nhân vật không lao vào ôm ngay mà xin thời gian, người thân chấp nhận chờ.
+- KB238 · cả hai · Cười xả sau chuỗi xúc động · Sau một loạt cảnh khóc, cho một câu nói thẳng hài hước (gọi đúng tính người lớn tuổi) để cả nhân vật và khán giả cười lớn.
+- KB239 · ít thoại · Cắt sang phía người mạnh để khán giả biết trước · Chèn một cảnh ngắn ở phía người mạnh (văn phòng, trợ lý báo cáo) cho khán giả biết điều nhân vật chính chưa biết.
+- KB240 · cả hai · Người thân ra mặt tuyên bố bảo vệ trước cả nhà · Người lớn nhất nhà giơ tay tuyên bố trước mọi người rằng không ai được coi thường nhân vật nữa.
+- KB290 · cả hai · Người lạ tốt cho đi phần của mình khi chính mình không đủ · Lòng tốt thấy rõ nhất khi người cho đang thiếu; khán giả thương và tin nhân vật ngay lần đầu gặp.
+- KB291 · cả hai · Kẻ bắt nạt xun xoe ngay trước người thân của nạn nhân · Khán giả biết người vừa bị khinh là thân của người quyền lực đang tới; thấy kẻ bắt nạt nịnh bợ là một cú cười chờ vả.
+- KB292 · cả hai · Chấp nhận điểm yếu rồi lật thành phẩm giá · Khi nhân vật không chối điều bị chê mà đồng ý rồi lật nghĩa, kẻ khinh mất chỗ bám, khán giả thấy cô vững.
+- KB293 · cả hai · Hai sản phẩm giống hệt đặt cạnh nhau, kẻ cắp hô trước · Khi kẻ cắp tố cáo trước, nạn nhân phải chứng minh mình vô tội; khán giả ức vì trắng thành đen.
+- KB294 · cả hai · Lật thế rồi bị giật lại ngay bằng cú vu thứ hai · Khán giả vừa thở khi bằng chứng xuất hiện thì bị giật lại, ức gấp đôi; cú lật cuối vì vậy sướng hơn.
+- KB295 · cả hai · Câu hỏi nghề lột kẻ mạo nhận · Kẻ nhận vơ sản phẩm không trả lời được một câu hỏi mà tác giả thật trả lời ngay; khán giả sướng vì sự thật lộ qua chuyên môn chứ không qua quyền.
+- KB296 · cả hai · Sản phẩm kể đời người làm ra nó · Khi tác giả giải thích sản phẩm như ẩn dụ đời mình, khán giả vừa tin cô là tác giả vừa xúc động vì nhìn lại hành trình của cô.
+- KB297 · cả hai · Bà già định quỳ thay cháu · Người già yếu hạ mình vì người trẻ là hình ảnh tột cùng bất công; khán giả sôi máu và cứu tinh đến lúc này sướng nhất.
+- KB298 · cả hai · Thủ tục lạnh tát kẻ khinh người · Không cần người quyền lực, một nhân viên chỉ làm đúng quy trình cũng đảo thế; khán giả sướng vì luật đứng về người thấp.
+- KB299 · cả hai · Thông báo công khai cho khán giả biết trước sự thật · Một lời thông báo nền cho khán giả biết điều kẻ ác chưa kịp nghe; khi kẻ ác khoe dối ngay sau, khán giả chờ nó tự sa.
+- KB300 · cả hai · Đồ thật bị gọi giả, máy đo lật ngược: đồ của kẻ vu mới giả · Kẻ vu người khác đeo đồ giả hóa ra đeo đồ giả; cú lật đối xứng cho khán giả hả hê gấp đôi vì chính lời vu dội lại.
+- KB301 · cả hai · Vật trao với nghĩa gia đình bị đập vỡ · Vật được trao kèm một câu nhận làm con có giá cảm xúc; khi nó vỡ, khán giả đau không vì giá tiền mà vì nghĩa.
+- KB302 · cả hai · Chỗ dựa của kẻ ác quay lưng với chính nó · Kẻ ác gọi người chống lưng đến trị người lạ, người đó lại mắng kẻ ác; khán giả hả hê vì kẻ ác mất chỗ dựa trước đám đông mình vừa khoe.
+- KB303 · cả hai · Vai thấp ra lệnh, vai cao dạ vâng trước mặt nữ chính · Nữ chính thấy người cô tưởng thấp ra lệnh cho người cao hơn và được tuân; khán giả sướng và chờ cô nghi.
+- KB304 · cả hai · Chồng ghen với chính thân phận thật của mình · Khán giả biết hai người đàn ông là một; nhìn anh ghen với 'sếp' vừa buồn cười vừa biết anh đã yêu thật.
+- KB305 · cả hai · Giúp ngầm bằng chính sách chung · Người mạnh muốn giúp mà không lộ, nên đổi luật cho cả công ty; nữ chính được giúp mà không mất tự trọng, khán giả biết và mỉm cười.
+- KB306 · cả hai · Nữ chính từ chối tiền lớn rồi đem cho · Nhân vật nghèo nhận khoản tiền lớn mà cho đi làm khán giả tin hẳn cô không vì tiền; cũng dựng nơi cho cảnh sau.
+- KB307 · cả hai · Nhân chứng lạ suýt nhận ra người giấu thân phận · Một người không liên quan buột nói điều khán giả biết; khoảnh khắc thót tim và buồn cười khi bị chống chế.
+- KB308 · cả hai · Người mặc trùng màu nhận vơ món quà · Chi tiết nhỏ gieo vài phút trước (hai người mặc cùng màu) quay lại thành cú lừa; khán giả cười khi kẻ khoe nhận nhầm.
+- KB309 · cả hai · Kẻ ác tự đặt cược rồi tự thua · Khi kẻ ác thề một điều nhục nếu mình sai, khán giả chờ lời thề bị đòi; nó tự đào hố.
+- KB310 · cả hai · Kẻ khoe khoang bỏ chạy bằng cớ vặt · Kẻ vừa ra oai tìm cớ nhỏ để chuồn, bỏ lại người thân; hạ nhục bằng tiếng cười chứ không bằng án.
+- KB311 · cả hai · Nữ chính tự đứng lên với người nuôi mình · Nhân vật hiền cuối cùng nói hết nỗi nhục thời nhỏ với người đã nuôi mà hành hạ; khán giả hả vì cô không cần ai cứu lần này.
+- KB312 · cả hai · Tiết kiệm từng đồng dù đang có nhiều tiền · Nhân vật có tiền mà vẫn cãi vì một khoản nhỏ cho khán giả thấy tính thật của cô không đổi; buồn cười và đáng mến.
+- KB313 · cả hai · Nhầm đồ quý thành đồ bếp · Món đồ đắt được đối xử như đồ tầm thường vì người dùng không biết giá; hài và dễ thương, lại dẫn tới cảnh gần gũi.
+- KB314 · cả hai · Thú nhận khi người kia đã ngủ · Lời thật nói ra mà không ai nghe cho khán giả tiếc và sốt ruột; người nói được nhẹ lòng nhưng nợ bí mật vẫn nguyên.
+- KB315 · cả hai · Làm nhục leo thang từng bậc ngay trước cú lộ · Mỗi bậc nhục nặng hơn bậc trước dồn ức tối đa; cắt ngay sang người cứu bước xuống xe biến ức thành sướng dồn nén.
+- KB316 · cả hai · Nhân vật tự ghép manh mối ra sự thật · Khán giả nhìn nhân vật lần lại các mảnh họ đã thấy; vừa thỏa (mình đoán đúng) vừa đau cùng cô.
+- KB317 · cả hai · Tháo nhẫn đặt vào tay người kia · Một động tác trả lại vật kết ước nói rõ hơn lời chia tay; khán giả lặng.
+- KB318 · cả hai · Giữ khoảng cách mà vẫn bảo vệ · Người có lỗi tôn trọng lời xin khoảng cách nhưng vẫn lo; khán giả tin anh thương thật và yên lòng phần nào.
+- KB319 · cả hai · Nạn nhân bị giam tự để dấu vết · Nhân vật chủ động dù bị trói làm khán giả nể và bớt thấy cô chỉ là người chờ cứu.
+- KB320 · cả hai · Thỏa hiệp giả với kẻ tống tiền để dò ra nó · Khán giả thấy người mạnh gật đầu điều tệ rồi biết kế ngay sau; sợ biến thành chờ bẫy sập.
+- KB321 · cả hai · Kẻ ác bị bắt đúng ngày nó tưởng thắng · Kẻ ác mặc lễ phục thắng lợi thì bị còng; khoảng cách giữa kỳ vọng và kết cục là nguồn hả hê.
+- KB322 · cả hai · Nữ chính chọn không về, người có lỗi về nhà lớn một mình · Kết không vội: người có lỗi trả giá bằng cô đơn trong chính giàu sang của mình; khán giả tin phần làm lành sau là xứng.
+- KB323 · cả hai · Làm quen lại từ đầu · Hai người đã đổ vỡ giới thiệu nhau như lần đầu; khán giả thấy khởi đầu mới sạch, không tẩy xóa quá khứ.
+- KB324 · cả hai · Bài học biến thành luật treo tường · Lời xin lỗi qua đi nhưng một nội quy mới treo lên cho khán giả cảm giác thay đổi còn lại sau phim.
+- KB325 · cả hai · Vật nhỏ đầu phim quay lại khép vòng · Một chi tiết nhỏ đầu phim được nhắc lại cuối phim với nghĩa ngược; khán giả thấy hành trình trọn và mỉm cười.
+- KB326 · cả hai · Nhẫn đổi nghĩa từ hợp đồng sang lựa chọn · Cùng một vật mang hai nghĩa ở hai thời điểm cho khán giả thấy quan hệ đã đổi mà không cần giải thích.
+- KB327 · cả hai · Tỷ phú chở vợ bằng xe máy mượn · Người giàu giả nghèo đi phương tiện nghèo; khán giả cười vì biết, và cảnh gần gũi thân thể tự nhiên ra đời.
+- KB328 · cả hai · Nữ chính xin chụp ảnh bên tài sản của chính chồng · Mỉa mai kịch tính: nhân vật ngưỡng mộ thứ đã là của mình mà không biết; khán giả cười vì đứng trên.
+- KB329 · cả hai · Phòng tắm và cú ngã vào lòng · Tình huống tai nạn buộc hai người chạm nhau lần đầu; khán giả tim đập và cười khi cả hai ngượng.
+- KB330 · cả hai · Người lạnh bắt đầu mềm qua một câu tự nói · Một câu tự nói nhỏ cho khán giả thấy vỏ lạnh nứt; họ chờ nó vỡ.
+- KB331 · cả hai · Người tưởng hám tiền đặt ranh giới và đòi trả nợ · Nhân vật bị nghi hám tiền lại đòi trả góp; kỳ vọng của người nghi và khán giả bị lật.

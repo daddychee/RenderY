@@ -39,11 +39,22 @@ MODEL_VIDEO_MAC_DINH = "Omni-Flash"       # Veo-3.1 cùng tham số, đổi ở 
 GIAY_HOP_LE = (4, 6, 8)                   # Omni Flash / Veo: "4s" | "6s" | "8s"
 # Độ dài tối đa theo MODEL (tài liệu Seedvis v2.0). Lệnh LLM, prompt video và cảnh
 # báo trên trang ăn theo model video HIỆU LỰC của cảnh. Model lạ -> 8 (an toàn).
-GIAY_THEO_MODEL = {"Omni-Flash": 8, "Veo-3.1": 8, "seedance_2.0_fast": 15, "seedance_2.5": 30}
+GIAY_THEO_MODEL = {"Omni-Flash": 8, "Veo-3.1": 8, "seedance_2.0_fast": 15, "seedance_2.5": 30,
+                   "grok-imagine-video-1.5": 15}
+# Grok 1.5 (drama thoại, user chốt 27/10): "6s" | "10s" | "15s", cùng giá 108 credit/clip;
+# 1080p kèm ảnh bị chặn 5/5 (Padoma Spec 65) nên chỉ 720p.
+MODEL_GROK = "grok-imagine-video-1.5"
+GIAY_GROK = (6, 10, 15)
 
 
 def giay_theo_model(model: str) -> int:
     return GIAY_THEO_MODEL.get((model or "").strip(), GIAY_HOP_LE[-1])
+
+
+def giay_grok(giay: int) -> int:
+    """Ép về mức Grok nhận: 12 -> 10, 30 -> 15, 4 -> 6."""
+    ok = [g for g in GIAY_GROK if g <= max(int(giay or 0), GIAY_GROK[0])]
+    return ok[-1]
 _UA = "RenderY-treatment/1.0"
 
 
@@ -55,6 +66,20 @@ def _mime(p: Path) -> str:
 def _data_url(p: Path) -> str:
     p = Path(p)
     return f"data:{_mime(p)};base64," + base64.b64encode(p.read_bytes()).decode()
+
+
+def _data_url_jpeg(p: Path, canh_dai: int = 1600) -> str:
+    """JPEG, cạnh dài <= 1600. Padoma đo: 8 ảnh PNG ~20 MB một yêu cầu là đứt SSL —
+    đường gửi NHIỀU ảnh (GPT sửa ảnh, Grok tham chiếu) đi đường này."""
+    import io
+
+    from PIL import Image
+
+    im = Image.open(p).convert("RGB")
+    im.thumbnail((canh_dai, canh_dai))
+    b = io.BytesIO()
+    im.save(b, "JPEG", quality=90)
+    return "data:image/jpeg;base64," + base64.b64encode(b.getvalue()).decode()
 
 
 def giay_hop_le(giay: int) -> int:
@@ -169,19 +194,31 @@ class SeedvisClient:
                 "luong": d.get("concurrency_limit")}
 
     def gen_anh(self, prompt: str, dich: Path, size: str = "2560x1440",
-                ref: "list[Path] | None" = None, model: Optional[str] = None) -> Path:
-        """Nano Banana qua endpoint Google. `size` chỉ để cùng chữ ký với
-        ArkClient: Seedvis nhận tỉ lệ + upscale, 16:9 + 2k = 2752×1536."""
+                ref: "list[Path] | None" = None, model: Optional[str] = None,
+                ti_le: str = "16:9") -> Path:
+        """Nano Banana qua endpoint Google; GPT Image qua endpoint kiểu OpenAI
+        (`/images/generations`, có ref thì `/images/edits`). `size` chỉ để cùng
+        chữ ký với ArkClient: Seedvis nhận tỉ lệ + upscale, 16:9 + 2k = 2752×1536."""
         anh_ref = [Path(p) for p in (ref or []) if Path(p).exists()]
-        than = {"model": model or self.model_anh, "input": prompt, "aspect_ratio": "16:9",
-                "upscale_image": "2k", "count": 1,
-                "mode": "image-to-image" if anh_ref else "text-to-image"}
-        if anh_ref:
-            than["reference_images"] = [_data_url(p) for p in anh_ref]
-        d = self._du_lieu(self._goi("POST", "/google/v1beta/interactions", than,
-                                    idem=str(uuid.uuid4())))
-        d = self._cho(d)
-        outs = d.get("outputs") or []
+        m = model or self.model_anh
+        if m.startswith("gpt-image"):
+            than = {"model": m, "prompt": prompt, "n": 1, "size": ti_le}
+            if anh_ref:
+                than["image"] = [_data_url_jpeg(p) for p in anh_ref]
+            j = self._goi("POST", "/images/edits" if anh_ref else "/images/generations", than,
+                          idem=str(uuid.uuid4()))
+            # Đo 27/10: có lượt trả ngay {"data": [{"url"}]}, có lượt trả job phải poll.
+            outs = j["data"] if isinstance(j.get("data"), list) else \
+                self._cho(self._du_lieu(j)).get("outputs") or []
+        else:
+            than = {"model": m, "input": prompt, "aspect_ratio": ti_le,
+                    "upscale_image": "2k", "count": 1,
+                    "mode": "image-to-image" if anh_ref else "text-to-image"}
+            if anh_ref:
+                than["reference_images"] = [_data_url(p) for p in anh_ref]
+            d = self._du_lieu(self._goi("POST", "/google/v1beta/interactions", than,
+                                        idem=str(uuid.uuid4())))
+            outs = self._cho(d).get("outputs") or []
         if not outs or not outs[0].get("url"):
             raise AigenError("Seedvis: xong mà không có ảnh trong `outputs`.")
         dich = Path(dich)
@@ -202,7 +239,11 @@ class SeedvisClient:
         Seedance (nếu ai chọn) nhận `duration` là số 5..30, còn Omni/Veo nhận "4s"."""
         _ = am
         m = model or self.model_video
-        if m.startswith("seedance"):
+        if m.startswith("grok"):
+            than = {"model": m, "mode": "image-to-video", "prompt": prompt,
+                    "image": _data_url_jpeg(Path(anh)), "aspect_ratio": "16:9",
+                    "duration": f"{giay_grok(giay)}s", "resolution": "720p", "count": 1}
+        elif m.startswith("seedance"):
             cho_phep = (5, 10, 15) if "fast" in m else (5, 10, 15, 20, 25, 30)
             d = max([g for g in cho_phep if g <= max(int(giay or 5), 5)] or [5])
             than = {"model": m, "mode": "image-to-video", "prompt": prompt,
@@ -212,6 +253,20 @@ class SeedvisClient:
             than = {"model": m, "mode": "image-to-video", "prompt": prompt,
                     "image": _data_url(Path(anh)), "aspect_ratio": "16:9",
                     "duration": f"{giay_hop_le(giay)}s", "upscale_video": "none"}
+        d = self._du_lieu(self._goi("POST", "/developer/generations", than,
+                                    idem=str(uuid.uuid4())))
+        if not d.get("id"):
+            raise AigenError(f"Seedvis: nộp video không trả id ({str(d)[:200]})")
+        return str(d["id"])
+
+    def gen_video_ref(self, prompt: str, anh: "list[Path]", giay: int = 15,
+                      model: Optional[str] = None) -> str:
+        """Drama thoại: Grok dựng clip từ ẢNH THAM CHIẾU (tấm nhân vật, nơi chốn,
+        đồ vật), KHÔNG khung đầu — khuôn Padoma, đo 27/10 thoại đúng 12/12."""
+        than = {"model": model or MODEL_GROK, "mode": "multi-image-to-video", "prompt": prompt,
+                "referenceImages": [_data_url_jpeg(Path(p)) for p in anh],
+                "aspect_ratio": "16:9", "duration": f"{giay_grok(giay)}s",
+                "resolution": "720p", "count": 1}
         d = self._du_lieu(self._goi("POST", "/developer/generations", than,
                                     idem=str(uuid.uuid4())))
         if not d.get("id"):

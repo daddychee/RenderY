@@ -1,0 +1,12 @@
+{
+  "claudeMdExcludes": [
+    "**/RenderY_v2/CLAUDE.md",
+    "**/RenderY/CLAUDE.md"
+  ],
+  "effortLevel": "medium",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
+    }
+  }
+}

@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS so(
 CREATE TABLE IF NOT EXISTS khoa(
   tap TEXT NOT NULL, chuong TEXT NOT NULL, nguoi TEXT NOT NULL, den REAL NOT NULL,
   PRIMARY KEY (tap, chuong));
+CREATE TABLE IF NOT EXISTS vet(
+  tap TEXT NOT NULL, canh TEXT NOT NULL, buoc TEXT NOT NULL,
+  dau TEXT NOT NULL, luc REAL NOT NULL,
+  PRIMARY KEY (tap, canh, buoc));
 """
 
 
@@ -76,14 +80,17 @@ class Kho:
         # Cột thêm sau: `CREATE TABLE IF NOT EXISTS` không đụng bảng đã có, nên
         # kho cũ phải vá tại chỗ. Rẻ và chạy mỗi lần mở, không cần sổ phiên bản.
         co = {r["name"] for r in self.cn.execute("PRAGMA table_info(so)")}
-        for ten in ("pr", "tb", "yc"):
+        # `tieng` 27/10: giọng nhân vật drama (ô Tiếng khuôn Padoma).
+        for ten in ("pr", "tb", "yc", "tieng"):
             if co and ten not in co:
                 self.cn.execute(
                     f"ALTER TABLE so ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
         ct = {r["name"] for r in self.cn.execute("PRAGMA table_info(tap)")}
         # `tong` 25/09; `model_anh`/`model_video` 27/09 (Owner: chọn model ngay
-        # trong UI, theo tập, cảnh đè được) — cùng cách vá.
-        for ten in ("tong", "model_anh", "model_video"):
+        # trong UI, theo tập, cảnh đè được) — cùng cách vá. `loai` 27/10: "" =
+        # narration, "drama" = drama thoại. `khuon` 27/10: "2" = luật tài sản
+        # Padoma (user chốt: chỉ tập MỚI, tập cũ giữ nguyên đường cũ).
+        for ten in ("tong", "model_anh", "model_video", "loai", "khuon"):
             if ct and ten not in ct:
                 self.cn.execute(f"ALTER TABLE tap ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
         self.cn.commit()
@@ -120,16 +127,24 @@ class Kho:
         self.cn.commit()
 
     # ------------------------------------------------------------------ tập
-    def tao_tap(self, ma: str, ten: str) -> None:
+    def tao_tap(self, ma: str, ten: str, loai: str = "", khuon: str = "") -> None:
         if self.cn.execute("SELECT 1 FROM tap WHERE ma=?", (ma,)).fetchone():
             raise ValueError(f"Tập '{ma}' đã có rồi.")
-        self.cn.execute("INSERT INTO tap(ma, ten, tao_luc) VALUES(?,?,?)",
-                        (ma, ten, time.time()))
+        if loai not in ("", "drama"):
+            raise ValueError(f"Loại tập '{loai}' không có — chỉ narration hoặc drama.")
+        self.cn.execute("INSERT INTO tap(ma, ten, tao_luc, loai, khuon) VALUES(?,?,?,?,?)",
+                        (ma, ten, time.time(), loai, khuon))
         self.cn.commit()
 
     def ds_tap(self) -> list[dict]:
-        return [dict(r) for r in
-                self.cn.execute("SELECT ma, ten, tong FROM tap ORDER BY tao_luc DESC")]
+        return [dict(r) for r in self.cn.execute(
+            "SELECT ma, ten, tong, loai, khuon FROM tap ORDER BY tao_luc DESC")]
+
+    def kieu_tap(self, tap: str) -> dict:
+        """{loai, khuon} của tập — chỗ duy nhất các route hỏi "drama hay không",
+        "luật tài sản mới hay cũ"."""
+        r = self.cn.execute("SELECT loai, khuon FROM tap WHERE ma=?", (tap,)).fetchone()
+        return {"loai": (r["loai"] if r else "") or "", "khuon": (r["khuon"] if r else "") or ""}
 
     def tong_tap(self, tap: str) -> str:
         """Mã tông dùng cho CẢ TẬP. Cảnh nào không tự chọn thì ăn theo đây.
@@ -274,7 +289,7 @@ class Kho:
     def ds_so(self, tap: str) -> list[dict]:
         ra = []
         for r in self.cn.execute(
-                "SELECT ma, loai, ten, chu, pr, tb, yc FROM so WHERE tap=? "
+                "SELECT ma, loai, ten, chu, pr, tb, yc, tieng FROM so WHERE tap=? "
                 "ORDER BY thu_tu, ma", (tap,)):
             d = dict(r)
             # Sổ phải biết tài sản nào ĐÃ có ref — để đếm được việc còn dở.
@@ -308,11 +323,12 @@ class Kho:
             sach.append((tap, ma, loai, ten, (x.get("chu") or "").strip(),
                          (x.get("pr") or "").strip(),
                          (x.get("tb") or "").strip(),
-                         (x.get("yc") or "").strip(), i))
+                         (x.get("yc") or "").strip(),
+                         (x.get("tieng") or "").strip(), i))
         self.cn.execute("DELETE FROM so WHERE tap=?", (tap,))
         self.cn.executemany(
-            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, tb, yc, "
-            "thu_tu) VALUES(?,?,?,?,?,?,?,?,?)", sach)
+            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, tb, yc, tieng, "
+            "thu_tu) VALUES(?,?,?,?,?,?,?,?,?,?)", sach)
         self.cn.commit()
 
     # ------------------------------------------------------------- lưu / đọc
@@ -424,7 +440,8 @@ class Kho:
             return doc_canh(ds[i])
 
     # Trường chỉ MÁY CHỦ viết. Trang nào cũng chỉ mang theo bản chép lại.
-    TRUONG_MAY = ("duyet", "vid", "pa", "pv", "sfx")
+    # `pm`/`pd` (drama 27/10): mã clip do bước dán đặt, prompt do LLM viết.
+    TRUONG_MAY = ("duyet", "vid", "pa", "pv", "sfx", "pm", "pd", "sh")
 
     def luu_tu_trang(self, tap: str, chuong: str, dong: list, outline: str,
                      nguoi: str, hop_rieng: bool = False) -> list[str]:
@@ -521,3 +538,25 @@ class Kho:
         self.cn.execute("DELETE FROM khoa WHERE tap=? AND chuong=? AND nguoi=?",
                         (tap, chuong, nguoi))
         self.cn.commit()
+
+    # ------------------------------------------------------------ dấu vết
+    # DẤU đầu vào đã sinh ra kết quả của một bước (prompt / anh / video) — để
+    # bảng vẽ biết kết quả nào CŨ. Bảng riêng, không thêm khoá vào cảnh: khoá
+    # cảnh phải khớp với trang (KHOA_CANH), thêm một khoá là đụng cả treatment.
+    def ghi_vet(self, tap: str, canh: str, buoc: str, dau: str) -> None:
+        with self._khoa:
+            self.cn.execute(
+                "INSERT INTO vet(tap, canh, buoc, dau, luc) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(tap, canh, buoc) DO UPDATE SET dau=excluded.dau, luc=excluded.luc",
+                (tap, canh, buoc, dau, time.time()))
+            self.cn.commit()
+
+    def xoa_vet(self, tap: str, canh: str, buoc: str) -> None:
+        with self._khoa:
+            self.cn.execute("DELETE FROM vet WHERE tap=? AND canh=? AND buoc=?",
+                            (tap, canh, buoc))
+            self.cn.commit()
+
+    def doc_vet(self, tap: str) -> dict:
+        return {(r["canh"], r["buoc"]): r["dau"] for r in self.cn.execute(
+            "SELECT canh, buoc, dau FROM vet WHERE tap=?", (tap,))}
