@@ -2619,7 +2619,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                        "co_video": bool(v and v.exists()),
                        "video_v": int(v.stat().st_mtime) if v and v.exists() else 0,
                        "giay": mdrama.giay_shot(s, lt), "chu_the": mdrama.chu_the(s, lt),
-                       "co_mat": s.get("co_mat") or [], "nhac": mdrama.nhac_lap(s.get("lap") or "")})
+                       "co_mat": s.get("co_mat") or [],
+                       "nhac": mdrama.nhac_lap(s.get("lap") or "") + mdrama.nhac_qua_vai(s, lt)})
         return ra
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/prompt")

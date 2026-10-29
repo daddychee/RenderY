@@ -182,6 +182,8 @@ def test_anh_shot_gui_manh_cat_roi_tam_theo_co_mat_dung_prompt_trang_thay(tmp_pa
     ds = c.get(f"/api/tap/D1/C1/canh/{p1['id']}/shot").json()
     assert [x["co_anh"] for x in ds] == [True, True] and not any(x["duyet"] for x in ds)
     assert ds[0]["chu_the"] == "Marcus", "qua vai: máy hướng tới người nói ở xa"
+    # Shot qua vai mà chữ shot không có "Qua vai X": thẻ shot nhắc người dựng chọn Máy hướng tới.
+    assert any("Qua vai X" in n for n in ds[0]["nhac"]) and ds[1]["nhac"] == []
 
 
 def test_mot_shot_hai_nguoi_khong_qua_vai_gui_nguyen_anh_dan_canh(tmp_path):
