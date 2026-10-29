@@ -192,7 +192,13 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .man button{background:transparent;border:0;padding:5px 12px;cursor:pointer;
   font-weight:700;font-size:13px;color:var(--muted)}
 .man button.on{background:var(--accent);color:#fff}
-#manSb,#manAs{flex:1;min-height:0;display:flex;flex-direction:column}
+#manSb,#manAs,#manKv{flex:1;min-height:0;display:flex;flex-direction:column}
+.kv-dong{display:flex;gap:10px;align-items:center;padding:5px 10px;border-bottom:1px solid var(--line);
+  font-size:12.5px}
+.kv-dong .ten{flex:1;min-width:0;font-family:ui-monospace,Consolas,monospace;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.kv-dong .nho{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.kv-dong a.cp{text-decoration:none}
 .vet-hop{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 14px;
   display:flex;gap:10px;align-items:center;flex:0 0 auto}
 .vet{display:flex;gap:2px;flex:1;min-width:0;flex-wrap:wrap}
@@ -449,6 +455,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <button id="mKb" class="on" onclick="doiMan('kb')">Kịch bản</button>
     <button id="mSb" onclick="doiMan('sb')">Storyboard</button>
     <button id="mAs" onclick="doiMan('as')">Asset</button>
+    <button id="mKv" onclick="doiMan('kv')">Storage</button>
   </div>
   <div class="chuong" id="chuong"></div>
   <div class="spacer"></div>
@@ -555,6 +562,25 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
   <div class="sb-canvas" id="asCanvas"></div>
 </div>
 
+<div id="manKv" style="display:none">
+  <div class="vet-hop">
+    <span class="nhan" style="margin:0">Storage</span>
+    <select id="kvCh" onchange="veKv()"></select>
+    <select id="kvLoai" onchange="veKv()">
+      <option value="">Loại: tất cả</option><option value="shot">Shot</option>
+      <option value="clip">Cả clip</option><option value="canh">Cảnh narration</option>
+    </select>
+    <label class="tien-do"><input type="checkbox" id="kvMoi" onchange="veKv()"> chỉ video mới từ lần tải trước</label>
+    <span class="tien-do" id="kvTong"></span>
+    <span class="spacer"></span>
+    <span class="tien-do" id="kvBao"></span>
+    <button class="icon-btn" id="kvTaiCh" onclick="taiKv(false)">↓ Tải ZIP chương</button>
+    <button class="icon-btn" id="kvTaiTap" onclick="taiKv(true)"
+            title="Mỗi chương một ZIP, tải lần lượt — Chrome hỏi 'cho tải nhiều tệp' một lần">↓ Tải cả tập</button>
+  </div>
+  <div class="sb-canvas" id="kvCanvas"></div>
+</div>
+
 <div class="nen" id="nenCanh" onclick="if(event.target===this) dongCanh()">
   <div class="hop" id="hopCanh"></div>
 </div>
@@ -643,6 +669,7 @@ async function doiTap(ma){
   DS_CHUONG = await api("/api/tap/" + TAP_MA);
   veChuong();
   if(DS_CHUONG.length) await doiMan_chuong(DS_CHUONG[0].ma); else ve();
+  if(MAN_HINH === "kv") napKv();          // đổi tập khi đang đứng ở Storage
 }
 
 async function doiMan_chuong(m){
@@ -3411,12 +3438,15 @@ async function doiMan(m){
   document.getElementById("mKb").className = m === "kb" ? "on" : "";
   document.getElementById("mSb").className = m === "sb" ? "on" : "";
   document.getElementById("mAs").className = m === "as" ? "on" : "";
+  document.getElementById("mKv").className = m === "kv" ? "on" : "";
   // Đặt THẲNG style.display: cả hai màn đều display:flex nên thuộc tính
   // `hidden` bị đè, bấm Storyboard mà màn Kịch bản vẫn nằm nguyên phía trên
   // (đo Chrome 24/09).
   document.getElementById("manKb").style.display = m === "kb" ? "flex" : "none";
   document.getElementById("manSb").style.display = m === "sb" ? "flex" : "none";
   document.getElementById("manAs").style.display = m === "as" ? "flex" : "none";
+  document.getElementById("manKv").style.display = m === "kv" ? "flex" : "none";
+  if(m === "kv") napKv();
   // Vẽ lại màn Kịch bản mỗi lần quay về (đo Chrome 28/09): sửa `t` ở hộp cảnh
   // xong quay lại vẫn thấy chữ CŨ, bấm vào-ra một ô là `canhHienTai()` đọc
   // chữ cũ trên màn hình và ghi đè bản vừa sửa.
@@ -3438,6 +3468,96 @@ async function doiMan(m){
     }
     veSb();
   }
+}
+
+/* ─── MÀN STORAGE (user chốt 29/10): mọi video đã gen, tải ZIP theo chương ───
+   Gateway gom TRỌN file vào RAM rồi mới gửi, nên "Cả tập" tải LẦN LƯỢT: fetch xong
+   chương này mới sang chương sau. Bấm liền 7 thẻ <a> là 7 ZIP cùng nằm trong RAM gateway.
+   fetch còn cho đọc được lỗi 413/404 thay vì Chrome lưu ra một tệp hỏng. */
+var KV = {moc: 0, ds: []}, KV_DANG = false;
+function khoaMoc(ch){ return "kv:" + TAP_MA + ":" + ch; }
+function docMoc(ch){ try { return +localStorage.getItem(khoaMoc(ch)) || 0; } catch(e){ return 0; } }
+function ghiMoc(ch, t){ try { localStorage.setItem(khoaMoc(ch), String(t)); } catch(e){} }
+function mb(n){ return (n / 1e6).toFixed(1).replace(".", ",") + " MB"; }
+async function napKv(){
+  try { KV = await api("/api/tap/" + TAP_MA + "/kho-video"); }
+  catch(e){
+    KV = {moc: 0, ds: []};
+    document.getElementById("kvCanvas").innerHTML =
+      '<div class="nhac">Chưa đọc được danh sách video: ' + thoat(e.message) + '</div>';
+    return;
+  }
+  veKv();
+}
+function locKv(ch){
+  var loai = document.getElementById("kvLoai").value, moi = document.getElementById("kvMoi").checked;
+  return KV.ds.filter(function(x){
+    return (!ch || x.ch === ch) && (!loai || x.loai === loai) && (!moi || x.t > docMoc(x.ch));
+  });
+}
+function veKv(){
+  var s = document.getElementById("kvCh"), cu = s.value;
+  s.innerHTML = '<option value="">Chương: toàn bộ</option>' + DS_CHUONG.map(function(c){
+    return '<option value="' + c.ma + '">' + c.ma + '</option>'; }).join("");
+  s.value = cu;
+  if(s.selectedIndex < 0) s.value = "";       // đổi tập: chương cũ không còn
+  var ch = s.value, ds = locKv(ch), h = "", chCu = "";
+  ds.forEach(function(x){
+    if(x.ch !== chCu){
+      chCu = x.ch;
+      var cua = ds.filter(function(y){ return y.ch === x.ch; });
+      h += '<div class="ol-ten" style="margin-top:12px">CHƯƠNG ' + x.ch + ' · ' + cua.length + ' video · ' +
+           mb(cua.reduce(function(a, y){ return a + y.byte; }, 0)) + '</div>';
+    }
+    var src = "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.ma + (x.sid ? "/shot/" + x.sid : "") +
+              "/video?v=" + Math.floor(x.t);
+    h += '<div class="kv-dong"><span class="ten">' + thoat(x.ten) + '</span>' +
+      (x.dang ? '<span class="chip thieu" title="Đang gen lại — ZIP lấy bản hiện có">⟳ đang gen lại</span>' : '') +
+      (x.ghi ? '<span class="chip thieu" title="Vừa ghi xong, chưa vào ZIP — tải lại sau ít giây">đang ghi</span>' : '') +
+      '<span class="nho">' + mb(x.byte) + ' · ' + new Date(x.t * 1000).toLocaleString("vi-VN",
+        {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) + '</span>' +
+      '<button class="cp" onclick="xemVideo(\'' + src + '\', \'' + x.ten + '\')">▶ Xem</button>' +
+      '<a class="cp" href="' + src + '" download="' + x.ten + '">↓</a></div>';
+  });
+  var dang = ds.filter(function(x){ return x.dang; }).length;
+  document.getElementById("kvTong").innerHTML = '<b>' + ds.length + '</b> video · ' +
+    mb(ds.reduce(function(a, x){ return a + x.byte; }, 0)) + (dang ? ' · ' + dang + ' ⟳ đang gen lại' : '');
+  var n = document.getElementById("kvTaiCh");
+  n.hidden = !ch; n.textContent = "↓ Tải ZIP " + ch;
+  document.getElementById("kvCanvas").innerHTML = h || '<div class="ghi">' + (KV.ds.length
+    ? 'Không có video nào khớp lọc.' : 'Tập này chưa có video nào.') + '</div>';
+}
+async function taiZip(ch){
+  var loai = document.getElementById("kvLoai").value, moi = document.getElementById("kvMoi").checked;
+  var r = await fetch("/api/tap/" + TAP_MA + "/kho-video.zip?ch=" + encodeURIComponent(ch) +
+                      (loai ? "&loai=" + loai : "") + (moi ? "&sau=" + docMoc(ch) : ""));
+  if(!r.ok){
+    var j = null; try { j = await r.json(); } catch(e){}
+    throw new Error((j && j.detail) || ("Lỗi " + r.status));
+  }
+  var ten = ((r.headers.get("content-disposition") || "").match(/filename="([^"]+)"/) || [])[1] ||
+            TAP_MA + "_" + ch + ".zip";
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(await r.blob()); a.download = ten;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 60000);
+}
+async function taiKv(caTap){
+  if(KV_DANG) return;
+  await napKv();                    // danh sách + mốc MỚI NHẤT ngay trước khi tải
+  var moc = KV.moc, bao = document.getElementById("kvBao"), loi = [];
+  var cac = caTap ? DS_CHUONG.map(function(c){ return c.ma; }) : [document.getElementById("kvCh").value];
+  cac = cac.filter(function(m){ return m && locKv(m).some(function(x){ return !x.ghi; }); });
+  if(!cac.length){ bao.textContent = "Không có video nào để tải."; return; }
+  KV_DANG = true;
+  for(var i = 0; i < cac.length; i++){
+    bao.textContent = "Đang tải " + cac[i] + " (" + (i + 1) + "/" + cac.length + ")…";
+    try { await taiZip(cac[i]); ghiMoc(cac[i], moc); }
+    catch(e){ loi.push(cac[i] + ": " + e.message); }
+  }
+  KV_DANG = false;
+  bao.textContent = loi.length ? "Lỗi — " + loi.join(" · ") : "Đã tải " + cac.length + " chương.";
+  veKv();
 }
 
 /* ═══════════ KHỐI CẢNH — một khối là một cảnh (user chốt 24/09) ═══════════ */

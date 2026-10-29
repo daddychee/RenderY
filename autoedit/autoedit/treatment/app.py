@@ -19,9 +19,10 @@ import re
 import threading
 import time
 import unicodedata
+import zipfile
 from pathlib import Path
 from fastapi import Body, FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 
 from autoedit.treatment import dong as mdong
 from autoedit.treatment import drama as mdrama
@@ -33,6 +34,46 @@ TRANG = Path(__file__).parent / "static" / "treatment.html"
 # Số dòng mỗi lượt gọi LLM. 8 là chỗ đo được: 17-18 dòng/lượt vẫn qua,
 # 20 dòng thì JSON cụt (SE001/C6, 23/09). Để rộng gấp đôi mức an toàn.
 CO_LO = 8
+
+# Storage (user chốt 29/10): gateway gom TRỌN body không phải SSE vào RAM rồi mới gửi
+# (nen/common/proxy.py `aread`) -> một ZIP = một chương, trần 1,5 GB.
+TRAN_ZIP = 1_500_000_000
+# `tai_video` ghi bằng write_bytes, không atomic: file sửa chưa tới chừng này giây
+# coi như đang ghi dở, không cho vào ZIP.
+GIAY_GHI = 10
+
+
+class _Ong:
+    """File chỉ-ghi cho zipfile: không seek được thì zipfile tự ghi data descriptor,
+    nên ZIP chảy ra từng mẩu mà không cần file tạm."""
+
+    def __init__(self):
+        self.b = []
+
+    def write(self, x):
+        self.b.append(bytes(x))
+        return len(x)
+
+    def flush(self):
+        pass
+
+    def lay(self) -> bytes:
+        r = b"".join(self.b)
+        self.b.clear()
+        return r
+
+
+def _luong_zip(ds: list[tuple[Path, str]]):
+    """ZIP_STORED: MP4 đã nén sẵn, nén lại chỉ tốn CPU. Đo 30 video thật 157 MB: 0,87 s,
+    RAM 3,2 MB."""
+    o = _Ong()
+    with zipfile.ZipFile(o, "w", zipfile.ZIP_STORED, allowZip64=True) as z:
+        for p, ten in ds:
+            with open(p, "rb") as f, z.open(zipfile.ZipInfo.from_file(p, ten), "w", force_zip64=True) as w:
+                while k := f.read(1 << 20):
+                    w.write(k)
+                    yield o.lay()
+    yield o.lay()
 
 
 def _loopback(request: Request) -> bool:
@@ -1064,6 +1105,70 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         phan = [mdong.xuat(kho.doc(tap, c["ma"])["dong"], cot)
                 for c in kho.ds_chuong(tap)]
         return "\n".join(p for p in phan if p)
+
+    # ------------------------------------------ Storage: tải video một lượt (29/10)
+    # Liệt kê THEO KỊCH BẢN (chương -> dòng -> clip -> shot = thứ tự dựng), không quét
+    # thư mục: file mồ côi (shot đã Breakdown lại) không lọt lên timeline. Tên file tự
+    # xếp đúng thứ tự: mã P tăng theo thứ tự dựng (DM002 đo 348/348). Khai TRƯỚC
+    # `/{tap}/{chuong}` — cùng bẫy với `/txt`.
+    def _ds_video(tap: str) -> list[dict]:
+        ra, truoc, gio = [], 0, time.time()
+        for cg in kho.ds_chuong(tap):
+            ch, dong = cg["ma"], kho.doc(tap, cg["ma"])["dong"]
+            for i, dg in enumerate(dong):
+                for j, c in enumerate(mdong.doc_canh(dg) if isinstance(dg, dict) else []):
+                    ma, pm = c.get("id") or "", c.get("pm") or ""
+                    if not ma:
+                        continue
+                    if not pm:          # narration: phân cảnh đánh số LIỀN H -> E như trang
+                        muc = [(ma, "", f"{ch}_PC{truoc + i + 1:03d}-{j + 1}", "canh", c.get("vid"))]
+                    else:
+                        dau, ss, lt = f"{ch}_{pm}", _ss(c), mdrama.loi_thoai(c.get("t"))
+                        muc = [(ma, "", f"{dau}_clip_{_giay_clip(tap, c)}s", "clip", c.get("vid"))]
+                        for k, s in enumerate(mdrama.doc_sh(c.get("sh")), 1):
+                            sid = s.get("sid") or ""
+                            if sid:
+                                ten = "_".join(x for x in (f"{dau}_s{k}", (s.get("co") or "").upper(),
+                                                            f"{mdrama.giay_shot(s, lt)}s") if x)
+                                muc.append((f"{ma}-{sid}", sid, ten, "shot", (ss.get(sid) or {}).get("vid")))
+                    for m, sid, ten, loai, dang in muc:
+                        try:
+                            p = kho.duong_video(tap, m)
+                        except ValueError:
+                            continue
+                        if p.exists():
+                            st = p.stat()
+                            # `co` do LLM đặt, mã P chép từ kịch bản: lọc ký tự cho tên file + onclick
+                            ten = re.sub(r"[^A-Za-z0-9_-]", "", ten) + ".mp4"
+                            ra.append({"ch": ch, "ma": ma, "sid": sid, "ten": ten, "loai": loai,
+                                       "byte": st.st_size, "t": st.st_mtime, "dang": bool(dang),
+                                       "ghi": st.st_mtime > gio - GIAY_GHI, "p": p})
+            truoc += len(dong)
+        return ra
+
+    @app.get("/api/tap/{tap}/kho-video")
+    def kho_video(tap: str):
+        """`moc` = mốc cho lần "chỉ video mới" sau. Lùi GIAY_GHI: file lần này bị bỏ vì
+        đang ghi dở thì lần sau vẫn tính là mới."""
+        return {"moc": time.time() - GIAY_GHI,
+                "ds": [{k: v for k, v in x.items() if k != "p"} for x in _ds_video(tap)]}
+
+    @app.get("/api/tap/{tap}/kho-video.zip")
+    def kho_video_zip(tap: str, ch: str, loai: str = "", sau: float = 0):
+        """ZIP MỘT chương, chảy luồng, không file tạm. Video đang gen lại vẫn vào (user chốt)."""
+        ds = [x for x in _ds_video(tap) if x["ch"] == ch and (not loai or x["loai"] == loai)
+              and x["t"] > sau and not x["ghi"]]
+        if not ds:
+            raise HTTPException(404, f"Chương {ch} không có video nào khớp lọc.")
+        tong = sum(x["byte"] for x in ds)
+        if tong > TRAN_ZIP:
+            gb = lambda n: f"{n / 1e9:.1f}".replace(".", ",")  # noqa: E731
+            raise HTTPException(413, f"Chương {ch} có {gb(tong)} GB video, quá trần {gb(TRAN_ZIP)} GB "
+                                     "một lần tải — lọc theo loại hoặc chọn 'chỉ video mới'.")
+        ten = f"{tap}_{ch}{'_moi' if sau else ''}_{time.strftime('%d%m-%H%M')}.zip"
+        return StreamingResponse(_luong_zip([(x["p"], x["ten"]) for x in ds]), media_type="application/zip",
+                                 headers={"Content-Disposition": f'attachment; filename="{ten}"',
+                                          "Cache-Control": "no-store"})
 
     # Bảng chọn model — đứng TRƯỚC `/api/tap/{tap}/{chuong}` kẻo "mo-hinh" bị
     # nuốt làm mã chương (cùng bẫy với `/txt` ngay trên).
