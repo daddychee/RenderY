@@ -2607,7 +2607,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _, _, _, c = _tim_canh(tap, chuong, ma)
         if not c.get("pm"):
             raise HTTPException(400, "Đây không phải clip drama.")
-        ss, lt, ra = _ss(c), mdrama.loi_thoai(c.get("t")), []
+        ss, lt, ra, pd = _ss(c), mdrama.loi_thoai(c.get("t")), [], mdrama.doc_pd(c.get("pd"))
         for k, s in enumerate(mdrama.doc_sh(c.get("sh"))):
             sid = s.get("sid") or ""      # shot trước 29/10 chưa có mã: Breakdown lại
             o = ss.get(sid) or {}
@@ -2620,7 +2620,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                        "video_v": int(v.stat().st_mtime) if v and v.exists() else 0,
                        "giay": mdrama.giay_shot(s, lt), "chu_the": mdrama.chu_the(s, lt),
                        "co_mat": s.get("co_mat") or [],
-                       "nhac": mdrama.nhac_lap(s.get("lap") or "") + mdrama.nhac_qua_vai(s, lt)})
+                       "nhac": mdrama.nhac_lap(s.get("lap") or "") + mdrama.nhac_qua_vai(s, lt)
+                       + mdrama.nhac_khung(pd, s, lt)})
         return ra
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/prompt")

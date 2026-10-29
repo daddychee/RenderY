@@ -186,6 +186,21 @@ def test_anh_shot_gui_manh_cat_roi_tam_theo_co_mat_dung_prompt_trang_thay(tmp_pa
     assert any("Qua vai X" in n for n in ds[0]["nhac"]) and ds[1]["nhac"] == []
 
 
+def test_the_shot_nhac_khung_cat_dinh_nguoi_ngoai_shot(tmp_path):
+    """P004 shot 4 (DM002 29/10): khung Hattie dính Brooke đứng giữa -> Evelyn đứng sai chỗ."""
+    kho, c = _san(tmp_path)
+    p1 = _clip(kho)
+
+    def them(x):
+        pd = json.loads(x["pd"])
+        pd["ben"]["Ghost"] = "phai"          # đứng ngay trong khung "phai" của Marcus
+        x["pd"] = json.dumps(pd, ensure_ascii=False)
+
+    kho.sua_canh("D1", "C1", p1["id"], them, "test")
+    ds = c.get(f"/api/tap/D1/C1/canh/{p1['id']}/shot").json()
+    assert ds[0]["chu_the"] == "Marcus" and any("dính Ghost" in n for n in ds[0]["nhac"])
+
+
 def test_mot_shot_hai_nguoi_khong_qua_vai_gui_nguyen_anh_dan_canh(tmp_path):
     va = VeAnhGia()
     kho, c = _san(tmp_path, va=va)
