@@ -355,3 +355,30 @@ def test_lenh_llm_khop_hop_dong():
         assert k in dich.LENH_DRAMA_CANH
     assert "thứ sau lưng" not in dich.LENH_DRAMA_CLIP.split("`lap`")[1].split("KHÔNG tả phông")[0]
     assert "KHÔNG tả phông" in dich.LENH_DRAMA_CLIP
+
+
+def test_khung_mac_dinh_hai_nguoi_giu_hop_da_do():
+    pd = {"ben": {"Nia": "trai", "Hattie": "phai"}, "hang": ["Nia", "Hattie"]}
+    assert drama.khung_mac_dinh(pd, "Nia") == drama.khung_cat("trai")
+    assert drama.khung_mac_dinh(pd, "Hattie") == drama.khung_cat("phai")
+
+
+def test_khung_mac_dinh_bon_nguoi_chia_theo_thu_tu_trai_phai():
+    """C005 thật (29/10): hộp theo `ben` cắt mất nửa Nia, hộp Hattie dính Julian. Tâm
+    từng người đo trên ảnh dàn cảnh: hộp mỗi người chứa tâm mình, không chứa tâm người
+    bên cạnh, nằm trong ảnh, rộng = cao (16:9 trên ảnh 16:9)."""
+    tam = {"Miles": 0.085, "Nia": 0.365, "Hattie": 0.70, "Julian": 0.86}
+    pd = {"ben": {"Miles": "trai", "Nia": "giua", "Hattie": "giua", "Julian": "phai"}, "hang": list(tam)}
+    ten = list(tam)
+    for i, n in enumerate(ten):
+        x0, y0, x1, y1 = drama.khung_mac_dinh(pd, n)
+        assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1 and abs((x1 - x0) - (y1 - y0)) < 1e-3
+        assert x0 < tam[n] < x1, n
+        for m in ten[max(i - 1, 0):i] + ten[i + 1:i + 2]:
+            assert not x0 < tam[m] < x1, (n, m)
+
+
+def test_khung_mac_dinh_ten_ngoai_hang_ve_ben():
+    pd = {"ben": {"Nia": "trai"}, "hang": ["A", "B", "C"]}
+    assert drama.khung_mac_dinh(pd, "Nia") == drama.khung_cat("trai")
+    assert '"hang"' in dich.LENH_DRAMA_CANH

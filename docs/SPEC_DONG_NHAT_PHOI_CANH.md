@@ -201,3 +201,7 @@ Luồng mới: **mỗi shot một video** (Grok i2v từ ảnh khung đầu đã
 - **Breakdown lại** thì shot nhận mã mới; dấu duyệt và task của shot cũ bị bỏ.
 - **Duyệt ảnh dàn cảnh** gắn với giờ sửa file: vẽ lại là tự hết duyệt. Viết lại phần chung sau khi đã vẽ thì trang nhắc (`cu`), không chặn.
 - **Chưa làm:** dấu "cũ" từng shot (prompt/ảnh/video đổi sau lần gen); prompt sửa tay từng shot (`pat`/`pvt`).
+- **Cảnh từ 3 người** (29/10, sau lần chạy thật C005; user duyệt): LLM ghi thêm `hang` là thứ tự trái → phải trong ảnh dàn cảnh. Khung mặc định chia bề ngang theo thứ tự đó: tâm `(i + 0,5)/n`, rộng `1/n + 0,04` (tối đa 0,4), tâm dọc 0,5, rộng = cao.
+  - Cảnh 2 người giữ hộp đã đo.
+  - Lề chọn theo vị trí thật của C005: lề rộng hơn thì khung người sát mép trùm sang người bên cạnh.
+  - Người đứng cách đều nhau thì khớp; đứng không đều thì người dựng kéo khung. Mới thử trên một cảnh.

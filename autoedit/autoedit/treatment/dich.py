@@ -263,6 +263,8 @@ DELIVERY). Có giọng tiếng Việt thì dịch đúng ý đó.
 lưng từng người; mọi shot của cảnh cắt từ ảnh này, máy luôn đứng cùng phía máy \
 của nó (luật trục 180°). Các khoá sau tả ảnh đó, phải khớp nhau và khớp `truc`:
 - `ben`: {"Tên": "trai" | "phai" | "giua"} — chỗ MỖI người trong ảnh dàn cảnh.
+- `hang`: ["Tên", …] — MỌI người trong ảnh dàn cảnh theo thứ tự từ TRÁI sang PHẢI \
+của khung, khớp `ben` và `dan` (hệ thống chia khung cắt theo thứ tự này).
 - `phong`: {"Tên": "..."} tiếng Anh: thứ ở NGAY SAU LƯNG người đó trong ảnh dàn \
 cảnh (đồ đạc, tường, cửa sổ — lấy theo nơi chốn), không nhắc người khác. Bên kia \
 phòng có thứ dễ bị vẽ nhầm sang sau lưng người này (cửa sổ, cửa ra vào) thì thêm \
@@ -282,7 +284,7 @@ nào của phòng nhìn về đâu, ai ở đâu (trái / phải đúng `ben`), 
 lưng từng người.
 
 Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}, "ben": {}, \
-"phong": {}, "cho": "...", "vi_tri": {}, "dan": "..."}"""
+"hang": [], "phong": {}, "cho": "...", "vi_tri": {}, "dan": "..."}"""
 
 LENH_DRAMA_CLIP = """Bạn là đạo diễn hình viết prompt video cho Grok Imagine 1.5, \
 phim DRAMA CÓ THOẠI.

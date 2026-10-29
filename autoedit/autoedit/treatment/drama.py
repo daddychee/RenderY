@@ -446,6 +446,23 @@ def khung_cat(ben: str) -> tuple[float, float, float, float]:
     return _HOP.get(ben, _HOP["giua"])
 
 
+def khung_mac_dinh(pd: dict, ten: str) -> tuple[float, float, float, float]:
+    """Mảnh cắt mặc định của `ten` khi người dựng chưa kéo khung. Cảnh 2 người: hộp theo
+    `ben` (đo P031). Cảnh từ 3 người (chạy thật C005 29/10, 4 người: hộp "giua" cắt mất
+    nửa người, hộp "phai" dính người bên cạnh): chia bề ngang theo THỨ TỰ trái→phải
+    `hang` — tâm (i + 0,5)/n, rộng 1/n + lề 0,02 mỗi bên, tối đa 0,4 như hộp đã đo, cùng
+    tâm dọc 0,5. Rộng = cao trên tỉ lệ 0–1 là 16:9 trên ảnh dàn cảnh 16:9. Lề chọn theo
+    ảnh C005 thật (Miles 0,05–0,12 · Nia 0,28–0,45 · Hattie 0,6–0,8 · Julian 0,81–0,91):
+    lề 0,04 thì hộp Julian sát mép phải trùm tâm Hattie. Mới một cảnh, người dựng vẫn kéo được."""
+    hang = [x for x in (pd.get("hang") or []) if isinstance(x, str)]
+    if len(hang) < 3 or ten not in hang:
+        return khung_cat((pd.get("ben") or {}).get(ten, "giua"))
+    n, i = len(hang), hang.index(ten)
+    r = min(1 / n + 0.04, 0.40)
+    x0 = min(max((i + 0.5) / n - r / 2, 0.0), 1 - r)
+    return (round(x0, 4), round(0.5 - r / 2, 4), round(x0 + r, 4), round(0.5 + r / 2, 4))
+
+
 def cat_master(master: Path, hop, dich: Path) -> Path:
     """Cắt `hop` (x0, y0, x1, y1 tỉ lệ 0–1 của ảnh GỐC) khỏi ảnh dàn cảnh, kẹp vào
     vùng không viền đen (cột/hàng ở mép có trung bình xám < VIEN_DEN)."""

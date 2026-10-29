@@ -20,7 +20,7 @@ def _canh_bo_cuc(than):
     """LLM giả, phần chung CÓ bố cục — `tren` không phải giá trị `ben` hợp lệ."""
     return {"look": "Soft window light.", "truc": "Tasha left, Marcus right.", "nen": "air vents",
             "tieng": {"Tasha": "Tasha's voice: a woman of about 28.", "Marcus": "Marcus's voice: a man of about 45."},
-            "ben": {"Tasha": "trai", "Marcus": "phai", "Ma": "tren"},
+            "ben": {"Tasha": "trai", "Marcus": "phai", "Ma": "tren"}, "hang": ["Tasha", "Marcus", 3],
             "phong": {"Tasha": "the large window and white blinds", "Marcus": "the white wall with a monitor"},
             "cho": "Tasha stands by the window, Marcus by the bed, to Tasha's right.",
             "dan": "Wide shot from the door side: Tasha on the left by the window, Marcus on the right by the bed."}
@@ -100,6 +100,7 @@ def test_viet_prompt_canh_luu_bo_cuc_vao_pd_moi_clip(tmp_path):
     for j in (0, 1):
         pd = json.loads(_clip(kho, j=j)["pd"])
         assert pd["ben"] == {"Tasha": "trai", "Marcus": "phai"}, "giá trị ngoài BEN bị bỏ"
+        assert pd["hang"] == ["Tasha", "Marcus"], "thứ tự trái→phải giữ, phần tử không phải tên bị bỏ"
         assert pd["phong"]["Marcus"].startswith("the white wall") and pd["cho"] and pd["dan"]
 
 

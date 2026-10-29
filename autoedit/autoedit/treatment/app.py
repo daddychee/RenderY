@@ -1644,7 +1644,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return dict({k: str(chung.get(k) or "") for k in ("look", "truc", "nen", "cho", "dan")},
                     ben={str(k): str(v) for k, v in (ben.items() if isinstance(ben, dict) else [])
                          if str(v) in mdrama.BEN},
-                    phong=chu("phong"), vi_tri=chu("vi_tri"))
+                    phong=chu("phong"), vi_tri=chu("vi_tri"),
+                    hang=[x.strip() for x in (chung.get("hang") if isinstance(chung.get("hang"), list) else [])
+                          if isinstance(x, str) and x.strip()])
 
     def _chung_cu(cs: list[dict]) -> dict | None:
         """Phần chung đã viết của cảnh (clip nào cũng mang một bản) — viết lại một clip
@@ -1652,7 +1654,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         cu = [x for x in (mdrama.doc_pd(y.get("pd")) for y in cs) if x.get("truc_canh")]
         if not cu:
             return None
-        return dict({k: cu[0][k] for k in ("ben", "phong", "vi_tri", "cho", "dan", "cat") if k in cu[0]},
+        return dict({k: cu[0][k] for k in ("ben", "hang", "phong", "vi_tri", "cho", "dan", "cat") if k in cu[0]},
                     look=str(cu[0].get("look") or ""), truc=cu[0]["truc_canh"], nen=str(cu[0].get("nen") or ""))
 
     def _viet_clip(tap: str, chuong: str, dg: dict, cs: list[dict], chon: list[dict], tra: dict,
@@ -2425,9 +2427,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return t is not None and kho.doc_vet(tap).get((td, "dan_duyet")) == str(int(t.stat().st_mtime))
 
     def _hop(pd: dict, ten: str) -> tuple:
-        """Khung cắt của một người: người dựng đã kéo thì theo đó, chưa thì theo `ben`."""
+        """Khung cắt của một người: người dựng đã kéo thì theo đó, chưa thì mặc định
+        (`ben`; cảnh từ 3 người thì chia theo thứ tự trái→phải `hang`)."""
         hop = (pd.get("cat") or {}).get(ten)
-        return tuple(hop) if hop else mdrama.khung_cat((pd.get("ben") or {}).get(ten, "giua"))
+        return tuple(hop) if hop else mdrama.khung_mac_dinh(pd, ten)
 
     def _dan(cs: list[dict], tra: dict) -> tuple[dict, dict, dict | None, str]:
         """(phần chung, người cả cảnh, nơi chốn, prompt ảnh dàn cảnh). Chưa có `dan` thì
