@@ -14,6 +14,7 @@ Chạy:  python -m autoedit.treatment.app --port 9121
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import threading
@@ -285,6 +286,24 @@ def pd_ghep(pd: dict, sh: list[dict]) -> dict:
                            for s, x in zip(sh, ds)])
 
 
+# Nút "Chạy tới duyệt ảnh" của một chương drama (user chốt 29/10). Ảnh 6 luồng: tài khoản
+# Seedvis 16 luồng dùng chung cả team (ảnh + video Grok), chừa phần còn lại cho nút lẻ.
+# LLM 2 cảnh một lúc, mỗi cảnh vẫn ≤6 clip song song như nút tay — 12 lượt, bằng hai người
+# cùng bấm. Một loại việc hỏng LIỀN `PHANH` lần (hết quota LLM / hết credit) thì dừng loại
+# đó: hỏng tiếp chỉ là dội lệnh vào nhà cung cấp.
+LUONG_ANH_CHUONG = 6
+LUONG_LLM_CHUONG = 2
+PHANH = 3
+PHUT_LLM_CANH = 3       # đo 29/10 P031: Breakdown 20 s + Viết prompt cảnh 1′54, làm tròn lên
+
+
+def uoc_shot(t: str) -> int:
+    """Số shot ƯỚC của clip chưa Breakdown: số "shot N" khác nhau ở dòng `Hình:` (đo DM002
+    29/10: khớp 23/25 clip đã Breakdown); dòng Hình không đánh số thì một shot."""
+    hinh = " ".join(d for d in (t or "").splitlines() if d.strip().lower().startswith("hình"))
+    return len(set(re.findall(r"shot\s*(\d+)", hinh, re.I))) or 1
+
+
 def khung_cuoi(video: Path, dich: Path) -> Path:
     """Trích KHUNG CUỐI của một clip ra file ảnh.
 
@@ -477,6 +496,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         # mô tả / thêm đồ vật là xoá im lặng phần máy vừa viết.
         if (_VIEC.get(tap) or {}).get("chay"):
             raise HTTPException(409, "Đang gen toàn bộ asset — đợi xong rồi lưu.")
+        if _chuong_dang_chay(tap):
+            raise HTTPException(409, _chuong_dang_chay(tap) + " — đợi xong rồi lưu.")
         try:
             kho.luu_so(tap, than.get("so") or [])
         except ValueError as exc:
@@ -761,7 +782,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     # Chạy nền ở máy chủ: đóng tab không mất việc. Tiến độ chỉ nằm trong bộ nhớ —
     # restart giữa chừng thì bấm lại, asset đã có ảnh được bỏ qua.
     _VIEC: dict[str, dict] = {}
+    _CHAY: dict[tuple[str, str], dict] = {}     # (tập, chương) -> việc "Chạy tới duyệt ảnh"
     _KHOA_VIEC = threading.Lock()
+
+    def _chuong_dang_chay(tap: str) -> str:
+        """Câu báo nếu một chương của tập đang chạy nền ('' = không). Việc chạy chương ghi
+        sổ (giọng, mục trường đoạn) và `ts`/`sh`/`pd` của clip: lưu cả sổ, dán lại kịch
+        bản hay gen asset giữa chừng là đè phần máy vừa ghi."""
+        with _KHOA_VIEC:
+            v = next(((ch, v) for (t, ch), v in _CHAY.items() if t == tap and v["chay"]), None)
+        return f"{v[1]['nguoi']} đang chạy chương {v[0]} tới duyệt ảnh" if v else ""
     _NHO: dict = {}
     _KHOA_NHO = threading.Lock()
 
@@ -814,6 +844,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ai = _ghi_duoc(request)
         if ve_anh is None:
             raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        if _chuong_dang_chay(tap):
+            raise HTTPException(409, _chuong_dang_chay(tap) + " — đợi xong rồi gen asset.")
         if kho.kieu_tap(tap)["khuon"] != "2":
             raise HTTPException(400, "Tập cũ (trước 27/10) vẽ từng asset — nút này đi theo luật "
                                      "tài sản khuôn Padoma.")
@@ -991,6 +1023,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(503, "Chưa bật LLM rà đồ vật.")
         if (_VIEC.get(tap) or {}).get("chay"):
             raise HTTPException(409, "Đang gen toàn bộ asset — đợi xong rồi rà.")
+        if _chuong_dang_chay(tap):
+            raise HTTPException(409, _chuong_dang_chay(tap) + " — đợi xong rồi rà.")
         so = kho.ds_so(tap)
         do = [x for x in so if x["loai"] == "dao_cu"]
         if not do:
@@ -1032,6 +1066,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ai = _ghi_duoc(request)
         if kho.kieu_tap(tap)["loai"] != "drama":
             raise HTTPException(400, "Tập này không phải tập drama — tạo tập mới loại Drama thoại.")
+        if _chuong_dang_chay(tap):
+            raise HTTPException(409, _chuong_dang_chay(tap) + " — đợi xong rồi dán lại.")
         r = mdrama.tach_tap(than.get("text") or "")
         if r["loi"]:
             raise HTTPException(400, "Kịch bản chưa đúng khuôn, chưa nạp gì:\n" + "\n".join(r["loi"][:20])
@@ -1575,13 +1611,14 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         moi = {t: str(v).strip() for t, v in tg.items() if t in can and str(v).strip()
                and not mdrama.la_tieng_viet(str(v))}
         if moi:
-            so = kho.ds_so(tap)
-            for x in so:
-                t = x["ten"].split(" · ")[0]
-                if x["loai"] == "nhan_vat" and t in moi and (
-                        not (x.get("tieng") or "").strip() or mdrama.la_tieng_viet(x["tieng"])):
-                    x["tieng"] = moi[t]
-            kho.luu_so(tap, so)
+            with _KHOA_SO:      # ghi CẢ sổ: chạy chương viết nhiều cảnh cùng lúc
+                so = kho.ds_so(tap)
+                for x in so:
+                    t = x["ten"].split(" · ")[0]
+                    if x["loai"] == "nhan_vat" and t in moi and (
+                            not (x.get("tieng") or "").strip() or mdrama.la_tieng_viet(x["tieng"])):
+                        x["tieng"] = moi[t]
+                kho.luu_so(tap, so)
         # Bố cục ảnh dàn cảnh (29/10, user chốt "LLM tự đánh dấu"): ai trái/phải, phông sau
         # lưng từng người, câu chỗ ngồi, câu tả ảnh dàn cảnh — Python ghép prompt từng shot.
         ben = chung.get("ben")
@@ -2393,13 +2430,24 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         chung, nv, _, p = _dan(cs, tra)
         td = _td_cua(cs, tra)
         t = kho.ref_dang_co(tap, td)
-        dau = kho.doc_vet(tap).get((td, "dan"))
-        return {"td": td, "co_anh": t is not None, "duyet": _dan_duyet(tap, td),
+        return {"td": td, "co_anh": t is not None, "duyet": _dan_duyet(tap, td), "may_duyet": _may_duyet(tap, td),
                 "ref_v": int(t.stat().st_mtime) if t is not None else 0, "nguoi": list(nv),
                 "ben": chung.get("ben") or {}, "cat": {n: list(_hop(chung, n)) for n in nv},
                 "san": bool(p), "prompt": p,
                 # vẽ theo bố cục cũ (viết lại prompt cảnh sau khi vẽ): nhắc, không chặn
-                "cu": bool(t is not None and dau and p and dau != _bam(p))}
+                "cu": _dan_cu(tap, td, p)}
+
+    def _may_duyet(tap: str, td: str) -> bool:
+        """Dàn cảnh đang duyệt bằng dấu MÁY (nút Chạy tới duyệt ảnh), chưa người nào xác nhận —
+        trang nhắc soi lại. Gắn giờ sửa file như dấu duyệt: vẽ lại là hết cả hai."""
+        t = kho.ref_dang_co(tap, td)
+        return t is not None and _dan_duyet(tap, td) and \
+            kho.doc_vet(tap).get((td, "dan_may")) == str(int(t.stat().st_mtime))
+
+    def _dan_cu(tap: str, td: str, p: str) -> bool:
+        """Ảnh dàn cảnh vẽ theo bố cục CŨ: prompt cảnh viết lại sau lần vẽ."""
+        dau = kho.doc_vet(tap).get((td, "dan"))
+        return bool(kho.ref_dang_co(tap, td) is not None and dau and p and dau != _bam(p))
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh")
     def ve_dan_canh(tap: str, chuong: str, i: int, request: Request):
@@ -2407,6 +2455,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ai = _ghi_duoc(request)
         if ve_anh is None:
             raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        return {"ok": True, "td": _ve_dan(tap, chuong, i, ai)}
+
+    def _ve_dan(tap: str, chuong: str, i: int, ai: str) -> str:
+        """Thân nút vẽ ảnh dàn cảnh — nút tay và việc chạy chương gọi chung."""
         dg, cs, tra = _dong_drama(tap, chuong, i)
         _, nv, noi, p = _dan(cs, tra)
         if not p:
@@ -2417,9 +2469,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if thieu:
             raise HTTPException(400, f"Chưa có ảnh tham chiếu cho: {', '.join(thieu)} — vẽ ở màn Asset trước.")
         td = _td_cua(cs, tra)
-        if td not in tra:
-            kho.luu_so(tap, kho.ds_so(tap) + [{"ma": td, "loai": "truong_doan",
-                                               "ten": (dg.get("en") or td)[:80]}])
+        # Đọc-vá-ghi CẢ sổ trong một nhịp khoá: chạy chương vẽ nhiều cảnh cùng lúc, đọc
+        # ngoài khoá là cảnh này ghi đè mất mục `td` cảnh kia vừa thêm.
+        with _KHOA_SO:
+            so = kho.ds_so(tap)
+            if td not in {x["ma"] for x in so}:
+                kho.luu_so(tap, so + [{"ma": td, "loai": "truong_doan", "ten": (dg.get("en") or td)[:80]}])
         for c in cs:
             if not (c.get("td") or "").strip():
                 _va_canh(tap, chuong, c["id"], lambda y, td=td: y.update(td=td), ai)
@@ -2433,7 +2488,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             if d != ".png":
                 kho.duong_ref(tap, td, d).unlink(missing_ok=True)
         kho.ghi_vet(tap, td, "dan", _bam(p))
-        return {"ok": True, "td": td}
+        return td
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh/duyet")
     def duyet_dan_canh(tap: str, chuong: str, i: int, request: Request):
@@ -2445,6 +2500,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if t is None:
             raise HTTPException(400, "Cảnh này chưa có ảnh dàn cảnh để duyệt.")
         kho.ghi_vet(tap, td, "dan_duyet", str(int(t.stat().st_mtime)))
+        kho.xoa_vet(tap, td, "dan_may")         # người đã soi: thôi là dấu máy duyệt
         return {"ok": True}
 
     @app.put("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh/cat")
@@ -2519,12 +2575,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(404, "Không có shot này — Breakdown lại là shot đổi mã.")
         return c, sh, k
 
+    def _thieu_pd(c: dict) -> bool:
+        """Clip chưa có prompt khớp bộ shot đang chốt (chưa viết, hay viết cho bộ shot khác)."""
+        pd, sh = mdrama.doc_pd(c.get("pd")), mdrama.doc_sh(c.get("sh"))
+        return len(pd.get("shots") or []) != len(sh) or bool(mdrama.kiem_pd(pd_ghep(pd, sh), c.get("t") or ""))
+
     def _ghep_shot(tap: str, c: dict, sh: list[dict], k: int) -> dict:
         """Mọi thứ một shot gửi đi: prompt ảnh, prompt video, giây, người, đồ vật.
         Trang hiện và lượt gửi cùng gọi hàm này — thấy gì gửi nấy."""
         pd = mdrama.doc_pd(c.get("pd"))
         t = c.get("t") or ""
-        if len(pd.get("shots") or []) != len(sh) or mdrama.kiem_pd(pd_ghep(pd, sh), t):
+        if _thieu_pd(c):
             raise HTTPException(400, "Clip chưa có prompt cho bộ shot này — bấm “Viết prompt cảnh” trước.")
         tra = {x["ma"]: x for x in kho.ds_so(tap)}
         s, lt = sh[k], mdrama.loi_thoai(t)
@@ -2575,6 +2636,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ai = _ghi_duoc(request)
         if ve_anh is None:
             raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        _ve_shot(tap, chuong, ma, sid, ai)
+        return {"ok": True}
+
+    def _ve_shot(tap: str, chuong: str, ma: str, sid: str, ai: str) -> None:
+        """Thân nút vẽ ảnh khung đầu một shot — nút tay và việc chạy chương gọi chung."""
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
         g = _ghep_shot(tap, c, sh, k)
         td = (c.get("td") or "").strip()
@@ -2604,7 +2670,6 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(502, f"Vẽ ảnh hỏng: {exc}") from exc
         # ảnh đổi thì con dấu duyệt cũ hết nghĩa
         _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("duyet", None), ai)
-        return {"ok": True}
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/anh")
     def xem_anh_shot(tap: str, chuong: str, ma: str, sid: str):
@@ -2720,6 +2785,230 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not t.exists():
             raise HTTPException(404, "Shot này chưa có video.")
         return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    # ----------------------------------- chạy cả chương tới duyệt ảnh shot (user chốt 29/10)
+    # Một nút cho cả chương drama: Breakdown clip chưa có shot → Viết prompt cảnh → vẽ ảnh
+    # dàn cảnh → MÁY TỰ DUYỆT dàn cảnh (user chốt "tự động duyệt ảnh phối cảnh") → ảnh khung
+    # đầu mọi shot. Dừng ở duyệt ảnh shot: không duyệt shot hộ, không gọi video — tiền video
+    # chỉ đốt sau cổng NGƯỜI duyệt. Khuôn việc nền của Gen toàn bộ asset: tiến độ trong bộ nhớ,
+    # restart thì bấm lại, phần đã xong bỏ qua. Luật cứng 5: dàn cảnh máy duyệt mang dấu riêng
+    # (`dan_may`) và được liệt kê — cảnh từ 3 người khung cắt mặc định còn lệch (đo C005 29/10).
+
+    def _dong_cua(tap: str, chuong: str) -> list[int]:
+        return [i for i, dg in enumerate(kho.doc(tap, chuong)["dong"])
+                if any(c.get("pm") and c.get("id") for c in mdong.doc_canh(dg))]
+
+    def _ke_hoach_chuong(tap: str, chuong: str) -> dict:
+        """Việc còn thiếu của chương, Python đếm trên kho; shot của clip chưa Breakdown là số ƯỚC."""
+        tra = {x["ma"]: x for x in kho.ds_so(tap)}
+        kh = {"dong": 0, "clip": 0, "breakdown": 0, "prompt": 0, "dan": 0, "cho_duyet": 0, "shot": 0,
+              "it_chac": [], "may_duyet": []}
+        llm = 0
+        for i, dg in enumerate(kho.doc(tap, chuong)["dong"]):
+            cs = [c for c in mdong.doc_canh(dg) if c.get("pm") and c.get("id")]
+            if not cs:
+                continue
+            bd = [c for c in cs if not mdrama.doc_sh(c.get("sh"))]
+            pr = [c for c in cs if c in bd or _thieu_pd(c)]
+            td, n = _td_cua(cs, tra), len(_nguoi_canh(tra, cs))
+            co_dan = kho.ref_dang_co(tap, td) is not None
+            kh["dong"] += 1
+            kh["clip"] += len(cs)
+            kh["breakdown"] += len(bd)
+            kh["prompt"] += len(pr)
+            kh["dan"] += not co_dan
+            kh["cho_duyet"] += co_dan and not _dan_duyet(tap, td)
+            kh["shot"] += sum(uoc_shot(c.get("t")) if c in bd else sum(
+                1 for s in mdrama.doc_sh(c.get("sh"))
+                if s.get("sid") and not kho.duong_anh(tap, f"{c['id']}-{s['sid']}").exists()) for c in cs)
+            llm += bool(pr)
+            if n >= 3:
+                kh["it_chac"].append({"i": i, "ten": dg.get("en", ""), "nguoi": n})
+            # Dấu máy nằm trong kho, không trong bộ nhớ việc: restart xong vẫn biết cảnh nào cần soi.
+            if _may_duyet(tap, td):
+                kh["may_duyet"].append({"i": i, "ten": dg.get("en", ""), "nguoi": n})
+        model = _mo_hinh_tai_san(tap)
+        anh = kh["dan"] + kh["shot"]
+        return dict(kh, anh=anh, model=model, credit=anh * mtai_san.gia_anh(model, True),
+                    phut=math.ceil(llm / LUONG_LLM_CHUONG) * PHUT_LLM_CANH
+                    + math.ceil(anh * mtai_san.GIAY_ANH / (60 * LUONG_ANH_CHUONG)))
+
+    @app.get("/api/tap/{tap}/{chuong}/chay")
+    def xem_chay_chuong(tap: str, chuong: str):
+        with _KHOA_VIEC:
+            v = _CHAY.get((tap, chuong))
+            viec = dict(v, loi=list(v["loi"]), may_duyet=list(v["may_duyet"])) if v else None
+        return {"ke_hoach": _ke_hoach_chuong(tap, chuong), "viec": viec}
+
+    @app.post("/api/tap/{tap}/{chuong}/chay")
+    def chay_chuong(tap: str, chuong: str, request: Request):
+        ai = _ghi_duoc(request)
+        if kho.kieu_tap(tap)["loai"] != "drama":
+            raise HTTPException(400, "Nút này dành cho tập drama — narration làm từng cảnh.")
+        if ve_anh is None or not all(hasattr(ky_thuat, x) for x in ("drama_breakdown", "drama_canh", "drama_clip")):
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh hay bộ sinh prompt.")
+        giu = kho.ai_giu(tap, chuong)
+        if giu and giu != ai:
+            raise HTTPException(409, f"{giu} đang sửa chương {chuong} — đợi xong rồi chạy.")
+        kh = _ke_hoach_chuong(tap, chuong)
+        if not kh["dong"]:
+            raise HTTPException(400, f"Chương {chuong} chưa có clip drama nào.")
+        if not any(kh[x] for x in ("breakdown", "prompt", "dan", "cho_duyet", "shot")):
+            raise HTTPException(400, f"Chương {chuong} đã tới bước duyệt ảnh shot — không còn gì để chạy.")
+        with _KHOA_VIEC:
+            if (_VIEC.get(tap) or {}).get("chay"):
+                raise HTTPException(409, f"{_VIEC[tap]['nguoi']} đang gen toàn bộ asset — đợi xong rồi chạy chương.")
+            v = _CHAY.get((tap, chuong))
+            if v and v["chay"]:
+                raise HTTPException(409, f"{v['nguoi']} đang chạy chương {chuong} — đợi xong.")
+            _CHAY[(tap, chuong)] = {"chay": True, "buoc": "llm", "xong": 0, "tong": 0, "loi": [],
+                                    "may_duyet": [], "nguoi": ai, "bat_dau": time.time(), "het": None}
+        threading.Thread(target=_chay_chuong, args=(tap, chuong, ai), daemon=True).start()
+        return {"ok": True}
+
+    def _chay_chuong(tap: str, chuong: str, ai: str) -> None:
+        """LLM từng cảnh (2 cảnh một lúc) → ảnh dàn cảnh → máy duyệt → ảnh shot (6 luồng).
+        Một clip / một cảnh hỏng thì ghi lỗi rồi làm tiếp; không tự thử lại (tốn tiền)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        v = _CHAY[(tap, chuong)]
+        hong, dung, ve_moi = {"llm": 0, "anh": 0}, set(), set()
+
+        def loi(ten: str, chu) -> None:
+            with _KHOA_VIEC:
+                v["loi"].append({"ma": "", "ten": ten, "loi": str(chu)[:300]})
+
+        def dem(loai: str, ok: bool, n: int = 1) -> None:
+            """Lỗi nhà cung cấp LIỀN NHAU; đủ PHANH thì dừng hẳn loại việc đó."""
+            with _KHOA_VIEC:
+                hong[loai] = 0 if ok else hong[loai] + n
+                vua = hong[loai] >= PHANH and loai not in dung
+                if vua:
+                    dung.add(loai)
+            if vua:
+                loi("Dừng " + ("LLM" if loai == "llm" else "vẽ ảnh"), f"{PHANH} lượt hỏng liền (hết quota / "
+                    "hết credit?) — phần còn lại chưa làm; kiểm rồi bấm lại.")
+
+        def buoc(ten: str, tong: int) -> None:
+            with _KHOA_VIEC:
+                v.update(buoc=ten, xong=0, tong=tong)
+
+        def xong_1() -> None:
+            with _KHOA_VIEC:
+                v["xong"] += 1
+
+        def ket_llm(ten: str, ds: list[str], ok: int, dau: str) -> None:
+            for x in ds:
+                loi(ten, x)
+            n = sum(dau in x for x in ds)       # lỗi từ nhà LLM, không phải lỗi kiểm chữ
+            if ok or n:
+                dem("llm", bool(ok), n)
+
+        def bat(ten: str, viec, loai: str, dau: str = "") -> bool:
+            """Chạy `viec`; HTTPException 502 là lỗi nhà cung cấp, 400 là thiếu bước trước."""
+            try:
+                viec()
+                return True
+            except HTTPException as exc:
+                loi(ten, dau + str(exc.detail))
+                if exc.status_code == 502:
+                    dem(loai, False)
+            except Exception as exc:  # noqa: BLE001 — một cảnh / một shot hỏng không giết cả chương
+                loi(ten, dau + str(exc))
+            return False
+
+        def llm_dong(i: int) -> None:
+            dg, cs, tra = _dong_drama(tap, chuong, i)
+            ten = dg.get("en") or f"cảnh {i + 1}"
+            bd = [c for c in cs if not mdrama.doc_sh(c.get("sh"))]
+            if bd and "llm" not in dung:
+                r = _breakdown_clip(tap, chuong, dg, cs, bd, tra, ai)
+                ket_llm(ten, r["loi"], r["so_clip"], "breakdown hỏng:")
+                dg, cs, tra = _dong_drama(tap, chuong, i)
+            co, _ = _co_shot(cs)
+            for c in cs:
+                if mdrama.doc_sh(c.get("sh")) and c not in co:
+                    loi(ten, f"{c['pm']}: chữ clip đổi sau Breakdown — Breakdown lại bằng tay (máy không làm "
+                             "lại: shot mới mã mới, mất ảnh, duyệt, video của shot cũ).")
+            can = [c for c in co if _thieu_pd(c)]
+            if not can or "llm" in dung:
+                return
+            chung = _chung_cu(cs)
+            if not (chung or {}).get("dan"):
+                # Chưa có bố cục: viết phần chung + MỌI clip đã Breakdown, như nút Viết prompt cảnh.
+                chung, can = _phan_chung(tap, dg, cs, tra), co
+            r = _viet_clip(tap, chuong, dg, cs, can, tra, chung, ai)
+            ket_llm(ten, r["loi"], r["viet"], "viết prompt hỏng:")
+
+        def dan_dong(i: int) -> None:
+            dg, cs, tra = _dong_drama(tap, chuong, i)
+            if kho.ref_dang_co(tap, _td_cua(cs, tra)) is None and "anh" not in dung:
+                if bat(dg.get("en", ""), lambda: _ve_dan(tap, chuong, i, ai), "anh", "Ảnh dàn cảnh: "):
+                    ve_moi.add(i)
+                    dem("anh", True)
+
+        def may_duyet(i: int) -> None:
+            dg, cs, tra = _dong_drama(tap, chuong, i)
+            td = _td_cua(cs, tra)
+            t = kho.ref_dang_co(tap, td)
+            if t is None or _dan_duyet(tap, td):
+                return
+            _, nv, _, p = _dan(cs, tra)
+            if _dan_cu(tap, td, p):
+                loi(dg.get("en", ""), "Ảnh dàn cảnh vẽ theo bố cục CŨ (prompt cảnh viết lại sau lần vẽ) — máy "
+                                      "không tự duyệt: vẽ lại hoặc duyệt tay.")
+                return
+            mt = str(int(t.stat().st_mtime))
+            kho.ghi_vet(tap, td, "dan_duyet", mt)
+            kho.ghi_vet(tap, td, "dan_may", mt)
+            with _KHOA_VIEC:
+                v["may_duyet"].append({"i": i, "ten": dg.get("en", ""), "td": td, "nguoi": len(nv),
+                                       "co_san": i not in ve_moi})
+
+        def tung(ham, i: int) -> None:
+            """Một cảnh: lỗi ngoài dự kiến ghi lại, cảnh khác vẫn chạy; đếm tiến độ."""
+            try:
+                ten = kho.doc(tap, chuong)["dong"][i].get("en") or f"cảnh {i + 1}"
+                bat(ten, lambda: ham(i), "llm" if ham is llm_dong else "anh")
+            finally:
+                xong_1()
+
+        try:
+            dong = _dong_cua(tap, chuong)
+            buoc("llm", len(dong))
+            with ThreadPoolExecutor(max_workers=LUONG_LLM_CHUONG) as ex:
+                list(ex.map(lambda i: tung(llm_dong, i), dong))
+            buoc("dan", len(dong))
+            with ThreadPoolExecutor(max_workers=LUONG_ANH_CHUONG) as ex:
+                list(ex.map(lambda i: tung(dan_dong, i), dong))
+            for i in dong:
+                bat(f"cảnh {i + 1}", lambda i=i: may_duyet(i), "anh")
+            viec = []
+            for i in dong:
+                dg, cs, tra = _dong_drama(tap, chuong, i)
+                if _dan_duyet(tap, _td_cua(cs, tra)):
+                    viec += [(dg.get("en", ""), c, k, s["sid"]) for c in cs if not _thieu_pd(c)
+                             for k, s in enumerate(mdrama.doc_sh(c.get("sh")), 1)
+                             if s.get("sid") and not kho.duong_anh(tap, f"{c['id']}-{s['sid']}").exists()]
+            buoc("shot", len(viec))
+
+            def shot_1(x) -> None:
+                ten, c, k, sid = x
+                try:
+                    if "anh" not in dung and bat(ten, lambda: _ve_shot(tap, chuong, c["id"], sid, ai), "anh",
+                                                 f"{c['pm']} shot {k}: "):
+                        dem("anh", True)
+                finally:
+                    xong_1()
+
+            if viec:
+                with ThreadPoolExecutor(max_workers=min(len(viec), LUONG_ANH_CHUONG)) as ex:
+                    list(ex.map(shot_1, viec))
+        except Exception as exc:  # noqa: BLE001
+            loi("Chạy chương", exc)
+        finally:
+            with _KHOA_VIEC:
+                v.update(chay=False, buoc="xong", het=time.time())
 
     # ------------------------------------------------------------ bản lùi
     @app.get("/api/tap/{tap}/{chuong}/ban-cu")

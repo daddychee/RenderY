@@ -89,7 +89,7 @@ select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;p
   display:flex;align-items:center;gap:9px}
 .nhac{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
   border-radius:8px;padding:8px 11px;font-size:12.5px;line-height:1.55}
-#banMoi.khoa,#ketTatCa.khoa{margin:8px 14px}
+#banMoi.khoa,#ketTatCa.khoa,#ketChuong.khoa{margin:8px 14px}
 .khoa button{margin-left:auto;background:var(--warn);color:#0b0b0b;border:0;border-radius:6px;
   padding:4px 10px;font-weight:700;cursor:pointer}
 .dau{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;
@@ -540,7 +540,12 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <button class="icon-btn" id="nutTong" onclick="moSo('tong')">Tone</button>
     <button class="icon-btn" id="nutMoHinh" onclick="moMoHinh()"
             title="Model vẽ ảnh / dựng video của cả tập — cảnh đè được trong hộp cảnh">Model</button>
+    <span class="tien-do" id="viecChuong"></span>
+    <!-- không mang `chi-sua`: nút chỉ hiện ở chương drama, `theoDoiChuong` tự quyết -->
+    <button class="icon-btn" id="nutChuong" onclick="chayChuong()" hidden
+            title="Breakdown, viết prompt, vẽ + MÁY TỰ DUYỆT ảnh dàn cảnh, vẽ ảnh khung đầu mọi shot — dừng ở duyệt ảnh shot">Chạy tới duyệt ảnh</button>
   </div>
+  <div id="ketChuong"></div>
   <div class="sb-canvas" id="sbCanvas"></div>
 </div>
 
@@ -1705,8 +1710,9 @@ function veDanCanh(){
       (r.san ? 'Viết prompt cảnh lại' : 'Viết prompt cảnh') + '</button>' +
       '<button onclick="veAnhDan(event)"' + ((r.san && !ve) ? '' : ' disabled') + '>' +
       (ve ? 'Đang vẽ ảnh dàn cảnh…' : (r.co_anh ? 'Vẽ lại ảnh dàn cảnh' : 'Vẽ ảnh dàn cảnh')) + '</button>' +
-      (r.co_anh ? '<button class="' + (r.duyet ? 'on' : '') + '" onclick="duyetDan(event)"' + (ve ? ' disabled' : '') +
-        '>' + (r.duyet ? '✓ đã duyệt' : 'Duyệt ảnh dàn cảnh') + '</button>' : '') +
+      (r.co_anh ? '<button class="' + (r.duyet && !r.may_duyet ? 'on' : '') + '" onclick="duyetDan(event)"' +
+        (ve ? ' disabled' : '') + '>' + (r.may_duyet ? 'Máy đã duyệt · bấm xác nhận' :
+                                          r.duyet ? '✓ đã duyệt' : 'Duyệt ảnh dàn cảnh') + '</button>' : '') +
       '<span class="spacer"></span>' +
       (anh ? '<button class="cp" onclick="xemAnh(\'' + anh + '\', \'dan-canh-' + r.td + '.png\')">⛶ Cỡ lớn</button>' : '') +
       '</div>' : '') +
@@ -1718,6 +1724,11 @@ function veDanCanh(){
       'lại sau lần vẽ. Vẽ lại nếu chỗ ngồi đã đổi.</div>' : '') +
     (r.co_anh && !r.duyet ? '<div class="nhac" style="margin-top:8px">Soi kỹ ai ngồi đâu và phông sau lưng ' +
       'từng người rồi bấm <b>Duyệt</b> — chưa duyệt thì shot chưa vẽ được ảnh khung đầu.</div>' : '') +
+    // Luật cứng 5: dàn cảnh MÁY duyệt (nút Chạy tới duyệt ảnh) — ảnh shot đã cắt theo ảnh này.
+    (r.may_duyet ? '<div class="nhac" style="margin-top:8px">Ảnh này do <b>máy tự duyệt</b> (nút Chạy tới duyệt ' +
+      'ảnh) — soi lại ai ngồi đâu, phông sau lưng và khung cắt từng người' + (nguoi.length >= 3 ? ' (cảnh <b>' +
+      nguoi.length + ' người</b>: khung cắt mặc định chưa tin)' : '') + ', rồi bấm <b>xác nhận</b>. Sai thì sửa ' +
+      'khung / vẽ lại, rồi vẽ lại ảnh các shot.</div>' : '') +
     (anh && nguoi.length ? '<div class="ghi">Mỗi khung là <b>mảnh cắt</b> làm Image 1 cho shot máy hướng tới ' +
       'người đó. ' + (SUA_DUOC ? 'Kéo trong khung để dời, kéo góc để đổi cỡ (giữ 16:9) — thả chuột là lưu. ' : '') +
       'Đổi khung thì vẽ lại ảnh các shot của người đó.</div>' : '') +
@@ -1827,6 +1838,7 @@ async function duyetDan(ev){
     catch(e){ bao(e.message, true); }
   });
   napDanCanh(m);
+  theoDoiChuong();              // danh sách "máy tự duyệt — soi lại" bớt cảnh vừa xác nhận
 }
 
 /* Thẻ shot (cột phải hộp clip): mỗi shot một ảnh khung đầu → Duyệt → một video Grok i2v;
@@ -2922,6 +2934,98 @@ async function theoDoiTatCaAsset(hen){
   napSoDu(1);
 }
 
+/* CHẠY CẢ CHƯƠNG tới duyệt ảnh shot (user chốt 29/10): Breakdown → Viết prompt cảnh → ảnh dàn
+   cảnh → MÁY TỰ DUYỆT dàn cảnh → ảnh khung đầu mọi shot. Không duyệt ảnh shot, không gọi video.
+   Máy chủ chạy NỀN như Gen toàn bộ asset; số trong hộp xác nhận do máy chủ đếm. Cảnh dàn cảnh
+   máy duyệt (dấu trong kho) liệt kê để người soi — luật cứng 5, nhất là cảnh từ 3 người. */
+var BUOC_CHUONG = {llm: "Breakdown + viết prompt", dan: "vẽ ảnh dàn cảnh", shot: "vẽ ảnh shot", xong: "xong"};
+var DANG_CHUONG = "", MOC_CHUONG = "";
+function chuongChay(){ return TAP_LOAI === "drama" && MAN && MAN !== "TONG" ? MAN : ""; }
+async function chayChuong(){
+  var ch = chuongChay(); if(!SUA_DUOC || !ch) return;
+  var duong = "/api/tap/" + TAP_MA + "/" + ch + "/chay";
+  await banRon(document.getElementById("nutChuong"), "Đang tính…", async function(){
+    var r;
+    try { r = await api(duong); } catch(e){ return bao(e.message, true); }
+    if(r.viec && r.viec.chay){
+      theoDoiChuong();
+      return bao("Chương " + ch + " đang chạy rồi — tiến độ ở thanh trên.");
+    }
+    var k = r.ke_hoach, lam = [];
+    if(k.breakdown) lam.push("Breakdown " + k.breakdown + " clip");
+    if(k.prompt) lam.push("viết prompt " + k.prompt + " clip");
+    if(k.dan) lam.push("vẽ " + k.dan + " ảnh dàn cảnh");
+    if(k.dan + k.cho_duyet) lam.push("MÁY TỰ DUYỆT " + (k.dan + k.cho_duyet) + " ảnh dàn cảnh");
+    if(k.shot) lam.push("vẽ ≈ " + k.shot + " ảnh khung đầu shot");
+    if(!lam.length) return bao("Chương " + ch + " đã tới bước duyệt ảnh shot — không còn gì để chạy.");
+    var so = document.getElementById("soDu").textContent;
+    if(!confirm("Chạy chương " + ch + " tới duyệt ảnh (" + k.dong + " cảnh · " + k.clip + " clip):\n• " +
+                lam.join("\n• ") + "\n\n≈ " + soCr(k.credit) + " cr (" + k.anh + " ảnh · " + tenMoHinh(k.model) +
+                ") · ≈ " + k.phut + " phút" + (so ? "\nSố dư: " + so : "") +
+                (k.it_chac.length ? "\n\nCảnh từ 3 người — khung cắt mặc định chưa tin, soi lại sau khi chạy:\n• " +
+                  k.it_chac.map(function(x){ return x.ten + " (" + x.nguoi + " người)"; }).join("\n• ") : "") +
+                "\n\nMáy KHÔNG duyệt ảnh shot, KHÔNG gọi video. Máy chủ chạy nền — đóng tab không mất.")) return;
+    try { await api(duong, "POST"); } catch(e){ return bao(e.message, true); }
+    theoDoiChuong(true);
+  });
+}
+/* `hen` = vừa bấm chạy / vòng này đã thấy việc đang chạy: xong thì báo, mở sẵn lỗi. Cờ giữ
+   suốt lúc chờ hẹn giờ như `theoDoiTatCaAsset` — veSb gọi liên tục mà không đẻ thêm vòng. */
+/* Vẽ lại khung kết quả CHỈ khi nội dung đổi: veSb gọi liên tục, vẽ lại là gập mất danh sách
+   lỗi người đang mở xem. `mo` = vừa xong trước mắt: vẽ lại để lỗi mở sẵn. */
+var KET_CHUONG = "";
+function veKetChuong(h, mo){
+  if(h === KET_CHUONG && !mo) return;
+  KET_CHUONG = h;
+  var k = document.getElementById("ketChuong");
+  k.className = h ? "khoa" : ""; k.innerHTML = h ? "<div>" + h + "</div>" : "";
+}
+async function theoDoiChuong(hen){
+  var ch = chuongChay(), khoa = TAP_MA + "/" + ch, e = document.getElementById("viecChuong");
+  document.getElementById("nutChuong").hidden = !SUA_DUOC || !ch;
+  if(!ch){ e.textContent = ""; veKetChuong(""); return; }
+  if(DANG_CHUONG === khoa && !hen) return;
+  DANG_CHUONG = khoa;
+  var r = null;
+  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/chay"); } catch(err){}
+  var con = function(){ return TAP_MA + "/" + chuongChay() === khoa; };
+  if(!con()){ if(DANG_CHUONG === khoa) DANG_CHUONG = ""; return; }   // đổi chương giữa lúc hỏi
+  var lai = function(){ setTimeout(function(){
+    if(con()) return theoDoiChuong(true);
+    if(DANG_CHUONG === khoa) DANG_CHUONG = ""; }, 5000); };
+  if(!r){ if(hen) return lai(); DANG_CHUONG = ""; return; }   // mạng chớp giữa lúc chạy: hỏi tiếp
+  var v = r.viec, md = r.ke_hoach.may_duyet || [];
+  // Máy ghi shot / prompt / `td` vào clip: tiến độ đổi thì nạp lại chương — tab cầm bản cũ rồi
+  // PATCH là đè phần máy vừa ghi; ảnh shot cũng hiện dần trên Storyboard.
+  var moc = v ? v.buoc + ":" + v.xong + ":" + v.chay : "";
+  if(v && moc !== MOC_CHUONG){
+    MOC_CHUONG = moc;
+    await taiLaiChuong(ch);
+    if(con()){ veVetTap(); veTheCanh(); tienDoSo(); }
+  }
+  var nl = v && v.loi.length ? ' · <span class="thieu">' + v.loi.length + " lỗi</span>" : " · 0 lỗi";
+  if(v && v.chay){
+    e.innerHTML = "Chạy chương " + ch + " · <b>" + (BUOC_CHUONG[v.buoc] || thoat(v.buoc)) +
+      (v.tong ? " " + v.xong + "/" + v.tong : "…") + "</b>" + nl + (v.nguoi ? " · " + thoat(v.nguoi) + " bấm" : "");
+    veKetChuong("");
+    return lai();
+  }
+  DANG_CHUONG = "";
+  e.innerHTML = v ? "Lần chạy chương " + ch + " gần nhất: xong" + nl : "";
+  veKetChuong((md.length ? '<details open><summary>' + md.length + ' ảnh dàn cảnh do MÁY tự duyệt — soi lại ai ' +
+      'ngồi đâu, phông, khung cắt rồi bấm xác nhận</summary>' + md.map(function(x){
+        return '• <a href="#" onclick="moDanCanh(\'' + ch + '\',' + x.i + ');return false">' + thoat(x.ten) + '</a>' +
+               (x.nguoi >= 3 ? ' · <b>' + x.nguoi + ' người — khung cắt mặc định chưa tin</b>' : '');
+      }).join("<br>") + '</details>' : '') +
+    (v && v.loi.length ? '<details' + (hen ? ' open' : '') + '><summary>' + v.loi.length +
+      ' lỗi ở lần chạy chương gần nhất</summary>' + v.loi.map(function(l){
+        return '• ' + thoat(l.ten) + ': ' + thoat(l.loi); }).join("<br>") + '</details>' : ''), hen);
+  if(!hen || !v) return;
+  bao("Chạy chương " + ch + " xong: " + (v.may_duyet || []).length + " ảnh dàn cảnh máy duyệt · " + v.loi.length +
+      " lỗi. Soi dàn cảnh rồi duyệt ảnh shot.", v.loi.length > 0);
+  napSoDu(1);
+}
+
 /* Tông nào dùng cho CẢ TẬP. Một tập một mood — cảnh lệch thì tự đè trong hộp
    cảnh, chứ không bắt gán tay từng cảnh (đo thật trên SE001: bắt gán tay thì
    0/83 cảnh có, tức mọi ảnh sinh ra đều mất mood). */
@@ -3430,7 +3534,7 @@ function veLocNhanSu(){
   o.innerHTML = h; o.value = cu;
 }
 
-function veSb(){ veVetTap(); veTheCanh(); tienDoSo(); theoDoiTatCa(); }
+function veSb(){ veVetTap(); veTheCanh(); tienDoSo(); theoDoiTatCa(); theoDoiChuong(); }
 
 var MAN_HINH = "kb";
 async function doiMan(m){
