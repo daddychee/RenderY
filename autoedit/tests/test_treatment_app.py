@@ -213,6 +213,9 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     `aigen.seedvis` mở cửa 27/09 (user chốt "đấu nối hạ tầng với seedvis, không
     dùng seedance nữa"): cùng loại — client HTTP mỏng, chỉ import `requests`,
     `AigenError`, `httpx_ma`, `so_goi_nen`.
+
+    `aigen.lightvisual` mở cửa 29/10 (Owner chốt "mặc định dùng ncc này để gen video"):
+    cùng loại, thêm đúng một lệnh ffmpeg chép luồng bỏ ảnh bìa (không có ffmpeg thì bỏ qua).
     """
     import pathlib
     import re
@@ -220,7 +223,7 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "treatment"
     cho_phep = ("autoedit.treatment", "autoedit.web.chapters",
                 "autoedit.web.ket_v3", "autoedit.aigen.client",
-                "autoedit.aigen.seedvis")
+                "autoedit.aigen.seedvis", "autoedit.aigen.lightvisual")
     xau = []
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",

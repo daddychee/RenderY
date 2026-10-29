@@ -3259,13 +3259,30 @@ class _VeVideo:
     lẫn Seedance. Tách việc riêng chỉ để đo tiền tách bạch thì làm sau.
     """
 
+    def _lv(self, bat_buoc: bool = False):
+        """Khoá `gen_video` là Lightvisual (Owner chốt 29/10: "mặc định dùng ncc này để gen
+        video") -> client cho video GROK; không thì None. `bat_buoc`: task / file của Lightvisual
+        mà khoá đã gỡ -> báo rõ, đừng đem hỏi nhầm Seedvis."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        cd = doc_ket_viec("gen_video") or {}
+        if cd.get("key") and "lightvisual" in (cd.get("base_url") or ""):
+            from autoedit.aigen.lightvisual import LightvisualClient
+
+            return LightvisualClient(api_key=cd["key"], base_url=cd["base_url"])
+        if bat_buoc:
+            raise RuntimeError("Video này dựng ở Lightvisual mà khoá gen_video không còn là Lightvisual — "
+                               "Owner gán lại ở General › API Keys › Theo app › Treatment › gen_video.")
+        return None
+
     def _may(self):
         from autoedit.treatment.dich import doc_ket_viec
 
         # Việc riêng `gen_video` (ảnh và video là hai model khác nhau ở Seedvis);
-        # chưa cấp thì dùng chung `gen_canh` như trước.
+        # chưa cấp thì dùng chung `gen_canh` như trước. gen_video là Lightvisual (chỉ chạy
+        # Grok): model khác (Omni/Veo) và task Seedvis đang dở cũng đi khoá ảnh này.
         cd = doc_ket_viec("gen_video") or {}
-        if not cd.get("key"):
+        if not cd.get("key") or "lightvisual" in (cd.get("base_url") or ""):
             # `model` của gen_canh là model ẢNH — không đem sang video. Bỏ để
             # nhà tự lấy model video mặc định.
             cd = {k: v for k, v in (doc_ket_viec("gen_canh") or {}).items() if k != "model"}
@@ -3304,6 +3321,8 @@ class _VeVideo:
     @property
     def credit(self):
         try:
+            if self._lv():      # /balance của Lightvisual báo 0đ cả khi gói ngày đang chạy
+                return None
             m = self._may()
             return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
         except Exception:  # noqa: BLE001
@@ -3318,23 +3337,32 @@ class _VeVideo:
         v = (doc_ket_viec("gen_video") or {}).get("key")
         return not v or v == (doc_ket_viec("gen_canh") or {}).get("key")
 
+    def _cua(self, model):
+        """Video GROK đi Lightvisual khi két cấp, còn lại `_may()`. Lỗi thì báo, KHÔNG tự đổi
+        sang nhà kia (luật cứng 5) — đổi nhà là Owner gỡ / gán khoá ở General."""
+        return ("grok" in (model or "") and self._lv()) or self._may()
+
     def bat_dau(self, prompt, anh, giay, am, model=None):
         kw = {"model": model} if model else {}
-        return self._may().gen_video_i2v(prompt, anh, giay=giay, am=am, **kw)
+        return self._cua(model).gen_video_i2v(prompt, anh, giay=giay, am=am, **kw)
 
     def bat_dau_ref(self, prompt, anh, giay, model=None):
         """Drama: dựng từ ảnh tham chiếu (Grok `multi-image-to-video`)."""
-        m = self._may()
+        m = self._cua(model)
         if not hasattr(m, "gen_video_ref"):
             raise RuntimeError("Nhà video đang cấp không có đường ảnh tham chiếu — "
                                "drama cần Seedvis (Owner cấp ở General › API Keys › gen_video).")
         return m.gen_video_ref(prompt, anh, giay=giay, **({"model": model} if model else {}))
 
     def trang_thai(self, tid):
-        return self._may().trang_thai_video(tid)
+        from autoedit.aigen.lightvisual import TIEN_TO_TASK
+
+        lv = str(tid).startswith(TIEN_TO_TASK)      # nhà theo mã task: đổi khoá giữa chừng không lạc
+        return (self._lv(bat_buoc=True) if lv else self._may()).trang_thai_video(tid)
 
     def tai_ve(self, url, dich):
-        return self._may().tai_video(url, dich)
+        lv = "lightvisual.studio" in (url or "")
+        return (self._lv(bat_buoc=True) if lv else self._may()).tai_video(url, dich)
 
 
 def _ve_video_mac_dinh(kho: Kho):

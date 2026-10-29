@@ -1616,7 +1616,8 @@ function cotHinhDrama(x){
     '<div class="dong-nho"><span>Độ dài clip</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(g){
       return '<button class="' + (g === gi ? 'on' : '') + '"' + (SUA_DUOC ? ' onclick="datGiayClip(' + g +
              ')"' : ' disabled') + '>' + g + ' s</button>'; }).join("") + '</div></div>' +
-    '<div class="ghi">Grok 1.5 · 720p · 108 credit một video, 6/10/15 giây cùng giá.</div>' +
+    // Nhà dựng do két quyết (29/10: Lightvisual gói ngày; Seedvis 108 cr nếu Owner gỡ khoá) — trang không biết giá.
+    '<div class="ghi">Grok 1.5 · 720p · 6, 10 hoặc 15 giây.</div>' +
     hopPrompt("Prompt video", "prVid", "pvt", tay || PR_DRAMA[x.id] || "", x);
 }
 async function breakdownClip(ev){
