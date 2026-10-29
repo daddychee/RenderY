@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from autoedit.treatment import kiem_drama as kd
+from autoedit.treatment.tai_san import LOI_REF
 
 GIAY_CHON = (6, 10, 15)      # Grok 1.5 qua Seedvis: "6s"|"10s"|"15s", cùng giá 108 credit
 MODEL_VIDEO = "grok-imagine-video-1.5"     # Seedance tắt ở Seedvis từ 25/10; đo 27/10 thoại 12/12
@@ -422,3 +424,252 @@ def doc_sh(chu: str) -> list[dict]:
     except ValueError:
         return []
     return [s for s in x if isinstance(s, dict)] if isinstance(x, list) else []
+
+
+# ─────────────────── mỗi shot một video: đồng nhất phối cảnh ─────────────────
+# docs/SPEC_DONG_NHAT_PHOI_CANH.md (đo 29/10, DM001 P031 lần 4: phông 3/3, hướng
+# nhìn 3/3). Ảnh khung đầu mỗi shot vẽ từ MẢNH CẮT ảnh dàn cảnh; luật 180°: mọi máy
+# cùng phía máy dàn cảnh, nên trái/phải trong ảnh dàn cảnh (`pd["ben"]`) quyết
+# hướng nhìn và vai. Chữ chép từ `ghep_dm4.py` (ảnh) và `ghep_dm.py` (video).
+BEN = ("trai", "phai", "giua")
+_HOP = {"trai": (0.115, 0.30, 0.515, 0.70), "phai": (0.56, 0.30, 0.96, 0.70), "giua": (0.30, 0.30, 0.70, 0.70)}
+VIEN_DEN = 12                # cột/hàng trung bình tối hơn là viền đen (P031: viền từ x≈2665/2752)
+IM = "The LINE is spoken exactly once; after it, everyone stays silent and holds their expression until the end of the shot."
+IM_CAM = "Nobody speaks in this shot: everyone stays silent, lips closed, for the whole shot."
+MOT = "One continuous shot, no cuts."
+
+
+def khung_cat(ben: str) -> tuple[float, float, float, float]:
+    """Mảnh cắt mặc định quanh người ở `ben`, tỉ lệ 0–1 của ảnh dàn cảnh GỐC (trang
+    cho kéo khung trên ảnh gốc). Trái/phải đo ở P031 2752 px (Nia x 316–1417),
+    16:9, cùng dải dọc 0,30–0,70. `ben` lạ: giữa."""
+    return _HOP.get(ben, _HOP["giua"])
+
+
+def cat_master(master: Path, hop, dich: Path) -> Path:
+    """Cắt `hop` (x0, y0, x1, y1 tỉ lệ 0–1 của ảnh GỐC) khỏi ảnh dàn cảnh, kẹp vào
+    vùng không viền đen (cột/hàng ở mép có trung bình xám < VIEN_DEN)."""
+    from PIL import Image
+
+    a = Image.open(master).convert("RGB")
+    xam = a.convert("L")
+    cot = xam.resize((a.width, 1), Image.BOX).tobytes()     # BOX = trung bình đúng từng cột
+    hang = xam.resize((1, a.height), Image.BOX).tobytes()
+    x = [i for i, v in enumerate(cot) if v >= VIEN_DEN] or [0, a.width - 1]
+    y = [i for i, v in enumerate(hang) if v >= VIEN_DEN] or [0, a.height - 1]
+    x0, y0, x1, y1 = hop
+    dich = Path(dich)
+    dich.parent.mkdir(parents=True, exist_ok=True)
+    a.crop((max(round(x0 * a.width), x[0]), max(round(y0 * a.height), y[0]),
+            min(round(x1 * a.width), x[-1] + 1), min(round(y1 * a.height), y[-1] + 1))).save(dich)
+    return dich
+
+
+def _trong(ten: str, ds) -> str:
+    """Tên trong `ds` trùng `ten` không phân biệt hoa thường, viết như trong `ds`."""
+    return next((x for x in ds if ten and str(x).lower() == ten.lower()), "")
+
+
+def _cua(d, ten: str) -> str:
+    """Giá trị của `ten` trong dict LLM viết (`ben`, `phong`, `tieng`)."""
+    return next((str(v).strip() for k, v in (d if isinstance(d, dict) else {}).items()
+                 if str(k).lower() == (ten or "").lower()), "")
+
+
+def _nguoi_noi(s: dict, lt: list[dict]) -> str:
+    cs = [c for c in chi_so(s) if 0 <= c < len(lt)]
+    return lt[cs[0]]["ten"] if cs else ""
+
+
+def chu_the(s: dict, lt: list[dict]) -> str:
+    """Người máy hướng tới (S): `huong` người dựng chọn, rồi người nói của shot,
+    rồi người duy nhất trong khung — cả ba phải có trong `co_mat`. Chưa rõ thì ""
+    (app dùng nguyên ảnh dàn cảnh). Qua vai mà người nói ở tiền cảnh thì sai:
+    người dựng sửa `huong`."""
+    co = s.get("co_mat") or []
+    return (_trong(str(s.get("huong") or ""), co) or _trong(_nguoi_noi(s, lt), co)
+            or (co[0] if len(co) == 1 else ""))
+
+
+def ca_canh(s: dict) -> bool:
+    """Hai người trở lên trong khung mà không qua vai: Image 1 là NGUYÊN ảnh dàn cảnh."""
+    return len(s.get("co_mat") or []) >= 2 and s.get("goc") != "ots"
+
+
+def giay_shot(s: dict, lt: list[dict]) -> int:
+    """`gi` người dựng chọn; không có thì 6 giây, câu cần hơn ~5 giây (3 từ/giây
+    + 1 giây) thì 10 (`ghep_dm.py`, đo DM001)."""
+    try:
+        g = int(s.get("gi") or 0)
+    except (TypeError, ValueError):
+        g = 0
+    if g in GIAY_CHON:
+        return g
+    tu = sum(len(kd.RE_TU.findall(lt[c]["cau"])) for c in chi_so(s) if 0 <= c < len(lt))
+    return 10 if tu / TU_MOT_GIAY + 1 > 5 else 6
+
+
+def nhac_lap(lap: str) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) khi câu khung tả phông. Phông lấy từ ảnh
+    dàn cảnh; LLM tả theo khung hình là sai chỗ (P031 lần 2: sofa sau lưng Nia)."""
+    if re.search(r"\bbehind\b", lap or "", re.I):
+        return ["câu khung tả thứ sau lưng ('behind'): phông lấy từ ảnh dàn cảnh, nên bỏ cụm này"]
+    return []
+
+
+def _phia_nhin(pd: dict, ai: str, toi: str) -> str:
+    """Phía `ai` nhìn để thấy `toi` ("right"/"left"/""). Luật 180°: người bên trái
+    ảnh dàn cảnh nhìn phải và ngược lại; người ở giữa nhìn về phía người kia."""
+    b = _cua(pd.get("ben"), ai)
+    if b == "giua":
+        return {"trai": "left", "phai": "right"}.get(_cua(pd.get("ben"), toi), "")
+    return {"trai": "right", "phai": "left"}.get(b, "")
+
+
+def _nguoi_kia(s: dict, lt: list[dict], ai: str, nguoi) -> str:
+    """O — người S nhìn tới. Qua vai: người còn lại trong `co_mat`. Còn lại: người
+    nói của shot nếu không phải S, rồi người đầu tiên khác S có tấm trong clip
+    (thứ tự `nguoi`). `pd.shots` không mang `cau` nên không dò shot kề bên: hai
+    người thì như nhau; ba người trở lên CHƯA ĐO."""
+    ds = (list(s.get("co_mat") or []) if s.get("goc") == "ots" else []) + [_nguoi_noi(s, lt)] + list(nguoi)
+    return next((x for x in ds if x and x.lower() != ai.lower()), "")
+
+
+def _cau_nhin(pd: dict, s: dict, ai: str, kia: str) -> str:
+    """Câu hướng nhìn (L5): ảnh và video cùng dùng. Shot nhiều người không qua vai: không có."""
+    if not (ai and kia) or ca_canh(s):
+        return ""
+    p = _phia_nhin(pd, ai, kia)
+    if s.get("goc") == "ots":
+        return f"{ai} looks at {kia}" + (f", toward the {p} of the frame" if p else "") + ", not at the camera."
+    return f"{ai} looks toward {kia}" + (f", just off the {p} edge of the frame" if p else "") + ", not at the camera."
+
+
+def _hoa(x: str) -> str:
+    x = (x or "").strip()
+    return x[:1].upper() + x[1:]
+
+
+def _cham(x: str) -> str:
+    x = (x or "").strip()
+    return x if not x or x.endswith((".", "!", "?")) else x + "."
+
+
+def _ps(pd: dict, k: int) -> dict:
+    ds = pd.get("shots") or []
+    return ds[k] if 0 <= k < len(ds) and isinstance(ds[k], dict) else {}
+
+
+def prompt_dan_canh(pd: dict, nguoi: list[dict], noi: dict | None) -> str:
+    """Prompt ẢNH DÀN CẢNH (WS) của một cảnh. Ảnh gửi: [nơi chốn nếu có] + tấm
+    `nguoi` đúng thứ tự. Câu `phong` từng người vào luôn ảnh này: ảnh shot sau
+    nói "Behind S: …, exactly as in Image 1", ảnh dàn cảnh phải có đúng thứ đó."""
+    ten = [x["ten"].split(" · ")[0] for x in nguoi]
+    loai = (["boi_canh"] if noi else []) + ["nhan_vat"] * len(nguoi)
+    sau = [f"Behind {n}: {_cham(_cua(pd.get('phong'), n))}" for n in ten if _cua(pd.get("phong"), n)]
+    mo_ta = " ".join(f"{n}: {str(x.get('chu') or '').strip().rstrip('.')}." for n, x in zip(ten, nguoi))
+    khoi = [f"{_cham(pd.get('dan'))} Photorealistic film still, 16:9.".strip(),
+            " ".join(LOI_REF[x].format(i=i) for i, x in enumerate(loai, 1)),
+            " ".join(sau + [str(pd.get("cho") or "").strip()]).strip(),
+            " ".join(x for x in (mo_ta, f"Exactly {' and '.join('one ' + n for n in ten)}, nobody else." if ten
+                                 else "") if x),
+            str(pd.get("look") or "").strip()]
+    return "\n\n".join(x for x in khoi if x)
+
+
+def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], do: list[dict], kh: str) -> str:
+    """Prompt ẢNH KHUNG ĐẦU shot `k` (tính từ 0) — khuôn `ghep_dm4.py`.
+
+    `s` = sh[k]; `nguoi` = {Tên: mục sổ} mọi người có tấm trong clip; `kh` = câu
+    khung KHÔNG có máy (`khung_shot(dict(s, cd=""))`). Ảnh gửi đúng thứ tự:
+      1. mảnh cắt quanh `chu_the`, hay NGUYÊN ảnh dàn cảnh khi `ca_canh(s)` hoặc
+         `chu_the` rỗng;
+      2. tấm từng tên trong `s["co_mat"]` có trong `nguoi`, đúng thứ tự;
+      3. `do`.
+    Câu `truc` của LLM KHÔNG vào đây (L6: viết theo khung hình, vẽ thêm người)."""
+    lt = loi_thoai(t)
+    ai = chu_the(s, lt)
+    co = list(s.get("co_mat") or [])
+    ots = s.get("goc") == "ots"
+    kia = _nguoi_kia(s, lt, ai, nguoi) if ai else ""
+    mat = str(_ps(pd, k).get("mat") or "").strip().rstrip(".")
+    cho = str(pd.get("cho") or "").strip()
+    if ca_canh(s) or not ai:
+        loi = [LOI_REF["truong_doan"].format(i=1)]
+        may = [cho]
+    else:
+        # `vi_tri` (chỗ riêng từng người theo đồ đạc) cho lại đúng chữ bản đo; vắng thì chữ chung
+        cho_s, cho_o = _cua(pd.get("vi_tri"), ai), _cua(pd.get("vi_tri"), kia)
+        loi = ["Image 1 is a crop of the master wide shot of this scene" + (f": {ai} {cho_s}." if cho_s else
+               f", around {ai}.") + " Keep this exact room, background and light; it is the same moment."]
+        if ots:
+            vai = {"right": "left ", "left": "right "}.get(_phia_nhin(pd, kia, ai), "")
+            gan = f"just behind {kia}'s {vai}shoulder, " if kia else ""
+        else:
+            gan = (f"near {kia}'s place {cho_o}, " if cho_o else f"near {kia}, ") if kia else ""
+        may = [f"Camera position: on the same side of the room as the master shot, {gan}angled toward {ai}."]
+        phong = re.split(r"(?<=[.!?])\s+", _cua(pd.get("phong"), ai), maxsplit=1)
+        if phong[0]:
+            may.append(f"Behind {ai}: {phong[0].rstrip('.')}, exactly as in Image 1."
+                       + (f" {_cham(phong[1])}" if len(phong) > 1 else ""))
+        if kia and not ots:
+            p = _phia_nhin(pd, ai, kia)
+            may.append(f"{kia} is off-screen" + (f" to the {p}" if p else "") + " and does not appear.")
+        may.append(cho)
+    tam = [n for n in co if n in nguoi]
+    loi += [LOI_REF["nhan_vat"].format(i=i) for i in range(2, 2 + len(tam))]
+    loi += [LOI_REF.get(d.get("loai"), LOI_REF["dao_cu"]).format(i=i) for i, d in enumerate(do, 2 + len(tam))]
+    phan = str(pd.get("giu") or "").strip().rstrip(".").split(";")
+    giu = "; ".join(c.strip() for n in co for c in phan if nhac_ten(c, [n]))
+    nguoi_khung = " ".join(x for x in (
+        " ".join(f"{n}: {str(nguoi[n].get('chu') or '').strip().rstrip('.')}." for n in tam),
+        f"Keep consistent: {giu}." if giu else "",
+        f"Exactly {' and '.join('one ' + n for n in co)} in frame, nobody else." if co else "Nobody in frame.") if x)
+    khoi = [" ".join(x for x in (_hoa(kh), f"{mat}." if mat else "", _cau_nhin(pd, s, ai, kia),
+                                  "Photorealistic film still, 16:9.") if x),
+            " ".join(loi), " ".join(x for x in may if x), nguoi_khung, str(pd.get("look") or "").strip()]
+    return "\n\n".join(x for x in khoi if x)
+
+
+def prompt_video_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], tieng: dict[str, str],
+                      do: list[dict], kh: str, may: str, giay: int) -> str:
+    """Prompt Grok i2v của shot `k` (tính từ 0), từ ảnh khung đầu đã duyệt —
+    khuôn `ghep_dm.py`, câu hướng nhìn chèn ngay sau dòng mặt/thân (L7, như
+    `ghep_dm4.py`). `may` = câu máy (CD_DRAMA). `do` chưa dùng: i2v chỉ nhận ảnh
+    khung đầu, đồ vật đã nằm trong ảnh. Người nói ngoài khung / lời nghĩ: chữ
+    của `prompt_clip` (đo 27/10)."""
+    lt = loi_thoai(t)
+    co = list(s.get("co_mat") or [])
+    ai = chu_the(s, lt)
+    kia = _nguoi_kia(s, lt, ai, nguoi) if ai else ""
+    ps = _ps(pd, k)
+    cs = [c for c in chi_so(s) if 0 <= c < len(lt)]
+    mat = str(ps.get("mat") or "").strip().rstrip(".")
+    mat_ai = ai or _nguoi_noi(s, lt) or (co[0] if co else "")
+    if mat and mat_ai and not any(mat.lower().startswith(n.lower()) for n in co):
+        mat = f"{mat_ai}: {mat[:1].lower() + mat[1:]}"
+    dong = [" ".join(x for x in (may.strip(), _hoa(kh), f"Continue this camera move for the full {giay} seconds.") if x)]
+    dong += [x for x in (f"{mat}." if mat else "", _cau_nhin(pd, s, ai, kia)) if x]
+    if cs:
+        x = lt[cs[0]]
+        if x["nghi"]:
+            noi, im = f"{x['ten']}'s inner voice, voice-over, {x['ten']}'s lips do not move", co
+        elif not _trong(x["ten"], co):
+            noi, im = (f"{x['ten']}, standing just off frame, a real voice in the scene, not a thought, "
+                       "not narration, not a voice-over"), co
+        else:
+            noi, im = x["ten"], [n for n in co if n.lower() != x["ten"].lower()]
+        cach = str(ps.get("cach") or "").strip().rstrip(".")
+        dong += [f"SPEAKER: {noi}. LINE: \"{' '.join(lt[c]['cau'] for c in cs)}\""]
+        dong += [x for x in (f"DELIVERY: {cach}." if cach else "",
+                             f"{' and '.join(im)}: silent, lips closed." if im else "") if x]
+        giong = _cua(tieng, x["ten"])
+        cuoi = (f"Dialogue: only this LINE, spoken once, in English, by {x['ten']}. "
+                + (CHOT_NGHI.format(ten=x["ten"]) if x["nghi"] else CHOT))
+        dong += [IM, MOT]
+    else:
+        giong, cuoi = "", f"No dialogue in this shot. {CHOT}"
+        dong += [IM_CAM, MOT]
+    am = "; ".join(x for x in (str(pd.get("nen") or "").strip().rstrip("."),
+                               str(ps.get("am") or "").strip().rstrip(".")) if x)
+    return "\n".join(dong) + "\n\n" + "\n".join(x for x in (giong, f"Sound: {am}." if am else "", cuoi) if x)

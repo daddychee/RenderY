@@ -317,6 +317,21 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
    bấm tab Video thì ảnh vẫn hiện, hai cái nằm cạnh nhau (đo Chrome 26/09). */
 .khung-to img[hidden],.khung-to video[hidden]{display:none}
 .khung-to.bam-duoc{cursor:zoom-in}
+/* Ảnh dàn cảnh drama (29/10): ảnh giữ tỉ lệ thật, khung cắt đặt theo % của ảnh —
+   `object-fit:cover` của `.khung-to` cắt mép ảnh là khung lệch khỏi chỗ máy chủ cắt. */
+.dan-khung{position:relative;max-width:calc(66vh * 16 / 9);margin:0 auto;user-select:none}
+.dan-khung img{width:100%;display:block;border-radius:11px}
+.dan-khung .kc{position:absolute;border:2px solid var(--accent);background:rgba(76,143,224,.10);
+  touch-action:none}
+.dan-khung .kc[onpointerdown]{cursor:move}
+.dan-khung .kc b{position:absolute;left:9px;top:7px;background:var(--accent);color:#fff;
+  font-size:12px;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.dan-khung .kc i{position:absolute;width:12px;height:12px;background:#fff;
+  border:2px solid var(--accent);border-radius:3px}
+.dan-khung .kc i.tl{left:-7px;top:-7px;cursor:nwse-resize}
+.dan-khung .kc i.tr{right:-7px;top:-7px;cursor:nesw-resize}
+.dan-khung .kc i.bl{left:-7px;bottom:-7px;cursor:nesw-resize}
+.dan-khung .kc i.br{right:-7px;bottom:-7px;cursor:nwse-resize}
 .tab-hinh{display:flex;gap:6px;align-items:center;margin-bottom:7px}
 .tab-hinh button{font-size:12.5px;font-weight:700;padding:4px 14px;border-radius:8px;
   border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
@@ -1366,7 +1381,7 @@ function dungCanhTap(){
                  pv: cn.pv || "", goc: cn.goc || "", cd: cn.cd || "",
                  sfx: cn.sfx || "", video: cn.video || "", vid: cn.vid || "",
                  mda: cn.mda || "", mdv: cn.mdv || "", v: cn.v || "",
-                 pm: cn.pm || "", gi: cn.gi || "", pd: cn.pd || "", sh: cn.sh || "",
+                 pm: cn.pm || "", gi: cn.gi || "", pd: cn.pd || "", sh: cn.sh || "", ss: cn.ss || "",
                  tu: cn.tu || 0, ns: cn.ns || 0, day: !!cn.day,   // clip drama — máy chủ đếm
                  // shot của clip drama: mốc giây, câu thoại, câu khung — MÁY CHỦ chia/ghép, trang chỉ hiện
                  moc: cn.moc || [], thoai: cn.thoai || [], dau_shot: cn.dau_shot || [],
@@ -1518,26 +1533,26 @@ function veShotDrama(x){
 }
 function cotHinhDrama(x){
   var gi = +(x.gi || 15), tay = (x.pvt || "").trim(), co = !!((x.pd || "").trim() || tay);
-  return '<div class="khung-to">' + (x.video ? '<video controls preload="metadata" src="' + duongVideo(x) +
-      '"></video>' : '16:9 · chưa có video') + '</div>' +
-    // Kiểu chọn sẵn có của hộp cảnh (`.hai button.on`) — `.cp.on` không có luật CSS,
-    // nút đang chọn trông y hệt hai nút kia (Treatment V2 soi Chrome 28/10).
-    '<div class="dong-nho"><span>Độ dài</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(g){
-      return '<button class="' + (g === gi ? 'on' : '') + '"' + (SUA_DUOC ? ' onclick="datGiayClip(' + g +
-             ')"' : ' disabled') + '>' + g + ' s</button>'; }).join("") + '</div></div>' +
-    (SUA_DUOC ? '<div class="hang-nut"><button onclick="createPrompt(event)">' +
-      (co ? 'Create Prompt lại' : 'Create Prompt') + '</button>' +
-      '<button onclick="genVideo(event)"' + (x.vid ? ' disabled' : '') + '>' +
-      (x.vid ? 'Đang dựng video…' : (x.video ? 'Gen Video lại' : 'Gen Video')) + '</button>' +
-      '<span class="spacer"></span>' +
-      (x.video ? '<button class="cp" onclick="xemVideo(\'' + duongVideo(x) + '\', \'clip-' + x.pm +
-        '.mp4\')">⛶ Cỡ lớn</button><a class="cp" href="' + duongVideo(x) + '" download="clip-' + x.pm +
-        '.mp4">↓ Tải video</a>' : '') + '</div>' : '') +
-    (x.vid ? '<div class="nhac" style="margin-top:8px">Đang dựng video — khoảng <b>2–3 phút</b>. ' +
-             'Đóng tab cũng không sao, quay lại là thấy.</div>' : '') +
+  // Mỗi shot một video (user chốt 29/10): thẻ shot đứng đầu cột. Nút Gen Video CẢ CLIP ẩn —
+  // máy chủ giữ đường cũ; video cả clip dựng trước đó vẫn xem / tải được.
+  return (SUA_DUOC ? '<div class="hang-nut" style="margin-top:0"><button onclick="createPrompt(event)">' +
+      (co ? 'Create Prompt lại' : 'Create Prompt') + '</button></div>' : '') +
     (co ? '' : '<div class="nhac" style="margin-top:8px">Clip chưa có prompt — bấm ' +
       (dsShot(x).length ? '' : '<b>Breakdown clip</b> rồi ') + '<b>Create Prompt</b>.</div>') +
-    '<div class="ghi">Grok 1.5 · 720p · 108 credit một clip, 6/10/15 giây cùng giá.</div>' +
+    '<div id="theShot" style="margin-top:12px">' + veTheShot(x) + '</div>' +
+    (x.video ? '<div class="nhom">Video cả clip · đường cũ</div><div class="khung-to"><video controls ' +
+      'preload="metadata" src="' + duongVideo(x) + '"></video></div><div class="hang-nut">' +
+      '<span class="spacer"></span><button class="cp" onclick="xemVideo(\'' + duongVideo(x) + '\', \'clip-' +
+      x.pm + '.mp4\')">⛶ Cỡ lớn</button><a class="cp" href="' + duongVideo(x) + '" download="clip-' + x.pm +
+      '.mp4">↓ Tải video</a></div>' : '') +
+    (x.vid ? '<div class="nhac" style="margin-top:8px">Đang dựng video — khoảng <b>2–3 phút</b>. ' +
+             'Đóng tab cũng không sao, quay lại là thấy.</div>' : '') +
+    // Kiểu chọn sẵn có của hộp cảnh (`.hai button.on`) — `.cp.on` không có luật CSS,
+    // nút đang chọn trông y hệt hai nút kia (Treatment V2 soi Chrome 28/10).
+    '<div class="dong-nho"><span>Độ dài clip</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(g){
+      return '<button class="' + (g === gi ? 'on' : '') + '"' + (SUA_DUOC ? ' onclick="datGiayClip(' + g +
+             ')"' : ' disabled') + '>' + g + ' s</button>'; }).join("") + '</div></div>' +
+    '<div class="ghi">Grok 1.5 · 720p · 108 credit một video, 6/10/15 giây cùng giá.</div>' +
     hopPrompt("Prompt video", "prVid", "pvt", tay || PR_DRAMA[x.id] || "", x);
 }
 async function breakdownClip(ev){
@@ -1594,6 +1609,377 @@ async function datGiayClip(g){
   veSb(); moCanh(canhDangMo);
 }
 
+/* ═══ ẢNH DÀN CẢNH + MỖI SHOT MỘT VIDEO (user chốt 29/10, docs/SPEC_DONG_NHAT_PHOI_CANH.md) ═══
+   Mỗi cảnh drama (một DÒNG) một ảnh dàn cảnh WS thấy đủ người và phông sau lưng từng
+   người. Người dựng vẽ, duyệt, rồi kéo khung cắt cho từng người: mảnh cắt là Image 1 của
+   shot máy hướng tới người đó (đo P031: phông 3/3, hướng nhìn 3/3; gửi nguyên ảnh dàn cảnh
+   0/3). Ảnh dàn cảnh sai thì sửa ở đây, không sửa từng shot. Trạng thái (có ảnh, duyệt,
+   khung đang dùng) do MÁY CHỦ suy — trang chỉ hiện. */
+var DAN_TT = {}, DAN_MO = null, DAN_VE = {}, NHAN_BEN = {trai: "trái", phai: "phải", giua: "giữa"};
+var CAT_NHO = 0.102;        // máy chủ đòi mỗi cạnh ≥ 0,1 — chừa sai số làm tròn
+function duongDan(ch, di){ return "/api/tap/" + TAP_MA + "/" + ch + "/dong/" + di + "/dan-canh"; }
+function khoaDan(ch, di){ return ch + "/" + di; }
+function nhanDanCanh(x){
+  var t = soTheoMa(x.td);
+  return (t && t.ref) ? "▣ Ảnh dàn cảnh" : "▢ Ảnh dàn cảnh · chưa vẽ";
+}
+function moDanCanh(ch, di){
+  canhDangMo = "";             // hộp clip đã đóng: lời hỏi video về muộn đừng vẽ đè panel này
+  DAN_MO = {ch: ch, di: di};
+  hopToan(false);
+  veDanCanh();
+  document.getElementById("nenCanh").classList.add("mo");
+  napDanCanh(DAN_MO);
+}
+async function napDanCanh(m){
+  var k = khoaDan(m.ch, m.di);
+  try { DAN_TT[k] = await api(duongDan(m.ch, m.di)); }
+  catch(e){ return bao(e.message, true); }
+  // Chỉ vẽ khi panel CỦA ĐÚNG cảnh này còn mở — người ta có thể đã sang hộp khác.
+  if(DAN_MO && khoaDan(DAN_MO.ch, DAN_MO.di) === k && document.getElementById("hopDan")) veDanCanh();
+}
+function viTriKhung(b){
+  return "left:" + b[0] * 100 + "%;top:" + b[1] * 100 + "%;width:" + (b[2] - b[0]) * 100 +
+         "%;height:" + (b[3] - b[1]) * 100 + "%";
+}
+function veDanCanh(){
+  var m = DAN_MO, k = khoaDan(m.ch, m.di), r = DAN_TT[k], d = ((DU[m.ch] || {}).dong || [])[m.di] || {};
+  var h = '<div class="hop-dau" id="hopDan"><div><b>Ảnh dàn cảnh · ' + thoat(d.en) + '</b><div class="nho">' +
+    'chương ' + m.ch + ' · mọi shot của cảnh cắt từ ảnh này — sai chỗ ngồi thì sửa ở đây, không sửa ' +
+    'từng shot</div></div><span class="spacer"></span><button class="x" onclick="dongCanh()">✕</button></div>' +
+    '<div style="padding:15px">';
+  if(!r){
+    document.getElementById("hopCanh").innerHTML = h + '<div class="ghi">Đang tải…</div></div>';
+    return;
+  }
+  var anh = r.co_anh ? "/api/tap/" + TAP_MA + "/so/" + r.td + "/ref?v=" + (r.ref_v || 0) : "",
+      ve = !!DAN_VE[k], nguoi = r.nguoi || [];
+  h += (anh ? '<div class="dan-khung" id="danKhung"><img src="' + anh + '" draggable="false">' +
+        nguoi.map(function(n, i){
+          var b = (r.cat || {})[n] || [0.3, 0.3, 0.7, 0.7], ben = NHAN_BEN[(r.ben || {})[n]];
+          return '<div class="kc" style="' + viTriKhung(b) + '"' +
+                 (SUA_DUOC ? ' onpointerdown="keoKhung(event,' + i + ',\'doi\')"' : '') + '><b>' + thoat(n) +
+                 (ben ? ' · ' + ben : '') + '</b>' + (SUA_DUOC ? ["tl", "tr", "bl", "br"].map(function(g){
+                   return '<i class="' + g + '" onpointerdown="keoKhung(event,' + i + ',\'' + g + '\')"></i>';
+                 }).join("") : '') + '</div>';
+        }).join("") + '</div>'
+      : '<div class="khung-to">16:9 · chưa có ảnh dàn cảnh</div>') +
+    (SUA_DUOC ? '<div class="hang-nut"><button onclick="vietPromptCanh(event)">' +
+      (r.san ? 'Viết prompt cảnh lại' : 'Viết prompt cảnh') + '</button>' +
+      '<button onclick="veAnhDan(event)"' + ((r.san && !ve) ? '' : ' disabled') + '>' +
+      (ve ? 'Đang vẽ ảnh dàn cảnh…' : (r.co_anh ? 'Vẽ lại ảnh dàn cảnh' : 'Vẽ ảnh dàn cảnh')) + '</button>' +
+      (r.co_anh ? '<button class="' + (r.duyet ? 'on' : '') + '" onclick="duyetDan(event)"' + (ve ? ' disabled' : '') +
+        '>' + (r.duyet ? '✓ đã duyệt' : 'Duyệt ảnh dàn cảnh') + '</button>' : '') +
+      '<span class="spacer"></span>' +
+      (anh ? '<button class="cp" onclick="xemAnh(\'' + anh + '\', \'dan-canh-' + r.td + '.png\')">⛶ Cỡ lớn</button>' : '') +
+      '</div>' : '') +
+    (r.san ? '' : '<div class="nhac" style="margin-top:8px">Cảnh chưa có bố cục (ai bên trái, ai bên phải, ' +
+      'phông sau lưng từng người) — bấm <b>Viết prompt cảnh</b> trước rồi mới vẽ được ảnh dàn cảnh. Cảnh đã ' +
+      'viết prompt trước 29/10 cũng phải bấm nút này: Create Prompt từng clip dùng lại phần chung cũ, ' +
+      'không có bố cục.</div>') +
+    (r.cu ? '<div class="nhac" style="margin-top:8px">Ảnh này vẽ theo <b>bố cục cũ</b> — prompt cảnh đã viết ' +
+      'lại sau lần vẽ. Vẽ lại nếu chỗ ngồi đã đổi.</div>' : '') +
+    (r.co_anh && !r.duyet ? '<div class="nhac" style="margin-top:8px">Soi kỹ ai ngồi đâu và phông sau lưng ' +
+      'từng người rồi bấm <b>Duyệt</b> — chưa duyệt thì shot chưa vẽ được ảnh khung đầu.</div>' : '') +
+    (anh && nguoi.length ? '<div class="ghi">Mỗi khung là <b>mảnh cắt</b> làm Image 1 cho shot máy hướng tới ' +
+      'người đó. ' + (SUA_DUOC ? 'Kéo trong khung để dời, kéo góc để đổi cỡ (giữ 16:9) — thả chuột là lưu. ' : '') +
+      'Đổi khung thì vẽ lại ảnh các shot của người đó.</div>' : '') +
+    (r.prompt ? '<p class="nhan" style="margin-top:14px">Prompt ảnh dàn cảnh</p><div class="prompt">' +
+      thoat(r.prompt) + '</div>' : '');
+  document.getElementById("hopCanh").innerHTML = h + '</div>';
+}
+/* Khung cắt KHOÁ 16:9 theo PIXEL ảnh gốc (user chốt 29/10; P031 đo bằng mảnh 16:9): trên
+   toạ độ 0–1 thì cao = rộng · R, R = naturalWidth·9 / (16·naturalHeight) — ảnh 2752×1536
+   thì R ≈ 1,008, khung gần vuông. Đưa một khung về 16:9 quanh TÂM, giữ bề rộng, không tràn. */
+function khung169(b, R){
+  var w = Math.max(CAT_NHO, CAT_NHO / R, Math.min(1, 1 / R, b[2] - b[0])), h = w * R,
+      x = Math.max(0, Math.min(1 - w, (b[0] + b[2] - w) / 2)),
+      y = Math.max(0, Math.min(1 - h, (b[1] + b[3] - h) / 2));
+  return [x, y, x + w, y + h];
+}
+/* Kéo khung cắt: toạ độ tỉ lệ 0–1 theo ảnh gốc. Khung đã lưu lệch 16:9 (dữ liệu cũ, PUT
+   tay) vẫn hiện y như lưu; lần kéo đầu mới đưa về 16:9. Thả chuột là lưu MỘT người — máy
+   chủ gộp vào `pd.cat`; người chưa kéo vẫn theo khung mặc định của `ben`. */
+function keoKhung(ev, i, kieu){
+  if(!SUA_DUOC || ev.button) return;
+  ev.preventDefault(); ev.stopPropagation();
+  var m = DAN_MO, r = DAN_TT[khoaDan(m.ch, m.di)], ten = r.nguoi[i], o = ev.target.closest(".kc"),
+      im = document.querySelector("#danKhung img"), k = im.getBoundingClientRect(),
+      R = im.naturalWidth * 9 / (16 * im.naturalHeight),
+      cu = ((r.cat || {})[ten] || [0.3, 0.3, 0.7, 0.7]).slice(), g = khung169(cu, R), b = cu,
+      x0 = ev.clientX, y0 = ev.clientY;
+  function di(e){
+    var dx = (e.clientX - x0) / k.width, dy = (e.clientY - y0) / k.height;
+    if(kieu === "doi"){
+      dx = Math.max(-g[0], Math.min(1 - g[2], dx)); dy = Math.max(-g[1], Math.min(1 - g[3], dy));
+      b = [g[0] + dx, g[1] + dy, g[2] + dx, g[3] + dy];
+    } else {
+      // Neo góc ĐỐI DIỆN; rộng theo chiều chuột đi xa hơn, cao = rộng · R. Chạm mép thì dừng.
+      var trai = kieu[1] === "l", tren = kieu[0] === "t", ax = trai ? g[2] : g[0], ay = tren ? g[3] : g[1],
+          px = (trai ? g[0] : g[2]) + dx, py = (tren ? g[1] : g[3]) + dy,
+          tran = Math.min(trai ? ax : 1 - ax, (tren ? ay : 1 - ay) / R),
+          w = Math.max(CAT_NHO, CAT_NHO / R, Math.min(tran, Math.max(trai ? ax - px : px - ax,
+                                                                     (tren ? ay - py : py - ay) / R)));
+      if(w > tran) return;               // neo sát mép, không đủ chỗ cho khung nhỏ nhất
+      var h = w * R;
+      b = [trai ? ax - w : ax, tren ? ay - h : ay, trai ? ax : ax + w, tren ? ay : ay + h];
+    }
+    // 4 số lẻ như máy chủ: lệch tỉ lệ do làm tròn < 0,1% kể cả khung nhỏ nhất
+    b = b.map(function(v){ return Math.round(v * 10000) / 10000; });
+    o.style.cssText = viTriKhung(b);
+  }
+  function tha(){
+    removeEventListener("pointermove", di); removeEventListener("pointerup", tha);
+    if(b.join() !== cu.join()) luuKhungCat(m, ten, b);
+  }
+  addEventListener("pointermove", di); addEventListener("pointerup", tha);
+}
+function luuKhungCat(m, ten, b){
+  var r = DAN_TT[khoaDan(m.ch, m.di)], cat = {};
+  cat[ten] = b; r.cat[ten] = b;        // màn hình đã ở chỗ mới — bản trong tay theo luôn
+  tt("Đang lưu khung cắt…");
+  // Cùng hàng ghi với PATCH cảnh: vẽ ảnh shot ngay sau khi thả chuột vẫn đọc đúng khung mới.
+  hangGhiCanh = hangGhiCanh.then(function(){
+    return api(duongDan(m.ch, m.di) + "/cat", "PUT", {cat: cat}).then(function(){
+      tt("✓ Đã lưu " + gio(), "xong");
+    });
+  }).catch(function(e){ tt("✕ " + e.message, "loi"); bao(e.message, true); napDanCanh(m); });
+}
+async function vietPromptCanh(ev){
+  var m = DAN_MO; if(!m || !SUA_DUOC) return;
+  if(!confirm("Viết prompt cảnh: LLM viết lại phần chung của cảnh (ai bên trái, ai bên phải, phông sau " +
+              "lưng từng người, chỗ ngồi) và prompt MỌI clip đã breakdown. Prompt cũ của các clip sẽ bị " +
+              "viết lại. Chạy?")) return;
+  await luuNgay();
+  await banRon(ev && ev.target, "Đang viết prompt cảnh…", async function(){
+    var r;
+    try { r = await api("/api/tap/" + TAP_MA + "/" + m.ch + "/dong/" + m.di + "/prompt-drama", "POST"); }
+    catch(e){
+      return bao(/HTTP 524/.test(e.message)
+        ? "Cổng LLM quá 100 giây chưa trả lời (HTTP 524) — bấm lại." : e.message, true);
+    }
+    await taiLaiChuong(m.ch); await napSo(); veSb();
+    var loi = r.loi || [], l = loi.concat(r.nhac || []);
+    bao("Đã viết prompt <b>" + (r.viet || 0) + " clip</b>." + (l.length ? "<br>" + l.map(thoat).join("<br>") : ""),
+        !r.viet || !!loi.length);
+  });
+  napDanCanh(m);
+}
+async function veAnhDan(ev){
+  var m = DAN_MO; if(!m || !SUA_DUOC) return;
+  var k = khoaDan(m.ch, m.di), r = DAN_TT[k] || {};
+  if(DAN_VE[k]) return;
+  if(r.duyet && !confirm("Vẽ lại ảnh dàn cảnh: ảnh đang dùng sẽ HẾT DUYỆT, và ảnh khung đầu các shot " +
+                         "đã vẽ theo ảnh cũ. Vẽ lại?")) return;
+  await luuNgay();
+  DAN_VE[k] = 1;
+  try {
+    await banRon(ev && ev.target, "Đang vẽ ảnh dàn cảnh…", async function(){
+      try { await api(duongDan(m.ch, m.di), "POST"); }
+      catch(e){ return bao(e.message, true); }
+      napSoDu(1);
+      await napSo(); await taiLaiChuong(m.ch); veSb();
+    });
+  } finally { delete DAN_VE[k]; }
+  napDanCanh(m);
+}
+async function duyetDan(ev){
+  var m = DAN_MO; if(!m || !SUA_DUOC) return;
+  await banRon(ev && ev.target, "Đang duyệt…", async function(){
+    try { await api(duongDan(m.ch, m.di) + "/duyet", "POST"); }
+    catch(e){ bao(e.message, true); }
+  });
+  napDanCanh(m);
+}
+
+/* Thẻ shot (cột phải hộp clip): mỗi shot một ảnh khung đầu → Duyệt → một video Grok i2v;
+   clip lỗi thì sửa ĐÚNG shot đó. Trạng thái lấy từ `/shot`, chỉ vẽ lại ô `#theShot` — vẽ
+   lại cả hộp ở đây là vòng nạp → vẽ → nạp. */
+var SHOT_TT = {}, SHOT_VE = {}, DANG_SHOT = {};
+function duongShot(x, sid){ return "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/shot/" + sid; }
+function docSs(x){
+  try { var o = JSON.parse(x.ss || "{}"); return (o && typeof o === "object") ? o : {}; }
+  catch(e){ return {}; }
+}
+async function napShot(x){
+  var luot = napShot.luot = (napShot.luot || 0) + 1, loi = "";
+  try {
+    var r = await Promise.all([api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id + "/shot"),
+                               api(duongDan(x.ch, x.di))]);
+    SHOT_TT[x.id] = r[0]; DAN_TT[khoaDan(x.ch, x.di)] = r[1];
+    r[0].forEach(function(s){ if(s.dang && s.sid) theoDoiShot(x.ch, x.id, s.sid); });
+  } catch(e){ loi = e.message; }
+  // Lời về muộn của lượt cũ (bấm liền hai nút) đừng đè lượt mới.
+  var o = document.getElementById("theShot");
+  if(luot !== napShot.luot || !o || canhDangMo !== x.ma) return;
+  o.innerHTML = loi ? '<div class="nhac">Chưa đọc được trạng thái shot: ' + thoat(loi) + '</div>'
+                    : veTheShot(canhTheoMa(x.ma) || x);
+}
+function veTheShot(x){
+  var shs = dsShot(x), tt = SHOT_TT[x.id], dc = DAN_TT[khoaDan(x.ch, x.di)];
+  if(!shs.length) return '';
+  if(!tt || !dc) return '<div class="ghi">Đang tải trạng thái shot…</div>';
+  var theo = {}, mo = 'moDanCanh(\'' + x.ch + '\',' + x.di + ');return false';
+  tt.forEach(function(t){ if(t.sid) theo[t.sid] = t; });
+  return '<div class="nhom" style="margin-top:0">Shots · mỗi shot một video<span class="nho"> — vẽ ảnh ' +
+         'khung đầu, duyệt, rồi gen video</span></div>' +
+    (dc.duyet ? '<div class="ghi" style="margin:0 0 8px">Ảnh dàn cảnh ✓ đã duyệt · <a href="#" onclick="' + mo +
+                '">xem · kéo khung cắt</a></div>'
+              : '<div class="nhac" style="margin-bottom:8px">Ảnh dàn cảnh của cảnh <b>' +
+                (dc.co_anh ? 'chưa duyệt' : 'chưa vẽ') + '</b> — shot chưa vẽ được ảnh khung đầu. ' +
+                '<a href="#" onclick="' + mo + '">Mở ảnh dàn cảnh</a></div>') +
+    shs.map(function(s, k){ return theShot(x, s, k, theo[s.sid] || {}, dc); }).join("");
+}
+/* Người bật/tắt được trong khung: mọi người của cảnh, cộng tên lạ đang có trong `co_mat`. */
+function nguoiShot(x, s){
+  var ng = (DAN_TT[khoaDan(x.ch, x.di)] || {}).nguoi || [], cm = s.co_mat || [];
+  return ng.concat(cm.filter(function(n){ return ng.indexOf(n) < 0; }));
+}
+function theShot(x, s, k, t, dc){
+  var sid = s.sid || "", cm = s.co_mat || [], khoa = !sid || !SUA_DUOC,
+      dang = !!(t.dang || DANG_SHOT[x.id + sid]), ve = !!SHOT_VE[x.id + sid], d = duongShot(x, sid),
+      anh = t.co_anh ? d + "/anh?v=" + t.anh_v : "", vid = t.co_video ? d + "/video?v=" + t.video_v : "",
+      coPd = !!(x.pd || "").trim(), ten = "shot-" + x.pm + "-" + (k + 1), g = +(s.gi || t.giay || 0),
+      tu = !s.huong || cm.indexOf(s.huong) < 0;
+  var h = '<div class="buoc"><div class="buoc-dau" style="cursor:pointer" onclick="chonShot(' + k + ')" ' +
+    'title="Chọn shot này ở cột trái để sửa góc · cỡ · máy"><span class="so">' + (k + 1) + '</span>' +
+    '<span class="ten">Shot ' + (k + 1) + '<small>' + thoat([NHAN_CO[(s.co || "").toUpperCase()], NHAN_GOC[s.goc]]
+      .filter(Boolean).join(" · ")) + '</small></span><span class="chon">máy hướng tới <b>' +
+    thoat(t.chu_the || "—") + '</b></span></div><div class="buoc-than">';
+  if(!sid)
+    return h + '<div class="nhac" style="margin:0">Shot này chưa có mã (chia trước 29/10) — <b>Breakdown ' +
+               'lại clip</b> để shot có mã, rồi mới vẽ ảnh và gen video được.</div></div></div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+    '<div class="khung-to' + (anh ? ' bam-duoc' : '') + '"' + (anh ? ' title="Bấm để xem cỡ lớn" onclick="xemAnh(\'' +
+      anh + '\', \'' + ten + '.png\')"' : '') + '>' + (anh ? '<img src="' + anh + '">'
+      : (ve ? 'đang vẽ ảnh…' : 'ảnh khung đầu · chưa vẽ')) + '</div>' +
+    '<div class="khung-to">' + (vid ? '<video controls preload="metadata" src="' + vid + '"></video>'
+      : (dang ? 'đang dựng video…' : 'video · chưa có')) + '</div></div>';
+  if(SUA_DUOC)
+    h += '<div class="hang-nut"><button onclick="veAnhShot(event,' + k + ')"' +
+      ((dc.duyet && coPd && !ve && !dang) ? '' : ' disabled') +
+      (dc.duyet ? (coPd ? '' : ' title="Clip chưa có prompt — bấm Create Prompt trước"')
+                : ' title="Duyệt ảnh dàn cảnh trước"') + '>' +
+      (ve ? 'Đang vẽ ảnh…' : (anh ? 'Vẽ lại ảnh' : 'Vẽ ảnh')) + '</button>' +
+      (anh ? '<button class="' + (t.duyet ? 'on' : '') + '" onclick="duyetShot(event,' + k + ')"' +
+        (ve ? ' disabled' : '') + '>' + (t.duyet ? '✓ đã duyệt' : 'Duyệt ảnh') + '</button>' : '') +
+      '<button onclick="genVideoShot(event,' + k + ')"' + ((t.duyet && !dang && !ve) ? '' : ' disabled') +
+      (t.duyet ? '' : ' title="Duyệt ảnh của shot trước"') + '>' +
+      (dang ? 'Đang dựng video…' : (vid ? 'Gen video lại' : 'Gen video')) + '</button>' +
+      '<span class="spacer"></span>' +
+      (vid ? '<button class="cp" onclick="xemVideo(\'' + vid + '\', \'' + ten + '.mp4\')">⛶ Cỡ lớn</button>' +
+        '<a class="cp" href="' + vid + '" download="' + ten + '.mp4">↓ Tải video</a>' : '') + '</div>';
+  h += (t.nhac || []).map(function(n){ return '<div class="nhac" style="margin-top:8px">' + thoat(n) + '</div>'; })
+                     .join("") +
+    '<div class="dong-nho"><span>Độ dài</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(n){
+      return '<button class="' + (n === g ? 'on' : '') + '"' + (khoa ? ' disabled' : ' onclick="datShotThe(' + k +
+             ',\'gi\',\'' + n + '\')"') + '>' + n + ' s</button>'; }).join("") + '</div><span>' +
+      (s.gi ? 'chọn tay' : 'tự tính theo thoại') + '</span></div>' +
+    '<div class="dong-nho"><span>Máy hướng tới</span><div class="hai" style="flex:1;flex-wrap:wrap">' +
+      '<button class="' + (tu ? 'on' : '') + '"' + (khoa ? ' disabled' : ' onclick="datHuong(' + k + ',-1)"') +
+      '>tự' + (tu && t.chu_the ? ' · ' + thoat(t.chu_the) : '') + '</button>' + cm.map(function(n, i){
+        return '<button class="' + (!tu && s.huong === n ? 'on' : '') + '"' + (khoa ? ' disabled' : ' onclick="datHuong(' +
+               k + ',' + i + ')"') + '>' + thoat(n) + '</button>'; }).join("") + '</div></div>' +
+    '<div class="dong-nho"><span>Trong khung</span><div class="hai" style="flex:1;flex-wrap:wrap">' +
+      (nguoiShot(x, s).map(function(n, i){
+        return '<button class="' + (cm.indexOf(n) >= 0 ? 'on' : '') + '"' + (khoa ? ' disabled' : ' onclick="boMat(' +
+               k + ',' + i + ')"') + '>' + thoat(n) + '</button>'; }).join("") ||
+       '<span class="nho">cảnh chưa có ai</span>') + '</div></div>' +
+    '<details ontoggle="napPromptShot(this,' + k + ')"><summary class="nhan" style="cursor:pointer;margin-top:12px">' +
+      'Prompt ảnh · prompt video — chỉ đọc</summary><p class="nhan">Prompt ảnh</p><div class="prompt" data-pa>…</div>' +
+      '<p class="nhan">Prompt video <span data-pg></span></p><div class="prompt" data-pv>…</div></details>';
+  return h + '</div></div>';
+}
+/* Đúng chuỗi máy chủ sẽ gửi — trang không ghép lại lần thứ hai. */
+async function napPromptShot(el, k){
+  if(!el.open) return;
+  var o = shotTheoK(k); if(!o) return;
+  var r;
+  try { r = await api(duongShot(o.x, o.s.sid) + "/prompt"); }
+  catch(e){ r = {anh: e.message, video: ""}; }
+  el.querySelector("[data-pa]").textContent = r.anh || "(chưa ghép được — clip chưa có prompt cho bộ shot này)";
+  el.querySelector("[data-pv]").textContent = r.video || "(chưa ghép được)";
+  el.querySelector("[data-pg]").textContent = r.giay ? "· " + r.giay + " s" : "";
+}
+function shotTheoK(k){
+  var x = canhTheoMa(canhDangMo), s = x && dsShot(x)[k];
+  return (s && s.sid) ? {x: x, s: s} : null;
+}
+function datShotThe(k, khoa, gt){
+  var x = canhTheoMa(canhDangMo); if(!x || !SUA_DUOC) return;
+  return datShot(x, khoa, gt, true, k);           // bấm lại ô đang chọn là về "tự"
+}
+function datHuong(k, i){
+  var o = shotTheoK(k); if(!o) return;
+  datShotThe(k, "huong", i < 0 ? "" : (o.s.co_mat || [])[i]);
+}
+function boMat(k, i){
+  var o = shotTheoK(k); if(!o || !SUA_DUOC) return;
+  var cm = (o.s.co_mat || []).slice(), n = nguoiShot(o.x, o.s)[i], j = cm.indexOf(n);
+  if(j >= 0) cm.splice(j, 1); else cm.push(n);
+  datShot(o.x, "co_mat", cm, false, k);
+}
+async function veAnhShot(ev, k){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  var x = o.x, sid = o.s.sid, khoa = x.id + sid;
+  if(SHOT_VE[khoa]) return;
+  await maCanhChac(); await hangGhiCanh;     // máy chủ ghép prompt từ bản trong kho — xả sửa đang chờ
+  SHOT_VE[khoa] = 1;
+  try {
+    await banRon(ev && ev.target, "Đang vẽ ảnh…", async function(){
+      try { await api(duongShot(x, sid) + "/anh", "POST"); }
+      catch(e){ return bao(e.message, true); }
+      napSoDu(1);
+      await taiLaiChuong(x.ch);
+    });
+  } finally { delete SHOT_VE[khoa]; }
+  napShot(x);
+}
+async function duyetShot(ev, k){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  await banRon(ev && ev.target, "Đang duyệt…", async function(){
+    try { await api(duongShot(o.x, o.s.sid) + "/duyet", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    await taiLaiChuong(o.x.ch);
+  });
+  napShot(o.x);
+}
+async function genVideoShot(ev, k){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  var x = o.x, sid = o.s.sid;
+  if(DANG_SHOT[x.id + sid]) return bao("Shot này đang dựng video rồi — đợi xong đã.", true);
+  await maCanhChac(); await hangGhiCanh;
+  await banRon(ev && ev.target, "Đang gửi…", async function(){
+    try { await api(duongShot(x, sid) + "/video", "POST"); }
+    catch(e){ return bao(e.message, true); }
+    napSoDu(1);
+    await taiLaiChuong(x.ch);
+    theoDoiShot(x.ch, x.id, sid);
+  });
+  napShot(x);
+}
+/* Hỏi video MỘT shot cách 20 s — trang cũ từng hỏi 11–26 lượt/phút/clip. Cờ giữ suốt lúc
+   chờ hẹn giờ (bài học của `theoDoiVideo`): vẽ lại hộp / Storyboard không đẻ thêm vòng. */
+async function theoDoiShot(ch, id, sid, hen){
+  var k = id + sid;
+  if(DANG_SHOT[k] && !hen) return;
+  DANG_SHOT[k] = 1;
+  var r;
+  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/canh/" + id + "/shot/" + sid + "/video-kiem", "POST"); }
+  catch(e){ delete DANG_SHOT[k]; return bao(e.message, true); }
+  if(r.trang_thai === "dang")
+    return setTimeout(function(){ theoDoiShot(ch, id, sid, true); }, 20000);
+  delete DANG_SHOT[k];
+  await taiLaiChuong(ch); veSb();
+  var x = canhTheoMa(canhDangMo);
+  if(x && x.id === id) napShot(x);
+  if(r.trang_thai === "hong") bao("Dựng video shot hỏng: " + thoat(r.loi || ""), true);
+  else if(r.trang_thai === "xong") bao("Đã dựng xong video shot.");
+}
+
 function veTheCanh(){
   var ds = canhTrongPham(dungCanhTap()), h = "", pcCu = -1, chCu = "";
   ds.forEach(function(x){
@@ -1608,7 +1994,9 @@ function veTheCanh(){
       if(dr){
         var d = (cua(x.ch).dong || [])[x.di] || {};
         h += '<div class="lo"><div class="lo-dau"><b>' + thoat(x.en) + '</b><span class="meta">' +
-             x.n + ' clip · ' + thoat(d.vi || "") + '</span></div><div class="hang">';
+             x.n + ' clip · ' + thoat(d.vi || "") + '</span><span class="spacer"></span>' +
+             '<button class="cp" onclick="moDanCanh(\'' + x.ch + '\',' + x.di + ')">' + nhanDanCanh(x) +
+             '</button></div><div class="hang">';
       } else {
       var g = giayCua(x.en), moi = g / x.n, mau = MAU_CUM[x.cum];
       h += '<div class="lo" style="' + (mau ? "border-left-color:" + mau : "") + '">' +
@@ -1846,6 +2234,8 @@ async function theoDoiVideo(ch, id, hen){
 function theoDoiTatCa(){
   dungCanhTap().forEach(function(c){
     if(c.vid) theoDoiVideo(c.ch, c.id);
+    var ss = docSs(c);                  // shot drama đang dựng video (máy chủ ghi `ss`)
+    Object.keys(ss).forEach(function(sid){ if((ss[sid] || {}).vid) theoDoiShot(c.ch, c.id, sid); });
   });
 }
 async function genVideo(ev, noi){
@@ -1989,6 +2379,7 @@ function moCanh(ma){
   var oc = document.getElementById("oCanh");
   if(oc) oc.addEventListener("blur", function(){ luuNoiCanh(x, docChu(oc)); });
   if(dr && !(x.pvt || "").trim()) napPromptDrama(x);
+  if(dr && dsShot(x).length) napShot(x);
   // Mở lại một cảnh đang dựng dở (kể cả sau khi đã đóng tab) thì bắt nhịp hỏi
   // tiếp — mã task nằm trong kho nên không mất dấu clip đã trả tiền.
   if(x.vid) theoDoiVideo(x.ch, x.id);
@@ -2907,9 +3298,10 @@ function luuLap(o){
   moCanh(canhDangMo);
 }
 /* Clip drama: đổi MỘT khoá của shot đang chọn, gửi CẢ danh sách `sh` (hợp đồng máy
-   chủ), rồi tải lại chương — câu khung `dau_shot` máy chủ ghép lại theo mã mới. */
-async function datShot(x, khoa, gt, bat){
-  var shs = dsShot(x), s = shs[SHOT_CHON];
+   chủ), rồi tải lại chương — câu khung `dau_shot` máy chủ ghép lại theo mã mới.
+   `k`: shot của thẻ shot (cột phải); vắng thì shot đang chọn ở cột trái. */
+async function datShot(x, khoa, gt, bat, k){
+  var shs = dsShot(x), s = shs[k === undefined ? SHOT_CHON : k];
   if(!s) return;
   var moi = (bat && (s[khoa] || "") === gt) ? "" : gt;    // bấm lại ô đang chọn là bỏ chọn
   if((s[khoa] || "") === moi) return;

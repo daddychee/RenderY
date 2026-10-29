@@ -444,7 +444,8 @@ class Kho:
 
     # Trường chỉ MÁY CHỦ viết. Trang nào cũng chỉ mang theo bản chép lại.
     # `pm`/`pd` (drama 27/10): mã clip do bước dán đặt, prompt do LLM viết.
-    TRUONG_MAY = ("duyet", "vid", "pa", "pv", "sfx", "pm", "pd", "sh")
+    # `ss` (29/10): dấu duyệt + mã task video của từng shot.
+    TRUONG_MAY = ("duyet", "vid", "pa", "pv", "sfx", "pm", "pd", "sh", "ss")
 
     def luu_tu_trang(self, tap: str, chuong: str, dong: list, outline: str,
                      nguoi: str, hop_rieng: bool = False) -> list[str]:

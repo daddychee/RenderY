@@ -259,7 +259,30 @@ English from Chicago, even and quiet pace, natural, not exaggerated, not a comed
 voice."} — tuổi, độ trầm, chất giọng, vùng, nhịp; KHÔNG cảm xúc (cảm xúc ở \
 DELIVERY). Có giọng tiếng Việt thì dịch đúng ý đó.
 
-Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}}"""
+ẢNH DÀN CẢNH: mỗi cảnh một ảnh rộng (wide shot) thấy đủ mọi người và phông sau \
+lưng từng người; mọi shot của cảnh cắt từ ảnh này, máy luôn đứng cùng phía máy \
+của nó (luật trục 180°). Các khoá sau tả ảnh đó, phải khớp nhau và khớp `truc`:
+- `ben`: {"Tên": "trai" | "phai" | "giua"} — chỗ MỖI người trong ảnh dàn cảnh.
+- `phong`: {"Tên": "..."} tiếng Anh: thứ ở NGAY SAU LƯNG người đó trong ảnh dàn \
+cảnh (đồ đạc, tường, cửa sổ — lấy theo nơi chốn), không nhắc người khác. Bên kia \
+phòng có thứ dễ bị vẽ nhầm sang sau lưng người này (cửa sổ, cửa ra vào) thì thêm \
+một câu phủ định: "the slim dark wooden console with the framed botanical prints \
+and the tall taupe wall panel. No window behind Hattie."
+- `cho`: tiếng Anh: chỗ ngồi / đứng theo ĐỒ ĐẠC và theo NHAU, KHÔNG theo khung \
+hình (cấm "of the frame", "left side", "right side"): "Where they sit: Nia on the \
+low wooden bench by the windows, Hattie at the right end of the cream sofa, to \
+Nia's right; they face each other across the round coffee table. Seated people \
+stay seated."
+- `vi_tri`: {"Tên": "..."} tiếng Anh: chỗ RIÊNG của từng người theo đồ đạc, khớp \
+`cho`, một cụm bắt đầu bằng giới từ, không theo khung hình, không nhắc người khác: \
+{"Nia": "on the low wooden bench right by the floor-to-ceiling windows", "Hattie": \
+"at the right end of the cream sofa"}.
+- `dan`: tiếng Anh, tả ảnh dàn cảnh: "Wide shot, eye level, …", máy đứng ở phía \
+nào của phòng nhìn về đâu, ai ở đâu (trái / phải đúng `ben`), thấy rõ phông sau \
+lưng từng người.
+
+Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}, "ben": {}, \
+"phong": {}, "cho": "...", "vi_tri": {}, "dan": "..."}"""
 
 LENH_DRAMA_CLIP = """Bạn là đạo diễn hình viết prompt video cho Grok Imagine 1.5, \
 phim DRAMA CÓ THOẠI.
@@ -288,9 +311,11 @@ thể. Không cần thì "".
 — Grok bỏ món nào chữ không nhắc), nối bằng dấu chấm phẩy.
 - `shots`: ĐÚNG bằng số SHOT ĐÃ CHỐT, cùng thứ tự, mỗi shot:
   · `lap`: tiếng Anh, CÁI GÌ LẤP KHUNG theo đúng cỡ và góc đã chốt — ai, ở đâu \
-trong khung (trái/phải theo trục), thấy tới đâu (cận thì mặt và thứ sau lưng, \
-qua vai thì vai ai ở tiền cảnh). Hệ thống ghép thành "{cỡ}, {góc}: {lap}." Không \
-lặp lại tên cỡ/góc/máy. CHỈ nhắc người TRONG KHUNG. Không dolly zoom, không vòng 360.
+trong khung (trái/phải theo trục), thấy tới đâu (cận thì mặt tới đâu, qua vai \
+thì vai ai ở tiền cảnh). KHÔNG tả phông, thứ sau lưng hay đồ đạc phía sau (không \
+chữ "behind"): phông lấy từ ảnh dàn cảnh. Hệ thống ghép thành "{cỡ}, {góc}: \
+{lap}." Không lặp lại tên cỡ/góc/máy. CHỈ nhắc người TRONG KHUNG. Không dolly \
+zoom, không vòng 360.
   · `cach`: DELIVERY tiếng Anh — nhịp, ngắt, nhấn, chỗ giọng vỡ (theo cách nói \
 trong ngoặc của biên kịch).
   · `mat`: FACE AND BODY tiếng Anh — nét mặt, động tác thấy được theo thứ tự, trạng \

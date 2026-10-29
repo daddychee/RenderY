@@ -209,7 +209,20 @@ CD_CHU = {
 # narration, ghép bằng đúng bảng chữ trên. Bỏ `orbit`: Grok xoay vòng hỏng 2/2
 # (đo của Padoma, grok-phim.md mục 1).
 CD_DRAMA = {k: v for k, v in CD_CHU.items() if k != "orbit"}
-KHOA_SHOT = {"t", "co", "goc", "cd", "lap", "cau"}
+# Mỗi shot một video (user chốt 29/10, spec `docs/SPEC_DONG_NHAT_PHOI_CANH.md`): `sid` mã
+# shot bất biến (tên file ảnh/video), `co_mat` người trong khung, `huong` người máy hướng
+# tới (rỗng = Python suy), `gi` giây video của shot (rỗng = Python tính).
+KHOA_SHOT = {"t", "co", "goc", "cd", "lap", "cau", "sid", "co_mat", "huong", "gi"}
+_RE_SID = re.compile(r"s[0-9a-f]{6}")
+
+
+def _sid_moi(da_co: set) -> str:
+    import uuid
+
+    while True:
+        s = "s" + uuid.uuid4().hex[:6]
+        if s not in da_co:
+            return s
 
 
 def khung_shot(s: dict) -> str:
@@ -1370,7 +1383,26 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                         not (x.get("tieng") or "").strip() or mdrama.la_tieng_viet(x["tieng"])):
                     x["tieng"] = moi[t]
             kho.luu_so(tap, so)
-        return {k: str(chung.get(k) or "") for k in ("look", "truc", "nen")}
+        # Bố cục ảnh dàn cảnh (29/10, user chốt "LLM tự đánh dấu"): ai trái/phải, phông sau
+        # lưng từng người, câu chỗ ngồi, câu tả ảnh dàn cảnh — Python ghép prompt từng shot.
+        ben = chung.get("ben")
+
+        def chu(khoa):          # {Tên: câu tiếng Anh}: phông sau lưng / chỗ ngồi riêng từng người
+            x = chung.get(khoa)
+            return {str(k): str(v).strip() for k, v in (x.items() if isinstance(x, dict) else []) if str(v).strip()}
+        return dict({k: str(chung.get(k) or "") for k in ("look", "truc", "nen", "cho", "dan")},
+                    ben={str(k): str(v) for k, v in (ben.items() if isinstance(ben, dict) else [])
+                         if str(v) in mdrama.BEN},
+                    phong=chu("phong"), vi_tri=chu("vi_tri"))
+
+    def _chung_cu(cs: list[dict]) -> dict | None:
+        """Phần chung đã viết của cảnh (clip nào cũng mang một bản) — viết lại một clip
+        dùng lại y nguyên, kể cả khung cắt người dựng đã kéo."""
+        cu = [x for x in (mdrama.doc_pd(y.get("pd")) for y in cs) if x.get("truc_canh")]
+        if not cu:
+            return None
+        return dict({k: cu[0][k] for k in ("ben", "phong", "vi_tri", "cho", "dan", "cat") if k in cu[0]},
+                    look=str(cu[0].get("look") or ""), truc=cu[0]["truc_canh"], nen=str(cu[0].get("nen") or ""))
 
     def _viet_clip(tap: str, chuong: str, dg: dict, cs: list[dict], chon: list[dict], tra: dict,
                    chung: dict, ai: str) -> dict:
@@ -1391,7 +1423,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         with ThreadPoolExecutor(max_workers=min(len(chon), 6)) as ex:
             ra = list(ex.map(mot, chon))
         ten_nv = {x["ten"].split(" · ")[0] for x in tra.values() if x["loai"] == "nhan_vat"}
-        viet, loi = 0, []
+        viet, loi, nhac = 0, [], []
         for c, x in zip(chon, ra):
             if isinstance(x, Exception):
                 loi.append(f"{c['pm']}: viết prompt hỏng: {x}")
@@ -1415,6 +1447,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             if sai:
                 loi += [f"{c['pm']}: {s}" for s in sai]
                 continue
+            # `lap` tả phông thì NHẮC (luật cứng 5), không chặn: phông lấy từ ảnh dàn cảnh.
+            nhac += [f"{c['pm']} shot {k}: {n}" for k, l in enumerate(lap, 1) for n in mdrama.nhac_lap(l)]
             chu = _json.dumps(pd, ensure_ascii=False)
 
             def va(y, chu=chu, lap=lap):
@@ -1429,7 +1463,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             _va_canh(tap, chuong, c["id"], va, ai)
             kho.ghi_vet(tap, c["id"], "prompt", _dau_pd(c))
             viet += 1
-        return {"ok": True, "viet": viet, "loi": loi}
+        return {"ok": True, "viet": viet, "loi": loi, "nhac": nhac}
 
     def _co_shot(cs: list[dict]) -> tuple[list[dict], list[str]]:
         """Clip đã Breakdown (shot hợp lệ với chữ hiện tại) / lỗi cho clip chưa."""
@@ -1464,11 +1498,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 loi.append(f"{c['pm']}: breakdown hỏng: {x}")
                 continue
             sh = []
+            # `co_mat` chỉ nhận người có tấm trong clip — tên lạ là LLM bịa người.
+            nv = [tra[m]["ten"].split(" · ")[0] for m in (c.get("ts") or [])
+                  if m in tra and tra[m]["loai"] == "nhan_vat"]
             for s in (s for s in (x.get("shots") or []) if isinstance(s, dict)):
                 co, goc, cd = (str(s.get(k) or "").strip() for k in ("co", "goc", "cd"))
+                ll = s.get("co_mat") if isinstance(s.get("co_mat"), list) else []
+                cm = [n for n in nv if n in [y.strip() for y in ll if isinstance(y, str)]]
                 sh.append({"t": str(s.get("t") or "").strip(), "co": co.upper() if co.upper() in CO_CHU else "MS",
                            "goc": goc if goc in GOC_CHU else "eye", "cd": cd if cd in CD_DRAMA else "",
-                           "lap": "", "cau": s.get("cau")})
+                           "lap": "", "cau": s.get("cau"), "sid": _sid_moi({y.get("sid") for y in sh}),
+                           "co_mat": cm or (nv if len(nv) == 1 else [])})
             g = _giay_clip(tap, c)
             sai = mdrama.kiem_pd({"shots": sh}, c.get("t") or "")
             if mdrama.so_shot_qua_day(len(sh), g):
@@ -1483,6 +1523,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             def va(y, chu=chu):
                 y["sh"] = chu
                 y.pop("pd", None)
+                y.pop("ss", None)       # shot mới mã mới: dấu duyệt/task của shot cũ hết nghĩa
             _va_canh(tap, chuong, c["id"], va, ai)
             so += 1
         return {"ok": True, "so_clip": so, "loi": loi}
@@ -1525,9 +1566,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         dg, cs, tra = _canh_drama(tap, chuong, i)
         if not _co_shot([c])[0]:
             raise HTTPException(400, "Clip chưa Breakdown — bấm Breakdown trước đã.")
-        cu = [x for x in (mdrama.doc_pd(y.get("pd")) for y in cs) if x.get("truc_canh")]
-        chung = ({"look": str(cu[0].get("look") or ""), "truc": cu[0]["truc_canh"],
-                  "nen": str(cu[0].get("nen") or "")} if cu else _phan_chung(tap, dg, cs, tra))
+        chung = _chung_cu(cs) or _phan_chung(tap, dg, cs, tra)
         return _viet_clip(tap, chuong, dg, cs, [c], tra, chung, ai)
 
     def _ref_ve(tap: str, c: dict) -> list:
@@ -1563,14 +1602,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         # Clip drama: LLM viết `pd` từ chữ clip + asset trong khung + cỡ/góc/thoại
         # từng shot — đổi là prompt cũ (như narration: chữ viết theo khung). Máy
         # (`cd`) và `lap` thì không: Python ghép thẳng vào câu khung.
+        # `co_mat` chỉ vào dấu khi CÓ: shot trước 29/10 không có, dấu cũ không đổi oan.
         return _bam(c.get("t"), c.get("ts"), [(s.get("t"), s.get("co"), s.get("goc"), s.get("cau"))
+                                              + ((s["co_mat"],) if s.get("co_mat") else ())
                                               for s in mdrama.doc_sh(c.get("sh"))])
 
     def _dau_video(tap: str, c: dict) -> str:
         if c.get("pm"):
             # Clip drama không có ảnh cảnh: dấu là prompt + GIỜ SỬA các tấm tham chiếu
             # (vẽ lại tấm là video cũ) + chữ clip (đổi Hình mà prompt chưa viết lại).
-            return _bam(_prompt_video(tap, c), [(t.name, _mtime(t)) for t in _ref_ve(tap, c)],
+            return _bam(_prompt_video(tap, c), [(t.name, _mtime(t)) for t in _ref_ve(tap, dict(c, td=""))],
                         c.get("t"))
         # Ảnh nguồn tính theo GIỜ SỬA FILE: vẽ lại ảnh là video dựng từ ảnh cũ thành cũ.
         return _bam(_prompt_video(tap, dict(c, pv=c.get("pv") or "")),
@@ -1815,8 +1856,18 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             for khoa, bang in (("co", CO_CHU), ("goc", GOC_CHU), ("cd", CD_DRAMA)):
                 if s.get(khoa) and s[khoa] not in bang:
                     return f"shot {k}: mã {khoa} '{s[khoa]}' không có trong bảng."
-            if not all(isinstance(s.get(x, ""), str) for x in ("t", "lap")):
-                return f"shot {k}: `t`/`lap` phải là chữ."
+            if not all(isinstance(s.get(x, ""), str) for x in ("t", "lap", "huong", "gi")):
+                return f"shot {k}: `t`/`lap`/`huong`/`gi` phải là chữ."
+            if s.get("sid") and not (isinstance(s["sid"], str) and _RE_SID.fullmatch(s["sid"])):
+                return f"shot {k}: `sid` sai dạng."
+            cm = s.get("co_mat", [])
+            if not (isinstance(cm, list) and all(isinstance(x, str) for x in cm)):
+                return f"shot {k}: `co_mat` phải là danh sách tên."
+            if s.get("gi") and s["gi"] not in map(str, mdrama.GIAY_CHON):
+                return f"shot {k}: độ dài {s['gi']} giây không có — chỉ {'/'.join(map(str, mdrama.GIAY_CHON))}."
+        sid = [s["sid"] for s in sh if s.get("sid")]
+        if len(sid) != len(set(sid)):
+            return "hai shot trùng `sid`."
         return "; ".join(mdrama.kiem_pd({"shots": sh}, c.get("t") or ""))
 
     @app.patch("/api/tap/{tap}/{chuong}/canh/{ma}")
@@ -1851,6 +1902,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         def va(c):
             for k, gt in truong.items():
                 gt = [x.strip() for x in gt if x.strip()] if k == "ts" else gt.strip()
+                if k == "sh" and gt:
+                    gt = _dat_sid(gt)
                 if gt:
                     c[k] = gt
                 else:
@@ -1858,6 +1911,19 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
         c = _va_canh(tap, chuong, ma, va, ai)
         return {"ok": True, "v": c.get("v", "")}
+
+    def _dat_sid(chu: str) -> str:
+        """Shot chưa có `sid` (tab cũ, shot thêm tay) nhận mã mới; mã đã có giữ nguyên —
+        ảnh/video của shot neo vào mã này."""
+        import json as _json
+
+        sh = _json.loads(chu)
+        co = {s.get("sid") for s in sh if s.get("sid")}
+        for s in sh:
+            if not s.get("sid"):
+                s["sid"] = _sid_moi(co)
+                co.add(s["sid"])
+        return _json.dumps(sh, ensure_ascii=False)
 
     @app.get("/api/tap/{tap}/{chuong}/cu")
     def cu_chuong(tap: str, chuong: str):
@@ -2004,7 +2070,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if thieu:
             raise HTTPException(400, f"Chưa có ảnh tham chiếu cho: {', '.join(thieu)} — vẽ ở màn "
                                      "Asset trước. Gửi thiếu tấm là Grok tự bịa mặt mà vẫn mất tiền.")
-        ref = _ref_ve(tap, c)
+        # Prompt đánh số ảnh theo `ts`: ảnh dàn cảnh (`td`, luồng mỗi shot 29/10) không đi đường này.
+        ref = _ref_ve(tap, dict(c, td=""))
         if len(ref) > mdrama.ANH_TOI_DA:
             raise HTTPException(400, f"{len(ref)} ảnh tham chiếu, Grok chỉ nhận tốt tới "
                                      f"{mdrama.ANH_TOI_DA} — bớt asset của clip này.")
@@ -2069,6 +2136,351 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(400, str(exc)) from exc
         if not t.exists():
             raise HTTPException(404, "Cảnh này chưa có video.")
+        return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    # ------------------------------------- drama: ảnh dàn cảnh + mỗi shot một video
+    # User chốt 29/10 (spec `docs/SPEC_DONG_NHAT_PHOI_CANH.md`): mỗi shot một video Grok
+    # i2v từ ảnh khung đầu ĐÃ DUYỆT; ảnh khung đầu vẽ từ MẢNH CẮT ảnh dàn cảnh quanh người
+    # máy hướng tới, mọi máy cùng phía (luật 180°). Đo DM001 P031: phông sau lưng 3/3, hướng
+    # nhìn 3/3 — gửi nguyên ảnh dàn cảnh thì 0/3 và 1/3, vẽ phòng nhìn ngược thì user bác.
+    # Ảnh dàn cảnh = ref của mục trường đoạn (`td`), một tấm cho cả dòng (cảnh drama).
+
+    def _nguoi_canh(tra: dict, cs: list[dict]) -> dict:
+        """Tên -> mục sổ nhân vật có tấm trong các clip, theo thứ tự `ts`."""
+        ra: dict = {}
+        for c in cs:
+            for m in c.get("ts") or []:
+                if m in tra and tra[m]["loai"] == "nhan_vat":
+                    ra.setdefault(tra[m]["ten"].split(" · ")[0], tra[m])
+        return ra
+
+    def _dong_drama(tap: str, chuong: str, i: int) -> tuple[dict, list[dict], dict]:
+        d = kho.doc(tap, chuong)["dong"]
+        if not 0 <= i < len(d):
+            raise HTTPException(404, "Không có cảnh này.")
+        cs = [c for c in mdong.doc_canh(d[i]) if c.get("pm") and c.get("id")]
+        if not cs:
+            raise HTTPException(400, "Dòng này không có clip drama nào.")
+        return d[i], cs, {x["ma"]: x for x in kho.ds_so(tap)}
+
+    def _td_cua(cs: list[dict], tra: dict) -> str:
+        """Trường đoạn của cảnh: clip đầu đã xếp thì theo đó, chưa thì mã sẽ tạo lúc vẽ."""
+        td = (cs[0].get("td") or "").strip()
+        return td if td in tra and tra[td]["loai"] == "truong_doan" else "td_" + cs[0]["id"]
+
+    def _dan_duyet(tap: str, td: str) -> bool:
+        """Duyệt gắn với GIỜ SỬA file ảnh: vẽ lại ảnh dàn cảnh là tự hết duyệt."""
+        t = kho.ref_dang_co(tap, td) if td else None
+        return t is not None and kho.doc_vet(tap).get((td, "dan_duyet")) == str(int(t.stat().st_mtime))
+
+    def _hop(pd: dict, ten: str) -> tuple:
+        """Khung cắt của một người: người dựng đã kéo thì theo đó, chưa thì theo `ben`."""
+        hop = (pd.get("cat") or {}).get(ten)
+        return tuple(hop) if hop else mdrama.khung_cat((pd.get("ben") or {}).get(ten, "giua"))
+
+    def _dan(cs: list[dict], tra: dict) -> tuple[dict, dict, dict | None, str]:
+        """(phần chung, người cả cảnh, nơi chốn, prompt ảnh dàn cảnh). Chưa có `dan` thì
+        prompt rỗng — chưa viết prompt cảnh là chưa biết ai ngồi đâu."""
+        chung = _chung_cu(cs) or {}
+        nv = _nguoi_canh(tra, cs)
+        noi = next((tra[m] for c in cs for m in (c.get("ts") or [])
+                    if m in tra and tra[m]["loai"] == "boi_canh"), None)
+        p = mdrama.prompt_dan_canh(chung, list(nv.values()), noi) if (chung.get("dan") or "").strip() else ""
+        return chung, nv, noi, p
+
+    @app.get("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh")
+    def xem_dan_canh(tap: str, chuong: str, i: int):
+        _, cs, tra = _dong_drama(tap, chuong, i)
+        chung, nv, _, p = _dan(cs, tra)
+        td = _td_cua(cs, tra)
+        t = kho.ref_dang_co(tap, td)
+        dau = kho.doc_vet(tap).get((td, "dan"))
+        return {"td": td, "co_anh": t is not None, "duyet": _dan_duyet(tap, td),
+                "ref_v": int(t.stat().st_mtime) if t is not None else 0, "nguoi": list(nv),
+                "ben": chung.get("ben") or {}, "cat": {n: list(_hop(chung, n)) for n in nv},
+                "san": bool(p), "prompt": p,
+                # vẽ theo bố cục cũ (viết lại prompt cảnh sau khi vẽ): nhắc, không chặn
+                "cu": bool(t is not None and dau and p and dau != _bam(p))}
+
+    @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh")
+    def ve_dan_canh(tap: str, chuong: str, i: int, request: Request):
+        """Vẽ ảnh dàn cảnh: tấm nơi chốn + tấm MỌI người của cảnh + câu bố cục LLM viết."""
+        ai = _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        dg, cs, tra = _dong_drama(tap, chuong, i)
+        _, nv, noi, p = _dan(cs, tra)
+        if not p:
+            raise HTTPException(400, "Cảnh chưa có bố cục — bấm “Viết prompt cảnh” trước: LLM đánh dấu "
+                                     "ai bên trái, ai bên phải rồi mới vẽ được ảnh dàn cảnh.")
+        ma = ([noi["ma"]] if noi else []) + [x["ma"] for x in nv.values()]
+        thieu = [tra[m]["ten"] for m in ma if kho.ref_dang_co(tap, m) is None]
+        if thieu:
+            raise HTTPException(400, f"Chưa có ảnh tham chiếu cho: {', '.join(thieu)} — vẽ ở màn Asset trước.")
+        td = _td_cua(cs, tra)
+        if td not in tra:
+            kho.luu_so(tap, kho.ds_so(tap) + [{"ma": td, "loai": "truong_doan",
+                                               "ten": (dg.get("en") or td)[:80]}])
+        for c in cs:
+            if not (c.get("td") or "").strip():
+                _va_canh(tap, chuong, c["id"], lambda y, td=td: y.update(td=td), ai)
+        m = _mo_hinh(tap, cs[0], "anh")
+        try:
+            ve_anh.gen_anh(p, kho.duong_ref(tap, td, ".png"), ref=[kho.ref_dang_co(tap, x) for x in ma],
+                           ti_le="16:9", **({"model": m} if m else {}))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Vẽ ảnh dàn cảnh hỏng: {exc}") from exc
+        for d in kho.DUOI_REF:          # đổi đuôi thì đừng để lại bản cũ
+            if d != ".png":
+                kho.duong_ref(tap, td, d).unlink(missing_ok=True)
+        kho.ghi_vet(tap, td, "dan", _bam(p))
+        return {"ok": True, "td": td}
+
+    @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh/duyet")
+    def duyet_dan_canh(tap: str, chuong: str, i: int, request: Request):
+        """Cổng của cả cảnh: mọi shot cắt từ ảnh này, sai chỗ ngồi ở đây là sai mọi shot."""
+        _ghi_duoc(request)
+        _, cs, tra = _dong_drama(tap, chuong, i)
+        td = _td_cua(cs, tra)
+        t = kho.ref_dang_co(tap, td)
+        if t is None:
+            raise HTTPException(400, "Cảnh này chưa có ảnh dàn cảnh để duyệt.")
+        kho.ghi_vet(tap, td, "dan_duyet", str(int(t.stat().st_mtime)))
+        return {"ok": True}
+
+    @app.put("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh/cat")
+    def luu_cat(tap: str, chuong: str, i: int, request: Request, than: dict = Body(...)):
+        """Khung cắt người dựng kéo trên ảnh dàn cảnh (user chốt 29/10: "có"). Ghi vào
+        `pd.cat` của MỌI clip trong cảnh — phần chung, clip nào cũng mang một bản."""
+        import json as _json
+
+        ai = _ghi_duoc(request)
+        _, cs, tra = _dong_drama(tap, chuong, i)
+        nv = _nguoi_canh(tra, cs)
+        cat = than.get("cat")
+        if not isinstance(cat, dict) or not cat:
+            raise HTTPException(400, "Thiếu `cat`.")
+        sach = {}
+        for ten, h in cat.items():
+            if ten not in nv:
+                raise HTTPException(400, f"'{ten}' không có trong cảnh này.")
+            so = isinstance(h, list) and len(h) == 4 and all(
+                isinstance(v, (int, float)) and not isinstance(v, bool) for v in h)
+            if not so or not (0 <= h[0] < h[2] <= 1 and 0 <= h[1] < h[3] <= 1
+                              and h[2] - h[0] >= 0.1 and h[3] - h[1] >= 0.1):
+                raise HTTPException(400, f"Khung của {ten} sai: cần 0 ≤ x0 < x1 ≤ 1, 0 ≤ y0 < y1 ≤ 1, "
+                                         "mỗi cạnh ít nhất 0,1.")
+            sach[ten] = [round(float(v), 4) for v in h]
+        co = [c for c in cs if mdrama.doc_pd(c.get("pd")).get("truc_canh")]
+        if not co:
+            raise HTTPException(400, "Cảnh chưa có bố cục — bấm “Viết prompt cảnh” trước.")
+        for c in co:
+            def va(y):
+                pd = mdrama.doc_pd(y.get("pd"))
+                if pd:
+                    pd["cat"] = dict(pd.get("cat") or {}, **sach)
+                    y["pd"] = _json.dumps(pd, ensure_ascii=False)
+            _va_canh(tap, chuong, c["id"], va, ai)
+        return {"ok": True}
+
+    def _ss(c: dict) -> dict:
+        import json as _json
+
+        try:
+            x = _json.loads(c.get("ss") or "{}")
+        except ValueError:
+            return {}
+        return x if isinstance(x, dict) else {}
+
+    def _sua_ss(tap: str, chuong: str, ma: str, sid: str, lam, ai: str) -> None:
+        """Vá trạng thái MỘT shot trên bản mới nhất của clip."""
+        import json as _json
+
+        def va(y):
+            ss = _ss(y)
+            o = dict(ss.get(sid) or {})
+            lam(o)
+            if o:
+                ss[sid] = o
+            else:
+                ss.pop(sid, None)
+            if ss:
+                y["ss"] = _json.dumps(ss, ensure_ascii=False)
+            else:
+                y.pop("ss", None)
+        _va_canh(tap, chuong, ma, va, ai)
+
+    def _shot_cua(tap: str, chuong: str, ma: str, sid: str) -> tuple[dict, list[dict], int]:
+        _, _, _, c = _tim_canh(tap, chuong, ma)
+        if not c.get("pm"):
+            raise HTTPException(400, "Đây không phải clip drama.")
+        sh = mdrama.doc_sh(c.get("sh"))
+        k = next((k for k, s in enumerate(sh) if s.get("sid") == sid), None)
+        if k is None:
+            raise HTTPException(404, "Không có shot này — Breakdown lại là shot đổi mã.")
+        return c, sh, k
+
+    def _ghep_shot(tap: str, c: dict, sh: list[dict], k: int) -> dict:
+        """Mọi thứ một shot gửi đi: prompt ảnh, prompt video, giây, người, đồ vật.
+        Trang hiện và lượt gửi cùng gọi hàm này — thấy gì gửi nấy."""
+        pd = mdrama.doc_pd(c.get("pd"))
+        t = c.get("t") or ""
+        if len(pd.get("shots") or []) != len(sh) or mdrama.kiem_pd(pd_ghep(pd, sh), t):
+            raise HTTPException(400, "Clip chưa có prompt cho bộ shot này — bấm “Viết prompt cảnh” trước.")
+        tra = {x["ma"]: x for x in kho.ds_so(tap)}
+        s, lt = sh[k], mdrama.loi_thoai(t)
+        nguoi = _nguoi_canh(tra, [c])
+        # Đồ vật đi theo shot nào nhắc tên nó (`t` của shot, tiếng Việt như tên đồ).
+        do = [tra[m] for m in (c.get("ts") or []) if m in tra and tra[m]["loai"] == "dao_cu"
+              and tra[m]["ten"].lower() in (s.get("t") or "").lower()]
+        tieng = {n: x["tieng"] for n, x in nguoi.items()
+                 if (x.get("tieng") or "").strip() and not mdrama.la_tieng_viet(x["tieng"])}
+        kh, giay = khung_shot(dict(s, cd="")), mdrama.giay_shot(s, lt)
+        may = CD_DRAMA.get(s.get("cd") or "") or CD_DRAMA["static"]
+        return {"pd": pd, "s": s, "nguoi": nguoi, "do": do, "giay": giay, "lt": lt,
+                "anh": mdrama.prompt_anh_shot(pd, s, k, t, nguoi, do, kh),
+                "video": mdrama.prompt_video_shot(pd, s, k, t, nguoi, tieng, do, kh, may, giay)}
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot")
+    def ds_shot(tap: str, chuong: str, ma: str):
+        """Trạng thái từng shot cho thẻ shot của trang. Suy từ ĐĨA như cờ `anh` của cảnh."""
+        _, _, _, c = _tim_canh(tap, chuong, ma)
+        if not c.get("pm"):
+            raise HTTPException(400, "Đây không phải clip drama.")
+        ss, lt, ra = _ss(c), mdrama.loi_thoai(c.get("t")), []
+        for k, s in enumerate(mdrama.doc_sh(c.get("sh"))):
+            sid = s.get("sid") or ""      # shot trước 29/10 chưa có mã: Breakdown lại
+            o = ss.get(sid) or {}
+            a = kho.duong_anh(tap, f"{ma}-{sid}") if sid else None
+            v = kho.duong_video(tap, f"{ma}-{sid}") if sid else None
+            ra.append({"sid": sid, "k": k + 1, "co_anh": bool(a and a.exists()),
+                       "anh_v": int(a.stat().st_mtime) if a and a.exists() else 0,
+                       "duyet": bool(o.get("duyet")), "dang": bool(o.get("vid")),
+                       "co_video": bool(v and v.exists()),
+                       "video_v": int(v.stat().st_mtime) if v and v.exists() else 0,
+                       "giay": mdrama.giay_shot(s, lt), "chu_the": mdrama.chu_the(s, lt),
+                       "co_mat": s.get("co_mat") or [], "nhac": mdrama.nhac_lap(s.get("lap") or "")})
+        return ra
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/prompt")
+    def xem_prompt_shot(tap: str, chuong: str, ma: str, sid: str):
+        c, sh, k = _shot_cua(tap, chuong, ma, sid)
+        try:
+            g = _ghep_shot(tap, c, sh, k)
+        except HTTPException:
+            return {"anh": "", "video": "", "giay": 0}
+        return {"anh": g["anh"], "video": g["video"], "giay": g["giay"]}
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/anh")
+    def ve_anh_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
+        ai = _ghi_duoc(request)
+        if ve_anh is None:
+            raise HTTPException(503, "Chưa bật bộ vẽ ảnh.")
+        c, sh, k = _shot_cua(tap, chuong, ma, sid)
+        g = _ghep_shot(tap, c, sh, k)
+        td = (c.get("td") or "").strip()
+        master = kho.ref_dang_co(tap, td) if td else None
+        if master is None:
+            raise HTTPException(400, "Cảnh chưa có ảnh dàn cảnh — vẽ và duyệt ảnh dàn cảnh trước: mọi shot "
+                                     "cắt từ ảnh đó.")
+        if not _dan_duyet(tap, td):
+            raise HTTPException(400, "Ảnh dàn cảnh chưa duyệt — xem kỹ ai ngồi đâu rồi bấm Duyệt.")
+        s, nguoi = g["s"], g["nguoi"]
+        thieu = [n for n in s.get("co_mat") or [] if n not in nguoi or kho.ref_dang_co(tap, nguoi[n]["ma"]) is None]
+        thieu += [x["ten"] for x in g["do"] if kho.ref_dang_co(tap, x["ma"]) is None]
+        if thieu:
+            raise HTTPException(400, f"Chưa có ảnh tham chiếu cho: {', '.join(thieu)} — vẽ ở màn Asset trước.")
+        # Image 1: mảnh cắt quanh người máy hướng tới; khung nhiều người (không qua vai)
+        # hay shot không có ai thì nguyên ảnh dàn cảnh. Thứ tự ref = thứ tự `prompt_anh_shot`.
+        ai_quay = mdrama.chu_the(s, g["lt"])
+        dau = master if (mdrama.ca_canh(s) or not ai_quay) else mdrama.cat_master(
+            master, _hop(g["pd"], ai_quay), kho.duong_anh(tap, f"{ma}-{sid}-cat"))
+        ref = [dau] + [kho.ref_dang_co(tap, nguoi[n]["ma"]) for n in s.get("co_mat") or []] \
+            + [kho.ref_dang_co(tap, x["ma"]) for x in g["do"]]
+        m = _mo_hinh(tap, c, "anh")
+        try:
+            ve_anh.gen_anh(g["anh"], kho.duong_anh(tap, f"{ma}-{sid}"), ref=ref, ti_le="16:9",
+                           **({"model": m} if m else {}))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Vẽ ảnh hỏng: {exc}") from exc
+        # ảnh đổi thì con dấu duyệt cũ hết nghĩa
+        _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("duyet", None), ai)
+        return {"ok": True}
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/anh")
+    def xem_anh_shot(tap: str, chuong: str, ma: str, sid: str):
+        _shot_cua(tap, chuong, ma, sid)
+        t = kho.duong_anh(tap, f"{ma}-{sid}")
+        if not t.exists():
+            raise HTTPException(404, "Shot này chưa có ảnh.")
+        return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/duyet")
+    def duyet_anh_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
+        """Cổng tiền video của từng shot (luật `aigen`: video chỉ đốt sau duyệt)."""
+        ai = _ghi_duoc(request)
+        _shot_cua(tap, chuong, ma, sid)
+        if not kho.duong_anh(tap, f"{ma}-{sid}").exists():
+            raise HTTPException(400, "Shot này chưa có ảnh để duyệt.")
+        _sua_ss(tap, chuong, ma, sid, lambda o: o.update(duyet="1"), ai)
+        return {"ok": True}
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/video")
+    def video_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
+        """Grok i2v từ ảnh đã duyệt của shot, độ dài của shot. Trả mã task NGAY."""
+        ai = _ghi_duoc(request)
+        if ve_video is None:
+            raise HTTPException(503, "Chưa bật bộ dựng video.")
+        c, sh, k = _shot_cua(tap, chuong, ma, sid)
+        anh = kho.duong_anh(tap, f"{ma}-{sid}")
+        if not anh.exists():
+            raise HTTPException(400, "Shot này chưa có ảnh — vẽ ảnh trước đã.")
+        if not (_ss(c).get(sid) or {}).get("duyet"):
+            raise HTTPException(400, "Ảnh của shot này chưa được duyệt. Tiền video chỉ đốt sau cổng duyệt "
+                                     "— xem ảnh rồi bấm Duyệt ảnh đã.")
+        g = _ghep_shot(tap, c, sh, k)
+        try:
+            tid = ve_video.bat_dau(g["video"], anh, g["giay"], False, model=mdrama.MODEL_VIDEO)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
+        _sua_ss(tap, chuong, ma, sid, lambda o: o.update(vid=str(tid)), ai)
+        return {"ok": True, "vid": str(tid)}
+
+    @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/video-kiem")
+    def kiem_video_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
+        """Như `video-kiem` của cảnh: hỏi một lần; xong thì tải về, xong hay hỏng đều quên mã."""
+        ai = _ghi_duoc(request)
+        if ve_video is None:
+            raise HTTPException(503, "Chưa bật bộ dựng video.")
+        c, _, _ = _shot_cua(tap, chuong, ma, sid)
+        v = kho.duong_video(tap, f"{ma}-{sid}")
+        tid = str((_ss(c).get(sid) or {}).get("vid") or "").strip()
+        if not tid:
+            return {"trang_thai": "xong" if v.exists() else "chua"}
+        try:
+            r = ve_video.trang_thai(tid) or {}
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Hỏi trạng thái hỏng: {exc}") from exc
+        tt = str(r.get("status") or "").lower()
+        if tt == "succeeded":
+            try:
+                ve_video.tai_ve(r.get("video_url") or "", v)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Tải video về hỏng: {exc}") from exc
+            _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("vid", None), ai)
+            return {"trang_thai": "xong"}
+        if tt in ("failed", "cancelled"):
+            _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("vid", None), ai)
+            return {"trang_thai": "hong", "loi": r.get("loi") or tt}
+        return {"trang_thai": "dang"}
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/video")
+    def xem_video_shot(tap: str, chuong: str, ma: str, sid: str):
+        _shot_cua(tap, chuong, ma, sid)
+        t = kho.duong_video(tap, f"{ma}-{sid}")
+        if not t.exists():
+            raise HTTPException(404, "Shot này chưa có video.")
         return FileResponse(t, headers={"Cache-Control": "no-store"})
 
     # ------------------------------------------------------------ bản lùi
@@ -2341,12 +2753,15 @@ _LENH_BREAKDOWN_DRAMA = (
     "6. Máy làm cỡ đổi trong shot (đẩy vào, lùi ra): `co` là cỡ LÚC BẮT ĐẦU shot — đẩy vào tới cận → "
     "MCU + push_in, lùi ra tới toàn → MS + pull_out. Ghi cỡ cuối thì Grok mở ngay ở cỡ đó và gần như "
     "không đẩy.\n"
-    "7. `ly_do`: một câu vì sao chọn mã đó.\n\n"
+    "7. `ly_do`: một câu vì sao chọn mã đó.\n"
+    "8. `co_mat`: tên những người THẤY ĐƯỢC trong khung shot đó, chép đúng tên ở dòng \"trong khung\" của "
+    "clip — qua vai thì có cả người ở tiền cảnh; cận một người thì chỉ người đó; người nói từ ngoài "
+    "khung không có tên ở đây.\n\n"
     "BẢNG CỠ (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CO_CHU.items()) + "\n"
     "BẢNG GÓC (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in GOC_CHU.items()) + "\n"
     "BẢNG CHUYỂN ĐỘNG (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CD_DRAMA.items()) + "\n\n"
     "Trả về JSON: {\"shots\": [{\"t\": \"...\", \"co\": \"CU\", \"goc\": \"ots\", \"cd\": \"static\", "
-    "\"cau\": [0], \"ly_do\": \"...\"}]}")
+    "\"cau\": [0], \"co_mat\": [\"...\"], \"ly_do\": \"...\"}]}")
 
 
 # Luật đồ vật chép từ bảng tài sản Padoma (`bang_tai_san.py`, Spec 27 E) — chỉ phần đồ vật.

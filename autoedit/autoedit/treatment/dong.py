@@ -132,8 +132,10 @@ def ranh(dong: list[dict], i: int) -> list[dict]:
 # `sh` = các SHOT của clip drama (JSON, user chốt 28/10): mô tả + mã cỡ/góc/máy
 # như `co`/`goc`/`cd` của narration + `lap` + câu thoại của shot. Breakdown viết,
 # người dựng sửa mã; tách khỏi `pd` để Create Prompt không đè lựa chọn của họ.
+# `ss` = trạng thái MÁY CHỦ của từng shot (JSON {sid: {duyet, vid}}, 29/10: mỗi shot
+# một video) — như `duyet`/`vid` của cảnh, nằm ngoài `sh` để PATCH `sh` không lách cổng.
 KHOA_CANH = ("id", "t", "co", "goc", "cd", "lap", "sfx", "tong", "ts", "td", "pa",
-             "pv", "pat", "pvt", "duyet", "vid", "mda", "mdv", "v", "pm", "gi", "pd", "sh")
+             "pv", "pat", "pvt", "duyet", "vid", "mda", "mdv", "v", "pm", "gi", "pd", "sh", "ss")
 
 
 def _ma_canh_moi(da_co: set[str]) -> str:
