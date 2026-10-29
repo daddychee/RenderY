@@ -155,6 +155,23 @@ def test_cat_kiem_bien_va_ghi_vao_moi_clip_cua_canh(tmp_path):
     assert json.loads(_clip(kho)["pd"])["cat"]["Tasha"] == [0.05, 0.2, 0.45, 0.6]
 
 
+def test_khung_da_keo_theo_anh_dan_canh_khong_theo_chu(tmp_path):
+    """Khung người dựng kéo là của ẢNH dàn cảnh (29/10): bấm "Viết prompt cảnh" lại (chỉ viết lại
+    chữ) thì giữ — trước đây mất không báo; vẽ lại ảnh dàn cảnh (người đổi chỗ) thì bỏ, về khung mặc định."""
+    kho, c = _san(tmp_path)
+    _dan_duyet(c)
+    url = "/api/tap/D1/C1/dong/0/dan-canh"
+    mac_dinh = c.get(url).json()["cat"]["Tasha"]
+    assert c.put(url + "/cat", json={"cat": {"Tasha": [0.05, 0.2, 0.45, 0.6]}}).status_code == 200
+    assert c.post("/api/tap/D1/C1/dong/0/prompt-drama").status_code == 200
+    for j in (0, 1):
+        assert json.loads(_clip(kho, j=j)["pd"])["cat"] == {"Tasha": [0.05, 0.2, 0.45, 0.6]}, j
+    assert c.post(url).status_code == 200                     # vẽ lại ảnh dàn cảnh
+    for j in (0, 1):
+        assert "cat" not in json.loads(_clip(kho, j=j)["pd"]), j
+    assert c.get(url).json()["cat"]["Tasha"] == mac_dinh
+
+
 # ═══════ ảnh từng shot ════════════════════════════════════════════════════════════
 def test_anh_shot_can_dan_canh_da_duyet(tmp_path):
     kho, c = _san(tmp_path)

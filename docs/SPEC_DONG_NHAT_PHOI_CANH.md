@@ -155,7 +155,12 @@ Luồng mới: **mỗi shot một video** (Grok i2v từ ảnh khung đầu đã
 - `nhac_khung(pd, s, lt)` nhắc khi mảnh cắt quanh S có thể dính người KHÔNG có trong shot, mà shot lại có từ 2 người trong khung. Không chặn.
   - Vì sao: P004 shot 4 đo ngày 29/10. Khung Hattie dính Brooke đứng giữa, model biến Brooke thành Evelyn đứng cạnh Hattie. Kéo khung Hattie x 0–0,335 thì ảnh đạt.
   - Shot một người không nhắc: 7/7 ảnh Hattie một mình vẫn sạch.
-  - Chỗ đứng là ước lượng: tâm khung người dựng đã kéo; chưa kéo thì `TAM_BEN` (trái 0,2 · giữa 0,5 · phải 0,8), ± 0,08.
+  - Chỗ đứng là ước lượng, lấy theo thứ tự:
+    1. tâm khung người dựng đã kéo;
+    2. chưa kéo thì theo `hang`: tâm `(i + 0,5)/n`, áp cho cảnh từ 3 người;
+    3. không có `hang` thì `TAM_BEN` (trái 0,2 · giữa 0,5 · phải 0,8).
+    Cả ba đều tính ± 0,08.
+  - Khung của S lấy từ `khung_cua(pd, ten)`. Đây cũng là hàm app dùng để cắt thật (`_hop`), nên nhắc luôn khớp mảnh cắt.
   - Đo trên DM002: nhắc 2/76 shot, cả 2 đúng (kiểm bằng ảnh thật).
 - `ca_canh(s) -> bool`: dùng NGUYÊN ảnh dàn cảnh khi có từ 2 người trong khung trở lên và `goc != "ots"`.
 - `giay_shot(s, lt) -> int`: lấy `s["gi"]` nếu hợp lệ. Không có thì 10 khi `số từ / 3 + 1 > 5`, ngược lại 6.
@@ -204,4 +209,11 @@ Luồng mới: **mỗi shot một video** (Grok i2v từ ảnh khung đầu đã
 - **Cảnh từ 3 người** (29/10, sau lần chạy thật C005; user duyệt): LLM ghi thêm `hang` là thứ tự trái → phải trong ảnh dàn cảnh. Khung mặc định chia bề ngang theo thứ tự đó: tâm `(i + 0,5)/n`, rộng `1/n + 0,04` (tối đa 0,4), tâm dọc 0,5, rộng = cao.
   - Cảnh 2 người giữ hộp đã đo.
   - Lề chọn theo vị trí thật của C005: lề rộng hơn thì khung người sát mép trùm sang người bên cạnh.
-  - Người đứng cách đều nhau thì khớp; đứng không đều thì người dựng kéo khung. Mới thử trên một cảnh.
+  - Người đứng cách đều nhau thì khớp; đứng không đều thì người dựng kéo khung.
+  - Đã thử trên hai cảnh: C005 (DM001) và DM002 C1 dòng 1 (4 người). Ở dòng 1, khung `ben` "giua" của Nia trùm Brooke; khung theo `hang` thì mỗi khung chỉ chứa tâm người đó.
+  - **Dải dọc giữ tâm 0,5, kể cả khi mất đầu người đứng** (đo 29/10; user giao Claude tự quyết, Claude chọn không làm dải dọc theo đứng/ngồi):
+    - 5/5 mảnh cắt Brooke đứng ở prod mất đầu, nhưng ảnh ra vẫn đúng mặt và đúng phông, vì mặt lấy từ tấm nhân vật.
+    - Shot qua vai hướng Nia đứng (`s7a1cbc`, 10 cr, 1 ảnh mỗi bản): mảnh cắt mất đầu và có đầu đều ra ảnh đúng.
+- **Khung người dựng kéo (`pd.cat`) đi theo ẢNH dàn cảnh, không theo chữ:**
+  - Bấm "Viết prompt cảnh" lại (`_phan_chung`) thì giữ khung của người còn trong cảnh. Trước đây nút này xoá khung mà không báo.
+  - Vẽ lại ảnh dàn cảnh (`_ve_dan`) thì bỏ hết khung. Thẻ shot sẽ nhắc nếu khung mặc định dính người ngoài shot.

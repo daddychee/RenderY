@@ -378,6 +378,30 @@ def test_khung_mac_dinh_bon_nguoi_chia_theo_thu_tu_trai_phai():
             assert not x0 < tam[m] < x1, (n, m)
 
 
+HANG_4 = ["Hattie", "Nia", "Brooke", "Evelyn"]                     # DM002 C1 dòng 1, trái → phải
+TAM_4 = {"Hattie": 0.125, "Nia": 0.30, "Brooke": 0.59, "Evelyn": 0.87}   # đo trên ảnh dàn cảnh 29/10
+
+
+def test_khung_bon_nguoi_dm002_dong1_va_khung_cua_cung_mot_cho():
+    """Cảnh 4 người thật: khung theo `ben` của Nia ("giua" 0,30–0,70) trùm Brooke (đo ảnh 29/10). Khung theo
+    `hang` chứa tâm mình, không chứa tâm người khác. `khung_cua` (nhắc) = khung app cắt thật."""
+    pd = {"ben": BEN_4, "hang": HANG_4}
+    assert drama.khung_cat(BEN_4["Nia"])[0] < TAM_4["Brooke"] < drama.khung_cat(BEN_4["Nia"])[2]
+    for n in HANG_4:
+        x0, _, x1, _ = drama.khung_cua(pd, n)
+        assert drama.khung_cua(pd, n) == drama.khung_mac_dinh(pd, n)
+        assert [m for m, t in TAM_4.items() if x0 < t < x1] == [n], n
+    assert drama.khung_cua(dict(pd, cat={"Nia": [0.2, 0.1, 0.45, 0.5]}), "Nia") == (0.2, 0.1, 0.45, 0.5)
+
+
+def test_nhac_khung_tinh_cho_dung_theo_hang():
+    """sb956d7 (máy hướng Brooke, Evelyn ngoài shot): chưa có `hang` thì khung "phai" trùm Evelyn → nhắc;
+    có `hang` thì khung Brooke 0,48–0,77, Evelyn ở 0,875 → không nhắc."""
+    s = QUA_VAI_DM2[2][1]
+    assert drama.nhac_khung({"ben": BEN_4}, s, [])
+    assert drama.nhac_khung({"ben": BEN_4, "hang": HANG_4}, s, []) == []
+
+
 def test_khung_mac_dinh_ten_ngoai_hang_ve_ben():
     pd = {"ben": {"Nia": "trai"}, "hang": ["A", "B", "C"]}
     assert drama.khung_mac_dinh(pd, "Nia") == drama.khung_cat("trai")

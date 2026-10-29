@@ -1641,12 +1641,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         def chu(khoa):          # {Tên: câu tiếng Anh}: phông sau lưng / chỗ ngồi riêng từng người
             x = chung.get(khoa)
             return {str(k): str(v).strip() for k, v in (x.items() if isinstance(x, dict) else []) if str(v).strip()}
-        return dict({k: str(chung.get(k) or "") for k in ("look", "truc", "nen", "cho", "dan")},
-                    ben={str(k): str(v) for k, v in (ben.items() if isinstance(ben, dict) else [])
-                         if str(v) in mdrama.BEN},
-                    phong=chu("phong"), vi_tri=chu("vi_tri"),
-                    hang=[x.strip() for x in (chung.get("hang") if isinstance(chung.get("hang"), list) else [])
-                          if isinstance(x, str) and x.strip()])
+        ra = dict({k: str(chung.get(k) or "") for k in ("look", "truc", "nen", "cho", "dan")},
+                  ben={str(k): str(v) for k, v in (ben.items() if isinstance(ben, dict) else [])
+                       if str(v) in mdrama.BEN},
+                  phong=chu("phong"), vi_tri=chu("vi_tri"),
+                  hang=[x.strip() for x in (chung.get("hang") if isinstance(chung.get("hang"), list) else [])
+                        if isinstance(x, str) and x.strip()])
+        # Khung người dựng kéo là của ẢNH dàn cảnh, không của chữ: viết lại chữ thì giữ (người
+        # còn trong cảnh) — 29/10 bấm "Viết prompt cảnh" lại là mất không báo. Vẽ lại ảnh mới bỏ.
+        nv = _nguoi_canh(tra, cs)
+        cat = {n: h for n, h in ((_chung_cu(cs) or {}).get("cat") or {}).items() if n in nv}
+        return dict(ra, cat=cat) if cat else ra
 
     def _chung_cu(cs: list[dict]) -> dict | None:
         """Phần chung đã viết của cảnh (clip nào cũng mang một bản) — viết lại một clip
@@ -2428,9 +2433,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     def _hop(pd: dict, ten: str) -> tuple:
         """Khung cắt của một người: người dựng đã kéo thì theo đó, chưa thì mặc định
-        (`ben`; cảnh từ 3 người thì chia theo thứ tự trái→phải `hang`)."""
-        hop = (pd.get("cat") or {}).get(ten)
-        return tuple(hop) if hop else mdrama.khung_mac_dinh(pd, ten)
+        (`ben`; cảnh từ 3 người thì chia theo thứ tự trái→phải `hang`). Một chỗ với
+        `nhac_khung` của thẻ shot, để nhắc đúng mảnh cắt thật."""
+        return mdrama.khung_cua(pd, ten)
 
     def _dan(cs: list[dict], tra: dict) -> tuple[dict, dict, dict | None, str]:
         """(phần chung, người cả cảnh, nơi chốn, prompt ảnh dàn cảnh). Chưa có `dan` thì
@@ -2506,6 +2511,18 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             if d != ".png":
                 kho.duong_ref(tap, td, d).unlink(missing_ok=True)
         kho.ghi_vet(tap, td, "dan", _bam(p))
+        # Ảnh mới thì người đổi chỗ: khung kéo trên ảnh cũ hết đúng, về khung mặc định
+        # (thẻ shot nhắc nếu khung mặc định dính người ngoài shot). Đọc lại cảnh: kéo khung
+        # trong lúc ảnh đang vẽ (60–100 s) cũng là kéo trên ảnh cũ.
+        import json as _json
+
+        def bo_cat(y):
+            pd = mdrama.doc_pd(y.get("pd"))
+            if pd.pop("cat", None) is not None:
+                y["pd"] = _json.dumps(pd, ensure_ascii=False)
+        for c in _dong_drama(tap, chuong, i)[1]:
+            if mdrama.doc_pd(c.get("pd")).get("cat"):
+                _va_canh(tap, chuong, c["id"], bo_cat, ai)
         return td
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh/duyet")

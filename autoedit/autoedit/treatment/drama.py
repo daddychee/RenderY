@@ -564,10 +564,11 @@ TAM_BEN = {"trai": 0.2, "giua": 0.5, "phai": 0.8}   # chỗ đứng ƯỚC theo 
 NUA_NGUOI = 0.08             # nửa bề ngang một người trong ảnh dàn cảnh (DM002: Brooke x 0,344–0,51)
 
 
-def _khung_cua(pd: dict, ten: str) -> tuple:
-    """Khung cắt app dùng cho `ten`, như `_hop` của app: người dựng kéo thì theo đó, chưa thì theo `ben`."""
+def khung_cua(pd: dict, ten: str) -> tuple:
+    """Khung cắt của `ten`. App cắt thật (`_hop`) và `nhac_khung` cùng gọi đây, để nhắc khớp
+    ảnh: người dựng kéo thì theo đó, chưa thì `khung_mac_dinh` (cảnh từ 3 người theo `hang`)."""
     hop = (pd.get("cat") or {}).get(ten)
-    return tuple(hop) if hop else khung_cat((pd.get("ben") or {}).get(ten, "giua"))
+    return tuple(hop) if hop else khung_mac_dinh(pd, ten)
 
 
 def nhac_khung(pd: dict, s: dict, lt: list[dict]) -> list[str]:
@@ -575,16 +576,19 @@ def nhac_khung(pd: dict, s: dict, lt: list[dict]) -> list[str]:
     shot mà shot lại phải vẽ thêm người: model đem người dính đó làm người còn lại (P004 shot 4,
     29/10: khung Hattie dính Brooke đứng giữa -> Evelyn ĐỨNG cạnh Hattie, thêm một người lạ).
     Shot một người không nhắc: 7/7 ảnh Hattie một mình ở DM002 vẫn sạch dù mảnh cắt dính Brooke.
-    Chỗ đứng ƯỚC: tâm khung người dựng đã kéo, chưa kéo thì `TAM_BEN`, ± `NUA_NGUOI`."""
+    Chỗ đứng ƯỚC: tâm khung người dựng đã kéo; chưa kéo thì theo `hang` (tâm (i + 0,5)/n, cảnh từ
+    3 người, như `khung_mac_dinh`), không có `hang` thì `TAM_BEN`; ± `NUA_NGUOI`."""
     ai, co = chu_the(s, lt), s.get("co_mat") or []
     if not ai or ca_canh(s) or len(co) < 2:
         return []
-    x0, _, x1, _ = _khung_cua(pd, ai)
+    x0, _, x1, _ = khung_cua(pd, ai)
     trong = {str(x).lower() for x in co}
+    hang = [x for x in (pd.get("hang") or []) if isinstance(x, str)]
     dinh = []
     for ten, b in (pd.get("ben") or {}).items():
         hop = (pd.get("cat") or {}).get(ten)
-        c = (hop[0] + hop[2]) / 2 if hop else TAM_BEN.get(b, 0.5)
+        c = ((hop[0] + hop[2]) / 2 if hop else (hang.index(ten) + 0.5) / len(hang)
+             if len(hang) >= 3 and ten in hang else TAM_BEN.get(b, 0.5))
         if ten.lower() not in trong and c - NUA_NGUOI < x1 and c + NUA_NGUOI > x0:
             dinh.append(ten)
     return [f"mảnh cắt quanh {ai} có thể dính {', '.join(dinh)} (không có trong shot): kéo khung {ai} ở ô "
