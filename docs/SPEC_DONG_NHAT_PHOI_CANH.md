@@ -152,6 +152,11 @@ Luồng mới: **mỗi shot một video** (Grok i2v từ ảnh khung đầu đã
   - Shot qua vai: bước 2–3 chỉ xét người KHÔNG ở tiền cảnh. Người tiền cảnh `nguoi_tien_canh(s)` là X trong "Qua vai X" của `s["t"]`; máy đứng sau vai người đó. Đọc được X thì luật trên áp, không đọc được thì giữ luật cũ.
   - Vì sao: ngày 29/10, DM002 C1 có 8/13 shot qua vai chọn trúng người nói đang quay lưng, hoặc rỗng (shot im, app gửi nguyên ảnh dàn cảnh). P004 shot 4 vì thế kéo Evelyn ra tiền cảnh.
   - `nhac_qua_vai(s, lt)` nhắc người dựng khi chưa rõ máy hướng tới ai. Không chặn.
+- `nhac_khung(pd, s, lt)` nhắc khi mảnh cắt quanh S có thể dính người KHÔNG có trong shot, mà shot lại có từ 2 người trong khung. Không chặn.
+  - Vì sao: P004 shot 4 đo ngày 29/10. Khung Hattie dính Brooke đứng giữa, model biến Brooke thành Evelyn đứng cạnh Hattie. Kéo khung Hattie x 0–0,335 thì ảnh đạt.
+  - Shot một người không nhắc: 7/7 ảnh Hattie một mình vẫn sạch.
+  - Chỗ đứng là ước lượng: tâm khung người dựng đã kéo; chưa kéo thì `TAM_BEN` (trái 0,2 · giữa 0,5 · phải 0,8), ± 0,08.
+  - Đo trên DM002: nhắc 2/76 shot, cả 2 đúng (kiểm bằng ảnh thật).
 - `ca_canh(s) -> bool`: dùng NGUYÊN ảnh dàn cảnh khi có từ 2 người trong khung trở lên và `goc != "ots"`.
 - `giay_shot(s, lt) -> int`: lấy `s["gi"]` nếu hợp lệ. Không có thì 10 khi `số từ / 3 + 1 > 5`, ngược lại 6.
 - `nhac_lap(lap) -> list[str]`: `lap` tả phông (chữ `behind`) thì trả câu nhắc. Chỉ nhắc, không chặn (luật cứng 5).

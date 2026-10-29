@@ -157,6 +157,26 @@ def test_nhac_qua_vai_khi_chua_ro_may_huong_toi():
     assert drama.nhac_qua_vai(SH[0], LT) == []                         # không qua vai
 
 
+BEN_NHA_HANG = {"Hattie": "trai", "Brooke": "giua", "Evelyn": "phai"}          # DM002 C1 dòng 0
+BEN_4 = {"Hattie": "trai", "Nia": "giua", "Brooke": "phai", "Evelyn": "phai"}   # DM002 C1 dòng 1
+
+
+def test_nhac_khung_dinh_nguoi_ngoai_shot_qua_vai():
+    """P004 shot 4 (29/10): khung mặc định của Hattie dính Brooke đứng giữa, model biến Brooke thành
+    Evelyn đứng cạnh Hattie. Kéo khung Hattie x 0–0,335 thì ảnh đạt. Shot một người không nhắc:
+    7/7 ảnh Hattie một mình ở DM002 vẫn sạch dù mảnh cắt dính Brooke."""
+    pd = {"ben": BEN_NHA_HANG}
+    s4 = QUA_VAI_DM2[0][1]
+    assert drama.nhac_khung(pd, s4, []) and "Brooke" in drama.nhac_khung(pd, s4, [])[0]
+    assert drama.nhac_khung(dict(pd, cat={"Hattie": [0.0, 0.34, 0.335, 0.675]}), s4, []) == []
+    assert drama.nhac_khung(dict(pd, cat={"Brooke": [0.62, 0.3, 0.9, 0.7]}), s4, []) == []   # Brooke kéo sang phải
+    assert drama.nhac_khung(pd, QUA_VAI_DM2[8][1], _lt("Hattie")) == []      # sd104eb: Evelyn ở xa bên phải
+    assert drama.nhac_khung(pd, _qv("Cận Hattie.", ["Hattie"], goc="eye"), []) == []   # một người
+    assert drama.nhac_khung({"ben": PD["ben"]}, SH[1], LT) == []             # P031 hai người
+    # hai người cùng bên phải (sb956d7: máy hướng Brooke, Evelyn cũng "phai")
+    assert "Evelyn" in drama.nhac_khung({"ben": BEN_4}, QUA_VAI_DM2[2][1], [])[0]
+
+
 def test_anh_qua_vai_may_sau_nguoi_tien_canh_vai_phia_may():
     """P004 shot 4 (s56840b): mảnh cắt quanh Hattie, máy sau vai TRÁI Evelyn. Evelyn bên phải ảnh
     dàn cảnh, quay mặt sang trái nên tay phải chỉ ra xa máy; vai phía máy dàn cảnh là vai trái.

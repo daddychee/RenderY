@@ -543,6 +543,37 @@ def nhac_qua_vai(s: dict, lt: list[dict]) -> list[str]:
     return []
 
 
+TAM_BEN = {"trai": 0.2, "giua": 0.5, "phai": 0.8}   # chỗ đứng ƯỚC theo `ben` (DM002: Hattie≈0,15 Brooke≈0,43 Evelyn≈0,87)
+NUA_NGUOI = 0.08             # nửa bề ngang một người trong ảnh dàn cảnh (DM002: Brooke x 0,344–0,51)
+
+
+def _khung_cua(pd: dict, ten: str) -> tuple:
+    """Khung cắt app dùng cho `ten`, như `_hop` của app: người dựng kéo thì theo đó, chưa thì theo `ben`."""
+    hop = (pd.get("cat") or {}).get(ten)
+    return tuple(hop) if hop else khung_cat((pd.get("ben") or {}).get(ten, "giua"))
+
+
+def nhac_khung(pd: dict, s: dict, lt: list[dict]) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) khi mảnh cắt quanh S có thể dính người KHÔNG có trong
+    shot mà shot lại phải vẽ thêm người: model đem người dính đó làm người còn lại (P004 shot 4,
+    29/10: khung Hattie dính Brooke đứng giữa -> Evelyn ĐỨNG cạnh Hattie, thêm một người lạ).
+    Shot một người không nhắc: 7/7 ảnh Hattie một mình ở DM002 vẫn sạch dù mảnh cắt dính Brooke.
+    Chỗ đứng ƯỚC: tâm khung người dựng đã kéo, chưa kéo thì `TAM_BEN`, ± `NUA_NGUOI`."""
+    ai, co = chu_the(s, lt), s.get("co_mat") or []
+    if not ai or ca_canh(s) or len(co) < 2:
+        return []
+    x0, _, x1, _ = _khung_cua(pd, ai)
+    trong = {str(x).lower() for x in co}
+    dinh = []
+    for ten, b in (pd.get("ben") or {}).items():
+        hop = (pd.get("cat") or {}).get(ten)
+        c = (hop[0] + hop[2]) / 2 if hop else TAM_BEN.get(b, 0.5)
+        if ten.lower() not in trong and c - NUA_NGUOI < x1 and c + NUA_NGUOI > x0:
+            dinh.append(ten)
+    return [f"mảnh cắt quanh {ai} có thể dính {', '.join(dinh)} (không có trong shot): kéo khung {ai} ở ô "
+            "dàn cảnh cho sạch"] if dinh else []
+
+
 def _phia_nhin(pd: dict, ai: str, toi: str) -> str:
     """Phía `ai` nhìn để thấy `toi` ("right"/"left"/""). Luật 180°: người bên trái
     ảnh dàn cảnh nhìn phải và ngược lại; người ở giữa nhìn về phía người kia."""
