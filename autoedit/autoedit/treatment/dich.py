@@ -283,6 +283,13 @@ stay seated."
 nào của phòng nhìn về đâu, ai ở đâu (trái / phải đúng `ben`), thấy rõ phông sau \
 lưng từng người.
 
+CẢNH TRƯỚC CÙNG NƠI (khi có khối này): cảnh ngay trước ở CÙNG phim trường, cùng buổi \
+— cùng một cuộc đang diễn ra, người mới bước vào. Ảnh dàn cảnh cảnh này vẽ TIẾP trên \
+ảnh cảnh trước. Người đã có ở cảnh trước GIỮ NGUYÊN `ben`, `vi_tri`, `phong` và thứ tự \
+của họ trong `hang`; chỉ xếp chỗ cho người MỚI vào (chèn vào `hang` đúng chỗ), người \
+đã rời thì bỏ. `dan` giữ đúng góc máy và căn phòng của cảnh trước; `cho` tả lại chỗ \
+người cũ y như cũ rồi thêm người mới; `look` giữ nguyên.
+
 Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}, "ben": {}, \
 "hang": [], "phong": {}, "cho": "...", "vi_tri": {}, "dan": "..."}"""
 

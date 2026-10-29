@@ -656,6 +656,66 @@ def prompt_dan_canh(pd: dict, nguoi: list[dict], noi: dict | None) -> str:
     return "\n\n".join(x for x in khoi if x)
 
 
+# ── Cụm cảnh cùng phim trường (user chốt 29/10): cảnh liền nhau, cùng nơi, cùng buổi là MỘT
+# cuộc đang diễn ra — "nếu có người xuất hiện trong một cuộc trò chuyện có sẵn thì vị trí của
+# những người xuất hiện trước phải được đảm bảo". Đo DM002 C1: C003 vẽ độc lập ra căn phòng
+# khác C002 (cửa kính đổi bên, Hattie dời vào giữa).
+def giu_cho_cu(moi: dict, cu: dict, giu: list[str]) -> dict:
+    """Phần chung LLM vừa viết (`moi`) cho cảnh sau: người trong `giu` (có mặt từ cảnh trước)
+    lấy lại `ben`, `vi_tri`, `phong` và thứ tự trong `hang` y như cảnh trước (`cu`) — Python ép,
+    không tin LLM. Người mới giữ chỗ LLM xếp."""
+    ra = dict(moi)
+    for k in ("ben", "vi_tri", "phong"):
+        d = dict(moi.get(k) or {})
+        for n in giu:
+            v = _cua(cu.get(k), n)
+            if v:
+                d = {x: y for x, y in d.items() if str(x).lower() != n.lower()}
+                d[n] = v
+        ra[k] = d
+    hang = [x for x in (moi.get("hang") or []) if isinstance(x, str)]
+    hang += [n for n in giu if n not in hang]
+    cu_hang = [x for x in (cu.get("hang") or []) if x in giu]
+    cu_hang += [n for n in giu if n not in cu_hang]
+    for k, n in zip([k for k, x in enumerate(hang) if x in giu], cu_hang):
+        hang[k] = n
+    ra["hang"] = hang
+    return ra
+
+
+def _ke(xs: list[str]) -> str:
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
+
+
+def prompt_dan_noi(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict) -> str:
+    """Prompt ảnh dàn cảnh của cảnh SAU trong cụm: SỬA từ ảnh dàn cảnh cảnh trước. Ảnh gửi:
+    1. ảnh dàn cảnh cảnh trước (giữ phòng, máy, ánh sáng; người cũ giữ chỗ);
+    2.. tấm `nguoi` đúng thứ tự (nhận dạng — cả người cũ lẫn người mới)."""
+    ten = [x["ten"].split(" · ")[0] for x in nguoi]
+    giu = [n for n in ten if n in cu_ten]
+    moi = [n for n in ten if n not in cu_ten]
+    roi = [n for n in cu_ten if n not in ten]
+    doi = [f"{_ke(giu)} {'stays' if len(giu) == 1 else 'stay'} exactly where they are in Image 1, "
+           "in the same places and poses."] if giu else []
+    doi += [f"{n} has left: remove {n} and leave that place empty, the furniture untouched." for n in roi]
+    for n in moi:
+        sau = _cua(pd.get("phong"), n)
+        doi.append(f"Add {n} {_cua(pd.get('vi_tri'), n).rstrip('.') or 'in the room'}."
+                   + (f" Behind {n}: {_cham(sau)}" if sau else ""))
+    mo_ta = " ".join(f"{n}: {str(x.get('chu') or '').strip().rstrip('.')}." for n, x in zip(ten, nguoi))
+    look, look_cu = str(pd.get("look") or "").strip(), str(pd_cu.get("look") or "").strip()
+    khoi = ["Image 1 is the master wide shot of this same room a few moments earlier. Keep exactly this "
+            "room: the camera position, lens and framing, every piece of furniture, the windows and the "
+            "light. It is the same set and the same scene continuing; only the people change.",
+            " ".join(LOI_REF["nhan_vat"].format(i=i) for i in range(2, len(nguoi) + 2)),
+            " ".join(doi),
+            " ".join(x for x in (mo_ta, f"Exactly {' and '.join('one ' + n for n in ten)}, nobody else."
+                                 if ten else "") if x),
+            f"Light now: {look}" if look and look != look_cu else "",
+            "Photorealistic film still, 16:9."]
+    return "\n\n".join(x for x in khoi if x)
+
+
 def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], do: list[dict], kh: str) -> str:
     """Prompt ẢNH KHUNG ĐẦU shot `k` (tính từ 0) — khuôn `ghep_dm4.py`.
 

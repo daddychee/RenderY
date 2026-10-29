@@ -49,7 +49,7 @@ def test_nguoi_khac_ve_anh_shot_thay_thanh_nhan_the_nut_khoa_xong_thi_mo_va_co_a
 
     # ── owner vẽ ảnh shot 1 (đứng ở cổng): lan thấy thanh, nhãn thẻ, nút shot 1 khoá kèm tên ──
     t = _nen(g, f"/api/tap/D1/C1/canh/{p1}/shot/{s1}/anh")
-    assert _cho(lambda: "owner · vẽ ảnh · C1 · P001 · shot 1" in pg2.inner_text("#dangChay"), 20, pg=pg2), \
+    assert _cho(lambda: "owner · vẽ ảnh · C1 · P001 · shot 1" in pg2.inner_text("#dangChay"), 40, pg=pg2), \
         pg2.inner_text("#dangChay")
     assert "Đang chạy" in pg2.inner_text("#dangChay")
     assert _cho(lambda: pg2.inner_text(NUT.format(s1)) == "⟳ owner đang làm…", 5, pg=pg2)
@@ -63,7 +63,7 @@ def test_nguoi_khac_ve_anh_shot_thay_thanh_nhan_the_nut_khoa_xong_thi_mo_va_co_a
     assert "owner · vẽ ảnh" in pg2.inner_text(THE.format("P001") + " .dang-lam")
     assert pg2.locator(THE.format("P002") + " .dang-lam").count() == 0
     # chính người bấm: thanh ghi "Bạn"
-    assert _cho(lambda: "Bạn · vẽ ảnh" in pg.inner_text("#dangChay"), 20, pg=pg), pg.inner_text("#dangChay")
+    assert _cho(lambda: "Bạn · vẽ ảnh" in pg.inner_text("#dangChay"), 40, pg=pg), pg.inner_text("#dangChay")
 
     # ── xong: thanh tắt, nút trả lại, thẻ có ảnh mới mà lan không phải F5 ──
     va.cong.set()
@@ -78,7 +78,7 @@ def test_nguoi_khac_ve_anh_shot_thay_thanh_nhan_the_nut_khoa_xong_thi_mo_va_co_a
     pg2.click(NUT.format(s2))
     assert _cho(lambda: "Bạn · vẽ ảnh" in pg2.inner_text("#dangChay"), 3, pg=pg2), pg2.inner_text("#dangChay")
     assert pg2.inner_text(NUT.format(s2)) == "Đang vẽ ảnh…"
-    assert _cho(lambda: "lan · vẽ ảnh · C1 · P001 · shot 2" in pg.inner_text("#dangChay"), 20, pg=pg)
+    assert _cho(lambda: "lan · vẽ ảnh · C1 · P001 · shot 2" in pg.inner_text("#dangChay"), 40, pg=pg)
     va.cong.set()
     assert _cho(lambda: pg2.is_hidden("#dangChay"), 10, pg=pg2)
     assert _cho(lambda: pg2.inner_text(NUT.format(s2)) == "Vẽ lại ảnh", 5, pg=pg2)
@@ -92,7 +92,8 @@ def test_generate_all_nguoi_khac_bam_thi_nut_khoa_co_tien_do_xong_thi_mo(chrome,
     _sb(pg2)
     assert pg2.inner_text("#nutChuong") == "Generate All" and pg2.is_enabled("#nutChuong")
     g("/api/tap/D1/C1/chay", "POST")                       # owner; ảnh shot đứng ở cổng
-    assert _cho(lambda: pg2.inner_text("#nutChuong").startswith("⟳ Đang chạy"), 20, pg=pg2), \
+    # Trang rảnh hỏi 15 s một lần: cả bộ test chạy chồng thì 20 s có lúc hụt (đỏ giả 29/10).
+    assert _cho(lambda: pg2.inner_text("#nutChuong").startswith("⟳ Đang chạy"), 40, pg=pg2), \
         pg2.inner_text("#nutChuong")
     assert pg2.is_disabled("#nutChuong")
     thanh = pg2.inner_text("#dangChay")

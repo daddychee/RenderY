@@ -1732,7 +1732,7 @@ function veDanCanh(){
       : '<div class="khung-to">16:9 · chưa có ảnh dàn cảnh</div>') +
     (SUA_DUOC ? '<div class="hang-nut"><button onclick="vietPromptCanh(event)"' + dv("prompt", m.ch, m.di) + '>' +
       (r.san ? 'Viết prompt cảnh lại' : 'Viết prompt cảnh') + '</button>' +
-      '<button onclick="veAnhDan(event)"' + dv("dan", m.ch, m.di) + ((r.san && !ve) ? '' : ' disabled') + '>' +
+      '<button onclick="veAnhDan(event)"' + dv("dan", m.ch, m.di) + ((r.san && !ve && !(r.truoc && !r.truoc.duyet)) ? '' : ' disabled') + '>' +
       (ve ? 'Đang vẽ ảnh dàn cảnh…' : (r.co_anh ? 'Vẽ lại ảnh dàn cảnh' : 'Vẽ ảnh dàn cảnh')) + '</button>' +
       (r.co_anh ? '<button class="' + (r.duyet && !r.may_duyet ? 'on' : '') + '" onclick="duyetDan(event)"' +
         (ve ? ' disabled' : '') + '>' + (r.may_duyet ? 'Máy đã duyệt · bấm xác nhận' :
@@ -1744,8 +1744,15 @@ function veDanCanh(){
       'phông sau lưng từng người) — bấm <b>Viết prompt cảnh</b> trước rồi mới vẽ được ảnh dàn cảnh. Cảnh đã ' +
       'viết prompt trước 29/10 cũng phải bấm nút này: Create Prompt từng clip dùng lại phần chung cũ, ' +
       'không có bố cục.</div>') +
+    // Cụm cùng phim trường (user chốt 29/10): người vào sau, người có mặt trước giữ nguyên chỗ.
+    (r.truoc ? '<div class="ghi" style="margin-top:8px">Cùng phim trường với <a href="#" onclick="moDanCanh(\'' +
+      m.ch + '\',' + r.truoc.i + ');return false">' + thoat(r.truoc.ten) + '</a>: ảnh này vẽ TIẾP trên ảnh dàn ' +
+      'cảnh cảnh đó — giữ phòng, người có mặt trước giữ nguyên chỗ, chỉ thêm / bớt người.' +
+      (r.truoc.duyet ? '' : ' <span class="thieu">Ảnh cảnh đó chưa duyệt — duyệt trước rồi mới vẽ được ảnh này.</span>') +
+      '</div>' : '') +
     (r.cu ? '<div class="nhac" style="margin-top:8px">Ảnh này vẽ theo <b>bố cục cũ</b> — prompt cảnh đã viết ' +
-      'lại sau lần vẽ. Vẽ lại nếu chỗ ngồi đã đổi.</div>' : '') +
+      'lại sau lần vẽ' + (r.truoc ? ', hoặc ảnh dàn cảnh cảnh trước đã vẽ lại' : '') +
+      '. Vẽ lại nếu chỗ ngồi đã đổi.</div>' : '') +
     (r.co_anh && !r.duyet ? '<div class="nhac" style="margin-top:8px">Soi kỹ ai ngồi đâu và phông sau lưng ' +
       'từng người rồi bấm <b>Duyệt</b> — chưa duyệt thì shot chưa vẽ được ảnh khung đầu.</div>' : '') +
     // Luật cứng 5: dàn cảnh MÁY duyệt (nút Generate All) — ảnh shot đã cắt theo ảnh này.
