@@ -92,39 +92,39 @@ def test_chay_chuong_tu_bam_toi_duyet_anh_shot(chrome, may):
     k = g("/api/tap/D1/C1/chay")["ke_hoach"]
     pg.click("#nutChuong")
     assert _cho(lambda: hop, 5, pg=pg)
-    for chu in ("Chạy chương C1 tới duyệt ảnh (2 cảnh · 3 clip)", "Breakdown 3 clip", "viết prompt 3 clip",
+    for chu in ("Generate All chương C1 (2 cảnh · 3 clip)", "máy làm tới bước duyệt ảnh shot", "Breakdown 3 clip", "viết prompt 3 clip",
                 "vẽ 2 ảnh dàn cảnh", "MÁY TỰ DUYỆT 2 ảnh dàn cảnh", "vẽ ≈ 5 ảnh khung đầu shot",
                 f"≈ {k['credit']} cr (7 ảnh · ", f"≈ {k['phut']} phút", "Số dư: ",
-                "C002 · bếp nhà Tasha · trưa · N02 (3 người)", "Máy KHÔNG duyệt ảnh shot, KHÔNG gọi video"):
+                "C002 · bếp nhà Tasha · trưa · N02 (3 người)", "Máy DỪNG ở duyệt ảnh shot: KHÔNG duyệt ảnh shot, KHÔNG gen video"):
         assert chu in hop[-1], (chu, hop[-1])
-    assert not gui and pg.is_enabled("#nutChuong") and pg.inner_text("#nutChuong") == "Chạy tới duyệt ảnh"
+    assert not gui and pg.is_enabled("#nutChuong") and pg.inner_text("#nutChuong") == "Generate All"
 
     # ── đồng ý: tiến độ hiện, F5 giữa chừng vẫn thấy, người chỉ xem không có nút ──
     tra["v"] = True
     pg.click("#nutChuong")
     assert _cho(lambda: gui, 5, pg=pg)
-    assert _cho(lambda: "Chạy chương C1 · vẽ ảnh shot" in pg.inner_text("#viecChuong"), 15, pg=pg), \
+    assert _cho(lambda: "Generate All chương C1 · vẽ ảnh shot" in pg.inner_text("#viecChuong"), 15, pg=pg), \
         pg.inner_text("#viecChuong")
     pg.reload()
     pg.wait_for_selector("#nutTap", state="attached")
     _cho(lambda: pg.evaluate("TAP_MA") == "D1", 10, pg=pg)
     pg.click("#mSb")
-    assert _cho(lambda: "Chạy chương C1 · vẽ ảnh shot" in pg.inner_text("#viecChuong"), 10, pg=pg)
+    assert _cho(lambda: "Generate All chương C1 · vẽ ảnh shot" in pg.inner_text("#viecChuong"), 10, pg=pg)
     assert "owner bấm" in pg.inner_text("#viecChuong")
     ctx2 = chrome.new_context(viewport={"width": 1500, "height": 900},
                               extra_http_headers={"X-Remote-User": "lan", "X-Remote-Actions": "xem"})
     pg2 = _mo(ctx2, may, loi)
     pg2.click("#mSb")
-    assert _cho(lambda: "Chạy chương C1 ·" in pg2.inner_text("#viecChuong"), 10, pg=pg2)
+    assert _cho(lambda: "Generate All chương C1 ·" in pg2.inner_text("#viecChuong"), 10, pg=pg2)
     assert not pg2.is_visible("#nutChuong"), "người chỉ xem không thấy nút"
 
     # ── xong: tóm tắt, danh sách dàn cảnh MÁY duyệt (cảnh 3 người đánh dấu) ──
     va.cong.set()
-    assert _cho(lambda: "Lần chạy chương C1 gần nhất: xong · 0 lỗi" in pg.inner_text("#viecChuong"), 20, pg=pg), \
+    assert _cho(lambda: "Lần Generate All chương C1 gần nhất: xong · 0 lỗi" in pg.inner_text("#viecChuong"), 20, pg=pg), \
         pg.inner_text("#viecChuong")
     ket = pg.inner_text("#ketChuong")
     assert "2 ảnh dàn cảnh do MÁY tự duyệt" in ket and "3 người — khung cắt mặc định chưa tin" in ket, ket
-    assert "Chạy chương C1 xong: 2 ảnh dàn cảnh máy duyệt · 0 lỗi" in pg.inner_text("#toast")
+    assert "Generate All chương C1 xong: 2 ảnh dàn cảnh máy duyệt · 0 lỗi" in pg.inner_text("#toast")
     assert not vv.goi, "không gọi video"
 
     # ── bấm tên cảnh: panel dàn cảnh nói máy tự duyệt; xác nhận thì cảnh rời danh sách ──

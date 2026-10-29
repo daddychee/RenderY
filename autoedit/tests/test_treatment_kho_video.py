@@ -149,3 +149,60 @@ def test_narration_ten_theo_so_phan_canh_chay_lien_chuong(tmp_path):
     assert [(x["ten"], x["loai"]) for x in ds] == [("H_PC001-1.mp4", "canh"), ("C1_PC003-2.mp4", "canh")]
     r = c.get("/api/tap/N1/kho-video.zip?ch=C1")
     assert zipfile.ZipFile(io.BytesIO(r.content)).namelist() == ["C1_PC003-2.mp4"]
+
+
+# ═══════ sửa sau dùng thử prod 29/10: thẻ có ảnh + tích chọn nhiều ô ═══════════════
+def _anh(kho, tap, ma):
+    p = kho.duong_anh(tap, ma)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"png")
+    return int(p.stat().st_mtime)
+
+
+def test_danh_sach_co_khoa_chon_va_tem_anh_cho_the(tmp_path):
+    """Thẻ Storage lấy ảnh nhỏ theo TEM trong JSON — không gọi thêm request mỗi thẻ."""
+    kho, c, (p1, p2, _) = _san(tmp_path)
+    s1 = _sh(kho, "C1")
+    t = _anh(kho, "D1", f"{p1['id']}-{s1[0]['sid']}")
+    _anh(kho, "D1", p2["id"])              # clip kiểu cũ: ảnh của clip không phải ảnh của video
+    ds = c.get("/api/tap/D1/kho-video").json()["ds"]
+    assert [x["anh"] for x in ds] == [t, 0, 0, 0]
+    assert [x["khoa"] for x in ds][:3] == [f"{p1['id']}-{s1[0]['sid']}", f"{p1['id']}-{s1[1]['sid']}", p2["id"]]
+
+
+def test_narration_the_lay_anh_canh(tmp_path):
+    kho = Kho(tmp_path / "kho" / "k.db")
+    kho.tao_tap("N1", "x")
+    kho.luu("N1", "H", [{"en": "a", "canh": [{"id": "ca1", "t": "x"}]}], "", "minh")
+    p = kho.duong_video("N1", "ca1")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"v" * 40)
+    t = _anh(kho, "N1", "ca1")
+    ds = TestClient(tao_app(kho)).get("/api/tap/N1/kho-video").json()["ds"]
+    assert [(x["khoa"], x["anh"]) for x in ds] == [("ca1", t)]
+
+
+def test_zip_chon_nhieu_khac_chuong_ma_la_bo_qua_thu_tu_dung(tmp_path):
+    kho, c, (p1, _, p3) = _san(tmp_path)
+    k2 = f"{p1['id']}-{_sh(kho, 'C1')[1]['sid']}"
+    k3 = f"{p3['id']}-{_sh(kho, 'C2')[0]['sid']}"
+    # chọn ngược thứ tự + mã lạ + mã mồ côi có file trên đĩa + đường lạ: chỉ mã trong kịch bản
+    chon = ",".join([k3, "cxxxxxxxxxx-sbogus", f"{p1['id']}-sdead00", "..%2F..%2Fk", k2])
+    r = c.get(f"/api/tap/D1/kho-video.zip?chon={chon}")
+    assert r.status_code == 200, r.text
+    assert 'filename="D1_chon_2_' in r.headers["content-disposition"]
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert z.testzip() is None
+    assert z.namelist() == ["C1_P001_s2_MS_6s.mp4", "C2_P003_s1_CU_6s.mp4"]
+    assert [z.read(n) for n in z.namelist()] == [kho.duong_video("D1", k).read_bytes() for k in (k2, k3)]
+
+
+def test_zip_chon_qua_tran_413_rong_404_thieu_400(tmp_path, monkeypatch):
+    kho, c, (p1, _, _) = _san(tmp_path)
+    k = f"{p1['id']}-{_sh(kho, 'C1')[0]['sid']}"
+    monkeypatch.setattr(mapp, "TRAN_ZIP", 10)      # một MP4 giả ~66 byte
+    r = c.get(f"/api/tap/D1/kho-video.zip?chon={k}")
+    assert r.status_code == 413 and "quá trần" in r.json()["detail"], r.text
+    monkeypatch.undo()
+    assert c.get("/api/tap/D1/kho-video.zip?chon=cbogus").status_code == 404
+    assert c.get("/api/tap/D1/kho-video.zip").status_code == 400

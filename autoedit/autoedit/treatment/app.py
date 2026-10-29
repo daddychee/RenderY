@@ -791,7 +791,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         bản hay gen asset giữa chừng là đè phần máy vừa ghi."""
         with _KHOA_VIEC:
             v = next(((ch, v) for (t, ch), v in _CHAY.items() if t == tap and v["chay"]), None)
-        return f"{v[1]['nguoi']} đang chạy chương {v[0]} tới duyệt ảnh" if v else ""
+        return f"{v[1]['nguoi']} đang Generate All chương {v[0]}" if v else ""   # tên nút (user đổi 29/10)
     _NHO: dict = {}
     _KHOA_NHO = threading.Lock()
 
@@ -1156,28 +1156,34 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     ma, pm = c.get("id") or "", c.get("pm") or ""
                     if not ma:
                         continue
+                    # (mã file video, sid, tên, loại, đang gen lại, mã ảnh của thẻ, giây). Clip kiểu
+                    # cũ không có ảnh riêng của video — ảnh clip là ảnh tham chiếu, thẻ giữ chỗ.
                     if not pm:          # narration: phân cảnh đánh số LIỀN H -> E như trang
-                        muc = [(ma, "", f"{ch}_PC{truoc + i + 1:03d}-{j + 1}", "canh", c.get("vid"))]
+                        muc = [(ma, "", f"{ch}_PC{truoc + i + 1:03d}-{j + 1}", "canh", c.get("vid"), ma, 0)]
                     else:
-                        dau, ss, lt = f"{ch}_{pm}", _ss(c), mdrama.loi_thoai(c.get("t"))
-                        muc = [(ma, "", f"{dau}_clip_{_giay_clip(tap, c)}s", "clip", c.get("vid"))]
+                        dau, ss, lt, g = f"{ch}_{pm}", _ss(c), mdrama.loi_thoai(c.get("t")), _giay_clip(tap, c)
+                        muc = [(ma, "", f"{dau}_clip_{g}s", "clip", c.get("vid"), "", g)]
                         for k, s in enumerate(mdrama.doc_sh(c.get("sh")), 1):
-                            sid = s.get("sid") or ""
+                            sid, g = s.get("sid") or "", mdrama.giay_shot(s, lt)
                             if sid:
-                                ten = "_".join(x for x in (f"{dau}_s{k}", (s.get("co") or "").upper(),
-                                                            f"{mdrama.giay_shot(s, lt)}s") if x)
-                                muc.append((f"{ma}-{sid}", sid, ten, "shot", (ss.get(sid) or {}).get("vid")))
-                    for m, sid, ten, loai, dang in muc:
+                                ten = "_".join(x for x in (f"{dau}_s{k}", (s.get("co") or "").upper(), f"{g}s") if x)
+                                muc.append((f"{ma}-{sid}", sid, ten, "shot", (ss.get(sid) or {}).get("vid"),
+                                            f"{ma}-{sid}", g))
+                    for m, sid, ten, loai, dang, ma_anh, g in muc:
                         try:
                             p = kho.duong_video(tap, m)
+                            a = kho.duong_anh(tap, ma_anh) if ma_anh else None
                         except ValueError:
                             continue
                         if p.exists():
                             st = p.stat()
                             # `co` do LLM đặt, mã P chép từ kịch bản: lọc ký tự cho tên file + onclick
                             ten = re.sub(r"[^A-Za-z0-9_-]", "", ten) + ".mp4"
-                            ra.append({"ch": ch, "ma": ma, "sid": sid, "ten": ten, "loai": loai,
-                                       "byte": st.st_size, "t": st.st_mtime, "dang": bool(dang),
+                            # `khoa` = mã tích chọn; `anh` = tem ảnh của thẻ (0 = giữ chỗ), trang
+                            # ghép thẳng URL ảnh nhỏ — không gọi thêm request mỗi thẻ.
+                            ra.append({"ch": ch, "ma": ma, "sid": sid, "khoa": m, "ten": ten, "loai": loai,
+                                       "byte": st.st_size, "t": st.st_mtime, "dang": bool(dang), "giay": g,
+                                       "anh": int(a.stat().st_mtime) if a and a.exists() else 0,
                                        "ghi": st.st_mtime > gio - GIAY_GHI, "p": p})
             truoc += len(dong)
         return ra
@@ -1190,18 +1196,27 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 "ds": [{k: v for k, v in x.items() if k != "p"} for x in _ds_video(tap)]}
 
     @app.get("/api/tap/{tap}/kho-video.zip")
-    def kho_video_zip(tap: str, ch: str, loai: str = "", sau: float = 0):
-        """ZIP MỘT chương, chảy luồng, không file tạm. Video đang gen lại vẫn vào (user chốt)."""
-        ds = [x for x in _ds_video(tap) if x["ch"] == ch and (not loai or x["loai"] == loai)
-              and x["t"] > sau and not x["ghi"]]
+    def kho_video_zip(tap: str, ch: str = "", loai: str = "", sau: float = 0, chon: str = ""):
+        """ZIP MỘT chương, hoặc các mục ĐÃ TÍCH (`chon` = khoá cách dấu phẩy, được khác chương; GET
+        vì POST qua gateway vướng CSRF). Chỉ nhận khoá có trong kịch bản — khoá lạ bỏ qua. Chảy
+        luồng, không file tạm. Video đang gen lại vẫn vào (user chốt)."""
+        if not ch and not chon:
+            raise HTTPException(400, "Thiếu chương hoặc danh sách mục đã chọn.")
+        k = set(chon.split(",")) if chon else None
+        ds = [x for x in _ds_video(tap) if not x["ghi"] and (
+              x["khoa"] in k if k is not None
+              else x["ch"] == ch and (not loai or x["loai"] == loai) and x["t"] > sau)]
+        noi = "Các mục đã chọn" if k is not None else f"Chương {ch}"
         if not ds:
-            raise HTTPException(404, f"Chương {ch} không có video nào khớp lọc.")
+            raise HTTPException(404, f"{noi} không có video nào khớp lọc.")
         tong = sum(x["byte"] for x in ds)
         if tong > TRAN_ZIP:
             gb = lambda n: f"{n / 1e9:.1f}".replace(".", ",")  # noqa: E731
-            raise HTTPException(413, f"Chương {ch} có {gb(tong)} GB video, quá trần {gb(TRAN_ZIP)} GB "
-                                     "một lần tải — lọc theo loại hoặc chọn 'chỉ video mới'.")
-        ten = f"{tap}_{ch}{'_moi' if sau else ''}_{time.strftime('%d%m-%H%M')}.zip"
+            raise HTTPException(413, f"{noi} có {gb(tong)} GB video, quá trần {gb(TRAN_ZIP)} GB một lần tải — "
+                                     + ("bỏ bớt mục đã chọn." if k is not None
+                                        else "lọc theo loại hoặc chọn 'chỉ video mới'."))
+        ten = (f"{tap}_chon_{len(ds)}" if k is not None else f"{tap}_{ch}{'_moi' if sau else ''}") + \
+            f"_{time.strftime('%d%m-%H%M')}.zip"
         return StreamingResponse(_luong_zip([(x["p"], x["ten"]) for x in ds]), media_type="application/zip",
                                  headers={"Content-Disposition": f'attachment; filename="{ten}"',
                                           "Cache-Control": "no-store"})
@@ -2859,10 +2874,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(400, f"Chương {chuong} đã tới bước duyệt ảnh shot — không còn gì để chạy.")
         with _KHOA_VIEC:
             if (_VIEC.get(tap) or {}).get("chay"):
-                raise HTTPException(409, f"{_VIEC[tap]['nguoi']} đang gen toàn bộ asset — đợi xong rồi chạy chương.")
+                raise HTTPException(409, f"{_VIEC[tap]['nguoi']} đang gen toàn bộ asset — đợi xong rồi Generate All.")
             v = _CHAY.get((tap, chuong))
             if v and v["chay"]:
-                raise HTTPException(409, f"{v['nguoi']} đang chạy chương {chuong} — đợi xong.")
+                raise HTTPException(409, f"{v['nguoi']} đang Generate All chương {chuong} — đợi xong.")
             _CHAY[(tap, chuong)] = {"chay": True, "buoc": "llm", "xong": 0, "tong": 0, "loi": [],
                                     "may_duyet": [], "nguoi": ai, "bat_dau": time.time(), "het": None}
         threading.Thread(target=_chay_chuong, args=(tap, chuong, ai), daemon=True).start()
@@ -3007,7 +3022,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 with ThreadPoolExecutor(max_workers=min(len(viec), LUONG_ANH_CHUONG)) as ex:
                     list(ex.map(shot_1, viec))
         except Exception as exc:  # noqa: BLE001
-            loi("Chạy chương", exc)
+            loi("Generate All", exc)
         finally:
             with _KHOA_VIEC:
                 v.update(chay=False, buoc="xong", het=time.time())

@@ -273,8 +273,10 @@ def test_quyen_khoa_dang_chay_va_tap_narration(tmp_path):
     kho.nha("D1", "C1", "lan")
     assert c.post(URL).status_code == 200
     try:
-        assert c.post(URL).status_code == 409
-        assert c.put("/api/tap/D1/so", json={"so": kho.ds_so("D1")}).status_code == 409
+        r = c.post(URL)
+        assert r.status_code == 409 and "đang Generate All chương C1" in r.json()["detail"], r.text
+        r = c.put("/api/tap/D1/so", json={"so": kho.ds_so("D1")})
+        assert r.status_code == 409 and "đang Generate All chương C1" in r.json()["detail"], r.text
         assert c.post("/api/tap/D1/drama", json={"text": HAI_CANH}).status_code == 409
         assert c.post("/api/tap/D1/so/tat-ca", json={}).status_code == 409
         v = c.get(URL).json()["viec"]

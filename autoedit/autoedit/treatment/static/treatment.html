@@ -193,12 +193,13 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   font-weight:700;font-size:13px;color:var(--muted)}
 .man button.on{background:var(--accent);color:#fff}
 #manSb,#manAs,#manKv{flex:1;min-height:0;display:flex;flex-direction:column}
-.kv-dong{display:flex;gap:10px;align-items:center;padding:5px 10px;border-bottom:1px solid var(--line);
-  font-size:12.5px}
-.kv-dong .ten{flex:1;min-width:0;font-family:ui-monospace,Consolas,monospace;overflow:hidden;
+/* Storage dạng lưới thẻ có ảnh (user 29/10) — mượn khuôn `.tc` của Storyboard */
+.kv-the.chon{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.kv-the .tich{position:absolute;top:5px;right:5px;width:18px;height:18px;margin:0;cursor:pointer}
+.tc.kv-the .chu{height:auto;padding:6px 9px 4px}   /* đè chiều cao cố định của `.tc .chu` (đứng sau) */
+.kv-the .ten{display:block;font-family:ui-monospace,Consolas,monospace;font-size:11px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.kv-dong .nho{font-size:11.5px;color:var(--muted);white-space:nowrap}
-.kv-dong a.cp{text-decoration:none}
+.kv-the a.cp{text-decoration:none}
 .vet-hop{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 14px;
   display:flex;gap:10px;align-items:center;flex:0 0 auto}
 .vet{display:flex;gap:2px;flex:1;min-width:0;flex-wrap:wrap}
@@ -543,7 +544,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <span class="tien-do" id="viecChuong"></span>
     <!-- không mang `chi-sua`: nút chỉ hiện ở chương drama, `theoDoiChuong` tự quyết -->
     <button class="icon-btn" id="nutChuong" onclick="chayChuong()" hidden
-            title="Breakdown, viết prompt, vẽ + MÁY TỰ DUYỆT ảnh dàn cảnh, vẽ ảnh khung đầu mọi shot — dừng ở duyệt ảnh shot">Chạy tới duyệt ảnh</button>
+            title="Breakdown, viết prompt, vẽ + MÁY TỰ DUYỆT ảnh dàn cảnh, vẽ ảnh khung đầu mọi shot — dừng ở duyệt ảnh shot, không gen video">Generate All</button>
   </div>
   <div id="ketChuong"></div>
   <div class="sb-canvas" id="sbCanvas"></div>
@@ -579,6 +580,8 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <span class="tien-do" id="kvTong"></span>
     <span class="spacer"></span>
     <span class="tien-do" id="kvBao"></span>
+    <button class="icon-btn" id="kvTaiChon" onclick="taiChon()" disabled
+            title="Một ZIP gồm các thẻ đã tích, được khác chương">↓ Tải mục đã chọn (0)</button>
     <button class="icon-btn" id="kvTaiCh" onclick="taiKv(false)">↓ Tải ZIP chương</button>
     <button class="icon-btn" id="kvTaiTap" onclick="taiKv(true)"
             title="Mỗi chương một ZIP, tải lần lượt — Chrome hỏi 'cho tải nhiều tệp' một lần">↓ Tải cả tập</button>
@@ -1724,9 +1727,9 @@ function veDanCanh(){
       'lại sau lần vẽ. Vẽ lại nếu chỗ ngồi đã đổi.</div>' : '') +
     (r.co_anh && !r.duyet ? '<div class="nhac" style="margin-top:8px">Soi kỹ ai ngồi đâu và phông sau lưng ' +
       'từng người rồi bấm <b>Duyệt</b> — chưa duyệt thì shot chưa vẽ được ảnh khung đầu.</div>' : '') +
-    // Luật cứng 5: dàn cảnh MÁY duyệt (nút Chạy tới duyệt ảnh) — ảnh shot đã cắt theo ảnh này.
-    (r.may_duyet ? '<div class="nhac" style="margin-top:8px">Ảnh này do <b>máy tự duyệt</b> (nút Chạy tới duyệt ' +
-      'ảnh) — soi lại ai ngồi đâu, phông sau lưng và khung cắt từng người' + (nguoi.length >= 3 ? ' (cảnh <b>' +
+    // Luật cứng 5: dàn cảnh MÁY duyệt (nút Generate All) — ảnh shot đã cắt theo ảnh này.
+    (r.may_duyet ? '<div class="nhac" style="margin-top:8px">Ảnh này do <b>máy tự duyệt</b> (nút Generate ' +
+      'All) — soi lại ai ngồi đâu, phông sau lưng và khung cắt từng người' + (nguoi.length >= 3 ? ' (cảnh <b>' +
       nguoi.length + ' người</b>: khung cắt mặc định chưa tin)' : '') + ', rồi bấm <b>xác nhận</b>. Sai thì sửa ' +
       'khung / vẽ lại, rồi vẽ lại ảnh các shot.</div>' : '') +
     (anh && nguoi.length ? '<div class="ghi">Mỗi khung là <b>mảnh cắt</b> làm Image 1 cho shot máy hướng tới ' +
@@ -2959,12 +2962,15 @@ async function chayChuong(){
     if(k.shot) lam.push("vẽ ≈ " + k.shot + " ảnh khung đầu shot");
     if(!lam.length) return bao("Chương " + ch + " đã tới bước duyệt ảnh shot — không còn gì để chạy.");
     var so = document.getElementById("soDu").textContent;
-    if(!confirm("Chạy chương " + ch + " tới duyệt ảnh (" + k.dong + " cảnh · " + k.clip + " clip):\n• " +
+    // Tên nút "Generate All" (user đổi 29/10); lời giải thích giữ tiếng Việt, nói rõ máy dừng ở đâu.
+    if(!confirm("Generate All chương " + ch + " (" + k.dong + " cảnh · " + k.clip + " clip) — máy làm tới " +
+                "bước duyệt ảnh shot:\n• " +
                 lam.join("\n• ") + "\n\n≈ " + soCr(k.credit) + " cr (" + k.anh + " ảnh · " + tenMoHinh(k.model) +
                 ") · ≈ " + k.phut + " phút" + (so ? "\nSố dư: " + so : "") +
                 (k.it_chac.length ? "\n\nCảnh từ 3 người — khung cắt mặc định chưa tin, soi lại sau khi chạy:\n• " +
                   k.it_chac.map(function(x){ return x.ten + " (" + x.nguoi + " người)"; }).join("\n• ") : "") +
-                "\n\nMáy KHÔNG duyệt ảnh shot, KHÔNG gọi video. Máy chủ chạy nền — đóng tab không mất.")) return;
+                "\n\nMáy DỪNG ở duyệt ảnh shot: KHÔNG duyệt ảnh shot, KHÔNG gen video. Máy chủ chạy nền — " +
+                "đóng tab không mất.")) return;
     try { await api(duong, "POST"); } catch(e){ return bao(e.message, true); }
     theoDoiChuong(true);
   });
@@ -3005,23 +3011,23 @@ async function theoDoiChuong(hen){
   }
   var nl = v && v.loi.length ? ' · <span class="thieu">' + v.loi.length + " lỗi</span>" : " · 0 lỗi";
   if(v && v.chay){
-    e.innerHTML = "Chạy chương " + ch + " · <b>" + (BUOC_CHUONG[v.buoc] || thoat(v.buoc)) +
+    e.innerHTML = "Generate All chương " + ch + " · <b>" + (BUOC_CHUONG[v.buoc] || thoat(v.buoc)) +
       (v.tong ? " " + v.xong + "/" + v.tong : "…") + "</b>" + nl + (v.nguoi ? " · " + thoat(v.nguoi) + " bấm" : "");
     veKetChuong("");
     return lai();
   }
   DANG_CHUONG = "";
-  e.innerHTML = v ? "Lần chạy chương " + ch + " gần nhất: xong" + nl : "";
+  e.innerHTML = v ? "Lần Generate All chương " + ch + " gần nhất: xong" + nl : "";
   veKetChuong((md.length ? '<details open><summary>' + md.length + ' ảnh dàn cảnh do MÁY tự duyệt — soi lại ai ' +
       'ngồi đâu, phông, khung cắt rồi bấm xác nhận</summary>' + md.map(function(x){
         return '• <a href="#" onclick="moDanCanh(\'' + ch + '\',' + x.i + ');return false">' + thoat(x.ten) + '</a>' +
                (x.nguoi >= 3 ? ' · <b>' + x.nguoi + ' người — khung cắt mặc định chưa tin</b>' : '');
       }).join("<br>") + '</details>' : '') +
     (v && v.loi.length ? '<details' + (hen ? ' open' : '') + '><summary>' + v.loi.length +
-      ' lỗi ở lần chạy chương gần nhất</summary>' + v.loi.map(function(l){
+      ' lỗi ở lần Generate All gần nhất</summary>' + v.loi.map(function(l){
         return '• ' + thoat(l.ten) + ': ' + thoat(l.loi); }).join("<br>") + '</details>' : ''), hen);
   if(!hen || !v) return;
-  bao("Chạy chương " + ch + " xong: " + (v.may_duyet || []).length + " ảnh dàn cảnh máy duyệt · " + v.loi.length +
+  bao("Generate All chương " + ch + " xong: " + (v.may_duyet || []).length + " ảnh dàn cảnh máy duyệt · " + v.loi.length +
       " lỗi. Soi dàn cảnh rồi duyệt ảnh shot.", v.loi.length > 0);
   napSoDu(1);
 }
@@ -3608,21 +3614,32 @@ function veKv(){
   var ch = s.value, ds = locKv(ch), h = "", chCu = "";
   ds.forEach(function(x){
     if(x.ch !== chCu){
+      if(chCu) h += '</div>';
       chCu = x.ch;
       var cua = ds.filter(function(y){ return y.ch === x.ch; });
       h += '<div class="ol-ten" style="margin-top:12px">CHƯƠNG ' + x.ch + ' · ' + cua.length + ' video · ' +
-           mb(cua.reduce(function(a, y){ return a + y.byte; }, 0)) + '</div>';
+           mb(cua.reduce(function(a, y){ return a + y.byte; }, 0)) +
+           ' <button class="cp" onclick="chonChuong(\'' + x.ch + '\',1)">Chọn cả chương</button> ' +
+           '<button class="cp" onclick="chonChuong(\'' + x.ch + '\',0)">Bỏ chọn</button></div><div class="hang">';
     }
-    var src = "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.ma + (x.sid ? "/shot/" + x.sid : "") +
-              "/video?v=" + Math.floor(x.t);
-    h += '<div class="kv-dong"><span class="ten">' + thoat(x.ten) + '</span>' +
-      (x.dang ? '<span class="chip thieu" title="Đang gen lại — ZIP lấy bản hiện có">⟳ đang gen lại</span>' : '') +
+    // Ảnh của thẻ: shot -> ảnh nhỏ (route của Storyboard), cảnh narration -> ảnh cảnh, clip
+    // kiểu cũ -> ô giữ chỗ. Tem `anh` có sẵn trong danh sách: không gọi thêm request mỗi thẻ.
+    var d = "/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.ma + (x.sid ? "/shot/" + x.sid : ""),
+        src = d + "/video?v=" + Math.floor(x.t), xem = "xemVideo('" + src + "', '" + x.ten + "')",
+        anh = x.anh ? d + (x.sid ? "/anh-nho" : "/anh") + "?v=" + x.anh : "", co = !!KV_CHON[x.khoa];
+    h += '<div class="tc kv-the' + (co ? ' chon' : '') + '">' +
+      '<div class="hinh" onclick="' + xem + '" title="Bấm để xem video">' +
+      (anh ? '<img loading="lazy" src="' + anh + '">' : (x.loai === "clip" ? 'cả clip · không có ảnh' : 'chưa có ảnh')) +
+      '<input type="checkbox" class="tich" data-k="' + x.khoa + '"' + (co ? ' checked' : '') +
+      ' onclick="event.stopPropagation()" onchange="tichKv(this)" title="Tích để tải cùng các mục khác">' +
+      (x.dang ? '<span class="co-video dang" title="Đang gen lại — ZIP lấy bản hiện có">⟳ đang gen lại</span>' : '') +
+      '</div><div class="chu"><span class="ten" title="' + x.ten + '">' + thoat(x.ten) + '</span></div>' +
+      '<div class="chan">' + (x.giay ? chip(x.giay + " s", "") : '') + chip(mb(x.byte), "") +
       (x.ghi ? '<span class="chip thieu" title="Vừa ghi xong, chưa vào ZIP — tải lại sau ít giây">đang ghi</span>' : '') +
-      '<span class="nho">' + mb(x.byte) + ' · ' + new Date(x.t * 1000).toLocaleString("vi-VN",
-        {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"}) + '</span>' +
-      '<button class="cp" onclick="xemVideo(\'' + src + '\', \'' + x.ten + '\')">▶ Xem</button>' +
-      '<a class="cp" href="' + src + '" download="' + x.ten + '">↓</a></div>';
+      '<span class="spacer"></span><button class="cp" onclick="' + xem + '" title="Xem video">▶</button>' +
+      '<a class="cp" href="' + src + '" download="' + x.ten + '" title="Tải lẻ video này">↓</a></div></div>';
   });
+  if(chCu) h += '</div>';
   var dang = ds.filter(function(x){ return x.dang; }).length;
   document.getElementById("kvTong").innerHTML = '<b>' + ds.length + '</b> video · ' +
     mb(ds.reduce(function(a, x){ return a + x.byte; }, 0)) + (dang ? ' · ' + dang + ' ⟳ đang gen lại' : '');
@@ -3630,17 +3647,46 @@ function veKv(){
   n.hidden = !ch; n.textContent = "↓ Tải ZIP " + ch;
   document.getElementById("kvCanvas").innerHTML = h || '<div class="ghi">' + (KV.ds.length
     ? 'Không có video nào khớp lọc.' : 'Tập này chưa có video nào.') + '</div>';
+  demChon();
 }
-async function taiZip(ch){
-  var loai = document.getElementById("kvLoai").value, moi = document.getElementById("kvMoi").checked;
-  var r = await fetch("/api/tap/" + TAP_MA + "/kho-video.zip?ch=" + encodeURIComponent(ch) +
-                      (loai ? "&loai=" + loai : "") + (moi ? "&sau=" + docMoc(ch) : ""));
+/* Tích chọn (user 29/10): ô đã tích GIỮ qua đổi lọc / đổi chương, bỏ hết khi tải xong. */
+var KV_CHON = {};
+function demChon(){
+  var n = KV.ds.filter(function(x){ return KV_CHON[x.khoa]; }).length, b = document.getElementById("kvTaiChon");
+  b.textContent = "↓ Tải mục đã chọn (" + n + ")"; b.disabled = !n;
+}
+function tichKv(o){
+  if(o.checked) KV_CHON[o.getAttribute("data-k")] = 1; else delete KV_CHON[o.getAttribute("data-k")];
+  o.closest(".kv-the").classList.toggle("chon", o.checked);
+  demChon();
+}
+function chonChuong(ch, co){
+  locKv(ch).forEach(function(x){ if(co) KV_CHON[x.khoa] = 1; else delete KV_CHON[x.khoa]; });
+  veKv();
+}
+async function taiChon(){
+  if(KV_DANG) return;
+  await napKv();
+  var bao = document.getElementById("kvBao"),
+      k = KV.ds.filter(function(x){ return KV_CHON[x.khoa] && !x.ghi; }).map(function(x){ return x.khoa; });
+  if(!k.length){ bao.textContent = "Chưa tích mục nào có video."; return; }
+  // GET mang cả danh sách (POST qua gateway vướng CSRF). Mỗi khoá ~20 ký tự; dòng yêu cầu dài quá
+  // ~16 KB là máy chủ từ chối — 300 mục ≈ 6 KB, nhiều hơn thì đã có Tải ZIP chương.
+  if(k.length > 300){ bao.textContent = "Chọn tối đa 300 mục một lần — nhiều hơn thì dùng Tải ZIP chương."; return; }
+  KV_DANG = true; bao.textContent = "Đang tải " + k.length + " mục đã chọn…";
+  try { await taiZip("chon=" + k.join(",")); KV_CHON = {}; bao.textContent = "Đã tải " + k.length + " mục."; }
+  catch(e){ bao.textContent = "Lỗi — " + e.message; }
+  KV_DANG = false;
+  veKv();
+}
+async function taiZip(q){
+  var r = await fetch("/api/tap/" + TAP_MA + "/kho-video.zip?" + q);
   if(!r.ok){
     var j = null; try { j = await r.json(); } catch(e){}
     throw new Error((j && j.detail) || ("Lỗi " + r.status));
   }
   var ten = ((r.headers.get("content-disposition") || "").match(/filename="([^"]+)"/) || [])[1] ||
-            TAP_MA + "_" + ch + ".zip";
+            TAP_MA + ".zip";
   var a = document.createElement("a");
   a.href = URL.createObjectURL(await r.blob()); a.download = ten;
   document.body.appendChild(a); a.click(); a.remove();
@@ -3654,9 +3700,14 @@ async function taiKv(caTap){
   cac = cac.filter(function(m){ return m && locKv(m).some(function(x){ return !x.ghi; }); });
   if(!cac.length){ bao.textContent = "Không có video nào để tải."; return; }
   KV_DANG = true;
+  var loai = document.getElementById("kvLoai").value, moi = document.getElementById("kvMoi").checked;
   for(var i = 0; i < cac.length; i++){
     bao.textContent = "Đang tải " + cac[i] + " (" + (i + 1) + "/" + cac.length + ")…";
-    try { await taiZip(cac[i]); ghiMoc(cac[i], moc); }
+    try {
+      await taiZip("ch=" + encodeURIComponent(cac[i]) + (loai ? "&loai=" + loai : "") +
+                   (moi ? "&sau=" + docMoc(cac[i]) : ""));
+      ghiMoc(cac[i], moc);
+    }
     catch(e){ loi.push(cac[i] + ": " + e.message); }
   }
   KV_DANG = false;
