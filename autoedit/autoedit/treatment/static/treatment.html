@@ -90,6 +90,21 @@ select.tap{background:var(--bg);border:1px solid var(--line);border-radius:7px;p
 .nhac{background:var(--warn-soft);border:1px solid var(--warn);color:var(--warn);
   border-radius:8px;padding:8px 11px;font-size:12.5px;line-height:1.55}
 #banMoi.khoa,#ketTatCa.khoa,#ketChuong.khoa{margin:8px 14px}
+/* Thanh "Đang chạy" (29/10): việc gen của MỌI người trong tập, thấy ở cả 4 màn */
+#dangChay{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:7px 14px;
+  background:var(--accent-soft);border-bottom:1px solid var(--accent);font-size:12.5px}
+#dangChay:empty{display:none}
+/* Hộp clip / ảnh mở (lớp phủ toàn màn) che thanh dưới header: lúc đó thanh nổi góc dưới trái */
+body:has(.nen.mo) #dangChay{position:fixed;left:16px;bottom:16px;z-index:12;max-width:min(760px,calc(100vw - 32px));
+  border:1px solid var(--accent);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+#dangChay .muc{display:inline-block;background:var(--panel);
+  border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+#dangChay .thieu{color:var(--warn);font-weight:700}
+.quay{display:inline-block;animation:quay 1s linear infinite;color:var(--accent);font-weight:800}
+@keyframes quay{to{transform:rotate(360deg)}}
+.thanh-td{display:inline-block;width:70px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.thanh-td i{display:block;height:100%;background:var(--accent)}
+button.khoa-dang{cursor:wait}
 .khoa button{margin-left:auto;background:var(--warn);color:#0b0b0b;border:0;border-radius:6px;
   padding:4px 10px;font-weight:700;cursor:pointer}
 .dau{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;
@@ -229,6 +244,8 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
   color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800}
 .tc .co-video.dang{background:var(--warn)}
 .tc .co-video.thieu{background:var(--muted)}
+.tc .dang-lam{position:absolute;top:6px;right:6px;max-width:70%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;background:var(--accent);color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800}
 /* dải ô trạng thái từng shot (thẻ clip drama, user chốt 29/10) — viền trắng để nổi trên ảnh */
 .tc .dai-shot{position:absolute;left:6px;bottom:8px;display:flex;gap:3px}
 .tc .dai-shot i{width:14px;height:8px;border-radius:2px;background:rgba(0,0,0,.35);
@@ -469,6 +486,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 <!-- Thanh "Có bản mới" nằm NGOÀI ba màn: đo 27/09, người dùng đứng ở
      Storyboard/Asset thì thanh cũ (trong cột kịch bản) không hiện, tab cũ chạy tiếp. -->
 <div id="banMoi"></div>
+<div id="dangChay"></div>
 
 <div id="manKb" style="display:flex;flex-direction:column;flex:1;min-height:0">
 <div class="khung">
@@ -556,7 +574,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <span class="tien-do" id="tienDoAs"></span>
     <span class="tien-do" id="viecTatCa"></span>
     <span class="spacer"></span>
-    <button class="icon-btn chi-sua" id="nutGoiY" onclick="goiYTaiSan()">Đọc kịch bản</button>
+    <button class="icon-btn chi-sua" id="nutGoiY" onclick="goiYTaiSan()" data-viec="goi_y">Đọc kịch bản</button>
     <button class="icon-btn chi-sua" id="nutTatCa" onclick="genTatCa()"
             title="Tìm đồ vật, viết mô tả, vẽ ảnh mọi asset còn thiếu — máy chủ chạy nền, đóng tab không mất">Gen toàn bộ asset</button>
     <button class="icon-btn chi-sua" onclick="themAsset('nhan_vat')">+ nhân vật</button>
@@ -665,6 +683,7 @@ async function napTap(){
 async function doiTap(ma){
   if(!ma) return;
   TAP_MA = ma; DU = {}; MAN = ""; chonCh = "";
+  DANG = {viec: [], chuong: [], asset: null}; theoDoiDang();
   var kt = DS_TAP.filter(function(t){ return t.ma === ma; })[0] || {};
   TAP_LOAI = kt.loai || ""; TAP_KHUON = kt.khuon || "";
   // Drama: chương và clip đến từ kịch bản dán vào — không chẻ cảnh tay. Breakdown thì
@@ -1545,7 +1564,7 @@ function dauHopDrama(x){
     ((x.tu || 0) > tran ? ' · <span class="canh-bao">quá trần — tăng giây hay bớt chữ</span>' : '') +
     (x.day ? ' · <span class="canh-bao">' + x.ns + ' shot không đủ 2,5 giây mỗi shot — Breakdown clip ' +
              'lại để gộp shot</span>' : '') + '</i></div>' +
-    (SUA_DUOC ? '<button class="x" onclick="breakdownClip(event)" title="LLM đọc Hình: của clip này, ' +
+    (SUA_DUOC ? '<button class="x" onclick="breakdownClip(event)"' + dv("breakdown", x.ch, x.di, x.id) + ' title="LLM đọc Hình: của clip này, ' +
       'chia shot, đặt góc · cỡ · máy. Sai thì sửa ở bước 2–4.">Breakdown clip</button>' : '');
 }
 /* Thanh chọn shot, rồi bước 2–4 của ĐÚNG shot đang chọn — cùng `veKhungCanh` /
@@ -1580,7 +1599,7 @@ function cotHinhDrama(x){
   var gi = +(x.gi || 15), tay = (x.pvt || "").trim(), co = !!((x.pd || "").trim() || tay);
   // Mỗi shot một video (user chốt 29/10): thẻ shot đứng đầu cột. Nút Gen Video CẢ CLIP ẩn —
   // máy chủ giữ đường cũ; video cả clip dựng trước đó vẫn xem / tải được.
-  return (SUA_DUOC ? '<div class="hang-nut" style="margin-top:0"><button onclick="createPrompt(event)">' +
+  return (SUA_DUOC ? '<div class="hang-nut" style="margin-top:0"><button onclick="createPrompt(event)"' + dv("prompt", x.ch, x.di, x.id) + '>' +
       (co ? 'Create Prompt lại' : 'Create Prompt') + '</button></div>' : '') +
     (co ? '' : '<div class="nhac" style="margin-top:8px">Clip chưa có prompt — bấm ' +
       (dsShot(x).length ? '' : '<b>Breakdown clip</b> rồi ') + '<b>Create Prompt</b>.</div>') +
@@ -1671,6 +1690,7 @@ function nhanDanCanh(x){
 function moDanCanh(ch, di){
   canhDangMo = "";             // hộp clip đã đóng: lời hỏi video về muộn đừng vẽ đè panel này
   DAN_MO = {ch: ch, di: di};
+  theoDoiDang();               // mở hộp là lúc sắp bấm: hỏi ngay ai đang làm gì, khỏi đợi vòng 15 giây
   hopToan(false);
   veDanCanh();
   document.getElementById("nenCanh").classList.add("mo");
@@ -1709,9 +1729,9 @@ function veDanCanh(){
                  }).join("") : '') + '</div>';
         }).join("") + '</div>'
       : '<div class="khung-to">16:9 · chưa có ảnh dàn cảnh</div>') +
-    (SUA_DUOC ? '<div class="hang-nut"><button onclick="vietPromptCanh(event)">' +
+    (SUA_DUOC ? '<div class="hang-nut"><button onclick="vietPromptCanh(event)"' + dv("prompt", m.ch, m.di) + '>' +
       (r.san ? 'Viết prompt cảnh lại' : 'Viết prompt cảnh') + '</button>' +
-      '<button onclick="veAnhDan(event)"' + ((r.san && !ve) ? '' : ' disabled') + '>' +
+      '<button onclick="veAnhDan(event)"' + dv("dan", m.ch, m.di) + ((r.san && !ve) ? '' : ' disabled') + '>' +
       (ve ? 'Đang vẽ ảnh dàn cảnh…' : (r.co_anh ? 'Vẽ lại ảnh dàn cảnh' : 'Vẽ ảnh dàn cảnh')) + '</button>' +
       (r.co_anh ? '<button class="' + (r.duyet && !r.may_duyet ? 'on' : '') + '" onclick="duyetDan(event)"' +
         (ve ? ' disabled' : '') + '>' + (r.may_duyet ? 'Máy đã duyệt · bấm xác nhận' :
@@ -1908,14 +1928,14 @@ function theShot(x, s, k, t, dc){
     '<div class="khung-to">' + (vid ? '<video controls preload="metadata" src="' + vid + '"></video>'
       : (dang ? 'đang dựng video…' : 'video · chưa có')) + '</div></div>';
   if(SUA_DUOC)
-    h += '<div class="hang-nut"><button onclick="veAnhShot(event,' + k + ')"' +
+    h += '<div class="hang-nut"><button onclick="veAnhShot(event,' + k + ')"' + dv("anh", x.ch, x.di, x.id, sid) +
       ((dc.duyet && coPd && !ve && !dang) ? '' : ' disabled') +
       (dc.duyet ? (coPd ? '' : ' title="Clip chưa có prompt — bấm Create Prompt trước"')
                 : ' title="Duyệt ảnh dàn cảnh trước"') + '>' +
       (ve ? 'Đang vẽ ảnh…' : (anh ? 'Vẽ lại ảnh' : 'Vẽ ảnh')) + '</button>' +
       (anh ? '<button class="' + (t.duyet ? 'on' : '') + '" onclick="duyetShot(event,' + k + ')"' +
         (ve ? ' disabled' : '') + '>' + (t.duyet ? '✓ đã duyệt' : 'Duyệt ảnh') + '</button>' : '') +
-      '<button onclick="genVideoShot(event,' + k + ')"' + ((t.duyet && !dang && !ve) ? '' : ' disabled') +
+      '<button onclick="genVideoShot(event,' + k + ')"' + dv("video", x.ch, x.di, x.id, sid) + ((t.duyet && !dang && !ve) ? '' : ' disabled') +
       (t.duyet ? '' : ' title="Duyệt ảnh của shot trước"') + '>' +
       (dang ? 'Đang dựng video…' : (vid ? 'Gen video lại' : 'Gen video')) + '</button>' +
       '<span class="spacer"></span>' +
@@ -2083,7 +2103,7 @@ function veTheCanh(){
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
          '<div class="hinh ' + (dr ? '' : lopTong(x)) + '">' +
          (x.anh ? '<img src="' + duongAnh(x) + '">' : (sb.anh ? '<img loading="lazy" src="' + sb.anh + '">' : "")) +
-         '<span class="ma">' + (dr ? thoat(x.pm) : x.ma) + '</span>' +
+         '<span class="ma">' + (dr ? thoat(x.pm) : x.ma) + '</span>' + dangThe(x) +
          (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
                 : (dr ? ((x.video || x.vid || sb.anh || sb.v) ? '' : 'chưa có video') : '16:9 · chưa có ảnh')) +
          (x.video ? '<span class="co-video">▶ video</span>'
@@ -2172,9 +2192,13 @@ async function maCanhChac(){
    thái góc trên là quá kín, mắt đang nhìn cái nút. */
 async function banRon(nut, chu, viec){
   var cu = nut ? nut.textContent : "";
-  if(nut){ nut.disabled = true; nut.textContent = chu; }
+  if(nut){ nut.disabled = true; nut.textContent = chu; nut.dataset.ron = cu; }
+  setTimeout(theoDoiDang, 400);          // thanh "Đang chạy" thấy việc vừa bấm, khỏi đợi vòng hỏi
   try { return await viec(); }
-  finally { if(nut){ nut.disabled = false; nut.textContent = cu; } }
+  finally {
+    if(nut){ delete nut.dataset.ron; if(!nut.dataset.goc){ nut.disabled = false; nut.textContent = cu; } }
+    theoDoiDang();
+  }
 }
 
 async function sinhAnh(ev){
@@ -2346,6 +2370,7 @@ function moCanh(ma){
   if(k < 0) return;
   var x = ds[k], g = giayCua(x.en), moi = g / x.n;
   canhDangMo = ma;
+  theoDoiDang();               // mở hộp là lúc sắp bấm: hỏi ngay ai đang làm gì, khỏi đợi vòng 15 giây
   var truoc = ds[k - 1], gui = anhSeGui(x);
   // Clip drama (PA-B 28/10): CÙNG hộp — bước 1–4 theo shot, Create Prompt, Gen Video. Grok
   // dựng từ ảnh tham chiếu, không khung đầu: không Gen Image / Duyệt / Nối / Tone / Model.
@@ -2366,7 +2391,7 @@ function moCanh(ma){
     '” · ~' + Math.round(g) + ' giây · ' + x.n + ' cảnh → ~' + moi.toFixed(1) + 's/cảnh' +
     (moi > giayCanh(x) ? ' · <span class="canh-bao">dài hơn 1 clip ' + giayCanh(x) + 's</span>' : '') +
     '</i></div>' +
-    (SUA_DUOC ? '<button class="x" onclick="boTroDong(event)" title="LLM chen thêm cú bổ trợ ' +
+    (SUA_DUOC ? '<button class="x" onclick="boTroDong(event)"' + dv("bo_tro", x.ch, x.di) + ' title="LLM chen thêm cú bổ trợ ' +
       '(insert · cutaway · establishing) vào giữa các cú của phân cảnh ' + x.pc + '. Chỉ thêm ' +
       'khi voice còn chỗ (~3 s mỗi cú). Sai thì sửa hoặc xoá tay.">+ Cú bổ trợ phân cảnh ' +
       x.pc + '</button>' : '')) +
@@ -2409,20 +2434,20 @@ function moCanh(ma){
                  '" hidden></video>' : '') + '</div>' +
 
       (SUA_DUOC ? '<div class="hang-nut">' +
-        '<button onclick="createPrompt(event)">' +
+        '<button onclick="createPrompt(event)"' + dv("prompt", x.ch, x.di, x.id) + '>' +
         (chuaDich(x) ? 'Create Prompt' : 'Create Prompt lại') + '</button>' +
-        '<button onclick="sinhAnh(event)"' + (chuaDich(x) ? ' disabled' : '') + '>' +
+        '<button onclick="sinhAnh(event)"' + dv("anh", x.ch, x.di, x.id) + (chuaDich(x) ? ' disabled' : '') + '>' +
         (x.anh ? 'Gen Image lại' : 'Gen Image') + '</button>' +
         (x.anh ? '<button class="' + (x.duyet ? 'on' : '') +
                  '" onclick="duyetAnh(event)">' +
                  (x.duyet ? '✓ đã duyệt' : 'Duyệt ảnh') + '</button>' : '') +
-        (x.duyet ? '<button onclick="genVideo(event)"' +
+        (x.duyet ? '<button onclick="genVideo(event)"' + dv("video", x.ch, x.di, x.id) +
                    (x.vid ? ' disabled' : '') + '>' +
                    (x.vid ? 'Đang dựng video…'
                           : (x.video ? 'Gen Video lại' : 'Gen Video')) +
                    '</button>' : '') +
         (x.duyet && truoc && truoc.video
-          ? '<button onclick="genVideo(event, true)"' + (x.vid ? ' disabled' : '') +
+          ? '<button onclick="genVideo(event, true)"' + dv("video", x.ch, x.di, x.id) + (x.vid ? ' disabled' : '') +
             ' title="Khung cuối clip ' + truoc.ma + ' thành khung đầu clip này">' +
             '⇥ Nối từ ' + truoc.ma + '</button>' : '') +
         '<span class="spacer"></span>' +
@@ -2731,7 +2756,7 @@ function moAsset(ma){
     '<div class="prompt" data-yc="' + ma + '"' +
     (SUA_DUOC ? ' contenteditable' : '') + '>' + thoat(x.yc || "") + '</div>' +
     (SUA_DUOC ? '<div class="hai" style="margin-top:7px">' +
-      '<button onclick="sinhAsset(event)">' +
+      '<button onclick="sinhAsset(event)"' + dv("mo_ta", "", null, ma) + '>' +
       (x.chu ? 'Sinh Asset lại' : 'Sinh Asset') + '</button></div>' : '')) +
     '<p class="nhan">' + (x.loai === "truong_doan"
       ? 'Dàn cảnh — ai đứng đâu, máy đứng bên nào (ghi cho mình và cho LLM)'
@@ -2753,7 +2778,7 @@ function moAsset(ma){
     // xuống mới ra đúng thứ tự: yêu cầu → sinh asset → prompt → duyệt → vẽ.
     (SUA_DUOC && (x.pr || "").trim()
       ? '<div class="hai" style="margin-top:7px"><button onclick="sinhRef(\'' +
-        ma + '\', event)">Duyệt prompt ' + (x.ref ? '→ vẽ lại ref' : '→ vẽ ref') +
+        ma + '\', event)"' + dv("ref", "", null, ma) + '>Duyệt prompt ' + (x.ref ? '→ vẽ lại ref' : '→ vẽ ref') +
         '</button></div>'
       : '') +
     '<p class="nhan">Dùng ở ' + dung.length + ' cảnh</p>' +
@@ -3030,6 +3055,122 @@ async function theoDoiChuong(hen){
   bao("Generate All chương " + ch + " xong: " + (v.may_duyet || []).length + " ảnh dàn cảnh máy duyệt · " + v.loi.length +
       " lỗi. Soi dàn cảnh rồi duyệt ảnh shot.", v.loi.length > 0);
   napSoDu(1);
+}
+
+/* THANH "ĐANG CHẠY" (user chốt 29/10: "ấn nút generate all hoặc bất kỳ nút nào thì cũng phải có
+   thanh trạng thái ... người dùng dễ đè việc của nhau"). Máy chủ giữ sổ nút gen đang chạy của cả
+   tập, mọi tab thấy chung: thanh dưới header, nhãn trên thẻ clip, nút đụng việc người khác đang
+   làm thì khoá kèm tên. Hỏi 3 giây một lần khi có việc, 15 giây khi rảnh. Khoá ở trang chỉ là
+   nhắc — tab cũ bấm thì máy chủ vẫn trả 409. */
+var DANG = {viec: [], chuong: [], asset: null}, KY_DANG = "", LUOT_DANG = 0;
+var NHOM_VIEC = {breakdown: "chu", prompt: "chu", bo_tro: "chu", dich: "chu", mo_ta: "asset", ref: "asset"};
+/* Thuộc tính cho nút gen: việc + chỗ, để `khoaNutDang` biết nút nào đụng việc đang chạy. */
+function dv(viec, ch, i, ma, sid){
+  return ' data-viec="' + viec + '" data-ch="' + (ch || "") + '" data-i="' + (i == null ? "" : i) +
+         '" data-ma="' + thoat(ma || "") + '" data-sid="' + thoat(sid || "") + '"';
+}
+/* Cùng luật `_dung_nhau` của máy chủ: cùng nhóm việc, cùng chương, chỗ này chứa chỗ kia. */
+function dungNhau(a, b){
+  return (NHOM_VIEC[a.viec] || a.viec) === (NHOM_VIEC[b.viec] || b.viec) && a.ch === b.ch &&
+    (a.i == null || b.i == null || a.i === b.i) && (!a.ma || !b.ma || a.ma === b.ma) &&
+    (!a.sid || !b.sid || a.sid === b.sid);
+}
+/* Ai đang làm gì chặn nút này. Việc của chính mình bỏ qua: nút mình bấm đã tự khoá (`banRon`). */
+function viecChan(a){
+  var g = a.ch && DANG.chuong.filter(function(v){ return v.ch === a.ch; })[0];
+  if(g) return {nguoi: g.nguoi, cau: g.nguoi + " đang Generate All chương " + g.ch};
+  var t = DANG.asset;
+  if(!a.ch && a.ma && t) return {nguoi: t.nguoi, cau: t.nguoi + " đang gen toàn bộ asset"};
+  var o = DANG.viec.filter(function(o){ return o.nguoi !== TOI && dungNhau(o, a); })[0];
+  return o ? {nguoi: o.nguoi, cau: o.nguoi + " đang " + o.ten + " ở " + o.cho} : null;
+}
+/* Khoá giữ lại chữ / trạng thái gốc để trả đúng như cũ. Nút đang chờ `banRon` thì gốc là chữ
+   trước lúc bấm, không phải "Đang tính…". */
+function khoaNut(n, cau, chu){
+  if(!n) return;
+  if(!n.dataset.goc){
+    n.dataset.goc = n.dataset.ron || n.textContent;
+    n.dataset.gocTat = !n.dataset.ron && n.disabled ? "1" : "";
+    n.dataset.gocTitle = n.title || "";
+  }
+  n.disabled = true; n.textContent = chu; n.title = cau + " — đợi xong."; n.classList.add("khoa-dang");
+}
+function moNut(n){
+  if(!n || !n.dataset.goc) return;      // chỉ trả nút CHÍNH thanh này khoá
+  n.textContent = n.dataset.goc; n.disabled = !!n.dataset.gocTat; n.title = n.dataset.gocTitle;
+  n.classList.remove("khoa-dang");
+  delete n.dataset.goc; delete n.dataset.gocTat; delete n.dataset.gocTitle;
+}
+function khoaNutDang(){
+  document.querySelectorAll("button[data-viec]").forEach(function(n){
+    var d = n.dataset, o = viecChan({viec: d.viec, ch: d.ch || "", i: d.i ? +d.i : null,
+                                     ma: d.ma || "", sid: d.sid || ""});
+    if(o) khoaNut(n, o.cau, "⟳ " + o.nguoi + " đang làm…"); else moNut(n);
+  });
+  var ch = chuongChay(), g = ch && DANG.chuong.filter(function(v){ return v.ch === ch; })[0], a = DANG.asset;
+  if(g) khoaNut(document.getElementById("nutChuong"), g.nguoi + " đang Generate All chương " + ch,
+                "⟳ Đang chạy" + (g.tong ? " " + g.xong + "/" + g.tong : "") + "…");
+  else moNut(document.getElementById("nutChuong"));
+  if(a) khoaNut(document.getElementById("nutTatCa"), a.nguoi + " đang gen toàn bộ asset",
+                "⟳ Đang gen" + (a.tong ? " " + a.xong + "/" + a.tong : "") + "…");
+  else moNut(document.getElementById("nutTatCa"));
+}
+/* Nhãn trên thẻ clip: việc ở đúng clip, ở cả cảnh (i), hay cả chương (dịch). */
+function dangThe(x){
+  var o = DANG.viec.filter(function(o){
+    return o.ch === x.ch && (o.ma ? o.ma === x.id : (o.i == null || o.i === x.di)); })[0];
+  return o ? '<span class="dang-lam" title="' + thoat(o.nguoi + " đang " + o.ten + " ở " + o.cho) + '">⟳ ' +
+             thoat(o.nguoi === TOI ? "Bạn" : o.nguoi) + ' · ' + thoat(o.ten) + '</span>' : '';
+}
+function giayDang(g){ return g < 60 ? g + " s" : Math.round(g / 60) + " phút"; }
+function veDang(){
+  var ai = function(n){ return '<b>' + thoat(n === TOI ? "Bạn" : n) + '</b>'; };
+  var tien = function(v, buoc){
+    return ' · ' + (buoc[v.buoc] || thoat(v.buoc)) + (v.tong ? ' ' + v.xong + '/' + v.tong +
+      ' <span class="thanh-td"><i style="width:' + Math.round(100 * v.xong / v.tong) + '%"></i></span>' : '…') +
+      (v.loi ? ' · <span class="thieu">' + v.loi + ' lỗi</span>' : '') + ' · ' + giayDang(v.giay);
+  };
+  var m = DANG.chuong.map(function(v){
+    return '<span class="muc">' + ai(v.nguoi) + ' · Generate All chương ' + thoat(v.ch) + tien(v, BUOC_CHUONG) + '</span>';
+  });
+  if(DANG.asset) m.push('<span class="muc">' + ai(DANG.asset.nguoi) + ' · Gen toàn bộ asset' +
+                        tien(DANG.asset, BUOC_TAT_CA) + '</span>');
+  DANG.viec.forEach(function(o){
+    m.push('<span class="muc">' + ai(o.nguoi) + ' · ' + thoat(o.ten) + ' · ' + thoat(o.cho) + ' · ' +
+           giayDang(o.giay) + '</span>');
+  });
+  document.getElementById("dangChay").innerHTML = m.length
+    ? '<span class="quay">⟳</span><b>Đang chạy</b>' + m.join("") : "";
+}
+function kyViec(o){ return [o.viec, o.ch, o.i, o.ma, o.sid, o.nguoi].join("|"); }
+/* Một vòng hỏi. Gọi lại (bấm nút, đổi tập) thì vòng cũ tự tắt — `LUOT_DANG`. */
+async function theoDoiDang(){
+  var l = ++LUOT_DANG, tap = TAP_MA, r = null;
+  if(tap){ try { r = await api("/api/tap/" + tap + "/dang-chay"); } catch(e){} }   // mạng chớp: giữ bản cũ
+  if(l !== LUOT_DANG || tap !== TAP_MA) return;
+  try { if(r){
+    var cu = DANG, ky = r.viec.map(kyViec).join(",");
+    DANG = r;
+    // Việc của NGƯỜI KHÁC vừa xong: nạp lại chỗ đó — tab cầm bản cũ rồi bấm là đè kết quả họ vừa ra.
+    var xong = cu.viec.filter(function(o){
+      return o.nguoi !== TOI && !r.viec.some(function(n){ return kyViec(n) === kyViec(o); }); });
+    if(xong.length && MAN_HINH === "sb"){
+      var chs = {};
+      xong.forEach(function(o){ if(o.ch && DU[o.ch]) chs[o.ch] = 1; });
+      for(var ch in chs) await taiLaiChuong(ch);
+    }
+    if(xong.some(function(o){ return !o.ch; })){ await napSoGiu(); if(MAN_HINH === "as") veAsset(); }
+    if(ky !== KY_DANG || xong.length){
+      KY_DANG = ky;
+      if(MAN_HINH === "sb"){ veVetTap(); veTheCanh(); tienDoSo(); }
+    }
+    // Generate All / Gen toàn bộ asset người khác bấm: bám theo để nạp dữ liệu máy ghi dần.
+    if(r.chuong.some(function(v){ return v.ch === chuongChay(); })) theoDoiChuong();
+    if(r.asset) theoDoiTatCaAsset();
+  } } catch(e){}                        // nạp lại hỏng: vòng sau thử tiếp, đừng tắt vòng hỏi
+  veDang(); khoaNutDang();
+  var co = DANG.viec.length || DANG.chuong.length || DANG.asset;
+  setTimeout(function(){ if(l === LUOT_DANG) theoDoiDang(); }, co ? 3000 : 15000);
 }
 
 /* Tông nào dùng cho CẢ TẬP. Một tập một mood — cảnh lệch thì tự đè trong hộp

@@ -14,6 +14,8 @@ Chạy:  python -m autoedit.treatment.app --port 9121
 
 from __future__ import annotations
 
+import functools
+import itertools
 import math
 import os
 import re
@@ -444,6 +446,93 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    # ------------------------------------------------------------ đang chạy
+    # User chốt 29/10: "ấn nút generate all hoặc bất kỳ nút nào thì cũng phải có thanh trạng thái
+    # ... người dùng dễ đè việc của nhau". Nút gen bấm tay vào sổ `_DANG` suốt request: mọi tab
+    # hỏi `/dang-chay` thấy chung; đụng việc đang chạy thì 409 thay vì chạy lần hai (credit hai
+    # lần, kết quả sau đè kết quả trước). Trong bộ nhớ như `_VIEC`: restart giết luôn request
+    # đang chạy, sổ mất theo là đúng. Khoá chung `_KHOA_VIEC` với Generate All / Gen toàn bộ asset.
+    _DANG: dict[int, dict] = {}
+    _SO_DANG = itertools.count()
+    TEN_VIEC = {"breakdown": "breakdown", "prompt": "viết prompt", "bo_tro": "sinh cú bổ trợ",
+                "dich": "dịch", "anh": "vẽ ảnh", "dan": "vẽ ảnh dàn cảnh", "video": "gửi video",
+                "mo_ta": "viết mô tả asset", "ref": "vẽ ảnh ref", "goi_y": "đọc kịch bản"}
+    # Cùng nhóm = cùng ghi một thứ: breakdown, viết prompt, cú bổ trợ, dịch đều viết lại chữ clip.
+    _NHOM = {"breakdown": "chu", "prompt": "chu", "bo_tro": "chu", "dich": "chu", "mo_ta": "asset", "ref": "asset"}
+
+    def _dung_nhau(a: dict, b: dict) -> bool:
+        """Cùng tập, cùng nhóm việc, cùng chương, và chỗ này chứa chỗ kia: chương ⊃ cảnh ⊃
+        clip ⊃ shot (None / rỗng = cả tầng đó)."""
+        return (a["tap"] == b["tap"] and _NHOM.get(a["viec"], a["viec"]) == _NHOM.get(b["viec"], b["viec"])
+                and a["ch"] == b["ch"] and (a["i"] is None or b["i"] is None or a["i"] == b["i"])
+                and (not a["ma"] or not b["ma"] or a["ma"] == b["ma"])
+                and (not a["sid"] or not b["sid"] or a["sid"] == b["sid"]))
+
+    def _cau_dang(o: dict) -> str:
+        return f"{o['nguoi']} đang {TEN_VIEC[o['viec']]} ở {o['cho']}"
+
+    def _cho_viec(tap: str, ch: str, i, ma: str, sid: str) -> tuple:
+        """(chỉ số cảnh, nhãn chỗ cho người đọc) — clip drama gọi theo mã P, narration theo phân cảnh."""
+        if ch and ma:
+            _, i, j, c = _tim_canh(tap, ch, ma)
+            k = next((k for k, s in enumerate(mdrama.doc_sh(c.get("sh"))) if s.get("sid") == sid), None)
+            return i, f"{ch} · " + (c.get("pm") or f"phân cảnh {i + 1} · cảnh {j + 1}") +                 (f" · shot {k + 1}" if sid and k is not None else "")
+        if ch and i is not None:
+            d = kho.doc(tap, ch)["dong"]
+            en = (d[i].get("en") or "") if 0 <= i < len(d) and kho.kieu_tap(tap)["loai"] == "drama" else ""
+            return i, f"{ch} · " + (en[:60] or f"phân cảnh {i + 1}")
+        if ch:
+            return i, f"chương {ch}"
+        if ma:
+            return i, next((x.get("ten") for x in kho.ds_so(tap) if x["ma"] == ma), "") or ma
+        return i, "cả tập"
+
+    def _dang(viec: str):
+        """Bọc route nút gen: vào sổ sau cửa gác quyền, rời sổ cả khi hỏng."""
+        def boc(ham):
+            @functools.wraps(ham)
+            def chay(**kw):
+                ai, tap, ch, ma, sid = (_ghi_duoc(kw["request"]), kw["tap"], kw.get("chuong", ""),
+                                        kw.get("ma", ""), kw.get("sid", ""))
+                i, cho = _cho_viec(tap, ch, kw.get("i"), ma, sid)
+                moi = {"tap": tap, "viec": viec, "ch": ch, "i": i, "ma": ma, "sid": sid, "cho": cho,
+                       "nguoi": ai, "bat_dau": time.time()}
+                with _KHOA_VIEC:
+                    v = _CHAY.get((tap, ch)) if ch else None
+                    if v and v["chay"]:
+                        raise HTTPException(409, f"{v['nguoi']} đang Generate All chương {ch} — đợi xong.")
+                    if not ch and ma and (_VIEC.get(tap) or {}).get("chay"):
+                        raise HTTPException(409, f"{_VIEC[tap]['nguoi']} đang gen toàn bộ asset — đợi xong.")
+                    o = next((o for o in _DANG.values() if _dung_nhau(o, moi)), None)
+                    if o:
+                        raise HTTPException(409, _cau_dang(o) + " — đợi xong rồi bấm lại.")
+                    k = next(_SO_DANG)
+                    _DANG[k] = moi
+                try:
+                    return ham(**kw)
+                finally:
+                    with _KHOA_VIEC:
+                        _DANG.pop(k, None)
+            return chay
+        return boc
+
+    @app.get("/api/tap/{tap}/dang-chay")
+    def dang_chay(tap: str):
+        """Thanh "Đang chạy" của mọi tab: nút gen tay + Generate All + Gen toàn bộ asset của tập."""
+        bay = time.time()
+
+        def tom(v: dict) -> dict:
+            return {"nguoi": v["nguoi"], "buoc": v["buoc"], "xong": v["xong"], "tong": v["tong"],
+                    "loi": len(v["loi"]), "giay": int(bay - v["bat_dau"])}
+        with _KHOA_VIEC:
+            viec = [dict({x: o[x] for x in ("viec", "ch", "i", "ma", "sid", "cho", "nguoi")},
+                         ten=TEN_VIEC[o["viec"]], giay=int(bay - o["bat_dau"]))
+                    for o in _DANG.values() if o["tap"] == tap]
+            chuong = [dict(tom(v), ch=ch) for (t, ch), v in _CHAY.items() if t == tap and v["chay"]]
+            a = _VIEC.get(tap)
+            asset = tom(a) if a and a["chay"] else None
+        return {"viec": viec, "chuong": chuong, "asset": asset}
+
     # ----------------------------------------------------------------- sổ
     def _so_day_du(tap: str) -> list[dict]:
         """Sổ như MỌI bên phải thấy: bản trong DB, chêm tông mặc định khi tập
@@ -510,6 +599,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True}
 
     @app.post("/api/tap/{tap}/so/goi-y")
+    @_dang("goi_y")
     def goi_y_tai_san(tap: str, request: Request):
         """LLM đọc CẢ KỊCH BẢN TIẾNG ANH rồi gọi tên Asset + đề xuất Mood.
 
@@ -590,6 +680,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return muc
 
     @app.post("/api/tap/{tap}/so/{ma}/sinh")
+    @_dang("mo_ta")
     def sinh_asset_api(tap: str, ma: str, request: Request):
         """Viết hồ sơ nhận dạng cho MỘT asset, từ YÊU CẦU người dùng đã gõ.
 
@@ -682,6 +773,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True, "cỡ": n}
 
     @app.post("/api/tap/{tap}/so/{ma}/ref-sinh")
+    @_dang("ref")
     def sinh_ref(tap: str, ma: str, request: Request):
         """Vẽ ảnh ref cho một tài sản bằng chính `pr` (prompt tạo ref).
 
@@ -861,6 +953,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             v = _VIEC.get(tap)
             if v and v["chay"]:
                 raise HTTPException(409, f"{v['nguoi']} đang chạy Gen toàn bộ asset cho tập này — đợi xong.")
+            o = next((o for o in _DANG.values() if o["tap"] == tap and not o["ch"] and o["ma"]), None)
+            if o:
+                raise HTTPException(409, _cau_dang(o) + " — đợi xong rồi gen toàn bộ asset.")
             _VIEC[tap] = {"chay": True, "buoc": "do_vat" if kh["do_vat"] else "mo_ta", "xong": 0,
                           "tong": 0, "loi": [], "do_vat_moi": 0, "model": model, "nguoi": ai,
                           "bat_dau": time.time(), "het": None}
@@ -1334,6 +1429,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     # -------------------------------------------------------------- dịch
     @app.post("/api/tap/{tap}/{chuong}/dich")
+    @_dang("dich")
     def dich_chuong(tap: str, chuong: str, request: Request):
         """Dịch các dòng CÒN THIẾU, chia LÔ nhỏ và lưu sau mỗi lô.
 
@@ -1791,6 +1887,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                          + _khoi_clip(c, tra))
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/breakdown")
+    @_dang("breakdown")
     def breakdown_clip(tap: str, chuong: str, ma: str, request: Request):
         """Breakdown lại MỘT clip drama — clip khác giữ shot, prompt, video."""
         ai = _ghi_duoc(request)
@@ -1801,6 +1898,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return _breakdown_clip(tap, chuong, dg, cs, [c], tra, ai)
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/prompt-drama")
+    @_dang("prompt")
     def prompt_drama(tap: str, chuong: str, i: int, request: Request):
         """Viết prompt MỌI clip ĐÃ BREAKDOWN của một cảnh drama: phần chung một
         lượt, rồi mỗi clip một lượt song song. Không clip nào có shot thì không gọi LLM."""
@@ -1813,6 +1911,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return dict(r, loi=loi + r["loi"])
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/prompt-drama")
+    @_dang("prompt")
     def prompt_drama_clip(tap: str, chuong: str, ma: str, request: Request):
         """Viết lại prompt MỘT clip, dùng lại phần chung đã có của cảnh — clip khác
         không bị đụng, video của chúng không thành cũ oan. Cảnh chưa có phần chung
@@ -1902,6 +2001,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _va_canh(tap, chuong, c["id"], lambda x: x.pop("duyet", None), ai)
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/ky-thuat")
+    @_dang("prompt")
     def create_prompt(tap: str, chuong: str, ma: str, request: Request):
         """Dịch nội dung cảnh sang prompt TIẾNG ANH + điền cột kỹ thuật, cho
         ĐÚNG MỘT CẢNH (user chốt 25/09: "đưa Sinh prompt về từng cảnh luôn").
@@ -1962,6 +2062,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True, "gan_asset": len(c.get("ts") or [])}
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/breakdown")
+    @_dang("breakdown")
     def breakdown_dong(tap: str, chuong: str, i: int, request: Request):
         """Owner 27/09: người viết DIRECTION vắn tắt cho phân cảnh, LLM viết lại
         chi tiết + đặt góc · cỡ · máy, ghi THẲNG vào cảnh của dòng — không bảng
@@ -2029,6 +2130,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True, "so_cu": doi, "so_y": len(y)}
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/bo-tro")
+    @_dang("bo_tro")
     def bo_tro_dong(tap: str, chuong: str, i: int, request: Request):
         """Đợt 2 (Owner 27/09): chen cú BỔ TRỢ vào giữa các cú chính đã breakdown.
         Chỉ thêm khi voice còn chỗ (~3 s/cú); cú chính giữ nguyên, cú mới có id mới."""
@@ -2077,6 +2179,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True, "them": len(them), "giay": giay, "so_cu": len(cs) + len(them)}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/anh")
+    @_dang("anh")
     def sinh_anh(tap: str, chuong: str, ma: str, request: Request):
         ai = _ghi_duoc(request)
         if ve_anh is None:
@@ -2259,6 +2362,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return None
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/video")
+    @_dang("video")
     def sinh_video(tap: str, chuong: str, ma: str, request: Request,
                    than: dict = Body(default={})):
         """Tạo TASK dựng video, trả về NGAY kèm mã task.
@@ -2271,6 +2375,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if ve_video is None:
             raise HTTPException(503, "Chưa bật bộ dựng video.")
         d, i, j, c = _tim_canh(tap, chuong, ma)
+        if (c.get("vid") or "").strip():      # tab cũ chưa thấy mã task: gửi nữa là trả tiền lần hai
+            raise HTTPException(409, "Cảnh này đang dựng video — đợi xong rồi gửi lại.")
         if c.get("pm"):
             return _video_drama(tap, chuong, ma, c, ai)
         if not kho.duong_anh(tap, ma).exists():
@@ -2473,6 +2579,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return bool(kho.ref_dang_co(tap, td) is not None and dau and p and dau != _bam(p))
 
     @app.post("/api/tap/{tap}/{chuong}/dong/{i}/dan-canh")
+    @_dang("dan")
     def ve_dan_canh(tap: str, chuong: str, i: int, request: Request):
         """Vẽ ảnh dàn cảnh: tấm nơi chốn + tấm MỌI người của cảnh + câu bố cục LLM viết."""
         ai = _ghi_duoc(request)
@@ -2669,6 +2776,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"anh": g["anh"], "video": g["video"], "giay": g["giay"]}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/anh")
+    @_dang("anh")
     def ve_anh_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
         ai = _ghi_duoc(request)
         if ve_anh is None:
@@ -2766,12 +2874,15 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return {"ok": True}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/video")
+    @_dang("video")
     def video_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
         """Grok i2v từ ảnh đã duyệt của shot, độ dài của shot. Trả mã task NGAY."""
         ai = _ghi_duoc(request)
         if ve_video is None:
             raise HTTPException(503, "Chưa bật bộ dựng video.")
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
+        if (_ss(c).get(sid) or {}).get("vid"):
+            raise HTTPException(409, "Shot này đang dựng video — đợi xong rồi gửi lại.")
         anh = kho.duong_anh(tap, f"{ma}-{sid}")
         if not anh.exists():
             raise HTTPException(400, "Shot này chưa có ảnh — vẽ ảnh trước đã.")
@@ -2898,6 +3009,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             v = _CHAY.get((tap, chuong))
             if v and v["chay"]:
                 raise HTTPException(409, f"{v['nguoi']} đang Generate All chương {chuong} — đợi xong.")
+            o = next((o for o in _DANG.values() if o["tap"] == tap and o["ch"] == chuong), None)
+            if o:
+                raise HTTPException(409, _cau_dang(o) + " — đợi xong rồi Generate All.")
             _CHAY[(tap, chuong)] = {"chay": True, "buoc": "llm", "xong": 0, "tong": 0, "loi": [],
                                     "may_duyet": [], "nguoi": ai, "bat_dau": time.time(), "het": None}
         threading.Thread(target=_chay_chuong, args=(tap, chuong, ai), daemon=True).start()
