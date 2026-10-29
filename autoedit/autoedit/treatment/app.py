@@ -1121,6 +1121,19 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     c["moc"] = [list(x) for x in mdrama.moc_shot(sh, c.get("t"), g)]
                     c["thoai"] = mdrama.loi_thoai(c.get("t"))
                     c["dau_shot"] = [khung_shot(s) for s in sh]
+                    # Thẻ Storyboard: tem file từng shot MỘT lượt cùng chương (DM002: 348 clip)
+                    c["fs"] = {s["sid"]: _tem_shot(tap, f"{ma}-{s['sid']}") for s in sh if s.get("sid")}
+        return ra
+
+    def _tem_shot(tap: str, ten: str) -> list[int]:
+        """[giờ sửa ảnh, giờ sửa video] tính bằng giây — vừa là cờ vừa là mã chống cache; 0 = chưa có.
+        Mã hỏng không được làm sập cả GET chương."""
+        ra = []
+        for duong in (kho.duong_anh, kho.duong_video):
+            try:
+                ra.append(int(duong(tap, ten).stat().st_mtime))
+            except (OSError, ValueError):
+                ra.append(0)
         return ra
 
     @app.put("/api/tap/{tap}/{chuong}")
@@ -2495,6 +2508,45 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not t.exists():
             raise HTTPException(404, "Shot này chưa có ảnh.")
         return FileResponse(t, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/anh-nho")
+    def xem_anh_nho_shot(tap: str, chuong: str, ma: str, sid: str):
+        """Ảnh nhỏ cho thẻ Storyboard: ảnh gốc ~2,2 MB × 50 thẻ = 110 MB mỗi chương, ảnh nhỏ
+        ~14 KB (đo DM002 29/10). Làm lần đầu có người xem, giữ cạnh ảnh gốc; ảnh gốc mới hơn
+        (vẽ lại) thì làm lại. Không đọc kho: mã đã chặn ở `duong_anh`, mỗi thẻ một lượt gọi.
+        URL mang `?v=` giờ sửa ảnh nên cho trình duyệt giữ hẳn — vẽ lại là URL mới."""
+        _ = chuong
+        try:
+            goc = kho.duong_anh(tap, f"{ma}-{sid}")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if not goc.exists():
+            raise HTTPException(404, "Shot này chưa có ảnh.")
+        nho = goc.with_name(goc.stem + "-nho.jpg")
+        try:
+            b = nho.read_bytes() if nho.stat().st_mtime >= goc.stat().st_mtime else None
+        except OSError:
+            b = None
+        if b is None:
+            import io
+            from PIL import Image
+
+            with Image.open(goc) as im:
+                im = im.convert("RGB")
+                im.thumbnail((320, 320))
+                o = io.BytesIO()
+                im.save(o, "JPEG", quality=80)
+            b = o.getvalue()
+            # Ghi tạm rồi đổi tên: hai lượt cùng làm thì không ai đọc phải file dở.
+            tam = nho.with_name(f"{nho.name}.{threading.get_ident()}.tam")
+            tam.write_bytes(b)
+            try:
+                os.replace(tam, nho)
+            except OSError:      # Windows: lượt khác đang đọc file này — lần sau làm lại
+                tam.unlink(missing_ok=True)
+        # Trả BYTE, không trả FileResponse: không giữ file mở để lượt khác còn thay được.
+        return Response(b, media_type="image/jpeg",
+                        headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/duyet")
     def duyet_anh_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):

@@ -221,6 +221,15 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .tc .co-video{position:absolute;bottom:6px;right:6px;background:var(--good);
   color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800}
 .tc .co-video.dang{background:var(--warn)}
+.tc .co-video.thieu{background:var(--muted)}
+/* dải ô trạng thái từng shot (thẻ clip drama, user chốt 29/10) — viền trắng để nổi trên ảnh */
+.tc .dai-shot{position:absolute;left:6px;bottom:8px;display:flex;gap:3px}
+.tc .dai-shot i{width:14px;height:8px;border-radius:2px;background:rgba(0,0,0,.35);
+  box-shadow:0 0 0 1px #fff}
+.tc .dai-shot i.anh{background:#facc15}
+.tc .dai-shot i.duyet{background:var(--accent)}
+.tc .dai-shot i.dang{background:var(--warn)}
+.tc .dai-shot i.vid{background:var(--good)}
 .tc .ma{position:absolute;top:6px;left:6px;background:var(--text);color:var(--bg);
   border-radius:5px;padding:1px 7px;font-size:11px;font-weight:800}
 .tc .chu{padding:8px 9px;font-size:11.5px;line-height:1.45;height:62px;overflow:hidden}
@@ -1385,6 +1394,7 @@ function dungCanhTap(){
                  tu: cn.tu || 0, ns: cn.ns || 0, day: !!cn.day,   // clip drama — máy chủ đếm
                  // shot của clip drama: mốc giây, câu thoại, câu khung — MÁY CHỦ chia/ghép, trang chỉ hiện
                  moc: cn.moc || [], thoai: cn.thoai || [], dau_shot: cn.dau_shot || [],
+                 fs: cn.fs || null,     // tem file từng shot cho thẻ Storyboard — máy chủ cũ không có
                  n: docCanh(d).length});
       });
     });
@@ -1931,7 +1941,7 @@ async function veAnhShot(ev, k){
       try { await api(duongShot(x, sid) + "/anh", "POST"); }
       catch(e){ return bao(e.message, true); }
       napSoDu(1);
-      await taiLaiChuong(x.ch);
+      await taiLaiChuong(x.ch); veSb();      // thẻ Storyboard sau hộp mới luôn, đóng hộp khỏi F5
     });
   } finally { delete SHOT_VE[khoa]; }
   napShot(x);
@@ -1942,7 +1952,7 @@ async function duyetShot(ev, k){
   await banRon(ev && ev.target, "Đang duyệt…", async function(){
     try { await api(duongShot(o.x, o.s.sid) + "/duyet", "POST"); }
     catch(e){ return bao(e.message, true); }
-    await taiLaiChuong(o.x.ch);
+    await taiLaiChuong(o.x.ch); veSb();
   });
   napShot(o.x);
 }
@@ -1956,7 +1966,7 @@ async function genVideoShot(ev, k){
     try { await api(duongShot(x, sid) + "/video", "POST"); }
     catch(e){ return bao(e.message, true); }
     napSoDu(1);
-    await taiLaiChuong(x.ch);
+    await taiLaiChuong(x.ch); veSb();
     theoDoiShot(x.ch, x.id, sid);
   });
   napShot(x);
@@ -1978,6 +1988,24 @@ async function theoDoiShot(ch, id, sid, hen){
   if(x && x.id === id) napShot(x);
   if(r.trang_thai === "hong") bao("Dựng video shot hỏng: " + thoat(r.loi || ""), true);
   else if(r.trang_thai === "xong") bao("Đã dựng xong video shot.");
+}
+/* Thẻ clip drama ở Storyboard (user chốt 29/10): ảnh nhỏ của shot đầu đã có ảnh, mỗi shot một
+   ô trạng thái, đếm k/n video. `fs` = giờ sửa file ảnh/video, máy chủ trả MỘT lượt cùng chương
+   (DM002 348 clip — không gọi `/shot` từng clip); `duyet`/`vid` nằm sẵn trong `ss`. */
+var NHAN_O = {"": "chưa có ảnh", anh: "có ảnh, chưa duyệt", duyet: "đã duyệt ảnh", dang: "đang dựng video",
+              vid: "có video"};
+function sbShot(x){
+  var ra = {anh: "", o: "", v: 0, n: 0, dang: 0}, ss = docSs(x);
+  if(!x.fs) return ra;          // máy chủ cũ chưa trả `fs`: thẻ như trước, không gọi ảnh nhỏ
+  dsShot(x).forEach(function(s, k){
+    var f = x.fs[s.sid] || [0, 0], o = ss[s.sid] || {},
+        tt = o.vid ? "dang" : (f[1] ? "vid" : (o.duyet ? "duyet" : (f[0] ? "anh" : "")));
+    if(f[0] && !ra.anh) ra.anh = duongShot(x, s.sid) + "/anh-nho?v=" + f[0];
+    ra.n++; ra.v += f[1] ? 1 : 0; ra.dang += o.vid ? 1 : 0;
+    ra.o += '<i class="' + tt + '" title="Shot ' + (k + 1) + ' · ' + NHAN_O[tt] + '"></i>';
+  });
+  if(ra.o) ra.o = '<span class="dai-shot">' + ra.o + '</span>';
+  return ra;
 }
 
 function veTheCanh(){
@@ -2009,15 +2037,17 @@ function veTheCanh(){
            '</span></div><div class="lo-voice">' + thoat(x.en) + '</div><div class="hang">';
       }
     }
+    var sb = dr ? sbShot(x) : {};
     h += '<div class="tc" onclick="moCanh(\'' + x.ma + '\')">' +
          '<div class="hinh ' + (dr ? '' : lopTong(x)) + '">' +
-         (x.anh ? '<img src="' + duongAnh(x) + '">' : "") +
+         (x.anh ? '<img src="' + duongAnh(x) + '">' : (sb.anh ? '<img loading="lazy" src="' + sb.anh + '">' : "")) +
          '<span class="ma">' + (dr ? thoat(x.pm) : x.ma) + '</span>' +
          (x.anh ? (x.duyet ? '<span class="duyet">✓ duyệt</span>' : "")
-                : (dr ? ((x.video || x.vid) ? '' : 'chưa có video') : '16:9 · chưa có ảnh')) +
+                : (dr ? ((x.video || x.vid || sb.anh || sb.v) ? '' : 'chưa có video') : '16:9 · chưa có ảnh')) +
          (x.video ? '<span class="co-video">▶ video</span>'
-                  : (x.vid ? '<span class="co-video dang">⟳ đang dựng</span>'
-                           : '')) + '</div>' +
+                  : ((x.vid || sb.dang) ? '<span class="co-video dang">⟳ đang dựng</span>'
+                           : (sb.v ? '<span class="co-video' + (sb.v < sb.n ? ' thieu' : '') + '">▶ ' + sb.v + '/' +
+                                     sb.n + ' video</span>' : ''))) + (sb.o || '') + '</div>' +
          '<div class="chu"' + (dr ? ' style="white-space:pre-wrap"' : '') + '>' + (x.t ? thoat(x.t) :
            '<span class="thieu">chưa có nội dung — gõ ở màn Kịch bản</span>') + '</div>' +
          '<div class="chan">' + (dr
