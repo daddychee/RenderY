@@ -57,6 +57,12 @@ LOI_REF = {
     "dao_cu": "Image {i} shows an object: take its shape, material and colour; ignore the white background.",
     "boi_canh": "Image {i} shows the location: take the place and its light.",
 }
+# Đồ vật có ẢNH người (thẻ có ảnh, báo đăng ảnh, khung ảnh — user báo 29/10 DM002: thẻ của
+# Richard da đen vẽ ra người da trắng): mô tả gọi TÊN nhân vật, máy gửi kèm ảnh cận mặt
+# người đó. Chữ IN trên đồ nằm trong ngoặc kép ("RICHARD", 'NIA') nên không tính.
+ANH_NGUOI = ("Image {i} is the face of {ten}: every photo or portrait of {ten} on the object shows exactly this "
+             "person, the same face, skin tone, hair and age.")
+_NGOAC = re.compile(r'"[^"]*"|(?<![A-Za-z])\'[^\']*\'(?![A-Za-z])')
 
 
 def _cau(chu: str) -> str:
@@ -88,6 +94,48 @@ def thieu_mo_ta(x: dict) -> bool:
     return not chu or la_tieng_viet(chu)
 
 
+def ten_nhan_vat(so: list[dict]) -> list[str]:
+    """Tên các nhân vật BẢN GỐC trong sổ (bộ đồ phụ cùng mặt, không tính riêng)."""
+    return [x["ten"].split(" · ")[0].strip() for x in so if x["loai"] == "nhan_vat" and not goc_cua(x["ma"])]
+
+
+def nguoi_trong_chu(chu: str, ten: list[str]) -> list[str]:
+    """Tên trong `ten` mà `chu` gọi tới NGOÀI ngoặc kép, đúng chữ hoa, trọn tên, theo thứ tự
+    xuất hiện."""
+    s = _NGOAC.sub(" ", chu or "")
+    co = [(m.start(), t) for t in ten for m in [re.search(r"(?<!\w)" + re.escape(t) + r"(?!\w)", s)] if t and m]
+    return [t for _, t in sorted(co)]
+
+
+def nguoi_cua_do(so: list[dict], chu: str) -> list[dict]:
+    """Mục sổ của những nhân vật mà mô tả đồ vật gọi tên — ảnh cận mặt của họ đi kèm lúc vẽ."""
+    goc = {x["ten"].split(" · ")[0].strip(): x for x in so if x["loai"] == "nhan_vat" and not goc_cua(x["ma"])}
+    return [goc[t] for t in nguoi_trong_chu(chu, list(goc))]
+
+
+def ap_ra(n: int, ra) -> tuple[list[list[int]], dict[int, str]]:
+    """Kết quả LLM rà đồ vật cả tập, đã kiểm: nhóm gộp (chỉ số trong [0, n), mỗi chỉ số một
+    lần, nhóm từ 2 mục, mục đầu giữ tên và mô tả) và mô tả sửa (tiếng Anh, theo chỉ số)."""
+    from autoedit.treatment.drama import la_tieng_viet
+
+    def so(i):
+        return int(i) if (isinstance(i, int) and not isinstance(i, bool)) or str(i).isdigit() else -1
+
+    ra = ra if isinstance(ra, dict) else {}
+    nhom, dung = [], set()
+    for g in ra.get("nhom") or []:
+        g = [i for i in dict.fromkeys(so(i) for i in (g if isinstance(g, list) else [])) if 0 <= i < n and i not in dung]
+        if len(g) >= 2:
+            nhom.append(g)
+            dung.update(g)
+    sua = {}
+    for k, v in (ra.get("sua") if isinstance(ra.get("sua"), dict) else {}).items():
+        v = str(v or "").strip()
+        if 0 <= so(k) < n and v and not la_tieng_viet(v):
+            sua[so(k)] = v
+    return nhom, sua
+
+
 def gia_anh(model: str, sua: bool) -> int:
     """GPT Image: 4 tạo mới, 5 sửa từ ảnh; Nano Banana: 4 cả hai (Padoma TOM-TAT-API)."""
     return GIA_SUA if sua and (model or "").startswith("gpt-image") else GIA_ANH
@@ -102,11 +150,12 @@ def ke_hoach(so: list[dict], co_anh: set[str], tim_do_vat: bool, model: str = MO
     phu = [x for x in ve if x["loai"] == "nhan_vat" and goc_cua(x["ma"]) in ma_so]
     goc = [x for x in ve if x["loai"] == "nhan_vat" and x not in phu]
     khac = [x for x in ve if x["loai"] != "nhan_vat"]
+    co_nguoi = sum(1 for x in khac if x["loai"] == "dao_cu" and nguoi_cua_do(so, x.get("chu") or ""))
     anh = 2 * len(goc) + 2 * len(phu) + len(khac)
 
-    def credit(m):
+    def credit(m):     # đồ vật có ảnh người vẽ kèm ảnh mặt: giá ảnh SỬA
         return ((gia_anh(m, False) + gia_anh(m, True)) * len(goc) + 2 * gia_anh(m, True) * len(phu)
-                + gia_anh(m, False) * len(khac))
+                + gia_anh(m, False) * (len(khac) - co_nguoi) + gia_anh(m, True) * co_nguoi)
 
     return {"do_vat": tim_do_vat,
             "mo_ta": sum(1 for x in so if x["loai"] in TI_LE and thieu_mo_ta(x) and (x.get("yc") or "").strip()),

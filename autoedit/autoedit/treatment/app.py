@@ -666,7 +666,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         mặt 1:1 -> toàn thân 9:16 SỬA TỪ ảnh cận -> tấm gộp 4:3 (đây mới là ref);
         đồ vật nền trắng 1:1; nơi chốn 16:9 không người. Ảnh vẽ theo MÔ TẢ tiếng
         Anh — chưa có thì chặn, vẽ theo chữ Việt là ra ảnh sai. Bộ đồ phụ: cận mặt
-        SỬA TỪ cận mặt của bản gốc (Padoma F2), vẽ từ chữ là mỗi bộ đồ một khuôn mặt."""
+        SỬA TỪ cận mặt của bản gốc (Padoma F2), vẽ từ chữ là mỗi bộ đồ một khuôn mặt.
+        Đồ vật có ảnh nhân vật (mô tả gọi tên người đó): gửi kèm cận mặt người đó."""
         loai, chu = muc["loai"], (muc.get("chu") or "").strip()
         if not chu or mdrama.la_tieng_viet(chu):
             raise HTTPException(400, "Asset này chưa có mô tả tiếng Anh — bấm “Sinh Asset” "
@@ -676,11 +677,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             dich = kho.duong_ref(tap, ma, ".png")
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        so = kho.ds_so(tap)
         goc = mtai_san.goc_cua(ma) if loai == "nhan_vat" else ""
-        mat_goc = dich.with_name(goc + "__can.png") if goc and any(
-            x["ma"] == goc for x in kho.ds_so(tap)) else None
+        mat_goc = dich.with_name(goc + "__can.png") if goc and any(x["ma"] == goc for x in so) else None
         if mat_goc is not None and not mat_goc.exists():
             raise HTTPException(400, f"Bộ đồ phụ vẽ từ khuôn mặt của {goc} — vẽ {goc} trước.")
+        nguoi = mtai_san.nguoi_cua_do(so, chu) if loai == "dao_cu" else []
+        mat = [dich.with_name(x["ma"] + "__can.png") for x in nguoi]
+        thieu = [x["ten"] for x, p in zip(nguoi, mat) if not p.exists()]
+        if thieu:
+            raise HTTPException(400, f"Đồ vật có ảnh của {', '.join(thieu)} — vẽ {', '.join(thieu)} trước, "
+                                     "không thì máy bịa mặt người khác.")
         m = {"model": model or _mo_hinh_tai_san(tap)}
         try:
             if loai == "nhan_vat":
@@ -693,6 +700,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                 tam = mtai_san.ghep_tam(can, toan, dich.with_name(ma + "__tam.png"))
                 kho.xoa_ref(tap, ma)
                 tam.replace(dich)
+            elif nguoi:
+                ve_anh.gen_anh(" ".join([pr] + [mtai_san.ANH_NGUOI.format(i=i, ten=x["ten"])
+                                                for i, x in enumerate(nguoi, 1)]),
+                               dich, ref=mat, ti_le=mtai_san.TI_LE[loai], **m)
             else:
                 ve_anh.gen_anh(pr, dich, ti_le=mtai_san.TI_LE[loai], **m)
         except HTTPException:
@@ -831,8 +842,9 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                         v["xong"] += 1
 
             phu = [x for x in ve if x["loai"] == "nhan_vat" and mtai_san.goc_cua(x["ma"]) in ma_so]
-            # Bản gốc trước: bộ đồ phụ sửa từ ảnh cận của bản gốc.
-            for dot in ([x for x in ve if x not in phu], phu):
+            anh_nguoi = [x for x in ve if x["loai"] == "dao_cu" and mtai_san.nguoi_cua_do(so, x.get("chu") or "")]
+            # Bản gốc trước: bộ đồ phụ sửa từ ảnh cận của bản gốc; đồ vật có ảnh người cần mặt người đó.
+            for dot in ([x for x in ve if x not in phu and x not in anh_nguoi], phu, anh_nguoi):
                 if dot:
                     with ThreadPoolExecutor(max_workers=min(len(dot), mtai_san.LUONG)) as ex:
                         list(ex.map(ve_1, dot))
@@ -844,25 +856,31 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     def _tim_do_vat(tap: str, ai: str) -> int:
         """Đồ vật cần ảnh riêng (luật bảng tài sản Padoma): LLM mỗi chương một lượt,
-        song song; Python gộp trùng tên, bỏ mã clip lạ và mô tả chữ Việt, đánh mã
-        `doNN`, gán vào `ts` các clip thấy rõ đồ vật (tối đa ảnh Grok nhận)."""
+        song song; Python gộp trùng tên, bỏ mã clip lạ và mô tả chữ Việt; một lượt LLM
+        rà cả tập gộp cùng một đồ vật mang tên khác nhau giữa các chương (DM002 29/10:
+        "Bàn cờ" / "Bàn cờ gỗ"); rồi đánh mã `doNN`, gán vào `ts` các clip thấy rõ đồ
+        vật (tối đa ảnh Grok nhận)."""
         from concurrent.futures import ThreadPoolExecutor
 
         if ky_thuat is None or not hasattr(ky_thuat, "tim_do_vat"):
             return 0
-        chuong, noi = [], {}
+        chuong, noi, chu_clip = [], {}, {}
         for ch in kho.ds_chuong(tap):
             cs = [(dg, c) for dg in kho.doc(tap, ch["ma"])["dong"] for c in mdong.doc_canh(dg)
                   if c.get("pm") and c.get("id")]
             noi.update({c["pm"]: (ch["ma"], c["id"]) for _, c in cs})
+            chu_clip.update({c["pm"]: c.get("t") or "" for _, c in cs})
             if cs:
                 chuong.append(cs)
         if not chuong:
             return 0
+        # Đồ vật có ảnh người phải gọi đúng tên nhân vật (user báo 29/10: báo đăng ảnh Nia ra người khác).
+        ten_nv = mtai_san.ten_nhan_vat(kho.ds_so(tap))
+        dau = f"NHÂN VẬT CỦA PHIM: {', '.join(ten_nv) or '(chưa có)'}\n\n"
 
         def hoi(cs):
-            return ky_thuat.tim_do_vat("\n\n".join(f"{c['pm']} · {dg.get('en', '')}\n{c.get('t', '')}"
-                                                   for dg, c in cs)) or {}
+            return ky_thuat.tim_do_vat(dau + "\n\n".join(f"{c['pm']} · {dg.get('en', '')}\n{c.get('t', '')}"
+                                                         for dg, c in cs)) or {}
 
         with ThreadPoolExecutor(max_workers=min(len(chuong), 4)) as ex:
             ra = list(ex.map(hoi, chuong))
@@ -877,11 +895,24 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                     continue
                 g = gop.setdefault(ten.lower(), {"ten": ten, "chu": chu, "clip": []})
                 g["clip"] += [p for p in clip if p not in g["clip"]]
+        ds = list(gop.values())
+        if ds and hasattr(ky_thuat, "ra_do_vat"):
+            try:
+                nhom, sua = mtai_san.ap_ra(len(ds), _hoi_ra(_than_ra(ten_nv, ds, chu_clip)))
+            except Exception as exc:  # noqa: BLE001 — rà hỏng thì giữ danh sách chưa gộp
+                _loi_viec(tap, "", "Gộp đồ vật trùng", getattr(exc, "detail", exc))
+                nhom, sua = [], {}
+            for i, chu in sua.items():
+                ds[i]["chu"] = chu
+            for g in nhom:
+                ds[g[0]]["clip"] = list(dict.fromkeys(p for j in g for p in ds[j]["clip"]))
+            bo = {j for g in nhom for j in g[1:]}
+            ds = [x for i, x in enumerate(ds) if i not in bo]
         moi: dict[str, dict] = {}
         with _KHOA_SO:
             so = kho.ds_so(tap)
             co, k = {x["ma"] for x in so}, 0
-            for g in gop.values():
+            for g in ds:
                 k += 1
                 while f"do{k:02d}" in co:
                     k += 1
@@ -900,6 +931,56 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                         c["ts"] = ts + [ma]
                 _va_canh(tap, noi[pm][0], noi[pm][1], them, ai)
         return len(moi)
+
+    def _hoi_ra(than: str) -> dict:
+        """Lượt rà đồ vật cả tập, hỏng thì hỏi lại MỘT lần: đo DM002 29/10 lượt này mất
+        121–126 giây, hai lần trong bốn quá giới hạn 180 giây của cổng LLM."""
+        try:
+            return ky_thuat.ra_do_vat(than)
+        except Exception:  # noqa: BLE001
+            return ky_thuat.ra_do_vat(than)
+
+    @app.post("/api/tap/{tap}/so/ra-do-vat")
+    def ra_do_vat(tap: str, request: Request):
+        """Rà đồ vật của tập ĐÃ tìm trước bản gộp (DM002 29/10): gộp mục trùng — clip chuyển
+        sang mục giữ, mục bỏ mất cả ảnh — và gọi tên người trong ảnh trên đồ vật. Mô tả đổi
+        thì xoá ảnh cũ (vẽ sai người) để Gen toàn bộ asset vẽ lại."""
+        ai = _ghi_duoc(request)
+        if ky_thuat is None or not hasattr(ky_thuat, "ra_do_vat"):
+            raise HTTPException(503, "Chưa bật LLM rà đồ vật.")
+        if (_VIEC.get(tap) or {}).get("chay"):
+            raise HTTPException(409, "Đang gen toàn bộ asset — đợi xong rồi rà.")
+        so = kho.ds_so(tap)
+        do = [x for x in so if x["loai"] == "dao_cu"]
+        if not do:
+            raise HTTPException(400, "Tập này chưa có đồ vật.")
+        clip, chu_clip = {}, {}
+        for ch in kho.ds_chuong(tap):
+            for dg in kho.doc(tap, ch["ma"])["dong"]:
+                for c in mdong.doc_canh(dg):
+                    if c.get("pm") and c.get("id"):
+                        clip[c["pm"]] = (ch["ma"], c["id"], c.get("ts") or [])
+                        chu_clip[c["pm"]] = c.get("t") or ""
+        ds = [{"ten": x["ten"], "chu": x.get("chu") or "", "clip": [p for p, v in clip.items() if x["ma"] in v[2]]}
+              for x in do]
+        try:
+            nhom, sua = mtai_san.ap_ra(len(do), _hoi_ra(_than_ra(mtai_san.ten_nhan_vat(so), ds, chu_clip)))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, f"Rà đồ vật hỏng: {exc}") from exc
+        doi = {do[j]["ma"]: do[g[0]]["ma"] for g in nhom for j in g[1:]}
+        sua_ma = {do[i]["ma"]: chu for i, chu in sua.items() if do[i]["ma"] not in doi}
+        with _KHOA_SO:
+            kho.luu_so(tap, [dict(x, chu=sua_ma[x["ma"]], pr=mtai_san.pr_mau("dao_cu", sua_ma[x["ma"]]))
+                             if x["ma"] in sua_ma else x for x in kho.ds_so(tap) if x["ma"] not in doi])
+        for m in [*doi, *sua_ma]:
+            kho.xoa_ref(tap, m)
+        for ch, cid, ts in clip.values():
+            if any(m in doi for m in ts):
+                def doi_ts(c):
+                    c["ts"] = list(dict.fromkeys(doi.get(m, m) for m in (c.get("ts") or [])))
+                _va_canh(tap, ch, cid, doi_ts, ai)
+        return {"ok": True, "gop": [[do[i]["ma"] for i in g] for g in nhom], "sua": sorted(sua_ma),
+                "xoa": sorted(doi)}
 
     # ------------------------------------------------------------ drama
     @app.post("/api/tap/{tap}/drama")
@@ -2767,8 +2848,8 @@ _LENH_BREAKDOWN_DRAMA = (
 # Luật đồ vật chép từ bảng tài sản Padoma (`bang_tai_san.py`, Spec 27 E) — chỉ phần đồ vật.
 _LENH_DO_VAT = (
     "Bạn là trợ lý đạo diễn lập danh sách ĐỒ VẬT cần ảnh riêng cho một phim drama AI: Grok dựng mỗi clip từ "
-    "ảnh tham chiếu, đồ vật không có ảnh thì mỗi clip vẽ một kiểu. Bạn nhận các clip của một phần phim: mã "
-    "clip, tiêu đề cảnh, chữ biên kịch (`Hình:` tả từng shot, `Thoại:`).\n\n"
+    "ảnh tham chiếu, đồ vật không có ảnh thì mỗi clip vẽ một kiểu. Bạn nhận tên các NHÂN VẬT của phim và các "
+    "clip của một phần phim: mã clip, tiêu đề cảnh, chữ biên kịch (`Hình:` tả từng shot, `Thoại:`).\n\n"
     "LUẬT:\n"
     "1. Chỉ lấy đồ vật LẶP LẠI qua nhiều clip hoặc CẦN NHÌN RÕ (được cầm, đưa, đọc, đặt giữa khung, là mấu "
     "chốt câu chuyện). Bỏ đồ chỉ thoáng qua; đồ nội thất thuộc nơi chốn (giường, bàn, ghế, cửa sổ); quần áo, "
@@ -2778,10 +2859,49 @@ _LENH_DO_VAT = (
     "liệu, màu, tình trạng (mới, cũ, rách, mở hay đóng). Không người, không tay. Đồ có chữ đọc được trong "
     "phim (tên, chữ ký, ngày, số, biển, dòng khắc) thì chép NGUYÊN VĂN từng chữ trong ngoặc kép đúng như kịch "
     "bản; giấy tờ có chữ mà kịch bản không ghi thì ghi chữ hợp cốt truyện trong ngoặc kép.\n"
-    "4. `clip`: mã các clip mà đồ vật THẤY RÕ trong khung và phải đúng hình. Clip chỉ nhắc tên mà không thấy "
+    "4. Đồ vật có ẢNH hay CHÂN DUNG một NHÂN VẬT (thẻ có ảnh, báo đăng ảnh, khung ảnh) thì trong `chu` gọi "
+    "đúng TÊN nhân vật đó như danh sách NHÂN VẬT, KHÔNG để trong ngoặc kép, kèm người đó mặc gì trong ảnh: "
+    "\"a small photo of Richard in a charcoal suit\". KHÔNG tả da, tóc, tuổi, nét mặt của người trong ảnh — "
+    "máy gửi kèm ảnh mặt nhân vật. Tên chỉ IN thành chữ trên đồ thì vẫn trong ngoặc kép. "
+    "Đồ vật không có ảnh người thì không viết tên nhân vật ngoài ngoặc kép.\n"
+    "5. `clip`: mã các clip mà đồ vật THẤY RÕ trong khung và phải đúng hình. Clip chỉ nhắc tên mà không thấy "
     "đồ vật thì không gán.\n"
-    "5. Không bịa đồ vật không có trong chữ biên kịch. Không có đồ vật nào đạt luật thì trả danh sách rỗng.\n\n"
+    "6. Không bịa đồ vật không có trong chữ biên kịch. Không có đồ vật nào đạt luật thì trả danh sách rỗng.\n\n"
     'Trả về JSON: {"do_vat": [{"ten": "...", "chu": "...", "clip": ["P001"]}]}')
+
+# Đồ vật tìm theo từng chương nên cùng một vật mang nhiều tên (DM002 29/10: "Bàn cờ" / "Bàn cờ
+# gỗ", sáu loại "đơn đào tạo") — một lượt rà cả tập. Luật 2 giữ ảnh người trên đồ vật đúng tên.
+_LENH_RA_DO_VAT = (
+    "Bạn rà danh sách ĐỒ VẬT của một phim drama AI. Danh sách tìm theo từng phần phim, nên cùng một đồ vật có "
+    "thể mang nhiều tên. Mỗi mục: số [i], tên, mô tả tiếng Anh dùng vẽ ảnh, chữ biên kịch của vài clip có nó. "
+    "Bạn cũng nhận tên các NHÂN VẬT của phim.\n\n"
+    "LUẬT:\n"
+    "1. `nhom`: các nhóm số thứ tự là CÙNG MỘT đồ vật trong truyện — cùng một vật thể, hay cùng một tờ giấy, "
+    "tờ báo nhân vật cầm qua nhiều cảnh. Mục đầu nhóm là mục mô tả đúng nhất, giữ tên và mô tả của nó. Hai "
+    "vật khác nhau cùng loại (hai tờ đơn khác nội dung, danh thiếp của hai người, hai tờ báo khác dòng tít) "
+    "thì KHÔNG gộp. Không chắc thì KHÔNG gộp.\n"
+    "2. `sua`: {\"i\": \"mô tả mới\"} chỉ cho đồ vật có ẢNH hay CHÂN DUNG một nhân vật trong danh sách NHÂN "
+    "VẬT mà mô tả chưa gọi đúng tên (\"a woman\", \"a small photo square\") hay còn tả da, tóc, tuổi người "
+    "trong ảnh. Viết lại mô tả tiếng Anh 15–40 từ, gọi TÊN nhân vật không để trong ngoặc kép, kèm người đó "
+    "mặc gì trong ảnh theo chữ biên kịch; BỎ mọi chữ tả da, tóc, tuổi, nét mặt người trong ảnh (máy gửi kèm "
+    "ảnh mặt nhân vật, chữ cũ như \"blonde\" là vẽ sai người); giữ nguyên mọi chữ trong ngoặc kép. Mô tả đã "
+    "đúng thì không đưa vào.\n\n"
+    'Trả về JSON: {"nhom": [[0, 3]], "sua": {"5": "..."}}')
+
+
+_ANH_TREN_DO = re.compile(r"photo|portrait|picture", re.I)
+
+
+def _than_ra(ten_nv: list[str], do: list[dict], chu_clip: dict) -> str:
+    """Thân lượt rà đồ vật cả tập: tên nhân vật + mỗi đồ vật kèm chữ biên kịch tối đa hai
+    clip có nó — đồ vật có ẢNH thì đoạn dài hơn để biết ai trong ảnh. Đo DM002 29/10: bỏ chữ
+    clip của đồ không có ảnh không nhanh hơn (126 so với 121 giây) mà gộp sót 6 tờ đơn."""
+    def mot(i, x):
+        dai = 400 if _ANH_TREN_DO.search(x["chu"]) else 240
+        return f"[{i}] {x['ten']} — {x['chu']}\n    " + "; ".join(
+            f"{p}: {' '.join((chu_clip.get(p) or '').split())[:dai]}" for p in x["clip"][:2])
+    return (f"NHÂN VẬT CỦA PHIM: {', '.join(ten_nv) or '(chưa có)'}\n\nĐỒ VẬT:\n"
+            + "\n".join(mot(i, x) for i, x in enumerate(do)))
 
 
 def _than_bo_tro(voice: str, canh: list[dict], giay: int, tai_san: list[dict]) -> str:
@@ -2831,6 +2951,12 @@ class _KyThuat:
         from autoedit.treatment.dich import LLM
 
         ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_DO_VAT, than)
+        return ra if isinstance(ra, dict) else {}
+
+    def ra_do_vat(self, than):
+        from autoedit.treatment.dich import LLM
+
+        ra = LLM(VIEC_SINH_PROMPT).goi(_LENH_RA_DO_VAT, than)
         return ra if isinstance(ra, dict) else {}
 
     def drama_canh(self, than):
