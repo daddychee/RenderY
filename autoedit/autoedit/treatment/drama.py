@@ -481,14 +481,28 @@ def _nguoi_noi(s: dict, lt: list[dict]) -> str:
     return lt[cs[0]]["ten"] if cs else ""
 
 
+_RE_QUA_VAI = re.compile(r"qua vai\s+(\w+)", re.I)
+
+
+def nguoi_tien_canh(s: dict) -> str:
+    """Người ở tiền cảnh của shot qua vai: X trong "Qua vai X" của chữ shot `t`
+    (Breakdown chép từ `Hình:`), viết như trong `co_mat`. Không đọc được hay X
+    ngoài khung: ""."""
+    m = _RE_QUA_VAI.search(str(s.get("t") or ""))
+    return _trong(m.group(1), s.get("co_mat") or []) if m else ""
+
+
 def chu_the(s: dict, lt: list[dict]) -> str:
     """Người máy hướng tới (S): `huong` người dựng chọn, rồi người nói của shot,
-    rồi người duy nhất trong khung — cả ba phải có trong `co_mat`. Chưa rõ thì ""
-    (app dùng nguyên ảnh dàn cảnh). Qua vai mà người nói ở tiền cảnh thì sai:
-    người dựng sửa `huong`."""
+    rồi người duy nhất trong khung — cả ba phải có trong `co_mat`. Shot qua vai
+    bỏ người tiền cảnh ra trước (DM002 C1 29/10: 8/13 shot qua vai chọn trúng
+    người nói đang quay lưng, hoặc rỗng vì shot im). Chưa rõ thì "" (app dùng
+    nguyên ảnh dàn cảnh; `nhac_qua_vai` nhắc người dựng)."""
     co = s.get("co_mat") or []
-    return (_trong(str(s.get("huong") or ""), co) or _trong(_nguoi_noi(s, lt), co)
-            or (co[0] if len(co) == 1 else ""))
+    tien = nguoi_tien_canh(s) if s.get("goc") == "ots" else ""
+    con = [x for x in co if x.lower() != tien.lower()] if tien else co
+    return (_trong(str(s.get("huong") or ""), co) or _trong(_nguoi_noi(s, lt), con)
+            or (con[0] if len(con) == 1 else ""))
 
 
 def ca_canh(s: dict) -> bool:
@@ -517,6 +531,18 @@ def nhac_lap(lap: str) -> list[str]:
     return []
 
 
+def nhac_qua_vai(s: dict, lt: list[dict]) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) shot qua vai mà người dựng chưa chọn
+    `huong` và máy chưa rõ hướng tới ai."""
+    if s.get("goc") != "ots" or _trong(str(s.get("huong") or ""), s.get("co_mat") or []):
+        return []
+    if not nguoi_tien_canh(s):
+        return ["không đọc được \"Qua vai X\" trong chữ shot nên máy đang đoán hướng: chọn ở ô Máy hướng tới"]
+    if not chu_the(s, lt):
+        return ["shot qua vai không có người ở xa trong khung: chọn ở ô Máy hướng tới hoặc sửa Trong khung"]
+    return []
+
+
 def _phia_nhin(pd: dict, ai: str, toi: str) -> str:
     """Phía `ai` nhìn để thấy `toi` ("right"/"left"/""). Luật 180°: người bên trái
     ảnh dàn cảnh nhìn phải và ngược lại; người ở giữa nhìn về phía người kia."""
@@ -527,11 +553,12 @@ def _phia_nhin(pd: dict, ai: str, toi: str) -> str:
 
 
 def _nguoi_kia(s: dict, lt: list[dict], ai: str, nguoi) -> str:
-    """O — người S nhìn tới. Qua vai: người còn lại trong `co_mat`. Còn lại: người
-    nói của shot nếu không phải S, rồi người đầu tiên khác S có tấm trong clip
-    (thứ tự `nguoi`). `pd.shots` không mang `cau` nên không dò shot kề bên: hai
-    người thì như nhau; ba người trở lên CHƯA ĐO."""
-    ds = (list(s.get("co_mat") or []) if s.get("goc") == "ots" else []) + [_nguoi_noi(s, lt)] + list(nguoi)
+    """O — người S nhìn tới. Qua vai: người tiền cảnh ("Qua vai X"), rồi người còn
+    lại trong `co_mat`. Còn lại: người nói của shot nếu không phải S, rồi người đầu
+    tiên khác S có tấm trong clip (thứ tự `nguoi`). `pd.shots` không mang `cau` nên
+    không dò shot kề bên: hai người thì như nhau; ba người trở lên CHƯA ĐO."""
+    ds = ([nguoi_tien_canh(s)] + list(s.get("co_mat") or []) if s.get("goc") == "ots" else []) \
+        + [_nguoi_noi(s, lt)] + list(nguoi)
     return next((x for x in ds if x and x.lower() != ai.lower()), "")
 
 
@@ -603,7 +630,9 @@ def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], d
         loi = ["Image 1 is a crop of the master wide shot of this scene" + (f": {ai} {cho_s}." if cho_s else
                f", around {ai}.") + " Keep this exact room, background and light; it is the same moment."]
         if ots:
-            vai = {"right": "left ", "left": "right "}.get(_phia_nhin(pd, kia, ai), "")
+            # vai PHÍA MÁY DÀN CẢNH: O nhìn sang trái (đứng bên phải) thì tay phải chỉ ra xa
+            # máy, máy đứng sau vai trái; nhìn sang phải thì vai phải (bản đo P031 ghi ngược)
+            vai = {"right": "right ", "left": "left "}.get(_phia_nhin(pd, kia, ai), "")
             gan = f"just behind {kia}'s {vai}shoulder, " if kia else ""
         else:
             gan = (f"near {kia}'s place {cho_o}, " if cho_o else f"near {kia}, ") if kia else ""

@@ -102,6 +102,76 @@ def test_chu_the_thu_tu_uu_tien():
     assert drama.chu_the({"co_mat": []}, LT) == ""
 
 
+# Shot qua vai thật của DM002 C1 (29/10): chữ `t` do Breakdown chép từ `Hình:`. Trước khi sửa,
+# 8/13 shot qua vai chọn trúng người TIỀN CẢNH (người nói quay lưng) hoặc rỗng (shot im → app gửi
+# nguyên ảnh dàn cảnh, P004 shot 4: Evelyn bị kéo ra sát Hattie).
+def _qv(t: str, co_mat: list[str], cau=(), **them) -> dict:
+    return dict({"co": "MS", "goc": "ots", "cd": "static", "t": t, "co_mat": co_mat, "cau": list(cau)}, **them)
+
+
+def _lt(*ten: str) -> list[dict]:
+    return drama.loi_thoai("\n".join(f'Thoại: {n}: "Line {i}."' for i, n in enumerate(ten)))
+
+
+QUA_VAI_DM2 = [  # (sid, shot, lt, người máy phải hướng tới)
+    ("s56840b", _qv("Qua vai Evelyn ở tiền cảnh, máy nhìn Hattie; Evelyn nghiêng đầu cười thương hại.",
+                    ["Hattie", "Evelyn"]), [], "Hattie"),
+    ("sbf3a4f", _qv("Qua vai Brooke, Hattie ngồi bên trái khung, bàn tay trái xoa thái dương, mặt nhăn nhẹ vì đau đầu.",
+                    ["Hattie", "Brooke"]), [], "Hattie"),
+    ("sb956d7", _qv("Qua vai Nia bên trái khung, tay phải Brooke từ bên phải chộp lấy mấy tờ tiền nhàu khỏi mặt bàn "
+                    "trải khăn trắng.", ["Brooke", "Nia"]), [], "Brooke"),
+    ("s34b697", _qv("Qua vai Nia nhìn về Hattie, Nia đặt hộp thuốc huyết áp vào tay phải Hattie, Hattie khẽ gật đầu "
+                    "nhận.", ["Nia", "Hattie"], [0]), _lt("Nia"), "Hattie"),
+    ("s7a1cbc", _qv("Qua vai Brooke, khung đổ xuống phía Nia ở dưới; Brooke buông câu lạnh lùng gạn hỏi, Nia ngẩng "
+                    "lên đón ánh nhìn và giữ nét bình thản.", ["Nia", "Brooke"], [1]), _lt("Nia", "Brooke"), "Nia"),
+    ("s99c069", _qv("Qua vai Julian ở tiền cảnh bên trái khung, nhìn xuống Brooke đứng bên phải, mặt tái mét.",
+                    ["Julian", "Brooke"], [0]), _lt("Julian"), "Brooke"),
+    ("sd57079", _qv("Qua vai Nia nhìn về phía Tasha; Tasha nhổm lên, mắt sáng, vẫy tay phải gọi cô lại; Nia đáp lại "
+                    "với vẻ lo lắng.", ["Nia", "Tasha"], [1]), _lt("Tasha", "Nia"), "Tasha"),
+    # đang đúng, phải giữ: ba người (người nói ở xa) và người nói ở xa
+    ("sdb4ab3", _qv("Trung qua vai Brooke ở tiền cảnh, Hattie đứng bên trái khung, Nia cúi nửa người, tay phải rút mấy "
+                    "tờ tiền lẻ nhàu từ túi tạp dề.", ["Nia", "Hattie", "Brooke"], [0]), _lt("Nia"), "Nia"),
+    ("sd104eb", _qv("Qua vai Brooke nhìn xuống, Hattie ngẩng lên nói chậm.", ["Hattie", "Brooke"], [0]),
+     _lt("Hattie"), "Hattie"),
+]
+
+
+def test_chu_the_qua_vai_bo_nguoi_tien_canh_dm002():
+    sai = [(sid, drama.chu_the(s, lt), dung) for sid, s, lt, dung in QUA_VAI_DM2 if drama.chu_the(s, lt) != dung]
+    assert sai == []
+    s = QUA_VAI_DM2[0][1]
+    assert drama.chu_the(dict(s, huong="evelyn"), []) == "Evelyn"      # người dựng chọn vẫn thắng
+    assert drama.chu_the(dict(s, goc="eye"), []) == ""                 # không qua vai: luật cũ
+    # qua vai chỉ có người tiền cảnh trong khung (sda3228 nhìn ra cửa kính): không bịa chủ thể
+    assert drama.chu_the(_qv("Qua vai Brooke ở tiền cảnh, nhìn ra cánh cửa kính phía sau.", ["Brooke"]), []) == ""
+    assert drama.nguoi_tien_canh(QUA_VAI_DM2[7][1]) == "Brooke"
+    assert drama.nguoi_tien_canh(_qv("Qua vai Gloria, máy nhìn Nia.", ["Nia"])) == ""   # X ngoài khung
+    assert drama.nguoi_tien_canh(SH[1]) == ""                          # P031 chưa có `t`: luật cũ (người nói)
+
+
+def test_nhac_qua_vai_khi_chua_ro_may_huong_toi():
+    assert drama.nhac_qua_vai(_qv("Qua vai Brooke ở tiền cảnh, nhìn ra cánh cửa kính phía sau.", ["Brooke"]), [])
+    assert drama.nhac_qua_vai(SH[1], LT)                               # không đọc được "Qua vai X"
+    assert drama.nhac_qua_vai(QUA_VAI_DM2[0][1], []) == []
+    assert drama.nhac_qua_vai(dict(SH[1], huong="Hattie"), LT) == []   # người dựng đã chọn
+    assert drama.nhac_qua_vai(SH[0], LT) == []                         # không qua vai
+
+
+def test_anh_qua_vai_may_sau_nguoi_tien_canh_vai_phia_may():
+    """P004 shot 4 (s56840b): mảnh cắt quanh Hattie, máy sau vai TRÁI Evelyn. Evelyn bên phải ảnh
+    dàn cảnh, quay mặt sang trái nên tay phải chỉ ra xa máy; vai phía máy dàn cảnh là vai trái.
+    Ba người (sdb4ab3): máy sau vai người tiền cảnh (Brooke), không phải người đầu `co_mat`."""
+    pd = {"ben": {"Hattie": "trai", "Brooke": "giua", "Evelyn": "phai"}, "shots": [{}]}
+    p = drama.prompt_anh_shot(pd, QUA_VAI_DM2[0][1], 0, "", {"Hattie": {"chu": "H."}, "Evelyn": {"chu": "E."}}, [], "")
+    assert "Image 1 is a crop of the master wide shot of this scene, around Hattie." in p
+    assert "just behind Evelyn's left shoulder, angled toward Hattie." in p
+    assert "Hattie looks at Evelyn, toward the right of the frame, not at the camera." in p
+    pd3 = {"ben": {"Hattie": "trai", "Nia": "giua", "Brooke": "phai"}, "shots": [{}]}
+    s3, lt3 = QUA_VAI_DM2[7][1], QUA_VAI_DM2[7][2]
+    p3 = drama.prompt_anh_shot(pd3, s3, 0, 'Thoại: Nia: "Line 0."', {}, [], "")
+    assert drama.chu_the(s3, lt3) == "Nia" and "just behind Brooke's left shoulder, angled toward Nia." in p3
+
+
 def test_ca_canh_chi_khi_nhieu_nguoi_khong_qua_vai():
     assert drama.ca_canh(SH[0])
     assert not drama.ca_canh(SH[1])
@@ -125,8 +195,10 @@ def test_nhac_lap_khi_ta_phong():
 
 # ───────────────────────────── prompt ảnh ─────────────────────────────────────
 def test_anh_qua_vai_sat_ban_do():
-    """P031 shot 2 (`ghep_dm4.py`): chỉ câu Image 1 khác — bản đo viết tay thêm
-    ", the inner wall behind her" (phông đã có ở câu "Behind Hattie")."""
+    """P031 shot 2 (`ghep_dm4.py`): câu Image 1 khác — bản đo viết tay thêm
+    ", the inner wall behind her" (phông đã có ở câu "Behind Hattie"). Câu vai cũng
+    khác: bản đo ghi "Nia's left shoulder" là NGƯỢC hình học (Nia bên trái, nhìn sang
+    phải → vai phía máy là vai phải; sửa 29/10, DM002 đo cho thấy model bỏ qua chữ vai)."""
     p = drama.prompt_anh_shot(PD, SH[1], 1, T, NGUOI, [], KH2)
     assert p == (
         "Medium close-up, over-the-shoulder shot, from behind a second person's shoulder in the foreground: Nia's "
@@ -136,7 +208,7 @@ def test_anh_qua_vai_sat_ban_do():
         "Hattie looks at Nia, toward the left of the frame, not at the camera. Photorealistic film still, 16:9.\n\n"
         "Image 1 is a crop of the master wide shot of this scene: Hattie at the right end of the cream sofa. Keep this "
         f"exact room, background and light; it is the same moment. {SHEET[0]} {SHEET[1]}\n\n"
-        "Camera position: on the same side of the room as the master shot, just behind Nia's left shoulder, angled "
+        "Camera position: on the same side of the room as the master shot, just behind Nia's right shoulder, angled "
         "toward Hattie. Behind Hattie: the slim dark wooden console with the framed botanical prints and the tall "
         f"taupe wall panel, exactly as in Image 1. No window behind Hattie. {CHO}\n\n"
         f"Nia: {CHU_N} Hattie: {CHU_H} Keep consistent: Nia wears dark blue jeans, a white t-shirt, and a worn "
@@ -175,9 +247,10 @@ def test_anh_nguoi_o_giua_nhin_ve_phia_nguoi_kia():
     pd = dict(PD, ben={"Nia": "giua", "Hattie": "trai"})
     p = drama.prompt_anh_shot(pd, SH[2], 2, T, NGUOI, [], "close-up: Nia.")
     assert "Nia looks toward Hattie, just off the left edge of the frame" in p
-    # Qua vai: Hattie bên trái nhìn phải nên vai trái; Nia (giữa) nhìn về Hattie, sang trái
+    # Qua vai: Hattie bên trái nhìn phải nên máy sau vai PHẢI (vai phía máy dàn cảnh);
+    # Nia (giữa) nhìn về Hattie, sang trái
     q = drama.prompt_anh_shot(pd, dict(SH[1], cau=[1]), 1, T, NGUOI, [], "ots.")
-    assert "just behind Hattie's left shoulder, angled toward Nia." in q
+    assert "just behind Hattie's right shoulder, angled toward Nia." in q
     assert "Nia looks at Hattie, toward the left of the frame" in q
 
 

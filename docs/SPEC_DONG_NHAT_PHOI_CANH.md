@@ -48,7 +48,7 @@ Sau lần 2 là cửa sổ hiện sau lưng Hattie, trong khi ở shot dàn cả
 | Câu | Mẫu |
 |---|---|
 | Lời dặn Image 1 | `Image 1 is a crop of the master wide shot of this scene: {S ở đâu, theo đồ đạc}. Keep this exact room, background and light; it is the same moment.` |
-| Máy đứng đâu | Một người: `Camera position: on the same side of the room as the master shot, near {O}'s {chỗ ngồi}, angled toward {S}.` · Qua vai: `… just behind {O}'s {left\|right} shoulder, angled toward {S}.` (O bên trái thì dùng vai trái, bên phải thì vai phải) |
+| Máy đứng đâu | Một người: `Camera position: on the same side of the room as the master shot, near {O}'s {chỗ ngồi}, angled toward {S}.` · Qua vai: `… just behind {O}'s {left\|right} shoulder, angled toward {S}.` (vai phía máy dàn cảnh: O bên trái nhìn sang phải thì vai **phải**, O bên phải thì vai **trái**. Bản đo P031 ghi ngược; sửa 29/10, đo DM002 thấy model bỏ qua chữ vai) |
 | Sau lưng là gì | `Behind {S}: {phông}, exactly as in Image 1.` cộng câu phủ định thứ model hay vẽ nhầm (`No window behind Hattie.`) |
 | Chỗ ngồi | Theo **đồ đạc và theo nhau**, không theo khung hình: `Nia on the low wooden bench by the windows, Hattie at the right end of the cream sofa, to Nia's right; they face each other across the round coffee table. Seated people stay seated.` |
 | Hướng nhìn | O ngoài khung: `{S} looks toward {O}, just off the {right\|left} edge of the frame, not at the camera.` · O trong khung (qua vai): `{S} looks at {O}, toward the {left\|right} of the frame, not at the camera.` · Kèm `{O} is off-screen to the {left\|right} and does not appear.` |
@@ -73,7 +73,7 @@ Phía phải/trái trong câu hướng nhìn được suy ra: S ở bên trái �
 | Ảnh dàn cảnh | Model ảnh, user duyệt | Luồng Gen Image → Duyệt hiện có |
 | Ai trái, ai phải trong ảnh dàn cảnh | **Chưa chốt**: user đánh dấu hoặc LLM ghi lúc Breakdown | Python suy ra hướng nhìn và vai từ dữ liệu này |
 | Khung cắt | Python, mặc định nửa trái/nửa phải (L3) và tự cắt viền đen | **Chưa chốt** có cho user kéo khung trên trang không |
-| Máy hướng tới ai (S) | Python: người nói (`noi`) nếu có trong `co_mat`, không thì `co_mat` một người | Qua vai mà người nói ở tiền cảnh thì sai, cần ô sửa tay |
+| Máy hướng tới ai (S) | Python: người nói (`noi`) nếu có trong `co_mat`, không thì `co_mat` một người. Qua vai: bỏ người tiền cảnh ("Qua vai X" trong chữ shot) ra trước | Người dựng vẫn sửa tay được (ô Máy hướng tới) |
 | Câu phông sau lưng, câu chỗ ngồi | **Chưa chốt**: LLM viết một lần cho trường đoạn từ prompt ảnh dàn cảnh, hoặc user viết | Lần 4 viết tay |
 | Ghép prompt, chèn câu, bỏ cụm sai | Python | Như `ghep_dm4.py` |
 
@@ -149,6 +149,9 @@ Luồng mới: **mỗi shot một video** (Grok i2v từ ảnh khung đầu đã
   2. người nói của shot nếu có trong `co_mat`;
   3. `co_mat` chỉ một người thì lấy người đó;
   4. còn lại trả `""`.
+  - Shot qua vai: bước 2–3 chỉ xét người KHÔNG ở tiền cảnh. Người tiền cảnh `nguoi_tien_canh(s)` là X trong "Qua vai X" của `s["t"]`; máy đứng sau vai người đó. Đọc được X thì luật trên áp, không đọc được thì giữ luật cũ.
+  - Vì sao: ngày 29/10, DM002 C1 có 8/13 shot qua vai chọn trúng người nói đang quay lưng, hoặc rỗng (shot im, app gửi nguyên ảnh dàn cảnh). P004 shot 4 vì thế kéo Evelyn ra tiền cảnh.
+  - `nhac_qua_vai(s, lt)` nhắc người dựng khi chưa rõ máy hướng tới ai. Không chặn.
 - `ca_canh(s) -> bool`: dùng NGUYÊN ảnh dàn cảnh khi có từ 2 người trong khung trở lên và `goc != "ots"`.
 - `giay_shot(s, lt) -> int`: lấy `s["gi"]` nếu hợp lệ. Không có thì 10 khi `số từ / 3 + 1 > 5`, ngược lại 6.
 - `nhac_lap(lap) -> list[str]`: `lap` tả phông (chữ `behind`) thì trả câu nhắc. Chỉ nhắc, không chặn (luật cứng 5).
