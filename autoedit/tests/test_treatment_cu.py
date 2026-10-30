@@ -39,10 +39,11 @@ class VeAnhGia:
 
 class VeVideoGia:
     def __init__(self):
-        self.tra = "succeeded"
+        self.tra, self.so = "succeeded", 0
 
     def bat_dau(self, prompt, anh, giay, am):
-        return "task-1"
+        self.so += 1          # nhà thật cấp mã MỚI mỗi lượt gửi; máy chủ nhớ trạng thái theo mã (30/10)
+        return f"task-{self.so}"
 
     def trang_thai(self, tid):
         return {"status": self.tra, "video_url": "u", "loi": "hỏng giả"}

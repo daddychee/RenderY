@@ -67,13 +67,13 @@ class LightvisualClient:
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self._key}", "User-Agent": _UA}
 
-    def _goi(self, method: str, path: str, body: Optional[dict] = None) -> dict:
+    def _goi(self, method: str, path: str, body: Optional[dict] = None, thu_lai_429: bool = True) -> dict:
         """Sổ gọi nền như SeedvisClient: một dòng sổ = một lượt việc, sổ chết không hỏng việc."""
         from autoedit import so_goi_nen
 
         t0 = time.time()
         try:
-            r = self._goi_that(method, path, body)
+            r = self._goi_that(method, path, body, thu_lai_429)
         except Exception as e:  # noqa: BLE001 — ghi sổ rồi ném nguyên vẹn
             so_goi_nen.ghi("llm", duoi=self._key[-4:], ok=False, ma_loi=str(e)[:200],
                            viec="gen_video", ms=(time.time() - t0) * 1000)
@@ -82,7 +82,7 @@ class LightvisualClient:
                        ms=(time.time() - t0) * 1000)
         return r
 
-    def _goi_that(self, method: str, path: str, body: Optional[dict]) -> dict:
+    def _goi_that(self, method: str, path: str, body: Optional[dict], thu_lai_429: bool = True) -> dict:
         loi: Exception | None = None
         for lan in range(self.retries):
             try:
@@ -98,7 +98,8 @@ class LightvisualClient:
                 except ValueError as exc:
                     raise AigenError(f"Lightvisual trả về không phải JSON: {r.text[:200]}") from exc
             loi = AigenError(f"Lightvisual HTTP {r.status_code}: {r.text[:300]}")
-            if not nen_thu_lai(r.status_code):
+            loi.ma = r.status_code
+            if not nen_thu_lai(r.status_code) or (r.status_code == 429 and not thu_lai_429):
                 raise loi
             # Quá tải họ báo "thử lại sau 5–10 giây (không mất credit)".
             time.sleep(float(r.headers.get("Retry-After") or 8 * (lan + 1)))
@@ -129,7 +130,9 @@ class LightvisualClient:
     def trang_thai_video(self, task_id: str) -> dict:
         """Một lần hỏi. Hình dạng như SeedvisClient: {status: succeeded|failed|queued|processing,
         video_url, loi}. `video_url` là đường /content có khoá — đường /api/tenants họ trả là của web."""
-        d = self._goi("GET", f"/videos/{task_id}")
+        # 429 không thử lại (30/10): trang hỏi lại sau 20 s; ngủ 8/16/24 s ở đây chỉ giữ luồng và dồn
+        # thêm lượt vào lúc nhà đang giới hạn tốc độ. Lỗi mang `ma` = 429 để route trả "đang dựng".
+        d = self._goi("GET", f"/videos/{task_id}", thu_lai_429=False)
         tt = str(d.get("status") or "")
         if tt == "completed":
             return {"status": "succeeded", "video_url": f"{self.base}/videos/{task_id}/content"}

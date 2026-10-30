@@ -151,6 +151,9 @@ def _xem_duoc(request: Request) -> str:
 
 
 _gio = time.monotonic       # đồng hồ của bộ nhớ đệm số dư (test thay được)
+# Trạng thái task video nhớ chung mọi tab (đo 30/10: ≥4 tab hỏi mỗi shot 20 s/lần -> ~5 lượt/s tới
+# Lightvisual, dính 429). Bằng nhịp hỏi của trang: mỗi task còn khoảng một lượt hỏi nhà mỗi 20 s.
+GIAY_NHO_VIDEO = 20
 
 
 def _ghi_duoc(request: Request) -> str:
@@ -886,17 +889,29 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         return f"{v[1]['nguoi']} đang Generate All chương {v[0]}" if v else ""   # tên nút (user đổi 29/10)
     _NHO: dict = {}
     _KHOA_NHO = threading.Lock()
+    _KHOA_MUC: dict = {}
 
     def _nho(khoa: str, ham, tuoi: float):
         """Kết quả hỏi Seedvis nhớ `tuoi` giây, dùng chung mọi tab: trang hỏi mỗi
-        phút mà mỗi tab một lượt là dồn lệnh lên Seedvis (hỏi dồn bị 429)."""
-        with _KHOA_NHO:
+        phút mà mỗi tab một lượt là dồn lệnh lên Seedvis (hỏi dồn bị 429).
+        Nhiều luồng cùng hỏi MỘT mục: một luồng làm, luồng kia chờ rồi lấy kết quả đó
+        (30/10: ≥4 tab cùng hỏi một shot). `ham` ném lỗi thì không nhớ — luồng sau tự làm lại."""
+        def con():
             o = _NHO.get(khoa)
-            if o is not None and _gio() - o[0] < tuoi:
-                return o[1]
-        gt = ham()
+            return o if o is not None and _gio() - o[0] < tuoi else None
         with _KHOA_NHO:
-            _NHO[khoa] = (_gio(), gt)
+            o = con()
+            if o:
+                return o[1]
+            k = _KHOA_MUC.setdefault(khoa, threading.Lock())
+        with k:
+            with _KHOA_NHO:
+                o = con()
+            if o:
+                return o[1]
+            gt = ham()
+            with _KHOA_NHO:
+                _NHO[khoa] = (_gio(), gt)
         return gt
 
     @app.get("/api/so-du")
@@ -2483,8 +2498,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             return {"trang_thai":
                     "xong" if kho.duong_video(tap, ma).exists() else "chua"}
         try:
-            r = ve_video.trang_thai(tid) or {}
+            r = _nho("vk:" + tid, lambda: ve_video.trang_thai(tid) or {}, GIAY_NHO_VIDEO)
         except Exception as exc:  # noqa: BLE001
+            # 429 = nhà đang giới hạn tốc độ, task vẫn dựng: giữ mã, trả 200 "dang" — trang (cả
+            # JS cũ) coi mọi mã khác 2xx là lỗi đỏ và ngừng hỏi.
+            if getattr(exc, "ma", None) == 429:
+                return {"trang_thai": "dang"}
             raise HTTPException(502, f"Hỏi trạng thái hỏng: {exc}") from exc
         tt = str(r.get("status") or "").lower()
 
@@ -2492,9 +2511,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             _va_canh(tap, chuong, ma, lambda x: x.pop("vid", None), ai)
 
         if tt == "succeeded":
+            tep = kho.duong_video(tap, ma)
             try:
-                ve_video.tai_ve(r.get("video_url") or "",
-                                kho.duong_video(tap, ma))
+                # Tab khác cùng lúc thấy `succeeded`: chờ lượt tải này, không tải lần hai.
+                _nho(f"tai:{tid}:{tep}", lambda: ve_video.tai_ve(r.get("video_url") or "", tep),
+                     GIAY_NHO_VIDEO)
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Tải video về hỏng: {exc}") from exc
             _quen_ma()
@@ -2986,13 +3007,15 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not tid:
             return {"trang_thai": "xong" if v.exists() else "chua"}
         try:
-            r = ve_video.trang_thai(tid) or {}
+            r = _nho("vk:" + tid, lambda: ve_video.trang_thai(tid) or {}, GIAY_NHO_VIDEO)
         except Exception as exc:  # noqa: BLE001
+            if getattr(exc, "ma", None) == 429:        # như `video-kiem` của cảnh
+                return {"trang_thai": "dang"}
             raise HTTPException(502, f"Hỏi trạng thái hỏng: {exc}") from exc
         tt = str(r.get("status") or "").lower()
         if tt == "succeeded":
             try:
-                ve_video.tai_ve(r.get("video_url") or "", v)
+                _nho(f"tai:{tid}:{v}", lambda: ve_video.tai_ve(r.get("video_url") or "", v), GIAY_NHO_VIDEO)
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Tải video về hỏng: {exc}") from exc
             _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("vid", None), ai)
