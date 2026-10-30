@@ -1778,9 +1778,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                    chung: dict, ai: str) -> dict:
         """Mỗi clip một lượt LLM, chạy SONG SONG (kiểm thử 28/10: một lượt cả cảnh
         5 clip quá 180 s 2/2 lần); phần chung giữ y nguyên ở mọi clip. LLM chỉ viết
-        chữ cho các shot ĐÃ CHỐT. Clip nào lệch số shot hay câu vị trí / câu khung
-        nhắc người NGOÀI KHUNG (Grok vẽ thêm người đó) thì KHÔNG lưu clip đó, báo
-        rõ; clip đúng vẫn lưu."""
+        chữ cho các shot ĐÃ CHỐT. Clip nào lệch số shot thì KHÔNG lưu clip đó, báo
+        rõ; clip đúng vẫn lưu. Câu vị trí / câu khung nhắc người NGOÀI KHUNG (Grok
+        có thể vẽ thêm người đó) thì lưu và NHẮC soát ảnh (luật cứng 5) — user 30/10:
+        chặn làm P137/P171/P191 (màn hình điện thoại hiện tên người gọi) và P252 (ảnh
+        chụp Nia trên báo) không Create Prompt được."""
         import json as _json
         from concurrent.futures import ThreadPoolExecutor
 
@@ -1809,16 +1811,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             lap = [str(s.get("lap") or "").strip() for s in ds]
             ngoai = sorted(ten_nv - {tra[m]["ten"].split(" · ")[0] for m in (c.get("ts") or [])
                                      if m in tra and tra[m]["loai"] == "nhan_vat"})
-            sai = mdrama.kiem_pd(pd_ghep(pd, [dict(s, lap=l) for s, l in zip(sh, lap)]), c.get("t")) + [
-                f"câu vị trí nhắc {n} — người này không có trong clip"
-                for n in mdrama.nhac_ten(pd["truc"], ngoai)] + [
-                f"shot {k}: câu khung nhắc {n} — người này không có trong clip"
-                for k, l in enumerate(lap, 1) for n in mdrama.nhac_ten(l, ngoai)]
+            sai = mdrama.kiem_pd(pd_ghep(pd, [dict(s, lap=l) for s, l in zip(sh, lap)]), c.get("t"))
             if sai:
                 loi += [f"{c['pm']}: {s}" for s in sai]
                 continue
             # `lap` tả phông thì NHẮC (luật cứng 5), không chặn: phông lấy từ ảnh dàn cảnh.
             nhac += [f"{c['pm']} shot {k}: {n}" for k, l in enumerate(lap, 1) for n in mdrama.nhac_lap(l)]
+            nhac += [f"{c['pm']}: câu vị trí nhắc {n}, người không có trong khung — soát ảnh, Grok có thể vẽ thêm {n}"
+                     for n in mdrama.nhac_ten(pd["truc"], ngoai)]
+            nhac += [f"{c['pm']} shot {k}: câu khung nhắc {n}, người không có trong khung — soát ảnh, Grok có thể "
+                     f"vẽ thêm {n}" for k, l in enumerate(lap, 1) for n in mdrama.nhac_ten(l, ngoai)]
             chu = _json.dumps(pd, ensure_ascii=False)
 
             def va(y, chu=chu, lap=lap):

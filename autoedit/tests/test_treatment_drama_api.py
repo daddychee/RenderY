@@ -253,17 +253,19 @@ def test_cac_clip_cua_canh_viet_song_song(tmp_path):
     assert r["viet"] == 2 and r["loi"] == [], r
 
 
-def test_cau_vi_tri_nhac_nguoi_ngoai_khung_thi_khong_luu_clip(tmp_path):
+def test_cau_vi_tri_nhac_nguoi_ngoai_khung_thi_luu_va_nhac(tmp_path):
     """Kiểm thử 28/10 (L4): câu trục chung nhắc người không có trong clip — Grok
-    vẽ người theo câu đó. P002 chỉ có Tasha trong khung."""
+    vẽ người theo câu đó. P002 chỉ có Tasha trong khung. User 30/10: chặn làm clip
+    không Create Prompt được -> lưu, NHẮC soát ảnh."""
     def nhac(than):
         return dict(_clip_dung(than), truc="Tasha frame left, Marcus's shoulder in the right foreground.")
     kho, c = _bo(tmp_path, kt=KyThuatGia(nhac))
     _tap_drama(c)
     _bd(c)
     r = c.post("/api/tap/D1/C1/dong/0/prompt-drama").json()
-    assert r["viet"] == 1 and any("P002" in x and "Marcus" in x for x in r["loi"]), r
-    assert _clip(kho).get("pd") and not _clip(kho, j=1).get("pd")
+    assert r["viet"] == 2 and r["loi"] == [], r
+    assert any("P002:" in x and "câu vị trí nhắc Marcus" in x for x in r["nhac"]), r
+    assert _clip(kho).get("pd") and _clip(kho, j=1).get("pd")
 
 
 def test_viet_mot_clip_dung_lai_phan_chung_khong_dung_clip_khac(tmp_path):
@@ -393,7 +395,7 @@ def test_prompt_ghep_cau_dau_shot_tu_ma_cua_nguoi_dung_va_lap(tmp_path):
     assert "s), medium shot, eye level: Tasha on the left 1. The camera holds perfectly still.\n" in p
 
 
-def test_lap_nhac_nguoi_ngoai_khung_thi_khong_luu_clip(tmp_path):
+def test_lap_nhac_nguoi_ngoai_khung_thi_luu_va_nhac(tmp_path):
     def nhac(than):
         r = _clip_dung(than)
         if "### P002" in than:
@@ -403,7 +405,31 @@ def test_lap_nhac_nguoi_ngoai_khung_thi_khong_luu_clip(tmp_path):
     _tap_drama(c)
     _bd(c)
     r = c.post("/api/tap/D1/C1/dong/0/prompt-drama").json()
-    assert r["viet"] == 1 and any("P002" in x and "Marcus" in x for x in r["loi"]), r
+    assert r["viet"] == 2 and r["loi"] == [], r
+    assert any("P002 shot 1" in x and "Marcus" in x for x in r["nhac"]), r
+
+
+def test_nguoi_noi_tu_ngoai_khung_duoc_nhac_ten_thi_luu_va_nhac(tmp_path):
+    """User báo 30/10: thoại nhân vật ngoài khung không cho Create Prompt (P137/P171/P191 — màn hình
+    điện thoại hiện tên người gọi). Người CÓ THOẠI trong clip được nhắc tên: lưu, chỉ nhắc soát ảnh."""
+    def nhac(than):
+        r = _clip_dung(than)
+        if "### P002" in than:
+            r["truc"] = "Tasha frame left, listening to Marcus on the phone."
+            r["shots"][0]["lap"] = "Tasha on the left, a phone screen showing the name Marcus"
+        return r
+    kho, c = _bo(tmp_path, kt=KyThuatGia(nhac))
+    assert c.post("/api/tap", json={"ma": "D1", "ten": "Hộp nhẫn", "loai": "drama"}).status_code == 200
+    kb = KICH_BAN.replace('Lời nghĩ: Tasha: "He already decided."',
+                          'Thoại: Marcus (điện thoại, ngoài khung): "Look at me."')
+    assert kb != KICH_BAN
+    assert c.post("/api/tap/D1/drama", json={"text": kb}).status_code == 200
+    _bd(c)
+    r = c.post("/api/tap/D1/C1/dong/0/prompt-drama").json()
+    assert r["viet"] == 2 and r["loi"] == [], r
+    assert any("P002:" in x and "câu vị trí nhắc Marcus" in x for x in r["nhac"]), r
+    assert any("P002 shot 1" in x and "Marcus" in x for x in r["nhac"]), r
+    assert _clip(kho, j=1).get("pd")
 
 
 def test_sua_ma_shot_qua_hop_canh(tmp_path):
