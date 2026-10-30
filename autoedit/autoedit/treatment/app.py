@@ -330,6 +330,40 @@ def khung_cuoi(video: Path, dich: Path) -> Path:
     return dich
 
 
+MUC_THOAI = -16.0            # LUFS shot có thoại khi tải ở Storage
+CAM = -50.0                  # đo dưới mức này là shot không nghe thấy tiếng: không kéo lên
+
+
+def can_am(goc: Path, dich: Path, muc: float = MUC_THOAI) -> Path:
+    """Bản CÂN ÂM của một video shot: đo độ lớn (EBU R128) rồi tăng/giảm cho bằng `muc`, chặn
+    đỉnh ở -1,5 dBFS; hình chép nguyên. User 30/10: mỗi shot một video Grok nên to nhỏ khác
+    nhau — bản C cùng một người lệch tới 17 dB; cân xong 37 shot thoại còn lệch 0,4 dB, đỉnh
+    cao nhất -1,2 dBFS. Ghi tạm rồi đổi tên; file gốc không đụng. Shot không nghe thấy tiếng:
+    trả lại file gốc."""
+    import subprocess
+
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(goc), "-af", "ebur128", "-f", "null", "-"],
+                       capture_output=True, text=True, errors="replace")
+    do = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr or "")
+    if not do:
+        raise RuntimeError("không đo được độ lớn: " + (r.stderr or "")[-200:])
+    if float(do[-1]) < CAM:
+        return goc
+    tam = dich.with_name(f"{dich.stem}.{threading.get_ident()}.tam.mp4")
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(goc), "-map", "0:v",
+                        "-map", "0:a", "-c:v", "copy", "-af",
+                        f"volume={muc - float(do[-1]):.2f}dB,alimiter=limit=0.84:level=disabled",
+                        "-c:a", "aac", "-b:a", "192k", str(tam)], capture_output=True, text=True, errors="replace")
+    if r.returncode or not tam.exists():
+        tam.unlink(missing_ok=True)
+        raise RuntimeError("cân âm hỏng: " + (r.stderr or "")[-200:])
+    try:
+        os.replace(tam, dich)
+    except OSError:          # Windows: lượt khác đang đọc bản cân cũ — dùng bản vừa làm lần này
+        return tam
+    return dich
+
+
 def _ma_sach(ten: str, da_co: dict) -> str:
     """Tên tiếng Việt -> mã dùng được làm TÊN FILE ref.
 
@@ -1258,7 +1292,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     # xếp đúng thứ tự: mã P tăng theo thứ tự dựng (DM002 đo 348/348). Khai TRƯỚC
     # `/{tap}/{chuong}` — cùng bẫy với `/txt`.
     def _ds_video(tap: str) -> list[dict]:
-        ra, truoc, gio = [], 0, time.time()
+        ra, truoc, gio, thoai = [], 0, time.time(), set()
         for cg in kho.ds_chuong(tap):
             ch, dong = cg["ma"], kho.doc(tap, cg["ma"])["dong"]
             for i, dg in enumerate(dong):
@@ -1279,6 +1313,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                 ten = "_".join(x for x in (f"{dau}_s{k}", (s.get("co") or "").upper(), f"{g}s") if x)
                                 muc.append((f"{ma}-{sid}", sid, ten, "shot", (ss.get(sid) or {}).get("vid"),
                                             f"{ma}-{sid}", g))
+                                if any(0 <= x < len(lt) for x in mdrama.chi_so(s)):
+                                    thoai.add(f"{ma}-{sid}")
                     for m, sid, ten, loai, dang, ma_anh, g in muc:
                         try:
                             p = kho.duong_video(tap, m)
@@ -1294,9 +1330,25 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                             ra.append({"ch": ch, "ma": ma, "sid": sid, "khoa": m, "ten": ten, "loai": loai,
                                        "byte": st.st_size, "t": st.st_mtime, "dang": bool(dang), "giay": g,
                                        "anh": int(a.stat().st_mtime) if a and a.exists() else 0,
-                                       "ghi": st.st_mtime > gio - GIAY_GHI, "p": p})
+                                       "ghi": st.st_mtime > gio - GIAY_GHI, "p": p, "thoai": m in thoai})
             truoc += len(dong)
         return ra
+
+    def _ban_am(x: dict) -> Path:
+        """File đưa vào ZIP: shot có thoại thì bản cân âm (`can_am`), làm một lần, giữ cạnh file
+        gốc, gốc mới hơn (gen lại) thì làm lại. Shot im giữ nguyên (kéo tiếng nền lên là ồn).
+        Hỏng thì gửi file gốc — một file lỗi không làm hỏng cả lần tải."""
+        p = x["p"]
+        if not x.get("thoai"):
+            return p
+        d = p.with_name(p.stem + "-am.mp4")
+        try:
+            if d.exists() and d.stat().st_mtime >= p.stat().st_mtime:
+                return d
+            return can_am(p, d)
+        except Exception as exc:  # noqa: BLE001
+            print(f"cân âm hỏng {p.name}: {exc}", flush=True)
+            return p
 
     @app.get("/api/tap/{tap}/kho-video")
     def kho_video(tap: str):
@@ -1327,7 +1379,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                         else "lọc theo loại hoặc chọn 'chỉ video mới'."))
         ten = (f"{tap}_chon_{len(ds)}" if k is not None else f"{tap}_{ch}{'_moi' if sau else ''}") + \
             f"_{time.strftime('%d%m-%H%M')}.zip"
-        return StreamingResponse(_luong_zip([(x["p"], x["ten"]) for x in ds]), media_type="application/zip",
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            tep = list(ex.map(_ban_am, ds))
+        return StreamingResponse(_luong_zip([(p, x["ten"]) for p, x in zip(tep, ds)]), media_type="application/zip",
                                  headers={"Content-Disposition": f'attachment; filename="{ten}"',
                                           "Cache-Control": "no-store"})
 
