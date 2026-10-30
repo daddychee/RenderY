@@ -137,16 +137,33 @@ def _chu_clip(c: dict) -> str:
     return "\n".join(dong)
 
 
+def _khoi_canh(dong: list[str], canh: dict) -> list[str]:
+    """Khối đầu cảnh (skill 30/10: Mở cảnh, Vào, Máy dàn cảnh, Tóm tắt, Vai, Tiến trình, Kết
+    cảnh) — các dòng giữa tiêu đề `## C…` và clip đầu. `kiem_drama` (bản chép, không sửa) chỉ
+    giữ `Có mặt:`; khối này vào ô `vi` để LLM xếp chỗ, vẽ ảnh dàn cảnh (bản thử C 30/10)."""
+    het = canh["clip"][0]["dong"] - 1 if canh["clip"] else len(dong)
+    ra = []
+    for d in dong[canh["dong"]:het]:
+        s = d.strip()
+        if s.startswith("#"):
+            break
+        if s and not s.lower().startswith("có mặt:"):
+            ra.append(s)
+    return ra
+
+
 def tach_tap(van_ban: str) -> dict:
     """Văn bản `kich-ban.md` -> {loi, nhac, so, chuong}. Có lỗi thì KHÔNG tách
     (giao ước với skill: kịch bản lỗi không được dán)."""
     loi, nhac, phim = kd.kiem(van_ban)
+    # Luật 2 (user chốt 30/10): máy đứng yên mọi shot — bỏ nhắc "thiếu cú máy" của bản chép Padoma.
+    nhac = [x for x in nhac if "không có cú máy hay góc có ý đồ" not in x[1]]
     nv, noi = nhan_vat(phim["dau"]), noi_chon(phim["dau"])
     theo_noi = {x["ten"].lower(): x["ma"] for x in noi}
     ra_loi = [f"dòng {d}: {s}" if d else s for d, s in loi]
     if not nv:
         ra_loi.append("phần đầu thiếu bảng '## Cụm cố định' — không có nhân vật để vẽ tấm")
-    chuong = []
+    chuong, dong = [], van_ban.splitlines()
     for ph in phim["phan"]:
         ds = []
         for canh in ph["canh"]:
@@ -163,7 +180,8 @@ def tach_tap(van_ban: str) -> dict:
                 cs.append({"pm": c["ma"], "gi": str(c["giay"] or GIAY_MAC_DINH),
                            "t": _chu_clip(c), "ts": ts})
             tieu = " · ".join(x for x in (canh["ma"], canh["noi"], canh["luc"], canh["nhip"]) if x)
-            ds.append({"en": tieu, "vi": "Có mặt: " + ", ".join(canh["co_mat"] or []),
+            ds.append({"en": tieu, "vi": "\n".join(["Có mặt: " + ", ".join(canh["co_mat"] or [])]
+                                                   + _khoi_canh(dong, canh)),
                        "het": 0, "canh": cs})
         dau = " · ".join(str(x) for x in (f"Phần {ph['so']}", ph["ten"],
                                            f"{ph['phut']:g} phút" if ph["phut"] else "") if x)
@@ -540,6 +558,19 @@ def giay_shot(s: dict, lt: list[dict]) -> int:
     return 10 if tu / TU_MOT_GIAY + 1 > 5 else 6
 
 
+GIAY_LIEN = "10"             # user chốt 30/10: chuỗi hành động (cả người vào) = MỘT shot toàn liền 10 giây
+_RE_LIEN = re.compile(r"một cú liền", re.I)
+
+
+def shot_lien(t: str, so: int) -> list[int]:
+    """Shot mà `Hình:` ghi "một cú liền" -> chỉ số từ 0 (Breakdown đặt `gi` 10). Đoạn chia theo
+    "shot n" của `Hình:`; số đoạn khác số shot Breakdown chia thì không đoán: []."""
+    hinh = next((x[5:] for x in (t or "").splitlines() if x.startswith("Hình:")), "")
+    m = list(kd.RE_SHOT_SO.finditer(hinh))
+    doan = [hinh[a.start():b.start() if b else None] for a, b in zip(m, m[1:] + [None])] if m else [hinh]
+    return [k for k, x in enumerate(doan) if _RE_LIEN.search(x)] if len(doan) == so else []
+
+
 def nhac_lap(lap: str) -> list[str]:
     """NHẮC (không chặn — luật cứng 5) khi câu khung tả phông. Phông lấy từ ảnh
     dàn cảnh; LLM tả theo khung hình là sai chỗ (P031 lần 2: sofa sau lưng Nia)."""
@@ -558,6 +589,33 @@ def nhac_qua_vai(s: dict, lt: list[dict]) -> list[str]:
     if not chu_the(s, lt):
         return ["shot qua vai không có người ở xa trong khung: chọn ở ô Máy hướng tới hoặc sửa Trong khung"]
     return []
+
+
+def nhac_luat1(s: dict, lt: list[dict], thay) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) luật 1 user chốt 30/10: "voice của ai thì là hình của
+    người đó". Shot có câu: một người nói, khung chỉ có người đó, hay qua vai người nghe (hai
+    người, người nói không ở tiền cảnh). `thay` = người thấy ở shot nào đó của clip: nói ngoài
+    khung mà không có trong clip (điện thoại, loa) thì không nhắc. Grok mỗi shot một video
+    không có L-cut: câu phát trọn trên mặt người trong khung (DM002 C1: cũ 12/39, bản C 0/37)."""
+    cs = [x for x in chi_so(s) if 0 <= x < len(lt)]
+    if not cs:
+        return []
+    ai = sorted({lt[x]["ten"] for x in cs})
+    if len(ai) > 1:
+        return [f"một shot mà {' và '.join(ai)} cùng nói: mỗi người nói một shot"]
+    ai, co = ai[0], s.get("co_mat") or []
+    if not _trong(ai, co):
+        return [f"câu của {ai} phát trên mặt {', '.join(co) or 'khung trống'}: {ai} phải có trong khung "
+                "shot này"] if _trong(ai, thay) else []
+    tien = nguoi_tien_canh(s) if s.get("goc") == "ots" else ""
+    if len(co) == 1 or (len(co) == 2 and tien and tien.lower() != ai.lower()):
+        return []
+    if tien.lower() == ai.lower():
+        return [f"{ai} nói mà đứng quay lưng ở tiền cảnh: qua vai người nghe, mặt {ai} rõ"]
+    if s.get("goc") == "ots" and not tien:
+        return []           # nhac_qua_vai đã nhắc chưa đọc được "Qua vai X"
+    return [f"{ai} nói mà khung có cả {', '.join(x for x in co if x.lower() != ai.lower())}: khung chỉ "
+            f"{ai}, hoặc qua vai người nghe"]
 
 
 TAM_BEN = {"trai": 0.2, "giua": 0.5, "phai": 0.8}   # chỗ đứng ƯỚC theo `ben` (DM002: Hattie≈0,15 Brooke≈0,43 Evelyn≈0,87)
@@ -687,10 +745,11 @@ def _ke(xs: list[str]) -> str:
     return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
 
 
-def prompt_dan_noi(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict) -> str:
+def prompt_dan_noi(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict, do: list[dict] = ()) -> str:
     """Prompt ảnh dàn cảnh của cảnh SAU trong cụm: SỬA từ ảnh dàn cảnh cảnh trước. Ảnh gửi:
     1. ảnh dàn cảnh cảnh trước (giữ phòng, máy, ánh sáng; người cũ giữ chỗ);
-    2.. tấm `nguoi` đúng thứ tự (nhận dạng — cả người cũ lẫn người mới)."""
+    2.. tấm `nguoi` đúng thứ tự (nhận dạng — cả người cũ lẫn người mới);
+    rồi ảnh `do` (chỉ shot người vào gửi)."""
     ten = [x["ten"].split(" · ")[0] for x in nguoi]
     giu = [n for n in ten if n in cu_ten]
     moi = [n for n in ten if n not in cu_ten]
@@ -707,13 +766,32 @@ def prompt_dan_noi(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict) 
     khoi = ["Image 1 is the master wide shot of this same room a few moments earlier. Keep exactly this "
             "room: the camera position, lens and framing, every piece of furniture, the windows and the "
             "light. It is the same set and the same scene continuing; only the people change.",
-            " ".join(LOI_REF["nhan_vat"].format(i=i) for i in range(2, len(nguoi) + 2)),
+            " ".join([LOI_REF["nhan_vat"].format(i=i) for i in range(2, len(nguoi) + 2)]
+                     + [LOI_REF.get(d.get("loai"), LOI_REF["dao_cu"]).format(i=i)
+                        for i, d in enumerate(do, len(nguoi) + 2)]),
             " ".join(doi),
             " ".join(x for x in (mo_ta, f"Exactly {' and '.join('one ' + n for n in ten)}, nobody else."
                                  if ten else "") if x),
             f"Light now: {look}" if look and look != look_cu else "",
             "Photorealistic film still, 16:9."]
     return "\n\n".join(x for x in khoi if x)
+
+
+CUA = "standing in the entrance doorway of this room"       # LLM không viết `vao`: đo 30/10 ra 0/2 thấy khung cửa
+RO_NGUOI = "whole body visible, face clear, not yet near the others"
+
+
+def prompt_vao(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict, vao: list[str],
+               do: list[dict] = ()) -> str:
+    """Ảnh khung đầu shot NGƯỜI VÀO (user chốt 30/10: người vào đứng sẵn ở cửa, đi tới chỗ, một
+    cú liền): SỬA từ ảnh dàn cảnh cảnh TRƯỚC — người cũ giữ chỗ, người `vao` đứng ở cửa. Cắt từ
+    ảnh dàn cảnh cảnh này (người mới đã ở chỗ) thì video ra hai người (bản B); bản C vẽ cách này
+    ra đúng một người 2/2."""
+    ra = {n.lower() for n in vao}
+    cua = {n: f"{(_cua(pd.get('vao'), n) or CUA).rstrip('.')}, {RO_NGUOI}" for n in vao}
+    pd = dict(pd, vi_tri={**{k: v for k, v in (pd.get("vi_tri") or {}).items() if str(k).lower() not in ra}, **cua},
+              phong={k: v for k, v in (pd.get("phong") or {}).items() if str(k).lower() not in ra})
+    return prompt_dan_noi(pd, nguoi, cu_ten, pd_cu, do)
 
 
 def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], do: list[dict], kh: str) -> str:

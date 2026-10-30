@@ -1769,7 +1769,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ra = dict({k: str(chung.get(k) or "") for k in ("look", "truc", "nen", "cho", "dan")},
                   ben={str(k): str(v) for k, v in (ben.items() if isinstance(ben, dict) else [])
                        if str(v) in mdrama.BEN},
-                  phong=chu("phong"), vi_tri=chu("vi_tri"),
+                  phong=chu("phong"), vi_tri=chu("vi_tri"), vao=chu("vao"),
                   hang=[x.strip() for x in (chung.get("hang") if isinstance(chung.get("hang"), list) else [])
                         if isinstance(x, str) and x.strip()])
         # Khung người dựng kéo là của ẢNH dàn cảnh, không của chữ: viết lại chữ thì giữ (người
@@ -1786,7 +1786,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         cu = [x for x in (mdrama.doc_pd(y.get("pd")) for y in cs) if x.get("truc_canh")]
         if not cu:
             return None
-        return dict({k: cu[0][k] for k in ("ben", "hang", "phong", "vi_tri", "cho", "dan", "cat") if k in cu[0]},
+        return dict({k: cu[0][k] for k in ("ben", "hang", "phong", "vi_tri", "vao", "cho", "dan", "cat") if k in cu[0]},
                     look=str(cu[0].get("look") or ""), truc=cu[0]["truc_canh"], nen=str(cu[0].get("nen") or ""))
 
     def _viet_clip(tap: str, chuong: str, dg: dict, cs: list[dict], chon: list[dict], tra: dict,
@@ -1903,6 +1903,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             if sai:
                 loi += [f"{c['pm']}: {s}" for s in sai]
                 continue
+            for k in mdrama.shot_lien(c.get("t") or "", len(sh)):
+                sh[k]["gi"] = mdrama.GIAY_LIEN
             for s in sh:
                 s["cau"] = mdrama.chi_so(s)
             chu = _json.dumps(sh, ensure_ascii=False)
@@ -2819,9 +2821,32 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         pd, sh = mdrama.doc_pd(c.get("pd")), mdrama.doc_sh(c.get("sh"))
         return len(pd.get("shots") or []) != len(sh) or bool(mdrama.kiem_pd(pd_ghep(pd, sh), c.get("t") or ""))
 
-    def _ghep_shot(tap: str, c: dict, sh: list[dict], k: int) -> dict:
+    def _shot_vao(tap: str, chuong: str, i: int) -> dict | None:
+        """Shot NGƯỜI VÀO của dòng `i` (user chốt 30/10): cảnh nối cảnh trước cùng phim trường,
+        shot ĐẦU TIÊN có người mới (không có ở cảnh trước), và shot đó là khung nhiều người.
+        Ảnh khung đầu vẽ trên ảnh dàn cảnh cảnh TRƯỚC, người mới đứng ở cửa (`prompt_vao`)."""
+        tr = _truoc(tap, chuong, i)
+        if tr is None:
+            return None
+        _, cs, tra = _dong_drama(tap, chuong, i)
+        nv = _nguoi_canh(tra, cs)
+        moi = [n for n in nv if n not in tr["ten"]]
+        for c in cs:
+            for s in mdrama.doc_sh(c.get("sh")):
+                vao = [n for n in moi if n in (s.get("co_mat") or [])]
+                if vao:
+                    return {"ma": c["id"], "sid": s.get("sid"), "vao": vao, "tr": tr, "nv": nv} \
+                        if mdrama.ca_canh(s) else None
+        return None
+
+    def _vao_cua(tap: str, chuong: str, ma: str, sid: str) -> dict | None:
+        _, i, _, _ = _tim_canh(tap, chuong, ma)
+        v = _shot_vao(tap, chuong, i)
+        return v if v and (v["ma"], v["sid"]) == (ma, sid) else None
+
+    def _ghep_shot(tap: str, c: dict, sh: list[dict], k: int, vao: dict | None = None) -> dict:
         """Mọi thứ một shot gửi đi: prompt ảnh, prompt video, giây, người, đồ vật.
-        Trang hiện và lượt gửi cùng gọi hàm này — thấy gì gửi nấy."""
+        Trang hiện và lượt gửi cùng gọi hàm này — thấy gì gửi nấy. `vao` = shot người vào."""
         pd = mdrama.doc_pd(c.get("pd"))
         t = c.get("t") or ""
         if _thieu_pd(c):
@@ -2837,17 +2862,21 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         kh, giay = khung_shot(dict(s, cd="")), mdrama.giay_shot(s, lt)
         may = CD_DRAMA.get(s.get("cd") or "") or CD_DRAMA["static"]
         return {"pd": pd, "s": s, "nguoi": nguoi, "do": do, "giay": giay, "lt": lt,
-                "anh": mdrama.prompt_anh_shot(pd, s, k, t, nguoi, do, kh),
+                "anh": (mdrama.prompt_vao(pd, list(vao["nv"].values()), vao["tr"]["ten"], vao["tr"]["chung"],
+                                          vao["vao"], do) if vao
+                        else mdrama.prompt_anh_shot(pd, s, k, t, nguoi, do, kh)),
                 "video": mdrama.prompt_video_shot(pd, s, k, t, nguoi, tieng, do, kh, may, giay)}
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot")
     def ds_shot(tap: str, chuong: str, ma: str):
         """Trạng thái từng shot cho thẻ shot của trang. Suy từ ĐĨA như cờ `anh` của cảnh."""
-        _, _, _, c = _tim_canh(tap, chuong, ma)
+        _, i, _, c = _tim_canh(tap, chuong, ma)
         if not c.get("pm"):
             raise HTTPException(400, "Đây không phải clip drama.")
         ss, lt, ra, pd = _ss(c), mdrama.loi_thoai(c.get("t")), [], mdrama.doc_pd(c.get("pd"))
-        for k, s in enumerate(mdrama.doc_sh(c.get("sh"))):
+        sh, vao = mdrama.doc_sh(c.get("sh")), _shot_vao(tap, chuong, i)
+        thay = {n for s in sh for n in s.get("co_mat") or []}
+        for k, s in enumerate(sh):
             sid = s.get("sid") or ""      # shot trước 29/10 chưa có mã: Breakdown lại
             o = ss.get(sid) or {}
             a = kho.duong_anh(tap, f"{ma}-{sid}") if sid else None
@@ -2860,14 +2889,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                        "giay": mdrama.giay_shot(s, lt), "chu_the": mdrama.chu_the(s, lt),
                        "co_mat": s.get("co_mat") or [],
                        "nhac": mdrama.nhac_lap(s.get("lap") or "") + mdrama.nhac_qua_vai(s, lt)
-                       + mdrama.nhac_khung(pd, s, lt)})
+                       + mdrama.nhac_khung(pd, s, lt) + mdrama.nhac_luat1(s, lt, thay)
+                       + ([f"shot người vào: ảnh vẽ trên ảnh dàn cảnh {vao['tr']['en']}, "
+                           f"{', '.join(vao['vao'])} đứng ở cửa"]
+                          if vao and (vao["ma"], vao["sid"]) == (ma, sid) else [])})
         return ra
 
     @app.get("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/prompt")
     def xem_prompt_shot(tap: str, chuong: str, ma: str, sid: str):
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
         try:
-            g = _ghep_shot(tap, c, sh, k)
+            g = _ghep_shot(tap, c, sh, k, _vao_cua(tap, chuong, ma, sid))
         except HTTPException:
             return {"anh": "", "video": "", "giay": 0}
         return {"anh": g["anh"], "video": g["video"], "giay": g["giay"]}
@@ -2884,7 +2916,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     def _ve_shot(tap: str, chuong: str, ma: str, sid: str, ai: str) -> None:
         """Thân nút vẽ ảnh khung đầu một shot — nút tay và việc chạy chương gọi chung."""
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
-        g = _ghep_shot(tap, c, sh, k)
+        v = _vao_cua(tap, chuong, ma, sid)
+        g = _ghep_shot(tap, c, sh, k, v)
         td = (c.get("td") or "").strip()
         master = kho.ref_dang_co(tap, td) if td else None
         if master is None:
@@ -2892,17 +2925,25 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                      "cắt từ ảnh đó.")
         if not _dan_duyet(tap, td):
             raise HTTPException(400, "Ảnh dàn cảnh chưa duyệt — xem kỹ ai ngồi đâu rồi bấm Duyệt.")
-        s, nguoi = g["s"], g["nguoi"]
-        thieu = [n for n in s.get("co_mat") or [] if n not in nguoi or kho.ref_dang_co(tap, nguoi[n]["ma"]) is None]
+        s, nguoi = g["s"], (v["nv"] if v else g["nguoi"])
+        ten = list(nguoi) if v else s.get("co_mat") or []
+        thieu = [n for n in ten if n not in nguoi or kho.ref_dang_co(tap, nguoi[n]["ma"]) is None]
         thieu += [x["ten"] for x in g["do"] if kho.ref_dang_co(tap, x["ma"]) is None]
         if thieu:
             raise HTTPException(400, f"Chưa có ảnh tham chiếu cho: {', '.join(thieu)} — vẽ ở màn Asset trước.")
         # Image 1: mảnh cắt quanh người máy hướng tới; khung nhiều người (không qua vai)
         # hay shot không có ai thì nguyên ảnh dàn cảnh. Thứ tự ref = thứ tự `prompt_anh_shot`.
+        # Shot người vào: ảnh dàn cảnh cảnh TRƯỚC + tấm mọi người cảnh này (`prompt_vao`).
         ai_quay = mdrama.chu_the(s, g["lt"])
-        dau = master if (mdrama.ca_canh(s) or not ai_quay) else mdrama.cat_master(
-            master, _hop(g["pd"], ai_quay), kho.duong_anh(tap, f"{ma}-{sid}-cat"))
-        ref = [dau] + [kho.ref_dang_co(tap, nguoi[n]["ma"]) for n in s.get("co_mat") or []] \
+        if v:
+            dau = kho.ref_dang_co(tap, v["tr"]["td"])
+            if dau is None or not _dan_duyet(tap, v["tr"]["td"]):
+                raise HTTPException(400, f"Shot người vào vẽ trên ảnh dàn cảnh {v['tr']['en']} — ảnh đó "
+                                         "chưa có hay chưa duyệt.")
+        else:
+            dau = master if (mdrama.ca_canh(s) or not ai_quay) else mdrama.cat_master(
+                master, _hop(g["pd"], ai_quay), kho.duong_anh(tap, f"{ma}-{sid}-cat"))
+        ref = [dau] + [kho.ref_dang_co(tap, nguoi[n]["ma"]) for n in ten] \
             + [kho.ref_dang_co(tap, x["ma"]) for x in g["do"]]
         m = _mo_hinh(tap, c, "anh")
         try:

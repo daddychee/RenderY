@@ -273,6 +273,28 @@ class Phan(unittest.TestCase):
             for k in range(4, 25))
         self.assertTrue(any("gần toàn lời" in x for x in dy.kiem_nhip(vb + day)))
 
+    def test_hai_luat_grok(self):
+        grok = CLIP.replace("Seedance 10s", "Grok 15s")
+        khoi = "Mở cảnh: Nia trái · Damon phải\nMáy dàn cảnh: nhìn từ cửa vào quầy\n"
+        sach = ("# Phần 1 · A · 1 phút\n\n## C001 · Shop · sáng · N01\nCó mặt: Nia, Damon\n" + khoi + "\n"
+                + grok.format(ma="P001", khung="Nia, Damon", hinh="Toàn theo hướng máy dàn cảnh, máy đứng yên, một cú liền: Nia đặt hộp lên quầy.")
+                + "\n" + grok.format(ma="P002", khung="Nia", hinh="Cận Nia, trong khung chỉ có Nia, máy đứng yên."))
+        self.assertEqual(dy.kiem_hai_luat(sach), [])
+        self.assertEqual(dy.kiem_hai_luat(sach.replace("Grok 15s", "Seedance 10s")), [])          # chỉ kịch bản Grok
+        thoai2 = "chỉ có Nia, máy đứng yên.\nThoại: Nia"
+        for cu, moi, chu in ((khoi, "", "thiếu khối đầu cảnh"),
+                             ("Khung: Nia, Damon", "Khung: Nia", "clip đầu C001 không có Damon"),
+                             ("chỉ có Nia, máy đứng yên.", "chỉ có Nia, máy đẩy vào chậm.", "'máy đẩy' — máy đứng yên"),
+                             ("Cận Nia,", "Đặc tả hộp, cận Nia,", "không đặc tả"),
+                             ("Cận Nia,", "Trung rộng định vị, cận Nia,", "định vị giữa cảnh"),
+                             (thoai2, thoai2[:-3] + "Damon", "Damon có mặt mà không có ở Khung")):
+            self.assertIn(cu, sach, cu)
+            nhac = dy.kiem_hai_luat(sach.replace(cu, moi, 1))
+            self.assertTrue(any(chu in x for x in nhac), (chu, nhac))
+        dt = sach.replace(thoai2 + " (khẽ)", "chỉ có Nia, máy đứng yên.\nThoại: Damon (điện thoại)")
+        self.assertNotEqual(dt, sach)
+        self.assertFalse(any("Damon có mặt" in x for x in dy.kiem_hai_luat(dt)), "người ở đầu dây: không nhắc")
+
     def test_ten_khung_khong_co_cum(self):
         kq, ra = self.chay("phan", self.dau_phan1(khung="Nia, Otis"))
         self.assertEqual(kq, 1)

@@ -162,7 +162,7 @@ button.khoa-dang{cursor:wait}
 .en::before,.vi::before{content:counter(dong);position:absolute;left:0;top:2px;width:18px;
   text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;
   user-select:none;-webkit-user-select:none}
-.vi{color:var(--muted)}
+.vi{color:var(--muted);white-space:pre-line}
 .cach{height:11px}
 .noi[contenteditable]:focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
 .ro{opacity:.55}
@@ -2092,7 +2092,7 @@ function veTheCanh(){
       if(dr){
         var d = (cua(x.ch).dong || [])[x.di] || {};
         h += '<div class="lo"><div class="lo-dau"><b>' + thoat(x.en) + '</b><span class="meta">' +
-             x.n + ' clip · ' + thoat(d.vi || "") + '</span><span class="spacer"></span>' +
+             x.n + ' clip · ' + thoat((d.vi || "").split("\n")[0]) + '</span><span class="spacer"></span>' +
              '<button class="cp" onclick="moDanCanh(\'' + x.ch + '\',' + x.di + ')">' + nhanDanCanh(x) +
              '</button></div><div class="hang">';
       } else {

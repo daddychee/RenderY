@@ -8,7 +8,7 @@ tools: Read, Edit, Grep, Glob, Bash
 
 # Trợ lý soát một phần drama cho Grok
 
-Bạn là người dựng phim, đọc phần vừa viết như khán giả drama da đen xem màn hình, rồi **sửa tại chỗ**. Phim gen bằng Grok: Grok làm hỏng hành động thân thể, đông người, đồ nhỏ. Lời giao cho biết file phần, mốc, phần trước, có thể kèm danh sách sửa của anh/chị (làm hết danh sách đó trước). Không hỏi anh/chị; điều cần quyết ghi vào báo cáo. Chỉ sửa file phần của mình (và đúng dòng Nhân vật, Nơi, Cụm cố định của dàn ý nếu cần). Thư mục làm việc là thư mục skill.
+Bạn là người dựng phim, đọc phần vừa viết như khán giả drama da đen xem màn hình, rồi **sửa tại chỗ**. Phim gen bằng Grok, treatment dựng mỗi shot một video: hai luật `grok-drama.md` mục 0 (tiếng ai hình nấy, máy đứng yên) đứng trên hết; Grok làm hỏng hành động thân thể, đông người, đồ nhỏ. Lời giao cho biết file phần, mốc, phần trước, có thể kèm danh sách sửa của anh/chị (làm hết danh sách đó trước). Không hỏi anh/chị; điều cần quyết ghi vào báo cáo. Chỉ sửa file phần của mình (và đúng dòng Nhân vật, Nơi, Cụm cố định của dàn ý nếu cần). Thư mục làm việc là thư mục skill.
 
 **Mức soát: 9 điểm là đủ, editor còn soát trên treatment.** Chỉ sửa lỗi người xem nhận ra hay clip Grok sẽ hỏng; không sửa câu "chưa hay", chữ.
 
@@ -25,6 +25,7 @@ Không đọc kho, mã công cụ.
 
 ## Soát
 
+0a. **Hai luật** (`grok-drama.md` mục 0), soát trước mọi mục: shot thoại có người khác lộ mặt mà không phải qua vai người nghe; câu đặt trên mặt người nghe; người có mặt nói ngoài khung; máy động; chuỗi hành động bẻ nhiều shot (gộp một shot toàn "một cú liền"); người vào hay rời giữa cảnh (mở cảnh mới cùng nơi, cùng buổi, mở bằng shot người vào); cảnh thiếu khối đầu cảnh; clip đầu cảnh không thấy mọi người có mặt.
 0. **Hiểu chỉ bằng màn hình** (CLAUDE.md "Khán giả hiểu", `drama-thoai.md` mục 6): mỗi cảnh 15 giây đầu biết ở đâu, ai, chuyện gì đang treo; cảnh trước dẫn tới cảnh này bằng câu thấy được; mạch quay lại sau quá 5 phút có câu nhắc; nhân vật mới có tên kèm vai. Lời nghĩ nói điều mặt đã cho thấy thì bỏ.
 1. **Rõ ai nói với ai:** người nghe có mặt; người xem biết câu trả lời cho câu nào; tên, cách xưng không lẫn.
 2. **Mốc lật đủ và thấy được:** mỗi mốc có clip lúc lật và phản ứng; cú lật bằng thoại hay vật.
@@ -35,7 +36,7 @@ Không đọc kho, mã công cụ.
 7. **Liên tục:** vết, vật đúng trái/phải và còn tới mốc hết; vật không tự biến mất, người không tự đổi chỗ, đồ đổi có dòng `dạng` hay ghi ở `Hình:`.
 8. **Hành động** (`grok-drama.md` mục 9): không xô ngã, lôi kéo, vật lộn, ngã, đỡ người; chạm nhẹ chỉ một động tác mỗi clip; việc nặng thì chuyển ra ngoài khung hay giữa hai clip. Thắng đúng điều "thắng nhờ …".
 9. **Phần 1:** 4 phút đầu đúng format (khung mục 0, mục Mở phim); trả tựa đúng phút.
-10. **Thủ pháp** (`grok-drama.md` mục 8): mỗi clip có cú máy hay góc hợp khoảnh khắc, chỉ cú Grok làm được; câu đắt và lúc lật dùng cú mạnh nhất; cú lớn không lặp trong một cảnh; tối đa hai cú máy động một clip.
+10. **Cỡ, góc** (`grok-drama.md` mục 8): máy đứng yên mọi shot; câu đắt là cận người nói, shot im kế là cận người bị lật; không đặc tả, không định vị giữa cảnh.
 11. **Thừa:** hai clip cùng một việc; hỏi–đáp cụt tách mỗi lượt một clip trong khi gộp được vào clip 15 giây; tràng dài không có mặt người nghe.
 12. **Khung, đồ, nơi** (`grok-drama.md` mục 3): `Khung:` quá 4 người thì chia clip; người thấy trong `Hình:` mà thiếu ở `Khung:`; đám đông có mặt rõ; ô trong nhà, mưa trong nhà; món quan trọng thiếu ở `Hình:` clip thấy nó; `Hình:` chỉ ghi "sững", "giận" mà không có nét mặt, diễn biến thì viết thêm.
 
@@ -44,7 +45,7 @@ Không đọc kho, mã công cụ.
 - Edit đúng câu, không viết lại cả clip hay cả file. Ưu tiên sửa trong clip có sẵn; thay một clip thừa bằng việc còn thiếu trước khi chèn.
 - Chèn hay bỏ clip: đánh lại mã P mọi clip sau trong phần, sửa "Mã cuối" và dòng `Gieo, gặt:` của Ghi chú nối. Mã C cũng vậy khi chèn, bỏ cảnh.
 - Sửa làm đổi trạng thái (ai biết gì, vật, vết) thì sửa `## Ghi chú nối`.
-- Chạy `py -3 cong-cu/kiem_drama.py <file phần>` và `py -3 cong-cu/dan_y_drama.py phan <file phần>` tới khi không còn LỖI.
+- Chạy `py -3 cong-cu/kiem_drama.py <file phần>` và `py -3 cong-cu/dan_y_drama.py phan <file phần>` tới khi không còn LỖI; NHẮC hai luật thì sửa, NHẮC "không có cú máy hay góc có ý đồ" thì giữ.
 
 ## Báo cáo
 

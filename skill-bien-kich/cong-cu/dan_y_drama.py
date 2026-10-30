@@ -19,6 +19,8 @@ phan · LỖI: thiếu mục Nhân vật, Cụm cố định; thiếu dòng NV, 
   NHẮC: cụm có chữ già, xấu da; phần đầu file khác dàn ý; `Hình:` nhắc vết (vết, bầm, sẹo, băng, máu, rách, sưng) mà câu đó không có trái, phải;
   % giây có lời của phần từ 20 clip (ước: từ / 2,5 từ mỗi giây, không quá giây clip) ngoài 60–80%; cảnh từ 3 clip không clip nào thưa lời (tối đa 1,5 từ
   mỗi giây: nhịp diễn); clip đầu cảnh không có shot định vị (rộng, toàn).
+  Kịch bản Grok, hai luật (grok-drama.md mục 0): cảnh thiếu `Mở cảnh:`/`Máy dàn cảnh:`; clip đầu cảnh thiếu người có mặt; cú máy động;
+  đặc tả; shot định vị giữa cảnh; người có mặt nói mà không có ở `Khung:` (trừ cách nói điện thoại, loa, bộ đàm, sau cửa).
 Thoát 1 khi có LỖI."""
 import re
 import sys
@@ -473,6 +475,47 @@ def kiem_nhip(vb: str) -> list[str]:
     return nhac
 
 
+# Hai luật anh/chị chốt 30/10 (grok-drama.md mục 0): treatment dựng mỗi shot một video Grok, không L-cut. Bản thử DM002 C1 viết theo
+# hai luật: câu phát trên mặt người khác 0/37 shot (bản cũ 12/39), máy đứng yên 62/62.
+KHOI_CAN = ("Mở cảnh:", "Máy dàn cảnh:")
+RE_MAY_DONG = re.compile(r"đẩy vào(?! (?:tay|túi|trong|lòng|ngực|người))|máy (?:đẩy|lùi|nâng|hạ|ngước|cúi|lia|đi theo|chạy theo|vòng)|\blia\b|"
+                         r"vòng từ|vòng quanh|nửa vòng|bám lưng|bám theo|chuyển nét|trượt ngang|zoom|dolly", re.I)
+RE_DAC_TA = re.compile(r"đặc tả|cực cận", re.I)
+RE_VANG = re.compile(r"điện thoại|loa|bộ đàm|sau cửa|qua cửa|ngoài khung", re.I)
+
+
+def kiem_hai_luat(vb: str) -> list[str]:
+    """NHẮC hai luật cho kịch bản Grok (kịch bản khác: không nhắc)."""
+    phim, dong, nhac = tach(vb), _dong(vb), []
+    if not phim["grok"]:
+        return []
+    for p in phim["phan"]:
+        for canh in p["canh"]:
+            het = canh["clip"][0]["dong"] - 1 if canh["clip"] else canh["dong"]
+            khoi = [x.strip() for x in dong[canh["dong"]:het]]
+            thieu = [k for k in KHOI_CAN if not any(x.startswith(k) for x in khoi)]
+            if thieu:
+                nhac.append(f"dòng {canh['dong']} · {canh['ma']}: thiếu khối đầu cảnh ({', '.join(thieu)}): ảnh dàn cảnh xếp chỗ theo khối này")
+            co = canh["co_mat"] or []
+            if canh["clip"] and (vang := [n for n in co if n not in (canh["clip"][0]["khung"] or [])]):
+                c = canh["clip"][0]
+                nhac.append(f"dòng {c['dong']} · {c['ma']}: clip đầu {canh['ma']} không có {', '.join(vang)}: shot toàn mở cảnh thấy mọi "
+                            "người có mặt; ai vào giữa chừng thì mở cảnh mới cùng nơi, cùng buổi")
+            for j, c in enumerate(canh["clip"]):
+                h, ma = c["hinh"] or "", f"dòng {c['dong']} · {c['ma']}"
+                if m := RE_MAY_DONG.search(h):
+                    nhac.append(f"{ma}: '{m.group(0)}' — máy đứng yên mọi shot (luật 2)")
+                if m := RE_DAC_TA.search(h):
+                    nhac.append(f"{ma}: '{m.group(0)}' — không đặc tả; vật thấy trong tay ở shot trung, cận (luật 2)")
+                if j and "định vị" in h.lower():
+                    nhac.append(f"{ma}: shot định vị giữa cảnh — chỉ shot toàn mở cảnh (luật 2)")
+                for lt in c["thoai"]:
+                    if lt["ten"] in co and lt["ten"] not in (c["khung"] or []) and not RE_VANG.search(lt["cach"]):
+                        nhac.append(f"dòng {lt['dong']} · {c['ma']}: {lt['ten']} có mặt mà không có ở Khung: câu sẽ phát trên mặt "
+                                    "người khác (luật 1)")
+    return nhac
+
+
 def kiem_file(f: Path, nhan: str) -> int:
     if not f.exists():
         print(f"LỖI: không thấy {f}")
@@ -486,7 +529,7 @@ def kiem_file(f: Path, nhan: str) -> int:
     dy = doc_dan_y(dy_f.read_text(encoding="utf-8")) if dy_f else None
     l2, n2, du = kiem_gieo_phan(vb, dy)
     loi += l2
-    nhac += n2 + kiem_nhip(vb)
+    nhac += n2 + kiem_nhip(vb) + kiem_hai_luat(vb)
     if dy is None:
         nhac.append("không thấy 00-dan-y.md cạnh file: bỏ kiểm dòng Gieo, gặt")
     elif dau and phan_dau(dy["dong"]) != dau and f.name in ("phan-01.md", "kich-ban.md"):

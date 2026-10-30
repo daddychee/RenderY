@@ -23,6 +23,7 @@ Muốn viết liền không dừng sau phần 1: dặn lúc duyệt dàn ý.
 
 Dùng khi muốn gen cả phim bằng Grok (bản RenderY: Seedvis, 108 credit mỗi clip, 6/10/15 giây cùng giá). Các bước y như trên, gõ `/bien-kich-grok <ý tưởng>` (chat đầy: `/bien-kich-grok <mã> tiếp`). Khác phim Seedance:
 - Mọi clip ghi `Máy: Grok 15s`; không hỏi mức Seedance. Dán vào treatment (tạo tập loại **2 = Drama có thoại**), chọn độ dài thật từng clip ở hộp clip (6/10/15 giây).
+- **Hai luật (chốt 30/10):** tiếng của ai thì hình người đó (shot thoại chỉ người nói, hay qua vai người nghe); phối cảnh đúng (máy đứng yên, chuỗi hành động là một shot toàn "một cú liền" 10 giây). Mỗi cảnh có khối đầu cảnh; người vào giữa cuộc thì mở cảnh mới cùng nơi, cùng buổi, treatment tự vẽ shot người vào trên ảnh dàn cảnh cảnh trước.
 - Grok làm hỏng hành động: không đánh nhau, xô ngã, lôi kéo, ngã. Cao trào bằng lời, giấy tờ, điện thoại, mặt người; chạm nhẹ một động tác thì được (tát một cái, nắm cổ tay, giật tờ giấy).
 - Mỗi clip tối đa 4 người rõ mặt; đám đông chỉ thấy lưng hay mờ phía sau.
 - Trong nhà không cầm ô, mưa chỉ ngoài cửa kính; cảnh đêm ghi chữ "đêm" ở tiêu đề cảnh.

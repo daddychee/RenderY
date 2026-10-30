@@ -289,9 +289,13 @@ CẢNH TRƯỚC CÙNG NƠI (khi có khối này): cảnh ngay trước ở CÙNG
 của họ trong `hang`; chỉ xếp chỗ cho người MỚI vào (chèn vào `hang` đúng chỗ), người \
 đã rời thì bỏ. `dan` giữ đúng góc máy và căn phòng của cảnh trước; `cho` tả lại chỗ \
 người cũ y như cũ rồi thêm người mới; `look` giữ nguyên.
+- `vao`: {"Tên": "..."} CHỈ cho người MỚI vào: tiếng Anh, chỗ người đó đứng LÚC BƯỚC \
+VÀO, theo dòng `Vào:` và `Máy dàn cảnh:` của khối đầu cảnh, một cụm bắt đầu bằng \
+"standing in": {"Nia": "standing in the open glass entrance door at the far end of \
+the room, on the right"}. Không có khối này thì `vao` rỗng.
 
 Trả về JSON: {"look": "...", "truc": "...", "nen": "...", "tieng": {}, "ben": {}, \
-"hang": [], "phong": {}, "cho": "...", "vi_tri": {}, "dan": "..."}"""
+"hang": [], "phong": {}, "cho": "...", "vi_tri": {}, "dan": "...", "vao": {}}"""
 
 LENH_DRAMA_CLIP = """Bạn là đạo diễn hình viết prompt video cho Grok Imagine 1.5, \
 phim DRAMA CÓ THOẠI.

@@ -1,6 +1,6 @@
 ---
 name: bien-kich-grok
-description: Viết kịch bản phim drama nhiều thoại gen cả phim bằng Grok (loại drama_thoai, mọi clip `Grok 15s`, độ dài thật chọn trên treatment, Spec 69; tránh hành động nặng, tối đa 4 người rõ mặt mỗi clip): bảng hỏi, dàn ý, anh/chị duyệt, trợ lý viết và soát từng phần 10 phút, gộp ra kich-ban.md dán vào treatment (AI Generation). Dùng khi anh/chị nói "drama Grok", "kịch bản cho Grok", "phim gen bằng Grok", hoặc gõ /bien-kich-grok.
+description: Viết kịch bản phim drama nhiều thoại gen cả phim bằng Grok (loại drama_thoai, mọi clip `Grok 15s`, độ dài thật chọn trên treatment, Spec 69; hai luật: tiếng ai hình nấy, máy đứng yên; tránh hành động nặng, tối đa 4 người rõ mặt mỗi clip): bảng hỏi, dàn ý, anh/chị duyệt, trợ lý viết và soát từng phần 10 phút, gộp ra kich-ban.md dán vào treatment (AI Generation). Dùng khi anh/chị nói "drama Grok", "kịch bản cho Grok", "phim gen bằng Grok", hoặc gõ /bien-kich-grok.
 model: claude-opus-5-5
 ---
 
@@ -8,7 +8,7 @@ model: claude-opus-5-5
 
 Mức suy nghĩ medium (khác thì `/effort medium`). Đối số: ý tưởng phim (bước 1), hay `<mã> tiếp`: đọc `BAN-GIAO.md` của phim, làm tiếp bước ghi ở đó.
 
-Bản này là `/bien-kich-drama` (`.claude/skills/bien-kich-drama/SKILL.md`) viết cho Grok: câu chuyện giữ nguyên (khung `kien-thuc/khung/drama-da-den.md`, mở phim, gieo gặt), chỉ đổi máy, cách chia clip, cú máy, hành động, số người, đồ, ánh sáng. Chỗ ghi "như drama bước n" thì Read đúng mục bước đó của skill drama. Khuôn, clip ở `kien-thuc/grok-drama.md` (thay mục 2, 3, 4, 8, 9 của `drama-thoai.md`; mục 1, 5, 6, 7 dùng chung). Máy kiểm: `cong-cu/dan_y_drama.py`, `cong-cu/kiem_drama.py` (tự nhận kịch bản Grok từ dòng `Máy: Grok`).
+Bản này là `/bien-kich-drama` (`.claude/skills/bien-kich-drama/SKILL.md`) viết cho Grok: câu chuyện giữ nguyên (khung `kien-thuc/khung/drama-da-den.md`, mở phim, gieo gặt), chỉ đổi máy, cách chia clip, cú máy, hành động, số người, đồ, ánh sáng. Chỗ ghi "như drama bước n" thì Read đúng mục bước đó của skill drama. Khuôn, clip ở `kien-thuc/grok-drama.md` (mục 0 hai luật đứng trên hết; thay mục 2, 3, 4, 8, 9 của `drama-thoai.md`; mục 1, 5, 6, 7 dùng chung). Máy kiểm: `cong-cu/dan_y_drama.py`, `cong-cu/kiem_drama.py` (tự nhận kịch bản Grok từ dòng `Máy: Grok`).
 
 **Kết quả:** `<THU_MUC_PHIM>/<mã>/kich-ban.md`, gộp từ `kich-ban/00-dan-y.md`, `phan-01.md`…, không sửa tay. Anh/chị dán vào **treatment** (AI Generation, cổng 9121): tạo tập, chọn loại **2 = Drama có thoại**, dán cả file ở màn Kịch bản; phần mới viết thêm thì bấm **⇪ Dán lại kịch bản** (clip cùng mã P giữ video và độ dài đã chọn).
 
@@ -35,7 +35,7 @@ Thể loại: drama-da-den · Độ dài: 70 phút · Tỉ lệ: 16:9
 - **Nơi:** ít người, ở lâu; nơi trong nhà có nguồn sáng rõ (Một câu tả ghi đèn, cửa sổ); cảnh đêm ghi `đêm` ở tiêu đề cảnh.
 - **Cụm cố định** như drama; người đổi đồ (khoác áo người khác, cởi áo khoác, bỏ mũ) từ 3 cảnh trở lên thì dòng `dạng` cho cả người mặc và người cho mượn (`grok-drama.md` mục 3 điều 6).
 
-**Tự soát điều máy không kiểm:** như drama bước 2, thêm: không mốc nào cần đánh, xô ngã, lôi kéo, ngã, lửa; mỗi cảnh tối đa 4 người rõ mặt cùng lúc, người thứ năm trở đi chỉ là lưng hay bóng mờ. Rồi `py -3 cong-cu/dan_y_drama.py kiem <phim>/kich-ban` tới hết LỖI.
+**Tự soát điều máy không kiểm:** như drama bước 2, thêm: không mốc nào cần đánh, xô ngã, lôi kéo, ngã, lửa; mỗi cảnh tối đa 4 người rõ mặt cùng lúc, người thứ năm trở đi chỉ là lưng hay bóng mờ; người vào hay rời giữa một cuộc thì tính thành cảnh mới cùng nơi, cùng buổi (`grok-drama.md` mục 0). Rồi `py -3 cong-cu/dan_y_drama.py kiem <phim>/kich-ban` tới hết LỖI.
 
 ## Bước 3. Duyệt
 
