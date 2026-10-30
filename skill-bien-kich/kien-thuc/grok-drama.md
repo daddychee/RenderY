@@ -51,7 +51,7 @@ Thoại: Brooke (lạnh): "And who are you to speak at my table?"
 
 - `Có mặt:`, `Mở cảnh:`, `Vai:` chỉ ghi người có mặt ở cảnh này. `Mở cảnh:` là chỗ lúc cảnh mở; cảnh nối tiếp thì người cũ giữ y chỗ cảnh trước. `Vào:` chỉ ở cảnh mở bằng người vào. `Máy dàn cảnh:` chép y nhau ở mọi cảnh cùng nơi, cùng buổi.
 
-**Establishing (ngoại cảnh, anh/chị chốt 30/10):** lần đầu mỗi cặp ngoại cảnh–buổi (tòa nhà hay con phố chứa cảnh sắp tới, cộng buổi ở tiêu đề), đặt ngay trước cảnh đó một cảnh ngoại cảnh ngắn cho khán giả biết đang ở đâu, lúc nào. Cặp đã có thì không viết lại, người dựng dùng lại video cũ.
+**Establishing (ngoại cảnh, anh/chị chốt 30/10):** lần đầu mỗi cặp ngoại cảnh–buổi (tòa nhà hay con phố chứa cảnh sắp tới, cộng buổi ở tiêu đề), đặt ngay trước cảnh đó một cảnh ngoại cảnh ngắn cho khán giả biết đang ở đâu, lúc nào. Cặp đã có thì không viết lại, người dựng dùng lại video cũ. **Trừ cảnh mở phim:** giây 0–5 là lời hứa của tựa (khung mục 0 điều 4), nên cặp của cảnh mở có establishing ở lần đầu phim quay lại cặp đó từ nơi khác.
 - Ngoại cảnh là một dòng riêng ở bảng Nơi, tả bên ngoài (`Mặt tiền Grand Sovereign`: tường đá, mái hiên, biển hiệu, phố).
 - Cảnh `## C… · <ngoại cảnh> · <buổi> · <mốc của cảnh sau>`, một clip `(ngắn)`, một shot toàn theo hướng máy dàn cảnh, máy đứng yên, một cú liền, không thoại.
 - Không người: `Có mặt:` và `Khung:` **để trống** (ghi `—` thì treatment từ chối cả kịch bản); khối đầu cảnh chỉ cần `Máy dàn cảnh:`, `Tóm tắt:`; người qua đường chỉ thấy lưng hay mờ.
