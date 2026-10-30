@@ -66,7 +66,7 @@ Bà là mẹ tỷ phú; khán giả biết ở N01; vỡ ở N09.
 |---|---|---|---|---|
 | G01 | lật | Bà nói quên ví | N01, thoại bà | N03 |
 | G02 | dẫn sai | Khán giả đoán A; thật là B | N02, lời nghĩ | N04 |
-| G03 | dẫn sai | Đoán C; thật là D | N06 | N08 |
+| G03 | dẫn sai | Khán giả tưởng C; thật là D | N06 | N08 |
 | G04 | vết | Nia rách khóe môi trái | N03 | tới N07 |
 | G05 | biết | Damon biết vụ cược | N02 | N09 |
 | G06 | phi lý | Bà chọn vợ cho cháu | N06, thoại | — |
@@ -136,6 +136,12 @@ class KiemDanY(unittest.TestCase):
         vb = doi(DAN_Y, "| G03 | dẫn sai |", "| G03 | lật |")
         self.co(vb, "Phần 2: không có dòng 'dẫn sai'")
         self.assertEqual(kiem(doi(vb, "Độ dài: 20 phút", "Độ dài: 9 phút"))[0], [])
+
+    def test_dan_sai_lua_khan_gia(self):
+        # Soát RM002 30/10: dẫn sai lừa khán giả chỉ 2/7 phần, còn lại chỉ nhân vật bị lừa. Dòng phải nói khán giả tưởng gì.
+        self.co(doi(DAN_Y, "Khán giả tưởng C; thật là D", "Damon tưởng Nia lấy ví; thật là bà đưa"), "G03: dẫn sai ghi")
+        self.co(doi(DAN_Y, "Khán giả tưởng C; thật là D", "Khán giả tưởng C"), "G03: dẫn sai ghi")
+        self.assertEqual(kiem(doi(DAN_Y, "Khán giả tưởng C; thật là D", "khán giả đoán C, thật ra là D"))[0], [])
 
     def test_moc_khong_thuoc_phan(self):
         self.co(doi(DAN_Y, "| N06–N10 | 10 |", "| N06–N09 | 10 |"), "N10 không thuộc phần nào")
@@ -295,10 +301,21 @@ class Phan(unittest.TestCase):
         self.assertNotEqual(dt, sach)
         self.assertFalse(any("Damon có mặt" in x for x in dy.kiem_hai_luat(dt)), "người ở đầu dây: không nhắc")
 
+    def test_establishing(self):
+        # User chốt 30/10: ngoại cảnh lần đầu mỗi cặp nơi–buổi. Đo thật trên treatment: `Khung:` để trống chạy được.
+        est = ("# Phần 1 · A · 1 phút\n\n## C001 · Mặt tiền Shop · trưa · N01\nCó mặt:\nMáy dàn cảnh: bên kia phố nhìn thẳng mặt tiền\n"
+               "Tóm tắt: trưa ở phố.\n\n### P001 · Ngoại cảnh Shop (ngắn)\nMáy: Grok 15s\nKhung:\n"
+               "Hình: toàn ngoại cảnh theo hướng máy dàn cảnh, máy đứng yên, một cú liền: mặt tiền tiệm; người qua đường mờ; không ai nói.\n")
+        self.assertEqual(dy.kiem_hai_luat(est), [])
+        self.assertTrue(any("Máy dàn cảnh" in x for x in dy.kiem_hai_luat(est.replace("Máy dàn cảnh: bên kia phố nhìn thẳng mặt tiền\n", ""))))
+
     def test_ten_khung_khong_co_cum(self):
         kq, ra = self.chay("phan", self.dau_phan1(khung="Nia, Otis"))
         self.assertEqual(kq, 1)
         self.assertIn("'Otis' ở Có mặt/Khung không có", ra)
+        kq, ra = self.chay("phan", self.dau_phan1(khung="—"))            # treatment từ chối cả kịch bản: phải để trống
+        self.assertEqual(kq, 1)
+        self.assertIn("Khung: để trống", ra)
 
     def test_phan_sau_va_ban_gop(self):
         p1 = self.dau_phan1()

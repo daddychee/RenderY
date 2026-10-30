@@ -31,7 +31,7 @@ Không đọc kho, mã công cụ.
 2. **Mốc lật đủ và thấy được:** mỗi mốc có clip lúc lật và phản ứng; cú lật bằng thoại hay vật.
 3. **Ức được trả** trong 0,5–3 phút, hay đang treo đúng như dàn ý.
 4. **Cảnh nối:** vì… nên…, kể cả với cảnh cuối phần trước; nhảy thời gian có dấu hiệu; khớp ghi chú nối phần trước.
-5. **Gieo và gặt:** mỗi dòng G của phần có ở đúng clip ghi ở dòng `Gieo, gặt:`, nghe được bằng lời.
+5. **Gieo và gặt:** mỗi dòng G của phần có ở đúng clip ghi ở dòng `Gieo, gặt:`, nghe được bằng lời. Dòng `dẫn sai`: đọc như khán giả chưa thấy dàn ý, dừng ở clip ngay trước clip gặt; đoán ra điều "thật" rồi (có cảnh bàn kế, lời nghĩ, câu lộ) thì sửa cho kín, ghi vào báo cáo.
 6. **Ai biết gì:** câu thoại không dùng điều nhân vật chưa biết.
 7. **Liên tục:** vết, vật đúng trái/phải và còn tới mốc hết; vật không tự biến mất, người không tự đổi chỗ, đồ đổi có dòng `dạng` hay ghi ở `Hình:`.
 8. **Hành động** (`grok-drama.md` mục 9): không xô ngã, lôi kéo, vật lộn, ngã, đỡ người; chạm nhẹ chỉ một động tác mỗi clip; việc nặng thì chuyển ra ngoài khung hay giữa hai clip. Thắng đúng điều "thắng nhờ …".

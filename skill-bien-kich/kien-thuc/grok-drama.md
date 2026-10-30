@@ -2,7 +2,7 @@
 
 Nguồn sự thật cho `/bien-kich-grok`: kịch bản drama thoại gen cả phim bằng Grok (108 credit mỗi video). Thay mục 2, 3, 4, 8, 9 của `drama-thoai.md`; mục 1 (khuôn file), 5 (thoại, lời nghĩ), 6 (nhịp), 7 (ghi chú nối) đọc ở `drama-thoai.md`, dùng chung. Grok mạnh ở một người nói, giữ mặt; yếu ở cú máy, hành động thân thể, đông người, đồ nhỏ, ô, cảnh tối trong nhà. **Mục 0 đứng trên mọi mục khác.**
 
-**Máy lo, không cần nhớ:** `py -3 cong-cu/kiem_drama.py <file phần>` nhận kịch bản Grok khi có clip `Máy: Grok …`: LỖI clip không phải `Grok 10s`/`Grok 15s` (Veo, Seedance), trần 3 từ mỗi giây; NHẮC chữ hành động nặng, `Khung:` quá 4 người, ô trong cảnh trong nhà, đám đông có mặt rõ, clip/phút, lời nghĩ. NHẮC "clip Grok không có cú máy hay góc có ý đồ" là của bản chép cũ: **giữ, không sửa** (mục 0, luật 2). `py -3 cong-cu/dan_y_drama.py phan <file phần>` NHẮC hai luật: cảnh thiếu khối đầu cảnh, clip đầu cảnh thiếu người có mặt, cú máy động, đặc tả, shot định vị giữa cảnh, người có mặt nói mà không có ở `Khung:`. NHẮC thì sửa, hay giữ và ghi lý do vào báo cáo.
+**Máy lo, không cần nhớ:** `py -3 cong-cu/kiem_drama.py <file phần>` nhận kịch bản Grok khi có clip `Máy: Grok …`: LỖI clip không phải `Grok 10s`/`Grok 15s` (Veo, Seedance), trần 3 từ mỗi giây; NHẮC chữ hành động nặng, `Khung:` quá 4 người, ô trong cảnh trong nhà, đám đông có mặt rõ, clip/phút, lời nghĩ. NHẮC "clip Grok không có cú máy hay góc có ý đồ" là của bản chép cũ: **giữ, không sửa** (mục 0, luật 2). `py -3 cong-cu/dan_y_drama.py phan <file phần>` LỖI `Khung: —` (cảnh không người để trống); NHẮC hai luật: cảnh thiếu khối đầu cảnh (cảnh không người chỉ cần `Máy dàn cảnh:`), clip đầu cảnh thiếu người có mặt, cú máy động, đặc tả, shot định vị giữa cảnh, người có mặt nói mà không có ở `Khung:`. NHẮC thì sửa, hay giữ và ghi lý do vào báo cáo.
 
 ## 0. Hai luật (anh/chị chốt 30/10)
 
@@ -50,6 +50,14 @@ Thoại: Brooke (lạnh): "And who are you to speak at my table?"
 ```
 
 - `Có mặt:`, `Mở cảnh:`, `Vai:` chỉ ghi người có mặt ở cảnh này. `Mở cảnh:` là chỗ lúc cảnh mở; cảnh nối tiếp thì người cũ giữ y chỗ cảnh trước. `Vào:` chỉ ở cảnh mở bằng người vào. `Máy dàn cảnh:` chép y nhau ở mọi cảnh cùng nơi, cùng buổi.
+
+**Establishing (ngoại cảnh, anh/chị chốt 30/10):** lần đầu mỗi cặp ngoại cảnh–buổi (tòa nhà hay con phố chứa cảnh sắp tới, cộng buổi ở tiêu đề), đặt ngay trước cảnh đó một cảnh ngoại cảnh ngắn cho khán giả biết đang ở đâu, lúc nào. Cặp đã có thì không viết lại, người dựng dùng lại video cũ.
+- Ngoại cảnh là một dòng riêng ở bảng Nơi, tả bên ngoài (`Mặt tiền Grand Sovereign`: tường đá, mái hiên, biển hiệu, phố).
+- Cảnh `## C… · <ngoại cảnh> · <buổi> · <mốc của cảnh sau>`, một clip `(ngắn)`, một shot toàn theo hướng máy dàn cảnh, máy đứng yên, một cú liền, không thoại.
+- Không người: `Có mặt:` và `Khung:` **để trống** (ghi `—` thì treatment từ chối cả kịch bản); khối đầu cảnh chỉ cần `Máy dàn cảnh:`, `Tóm tắt:`; người qua đường chỉ thấy lưng hay mờ.
+- Có người đang tới (người của cảnh sau đi tới, chưa vào cuộc): ghi ở `Có mặt:`, `Mở cảnh:`, `Khung:`; đi về phía máy, mặt rõ, không ai nói.
+- Ghi chú nối thêm dòng `- Ngoại cảnh đã có: <ngoại cảnh> <buổi>, …` cộng dồn từ phần trước.
+- Đo 30/10 (DM002, 3 shot, có và không người): 3/3 đạt, máy đứng yên, mặt giữ tới giây cuối, không tiếng nói lạ, trưa, sáng, tối đúng; chữ biển hiệu có thể sai một chữ.
 
 ## 2. Máy
 

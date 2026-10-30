@@ -21,7 +21,7 @@ Tám điều khán giả kênh chờ; trái một điều là mất họ.
 
 Bảy cách làm phần sau phút 4 thành phim thật mà không bớt thoại.
 
-1. **Khán giả biết trước là động cơ chính:** lời hứa chính (tựa, bí mật chính) không giấu khán giả. Bất ngờ chỉ ở mạch phụ (ai là kẻ ác thật, ai phản ai, vật đổi nghĩa), mỗi phần 10 phút một cái.
+1. **Khán giả biết trước là động cơ chính:** lời hứa chính (tựa, bí mật chính) không giấu khán giả. Bất ngờ chỉ ở mạch phụ (ai là kẻ ác thật, ai phản ai, vật đổi nghĩa), mỗi phần 10 phút một cái. Dòng `dẫn sai` lừa cả khán giả, không chỉ nhân vật: trước clip gặt không báo trước điều của nó bằng cảnh phía kẻ ác bàn kế, lời nghĩ hay KB213, KB283, KB282 (soát RM002 30/10: 5/7 phần khán giả đã xem trước sự thật, người đọc chỉ bất ngờ trước phút 12).
 2. **Tiền đề phi lý, hệ quả chặt:** đặt tiền đề rồi mọi việc sau theo nhân quả. Phép thử "đời sống Mỹ có đúng không" áp cho hệ quả (tiền, luật, bệnh viện, CPS, cảnh sát), không cho tiền đề.
 3. **Gieo trước, gặt sau:** mọi cú lật, chứng cứ, cách thắng đã gieo bằng lời hay bằng vật được gọi tên; hình chỉ để xác nhận. Ghi ở bảng Gieo và gặt của dàn ý.
 4. **Mỗi cảnh một lần đổi thế:** đầu cảnh ai thắng thì cuối cảnh ngược lại.

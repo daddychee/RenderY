@@ -32,10 +32,10 @@ Thể loại: drama-da-den · Độ dài: 70 phút · Tỉ lệ: 16:9
 ```
 
 - **Mốc, Mở phim, Gieo và gặt, Phần** như drama bước 2. "Cú xô đỉnh nhục" của khung (điều 4) thành lời nhục, đồ bị ném, bị giật; cách thắng là chứng cứ, lời, người có quyền.
-- **Nơi:** ít người, ở lâu; nơi trong nhà có nguồn sáng rõ (Một câu tả ghi đèn, cửa sổ); cảnh đêm ghi `đêm` ở tiêu đề cảnh.
+- **Nơi:** ít người, ở lâu; nơi trong nhà có nguồn sáng rõ (Một câu tả ghi đèn, cửa sổ); cảnh đêm ghi `đêm` ở tiêu đề cảnh. Mỗi tòa nhà, con phố có cảnh thêm một dòng ngoại cảnh tả bên ngoài, cho establishing (`grok-drama.md` mục 0).
 - **Cụm cố định** như drama; người đổi đồ (khoác áo người khác, cởi áo khoác, bỏ mũ) từ 3 cảnh trở lên thì dòng `dạng` cho cả người mặc và người cho mượn (`grok-drama.md` mục 3 điều 6).
 
-**Tự soát điều máy không kiểm:** như drama bước 2, thêm: không mốc nào cần đánh, xô ngã, lôi kéo, ngã, lửa; mỗi cảnh tối đa 4 người rõ mặt cùng lúc, người thứ năm trở đi chỉ là lưng hay bóng mờ; người vào hay rời giữa một cuộc thì tính thành cảnh mới cùng nơi, cùng buổi (`grok-drama.md` mục 0). Rồi `py -3 cong-cu/dan_y_drama.py kiem <phim>/kich-ban` tới hết LỖI.
+**Tự soát điều máy không kiểm:** như drama bước 2, thêm: không mốc nào cần đánh, xô ngã, lôi kéo, ngã, lửa; mỗi cảnh tối đa 4 người rõ mặt cùng lúc, người thứ năm trở đi chỉ là lưng hay bóng mờ; người vào hay rời giữa một cuộc thì tính thành cảnh mới cùng nơi, cùng buổi (`grok-drama.md` mục 0); mỗi dòng `dẫn sai` có sự thật chưa cảnh nào trước clip gặt cho khán giả thấy. Rồi `py -3 cong-cu/dan_y_drama.py kiem <phim>/kich-ban` tới hết LỖI.
 
 ## Bước 3. Duyệt
 

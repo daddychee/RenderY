@@ -72,7 +72,7 @@ Trả tựa ở: N03
 - **Mốc:** đoạn và %, phút theo khung mục 2; mật độ, ức trả, vùi rồi hé theo mục 3. Việc tối đa 2 câu, logic để ở Gieo và gặt. Mã kho: mã khung, khoảnh khắc, thoại của mốc, cả phần khoảng 6 mã (trợ lý viết in đúng các mã này, mỗi mã khoảng 700 token).
 - **Dòng `Seedance:`** theo câu 7: `100%`, `75%` hay `30s` (30 giây Mango: mọi clip `Máy: Seedance 30s`, viết theo `drama-thoai.md` mục 3).
 - **Mở phim** theo khung mục 0 và đoạn Format. `Trả tựa ở:` trỏ mốc bắt đầu không quá phút 4.
-- **Gieo và gặt:** loại `lật`, `dẫn sai`, `phi lý`, `vết`, `biết`, `vật`. Gieo ở mở bằng mã mốc; Gặt ở: `N05`, `N26, N29`, `tới N06` (vết), `—` (phi lý). Cú lật, chứng cứ, cách thắng đều gieo trước bằng lời hay vật gọi tên. Mỗi trận một dòng `lật` "thắng nhờ …". Vết ghi trái, phải của nhân vật. Mỗi phần ít nhất một `dẫn sai` gặt trong phần, chỉ ở mạch phụ.
+- **Gieo và gặt:** loại `lật`, `dẫn sai`, `phi lý`, `vết`, `biết`, `vật`. Gieo ở mở bằng mã mốc; Gặt ở: `N05`, `N26, N29`, `tới N06` (vết), `—` (phi lý). Cú lật, chứng cứ, cách thắng đều gieo trước bằng lời hay vật gọi tên. Mỗi trận một dòng `lật` "thắng nhờ …". Vết ghi trái, phải của nhân vật. Mỗi phần ít nhất một `dẫn sai` gặt trong phần, chỉ ở mạch phụ; Điều ghi `Khán giả tưởng …; thật là …` (lừa khán giả: khán giả đã được xem sự thật thì chỉ nhân vật bị lừa, không phải dẫn sai; khung mục 1 điều 1).
 - **Phần** 8–12 phút, cắt ở ranh giới mốc. **Phần đầu phim** (bốn dòng đầu, `Nhân vật và bối cảnh`, `Cụm cố định`) web đọc để gen ảnh: giữ đúng tiêu đề, cột. Tên tiếng Anh, một kiểu suốt phim.
 - **Cụm cố định** theo `drama-thoai.md` mục 1; vai nghèo hay giàu mỗi món đồ một dấu thấy được, "quá lên"; thay đồ theo ngày, nơi, việc: mỗi bộ một dòng `dạng`, Ghi chú ghi các mốc mặc, lập ngay từ dàn ý.
 

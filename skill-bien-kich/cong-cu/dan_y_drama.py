@@ -11,7 +11,8 @@ Chạy: py -3 cong-cu/dan_y_drama.py kiem <thư mục kich-ban | 00-dan-y.md>   
 Phần đầu phim = bốn dòng đầu dàn ý (tới trước mục `##` đầu tiên) + `## Nhân vật và bối cảnh` + `## Cụm cố định` (web đọc ở các dòng trước
 `# Phần` đầu tiên: bảng nhân vật vào prompt khung cảnh, cột `Cụm…` của dòng `NV` là `nhan_dang`). Không chép Tựa và thumbnail, Gieo và gặt.
 kiem · LỖI: thiếu mục, cột của khuôn; `Trả tựa ở` trỏ mốc có phút đầu quá 4; hai mốc liền cách quá 5 phút; phần ngoài 8–12 phút, phần không có
-  dòng `dẫn sai` gặt trong phần (phim dưới 10 phút miễn hai luật này); mốc không thuộc phần nào; Gieo và gặt: loại lạ, Gieo ở không bắt đầu bằng
+  dòng `dẫn sai` gặt trong phần (phim dưới 10 phút miễn hai luật này); dòng `dẫn sai` không ghi "Khán giả tưởng …; thật …"; mốc không thuộc
+  phần nào; Gieo và gặt: loại lạ, Gieo ở không bắt đầu bằng
   mã mốc, Gặt ở sai dạng, gặt trước gieo, mã mốc không có ở Bảng mốc, `vết` thiếu trái/phải (hay cả người, hai bên…) hay thiếu `tới Nxx`; LỖI Cụm cố định (như `phan`).
   NHẮC: dàn ý không kể Cụm cố định quá khoảng 12.000 token; Việc quá 2 câu; cụm có chữ già, xấu da.
 phan · LỖI: thiếu mục Nhân vật, Cụm cố định; thiếu dòng NV, dòng NV thiếu cụm hay thiếu tuổi; tên ở `Có mặt:`/`Khung:` không có ở Cụm cố định;
@@ -19,7 +20,8 @@ phan · LỖI: thiếu mục Nhân vật, Cụm cố định; thiếu dòng NV, 
   NHẮC: cụm có chữ già, xấu da; phần đầu file khác dàn ý; `Hình:` nhắc vết (vết, bầm, sẹo, băng, máu, rách, sưng) mà câu đó không có trái, phải;
   % giây có lời của phần từ 20 clip (ước: từ / 2,5 từ mỗi giây, không quá giây clip) ngoài 60–80%; cảnh từ 3 clip không clip nào thưa lời (tối đa 1,5 từ
   mỗi giây: nhịp diễn); clip đầu cảnh không có shot định vị (rộng, toàn).
-  Kịch bản Grok, hai luật (grok-drama.md mục 0): cảnh thiếu `Mở cảnh:`/`Máy dàn cảnh:`; clip đầu cảnh thiếu người có mặt; cú máy động;
+  Kịch bản Grok, hai luật (grok-drama.md mục 0): cảnh thiếu `Mở cảnh:`/`Máy dàn cảnh:` (cảnh không người, tức establishing, chỉ cần
+  `Máy dàn cảnh:`); `Khung: —` là LỖI (để trống); clip đầu cảnh thiếu người có mặt; cú máy động;
   đặc tả; shot định vị giữa cảnh; người có mặt nói mà không có ở `Khung:` (trừ cách nói điện thoại, loa, bộ đàm, sau cửa).
 Thoát 1 khi có LỖI."""
 import re
@@ -55,6 +57,8 @@ RE_KHONG_VET = re.compile(r"máu (?:rút|dồn|nóng|lạnh|mặt)|vết (?:gót
 RE_BEN = re.compile(r"\b(trái|phải|cả người|toàn thân|khắp người|cả hai|hai bên|hai (?:tay|chân|lòng bàn tay|mu bàn tay|mắt|má|vai|gối))\b",
                     re.I)
 RE_GIEO_GAT = re.compile(r"^-?\s*Gieo,\s*gặt\s*:(.*)$", re.I)
+# Dẫn sai lừa KHÁN GIẢ (soát RM002 30/10: 5/7 phần chỉ nhân vật bị lừa, khán giả đã xem trước sự thật).
+RE_DAN_SAI = re.compile(r"khán giả\s+(?:tưởng|đoán)\b.*\bthật", re.I)
 RE_GP = re.compile(r"\b([GP]\d{2,4})\b")
 
 # Khán giả hiểu, diễn viên có đất diễn (CLAUDE.md; khung drama-da-den mục 5; chốt 02/10)
@@ -180,7 +184,9 @@ def kiem_cum(dau: list[str], vb: str | None) -> tuple[list[str], list[str]]:
                 for cl in c["clip"]:
                     for t in cl["khung"] or []:
                         thieu.setdefault(t, cl["dong"])
-        loi += [f"dòng {d} · '{t}' ở Có mặt/Khung không có ở bảng Cụm cố định" for t, d in thieu.items() if t not in ten_ma]
+        loi += [f"dòng {d} · '{t}' ở Có mặt/Khung không có ở bảng Cụm cố định"
+                + (": cảnh không người thì Khung: để trống (treatment từ chối cả kịch bản)" if t in ("—", "-", "–") else "")
+                for t, d in thieu.items() if t not in ten_ma]
     return loi, nhac
 
 
@@ -311,6 +317,9 @@ def kiem_dan_y(vb: str) -> tuple[list[Loi], list[Loi], dict]:
             loi.append((p["dong"], f"Phần {p['so']}: {phut:g} phút, phần dài {PHAN_PHUT[0]}–{PHAN_PHUT[1]} phút"))
         if not any(r["loai"] == "dẫn sai" and set(r["gat"]) & p["moc"] for r in dy["gieo"]):
             loi.append((p["dong"], f"Phần {p['so']}: không có dòng 'dẫn sai' gặt trong phần"))
+    for r in dy["gieo"]:
+        if r["loai"] == "dẫn sai" and not RE_DAN_SAI.search(r["dieu"]):
+            loi.append((r["dong"], f"{r['ma']}: dẫn sai ghi 'Khán giả tưởng …; thật là …' (lừa khán giả, không chỉ nhân vật)"))
     for m in dy["moc"]:
         if dy["phan"] and m["so"] not in thuoc:
             loi.append((m["dong"], f"N{m['so']:02d} không thuộc phần nào ở bảng Phần"))
@@ -493,7 +502,8 @@ def kiem_hai_luat(vb: str) -> list[str]:
         for canh in p["canh"]:
             het = canh["clip"][0]["dong"] - 1 if canh["clip"] else canh["dong"]
             khoi = [x.strip() for x in dong[canh["dong"]:het]]
-            thieu = [k for k in KHOI_CAN if not any(x.startswith(k) for x in khoi)]
+            # Establishing không người (Có mặt: trống): không có chỗ đứng để xếp, chỉ cần hướng máy.
+            thieu = [k for k in KHOI_CAN if (canh["co_mat"] or k != "Mở cảnh:") and not any(x.startswith(k) for x in khoi)]
             if thieu:
                 nhac.append(f"dòng {canh['dong']} · {canh['ma']}: thiếu khối đầu cảnh ({', '.join(thieu)}): ảnh dàn cảnh xếp chỗ theo khối này")
             co = canh["co_mat"] or []
