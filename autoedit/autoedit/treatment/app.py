@@ -1612,6 +1612,40 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
     def cau_hinh_video(tap: str = ""):
         return {"giay": _giay_clip(tap or None)}
 
+    # ── chọn nhà khi bấm gửi video (user 30/10): Seedvis / Lightvisual / Gensuite ──
+    @app.get("/api/cau-hinh/nha-video")
+    def nha_video():
+        """Nhà nào có khoá, cho hộp chọn của trang. Bộ dựng không báo -> [] = trang gửi như cũ."""
+        return {"nha": getattr(ve_video, "nha_co_khoa", None) or []}
+
+    def _nha(than: dict) -> str:
+        """Nhà người dựng chọn khi bấm. Không gửi -> "" = két quyết như cũ."""
+        n = str((than or {}).get("nha") or "").strip()
+        if n and n not in NHA_VIDEO:
+            raise HTTPException(400, f"Không có nhà video “{n}” — chọn Seedvis, Lightvisual hoặc Gensuite.")
+        return n
+
+    def _theo_nha(x: dict, nha: str) -> dict:
+        """Bản GỬI ĐI của clip / shot. Gensuite (Muse) luôn 10 s (đo 30/10: 20/30/60 s là khúc 10 s nối
+        cứng): mang `gi` 10 để độ dài và chữ prompt ("for the full N seconds", mốc "(a-bs)") cùng ghép
+        theo 10 s — `_giay_clip` / `giay_shot` đọc `gi` trước tiên. Không ghi vào kho: độ dài người
+        dựng chọn giữ nguyên cho nhà khác."""
+        from autoedit.aigen.gensuite import GIAY
+
+        return dict(x, gi=str(GIAY)) if nha == "gensuite" else x
+
+    def _chan_lech_giay(p: str, giay: int, nha: str) -> None:
+        """Prompt SỬA TAY (`pvt`) không ghép lại được: ghi số giây khác thì chặn, không tự sửa lặng lẽ."""
+        so = re.findall(r"for the full (\d+) seconds", p) + re.findall(r"-(\d+(?:\.\d+)?)s\)", p)[-1:]
+        lech = sorted({x for x in so if float(x) != giay})
+        if nha == "gensuite" and lech:
+            raise HTTPException(400, f"Prompt video ghi {', '.join(lech)} giây mà Gensuite (Muse) luôn dựng "
+                                     f"{giay} giây — sửa số giây trong ô Prompt video, hoặc chọn nhà khác.")
+
+    def _kw_nha(nha: str) -> dict:
+        # Không chọn nhà thì không truyền: bộ dựng cũ / giả không có tham số `nha` vẫn chạy.
+        return {"nha": nha} if nha else {}
+
     def _mo_ta_ts(so: list[dict], c: dict) -> str:
         """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
 
@@ -2465,11 +2499,12 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         ai = _ghi_duoc(request)
         if ve_video is None:
             raise HTTPException(503, "Chưa bật bộ dựng video.")
+        nha = _nha(than)
         d, i, j, c = _tim_canh(tap, chuong, ma)
         if (c.get("vid") or "").strip():      # tab cũ chưa thấy mã task: gửi nữa là trả tiền lần hai
             raise HTTPException(409, "Cảnh này đang dựng video — đợi xong rồi gửi lại.")
         if c.get("pm"):
-            return _video_drama(tap, chuong, ma, c, ai)
+            return _video_drama(tap, chuong, ma, c, ai, nha)
         if not kho.duong_anh(tap, ma).exists():
             raise HTTPException(400, "Cảnh này chưa có ảnh — vẽ ảnh trước đã.")
         if not c.get("duyet"):
@@ -2496,11 +2531,13 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                      ("noi_" + ma + ".png"))
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Trích khung cuối hỏng: {exc}") from exc
+        gui = _theo_nha(c, nha)
+        p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
+        _chan_lech_giay(p, giay, nha)
         try:
             m = _mo_hinh(tap, c, "video")
             dau = _dau_video(tap, c)
-            tid = ve_video.bat_dau(_prompt_video(tap, c), dau_vao, _giay_clip(tap, c),
-                                   False, **({"model": m} if m else {}))
+            tid = ve_video.bat_dau(p, dau_vao, giay, False, **({"model": m} if m else {}), **_kw_nha(nha))
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         kho.ghi_vet(tap, ma, "video_cho", dau)
@@ -2508,14 +2545,15 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         _va_canh(tap, chuong, ma, lambda x: x.update(vid=str(tid)), ai)
         return {"ok": True, "vid": str(tid)}
 
-    def _video_drama(tap: str, chuong: str, ma: str, c: dict, ai: str) -> dict:
+    def _video_drama(tap: str, chuong: str, ma: str, c: dict, ai: str, nha: str = "") -> dict:
         """Clip drama: Grok dựng từ ẢNH THAM CHIẾU (nơi chốn, tấm nhân vật theo
         Khung, đồ vật), KHÔNG khung đầu, KHÔNG cổng duyệt ảnh (không có ảnh cảnh).
         Cổng tiền ở đây là đủ tấm: thiếu tấm nhân vật thì Grok tự bịa mặt mà vẫn
         trừ 108 credit — chặn trước khi gửi."""
         if not hasattr(ve_video, "bat_dau_ref"):
             raise HTTPException(503, "Bộ dựng video chưa có đường ảnh tham chiếu (Grok).")
-        p = _prompt_video(tap, c)
+        gui = _theo_nha(c, nha)
+        p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
         if not p:
             raise HTTPException(400, "Clip này chưa có prompt — bấm “Viết prompt cảnh” trước, "
                                      "hoặc tự sửa thẳng vào ô Prompt video.")
@@ -2530,9 +2568,10 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if len(ref) > mdrama.ANH_TOI_DA:
             raise HTTPException(400, f"{len(ref)} ảnh tham chiếu, Grok chỉ nhận tốt tới "
                                      f"{mdrama.ANH_TOI_DA} — bớt asset của clip này.")
+        _chan_lech_giay(p, giay, nha)
         dau = _dau_video(tap, c)
         try:
-            tid = ve_video.bat_dau_ref(p, ref, _giay_clip(tap, c), model=mdrama.MODEL_VIDEO)
+            tid = ve_video.bat_dau_ref(p, ref, giay, model=mdrama.MODEL_VIDEO, **_kw_nha(nha))
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         kho.ghi_vet(tap, ma, "video_cho", dau)
@@ -3069,11 +3108,13 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/video")
     @_dang("video")
-    def video_shot(tap: str, chuong: str, ma: str, sid: str, request: Request):
+    def video_shot(tap: str, chuong: str, ma: str, sid: str, request: Request,
+                   than: dict = Body(default={})):
         """Grok i2v từ ảnh đã duyệt của shot, độ dài của shot. Trả mã task NGAY."""
         ai = _ghi_duoc(request)
         if ve_video is None:
             raise HTTPException(503, "Chưa bật bộ dựng video.")
+        nha = _nha(than)
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
         if (_ss(c).get(sid) or {}).get("vid"):
             raise HTTPException(409, "Shot này đang dựng video — đợi xong rồi gửi lại.")
@@ -3083,9 +3124,11 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not (_ss(c).get(sid) or {}).get("duyet"):
             raise HTTPException(400, "Ảnh của shot này chưa được duyệt. Tiền video chỉ đốt sau cổng duyệt "
                                      "— xem ảnh rồi bấm Duyệt ảnh đã.")
+        sh = [*sh]
+        sh[k] = _theo_nha(sh[k], nha)
         g = _ghep_shot(tap, c, sh, k)
         try:
-            tid = ve_video.bat_dau(g["video"], anh, g["giay"], False, model=mdrama.MODEL_VIDEO)
+            tid = ve_video.bat_dau(g["video"], anh, g["giay"], False, model=mdrama.MODEL_VIDEO, **_kw_nha(nha))
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
         # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
@@ -3455,6 +3498,16 @@ class _VeAnh:
             return None
 
 
+# Nhà người dựng chọn khi bấm gửi video (user 30/10), đúng thứ tự trang bày. Không chọn -> két quyết như cũ.
+NHA_VIDEO = ("seedvis", "lightvisual", "gensuite")
+_TEN_NHA = {"seedvis": "Seedvis", "lightvisual": "Lightvisual", "gensuite": "Gensuite"}
+
+
+def _chua_khoa(nha: str) -> str:
+    viec = "gen_video (hoặc gen_canh)" if nha == "seedvis" else "gen_video"
+    return f"Chưa có khoá {_TEN_NHA[nha]} — Owner cấp ở General › API Keys › Theo app › Treatment › {viec}."
+
+
 class _VeVideo:
     """Seedance qua ArkClient, khoá lấy từ KÉT bằng slug của Treatment.
 
@@ -3463,37 +3516,42 @@ class _VeVideo:
     """
 
     _LUOT = itertools.count()       # lượt xoay vòng khoá Lightvisual, chung mọi request của tiến trình
+    _VONG: dict = {}                # vòng riêng của nhà chọn tay khác — không làm lệch vòng Lightvisual
 
-    def _ds_lv(self) -> tuple[list, str]:
-        """[(id khoá, client)] mọi khoá Lightvisual ở `gen_video` (Owner chốt 29/10: "mặc định dùng
-        ncc này để gen video"), đúng thứ tự trên General, kèm chế độ cấp. Khoá nhà khác (Seedvis)
-        trong cùng việc không vào vòng."""
+    def _ds_khoa(self, nha: str = "lightvisual") -> tuple[list, str]:
+        """[(id khoá, client)] mọi khoá của `nha` ở `gen_video` (Owner chốt 29/10: Lightvisual "mặc
+        định dùng ncc này để gen video"; 30/10 thêm Gensuite, Seedvis), đúng thứ tự trên General, kèm
+        chế độ cấp. Khoá nhà khác trong cùng việc không vào vòng."""
+        from autoedit.aigen.gensuite import GensuiteClient
         from autoedit.aigen.lightvisual import LightvisualClient
+        from autoedit.aigen.seedvis import SeedvisClient
         from autoedit.treatment.dich import doc_ket_viec
 
+        lop = {"lightvisual": LightvisualClient, "gensuite": GensuiteClient, "seedvis": SeedvisClient}[nha]
         cd = doc_ket_viec("gen_video") or {}
-        ds = [k for k in (cd.get("ds") or [cd]) if k.get("key") and "lightvisual" in (k.get("base_url") or "")]
-        return ([(k.get("id") or "", LightvisualClient(api_key=k["key"], base_url=k["base_url"])) for k in ds],
+        ds = [k for k in (cd.get("ds") or [cd]) if k.get("key") and nha in (k.get("base_url") or "")]
+        return ([(k.get("id") or "", lop(api_key=k["key"], base_url=k["base_url"])) for k in ds],
                 cd.get("che_do") or "")
 
-    def _lv(self):
-        """(client, id khoá) cho một lượt GỬI video Grok; gen_video không có khoá Lightvisual -> None.
+    def _chon_khoa(self, nha: str = "lightvisual"):
+        """(client, id khoá) cho một lượt GỬI video; gen_video không có khoá của `nha` -> None.
         Nhiều khoá (user duyệt 30/10: nhiều tài khoản cho đỡ nghẽn) -> xoay vòng. `du_phong` (failover
         ở General) -> luôn khoá đầu: hết số dư thì Owner tự gỡ, KHÔNG tự đổi (luật cứng 5)."""
-        ds, che_do = self._ds_lv()
+        ds, che_do = self._ds_khoa(nha)
         if not ds:
             return None
-        kid, m = ds[0] if che_do == "du_phong" else ds[next(self._LUOT) % len(ds)]
+        luot = self._LUOT if nha == "lightvisual" else self._VONG.setdefault(nha, itertools.count())
+        kid, m = ds[0] if che_do == "du_phong" else ds[next(luot) % len(ds)]
         return m, kid
 
-    def _hoi_lan_luot(self, kid: str, lam):
-        """HỎI / TẢI task Lightvisual đã gửi bằng khoá `kid`. Còn khoá đó -> chỉ nó (hỏi nhầm tài
+    def _hoi_lan_luot(self, kid: str, lam, nha: str = "lightvisual"):
+        """HỎI / TẢI task đã gửi bằng khoá `kid` của `nha`. Còn khoá đó -> chỉ nó (hỏi nhầm tài
         khoản là mất video); `vid` cũ không mang khoá -> khoá đầu như trước; khoá đã thu hồi -> lần
-        lượt các khoá còn lại (GET không tốn tiền), hết thì ném lỗi cuối. Không còn khoá Lightvisual
-        -> báo rõ, đừng đem hỏi nhầm Seedvis."""
-        ds, _ = self._ds_lv()
+        lượt các khoá còn lại (GET không tốn tiền), hết thì ném lỗi cuối. Không còn khoá của nhà đó
+        -> báo rõ, đừng đem hỏi nhầm nhà khác."""
+        ds, _ = self._ds_khoa(nha)
         if not ds:
-            raise RuntimeError("Video này dựng ở Lightvisual mà khoá gen_video không còn là Lightvisual — "
+            raise RuntimeError(f"Video này dựng ở {_TEN_NHA[nha]} mà khoá gen_video không còn là {_TEN_NHA[nha]} — "
                                "Owner gán lại ở General › API Keys › Theo app › Treatment › gen_video.")
         loi = None
         for k, m in (([x for x in ds if x[0] == kid] or ds) if kid else ds[:1]):
@@ -3508,9 +3566,9 @@ class _VeVideo:
 
         # Việc riêng `gen_video` (ảnh và video là hai model khác nhau ở Seedvis);
         # chưa cấp thì dùng chung `gen_canh` như trước. gen_video là Lightvisual (chỉ chạy
-        # Grok): model khác (Omni/Veo) và task Seedvis đang dở cũng đi khoá ảnh này.
+        # Grok) hay Gensuite (chỉ Muse): model khác (Omni/Veo) và task Seedvis đang dở cũng đi khoá ảnh này.
         cd = doc_ket_viec("gen_video") or {}
-        if not cd.get("key") or "lightvisual" in (cd.get("base_url") or ""):
+        if not cd.get("key") or any(x in (cd.get("base_url") or "") for x in ("lightvisual", "gensuite")):
             # `model` của gen_canh là model ẢNH — không đem sang video. Bỏ để
             # nhà tự lấy model video mặc định.
             cd = {k: v for k, v in (doc_ket_viec("gen_canh") or {}).items() if k != "model"}
@@ -3549,7 +3607,7 @@ class _VeVideo:
     @property
     def credit(self):
         try:
-            if self._ds_lv()[0]:      # /balance của Lightvisual báo 0đ cả khi gói ngày đang chạy
+            if self._ds_khoa()[0]:      # /balance của Lightvisual báo 0đ cả khi gói ngày đang chạy
                 return None
             m = self._may()
             return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
@@ -3565,39 +3623,91 @@ class _VeVideo:
         v = (doc_ket_viec("gen_video") or {}).get("key")
         return not v or v == (doc_ket_viec("gen_canh") or {}).get("key")
 
-    def _cua(self, model):
-        """(client, id khoá): video GROK đi Lightvisual khi két cấp, còn lại `_may()`. Lỗi thì báo,
-        KHÔNG tự đổi sang nhà kia (luật cứng 5) — đổi nhà là Owner gỡ / gán khoá ở General."""
-        return ("grok" in (model or "") and self._lv()) or (self._may(), "")
+    @property
+    def nha_co_khoa(self) -> list[dict]:
+        """Nhà nào gửi được ngay, đúng thứ tự trang bày; thiếu khoá thì kèm lý do (đúng câu lỗi lúc
+        gửi). Không đi `_chon_khoa`: hỏi xem có khoá không được làm lệch vòng xoay."""
+        from autoedit.aigen.seedvis import SeedvisClient
 
-    def bat_dau(self, prompt, anh, giay, am, model=None):
-        """Mã task Lightvisual mang id khoá đã gửi (`lv_job_x@api-012`) để hỏi đúng tài khoản."""
-        m, kid = self._cua(model)
+        ra = []
+        for nha in NHA_VIDEO:
+            try:
+                co = bool(self._ds_khoa(nha)[0]) or (nha == "seedvis" and isinstance(self._may(), SeedvisClient))
+            except Exception:  # noqa: BLE001 — chưa cấp khoá / két không với được
+                co = False
+            ra.append({"ma": nha, "co": co, "ly_do": "" if co else _chua_khoa(nha)})
+        return ra
+
+    def _cua(self, model, nha=None):
+        """(client, id khoá). Không chọn nhà: video GROK đi Lightvisual khi két cấp, còn lại `_may()`
+        (như cũ). Chọn nhà (user 30/10): chỉ các khoá của nhà đó ở gen_video, xoay vòng trong đó;
+        Seedvis không có khoá ở gen_video thì về `_may()` (gen_canh). Thiếu khoá thì báo, KHÔNG tự đổi
+        sang nhà khác (luật cứng 5) — đổi nhà là người dựng chọn lại hay Owner gán khoá ở General."""
+        if not nha:
+            return ("grok" in (model or "") and self._chon_khoa()) or (self._may(), "")
+        if nha not in NHA_VIDEO:
+            raise RuntimeError(f"Không có nhà video “{nha}” — chọn Seedvis, Lightvisual hoặc Gensuite.")
+        if nha == "lightvisual" and model and "grok" not in model:
+            raise RuntimeError(f"Lightvisual chỉ chạy Grok — model video của cảnh này là {model}. "
+                               "Chọn Seedvis, hoặc đổi model cảnh sang Grok.")
+        r = self._chon_khoa(nha)
+        if r:
+            return r
+        if nha == "seedvis":
+            from autoedit.aigen.seedvis import SeedvisClient
+
+            try:
+                m = self._may()
+            except RuntimeError:
+                m = None
+            if isinstance(m, SeedvisClient):
+                return m, ""
+        raise RuntimeError(_chua_khoa(nha))
+
+    def bat_dau(self, prompt, anh, giay, am, model=None, nha=None):
+        """Mã task Lightvisual / Gensuite / Seedvis của gen_video mang id khoá đã gửi (`lv_job_x@api-012`)
+        để hỏi đúng tài khoản. `nha` = nhà người dựng chọn khi bấm; không có thì két quyết như cũ."""
+        m, kid = self._cua(model, nha)
         kw = {"model": model} if model else {}
         return _gan_khoa(m.gen_video_i2v(prompt, anh, giay=giay, am=am, **kw), kid)
 
-    def bat_dau_ref(self, prompt, anh, giay, model=None):
-        """Drama: dựng từ ảnh tham chiếu (Grok `multi-image-to-video`)."""
-        m, kid = self._cua(model)
+    def bat_dau_ref(self, prompt, anh, giay, model=None, nha=None):
+        """Drama: dựng từ ảnh tham chiếu (Grok `multi-image-to-video`, Muse 1–3 ảnh)."""
+        m, kid = self._cua(model, nha)
         if not hasattr(m, "gen_video_ref"):
             raise RuntimeError("Nhà video đang cấp không có đường ảnh tham chiếu — "
                                "drama cần Seedvis (Owner cấp ở General › API Keys › gen_video).")
         return _gan_khoa(m.gen_video_ref(prompt, anh, giay=giay, **({"model": model} if model else {})), kid)
 
     def trang_thai(self, tid):
+        from autoedit.aigen.gensuite import TIEN_TO_TASK as GS
         from autoedit.aigen.lightvisual import TIEN_TO_TASK
 
-        if not str(tid).startswith(TIEN_TO_TASK):      # nhà theo mã task: đổi khoá giữa chừng không lạc
-            return self._may().trang_thai_video(tid)
+        # Nhà theo mã task: đổi khoá giữa chừng không lạc. Mã Seedvis mang `@id` = gửi bằng khoá
+        # Seedvis của gen_video (chọn tay); không mang = khoá `_may()` như cũ.
         ma, _, kid = str(tid).partition("@")
+        nha = ("gensuite" if ma.startswith(GS) else "lightvisual" if ma.startswith(TIEN_TO_TASK)
+               else "seedvis" if kid else "")
+        if not nha:
+            return self._may().trang_thai_video(tid)
 
         def hoi(k, m):
             r = m.trang_thai_video(ma)
+            if not r.get("video_url"):
+                return r
             # Đường tải mang khoá đã nhận task: route gọi `tai_ve` ngay sau, phải tải đúng tài khoản.
-            return dict(r, video_url=r["video_url"] + "#" + k) if r.get("video_url") and k else r
-        return self._hoi_lan_luot(kid, hoi)
+            # Link Gensuite nằm ở fbcdn, không nhận ra nhà theo địa chỉ -> luôn mang dấu nhà.
+            if nha == "gensuite":
+                return dict(r, video_url=f"{r['video_url']}#{GS}{k}")
+            return dict(r, video_url=r["video_url"] + "#" + k) if k and nha == "lightvisual" else r
+        return self._hoi_lan_luot(kid, hoi, nha)
 
     def tai_ve(self, url, dich):
+        from autoedit.aigen.gensuite import TIEN_TO_TASK as GS
+
+        if "#" + GS in (url or ""):
+            url, _, kid = url.rpartition("#" + GS)
+            return self._hoi_lan_luot(kid, lambda k, m: m.tai_video(url, dich), "gensuite")
         if "lightvisual.studio" not in (url or ""):
             return self._may().tai_video(url, dich)
         url, _, kid = url.partition("#")
@@ -3605,7 +3715,7 @@ class _VeVideo:
 
 
 def _gan_khoa(tid, kid: str) -> str:
-    """Mã task + id khoá két (không phải giá trị khoá). Seedvis / khoá không id -> giữ nguyên mã."""
+    """Mã task + id khoá két (không phải giá trị khoá). Seedvis của `_may()` / khoá không id -> giữ nguyên mã."""
     return f"{tid}@{kid}" if kid else str(tid)
 
 

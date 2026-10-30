@@ -216,6 +216,9 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
 
     `aigen.lightvisual` mở cửa 29/10 (Owner chốt "mặc định dùng ncc này để gen video"):
     cùng loại, thêm đúng một lệnh ffmpeg chép luồng bỏ ảnh bìa (không có ffmpeg thì bỏ qua).
+
+    `aigen.gensuite` mở cửa 30/10 (user: chọn nhà khi bấm gen video, Gensuite = Muse): cùng loại,
+    chỉ import `requests`, `AigenError`, `httpx_ma`, `so_goi_nen` và `_mime` của seedvis.
     """
     import pathlib
     import re
@@ -223,7 +226,7 @@ def test_khong_dinh_gi_toi_day_chuyen_dung():
     goc = pathlib.Path(__file__).resolve().parents[1] / "autoedit" / "treatment"
     cho_phep = ("autoedit.treatment", "autoedit.web.chapters",
                 "autoedit.web.ket_v3", "autoedit.aigen.client",
-                "autoedit.aigen.seedvis", "autoedit.aigen.lightvisual")
+                "autoedit.aigen.seedvis", "autoedit.aigen.lightvisual", "autoedit.aigen.gensuite")
     xau = []
     for f in goc.glob("*.py"):
         for m in re.findall(r"^\s*(?:from|import)\s+(autoedit[\w.]*)",

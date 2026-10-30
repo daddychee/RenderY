@@ -281,6 +281,15 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .hop-dau b{font-size:16px}
 .hop-dau .nho{font-size:12px;color:var(--muted)}
 .hop-than{display:grid;grid-template-columns:336px minmax(0,1fr);gap:15px;padding:15px}
+/* Hộp chọn nhà gen video (user 30/10): nằm trên hộp cảnh, mỗi nhà một nút to bấm một lần. */
+#hopNha{width:min(460px,100%)}
+.nha-ds{display:grid;gap:8px;padding:15px}
+.nha-ds button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;
+  background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 13px;cursor:pointer}
+.nha-ds button:hover:not(:disabled),.nha-ds button:focus-visible{border-color:var(--accent);outline:0}
+.nha-ds button.on{border-color:var(--accent);background:var(--accent-soft)}
+.nha-ds button:disabled{opacity:.55;cursor:not-allowed}
+.nha-ds small{font-size:12px;font-weight:400;color:var(--muted)}
 /* Hộp cảnh dựng lại 26/09 — user: "UI này đang chỉ tối ưu cho chữ, chứ không
    phải cho hình và các thao tác sinh ra hình". Đo bố cục cũ: ảnh 336x189, hai ô
    prompt cao 485px — chữ chiếm gấp 2,6 lần hình. */
@@ -614,6 +623,10 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
 <div class="nen" id="nenAnh" style="z-index:10"
      onclick="if(event.target===this) dongAnh()">
   <div class="hop-anh" id="hopAnh"></div>
+</div>
+
+<div class="nen" id="nenNha" style="z-index:11" onclick="if(event.target===this) xongNha(null)">
+  <div class="hop" id="hopNha"></div>
 </div>
 
 <footer>
@@ -2026,14 +2039,55 @@ async function duyetShot(ev, k){
   });
   napShot(o.x);
 }
+/* ═══════════ chọn NHÀ gen video (user 30/10) ═══════════
+   Mỗi lượt gửi video hỏi nhà: Seedvis / Lightvisual / Gensuite. Máy chủ báo nhà nào có khoá (két
+   đổi ở General là ăn ngay, nên hỏi lại mỗi lần bấm); nhà chưa có khoá thì mờ, ghi lý do. Máy chủ
+   không báo nhà nào (bộ dựng cũ) -> gửi như trước, két quyết. Nhớ nhà vừa chọn trên máy này.
+   Trả mã nhà, "" = gửi không kèm nhà, null = người dựng huỷ. */
+var NHA_TEN = {seedvis: "Seedvis", lightvisual: "Lightvisual", gensuite: "Gensuite"};
+var NHA_GHI = {seedvis: "Grok 1.5 cho shot drama · Omni / Veo theo model của tập",
+               lightvisual: "Grok 1.5 · 720p",
+               gensuite: "Muse · luôn 10 giây — độ dài và prompt gửi đi ghép theo 10 giây"};
+var NHA_XONG = null;
+async function chonNha(){
+  var ds;
+  try { ds = ((await api("/api/cau-hinh/nha-video")).nha || []).filter(function(n){ return NHA_TEN[n.ma]; }); }
+  catch(e){ bao(e.message, true); return null; }
+  if(!ds.length) return "";
+  if(NHA_XONG) xongNha(null);               // bấm lần hai khi hộp đang mở: lượt trước coi như huỷ
+  var cu = "";
+  try { cu = localStorage.getItem("nhaVideo") || ""; } catch(e){}
+  document.getElementById("hopNha").innerHTML =
+    '<div class="hop-dau"><b>Gen video bằng nhà nào?</b><span class="spacer"></span>' +
+    '<button class="cp" onclick="xongNha(null)">Huỷ</button></div><div class="nha-ds">' +
+    ds.map(function(n){
+      var truoc = n.co && n.ma === cu;
+      return '<button data-nha="' + n.ma + '" class="' + (truoc ? 'on' : '') + '"' +
+        (n.co ? ' onclick="xongNha(this.dataset.nha)"' : ' disabled') + '><b>' + NHA_TEN[n.ma] +
+        (truoc ? ' <small>· lần trước</small>' : '') + '</b><small>' +
+        thoat(n.co ? NHA_GHI[n.ma] : n.ly_do) + '</small></button>';
+    }).join("") + '</div>';
+  document.getElementById("nenNha").classList.add("mo");
+  var dung = document.querySelector("#hopNha .nha-ds button.on") ||
+             document.querySelector("#hopNha .nha-ds button:not(:disabled)");
+  if(dung) dung.focus();                     // Enter = gửi nhà đang đứng sẵn
+  return new Promise(function(xong){ NHA_XONG = xong; });
+}
+function xongNha(n){
+  document.getElementById("nenNha").classList.remove("mo");
+  if(n){ try { localStorage.setItem("nhaVideo", n); } catch(e){} }
+  var f = NHA_XONG; NHA_XONG = null;
+  if(f) f(n);
+}
 async function genVideoShot(ev, k){
   if(!SUA_DUOC) return;
   var o = shotTheoK(k); if(!o) return;
   var x = o.x, sid = o.s.sid;
   if(DANG_SHOT[x.id + sid]) return bao("Shot này đang dựng video rồi — đợi xong đã.", true);
   await maCanhChac(); await hangGhiCanh;
+  var nha = await chonNha(); if(nha === null) return;
   await banRon(ev && ev.target, "Đang gửi…", async function(){
-    try { await api(duongShot(x, sid) + "/video", "POST"); }
+    try { await api(duongShot(x, sid) + "/video", "POST", {nha: nha || undefined}); }
     catch(e){ return bao(e.message, true); }
     napSoDu(1);
     await taiLaiChuong(x.ch); veSb();
@@ -2346,9 +2400,10 @@ async function genVideo(ev, noi){
   if(!SUA_DUOC) return;
   var x = await maCanhChac(); if(!x) return;
   if(x.vid) return bao("Cảnh này đang dựng video rồi — đợi xong đã.", true);
+  var nha = await chonNha(); if(nha === null) return;
   await banRon(ev && ev.target, "Đang gửi…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
-                    "/video", "POST", {noi: !!noi}); }
+                    "/video", "POST", {noi: !!noi, nha: nha || undefined}); }
     catch(e){ return bao(e.message, true); }
     napSoDu(1);
     await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
@@ -3664,7 +3719,11 @@ function chepPrompt(b){
 }
 document.addEventListener("keydown", function(e){
   // Lớp ảnh nằm TRÊN hộp cảnh nên phải xét trước: rơi xuống `dongCanh` là đóng
-  // nhầm lớp, người dùng mất luôn hộp đang xem.
+  // nhầm lớp, người dùng mất luôn hộp đang xem. Hộp chọn nhà video nằm trên cùng.
+  if(document.getElementById("nenNha").classList.contains("mo")){
+    if(e.key === "Escape") xongNha(null);
+    return;
+  }
   if(document.getElementById("nenAnh").classList.contains("mo")){
     if(e.key === "Escape") dongAnh();
     return;
