@@ -3340,21 +3340,46 @@ class _VeVideo:
     lẫn Seedance. Tách việc riêng chỉ để đo tiền tách bạch thì làm sau.
     """
 
-    def _lv(self, bat_buoc: bool = False):
-        """Khoá `gen_video` là Lightvisual (Owner chốt 29/10: "mặc định dùng ncc này để gen
-        video") -> client cho video GROK; không thì None. `bat_buoc`: task / file của Lightvisual
-        mà khoá đã gỡ -> báo rõ, đừng đem hỏi nhầm Seedvis."""
+    _LUOT = itertools.count()       # lượt xoay vòng khoá Lightvisual, chung mọi request của tiến trình
+
+    def _ds_lv(self) -> tuple[list, str]:
+        """[(id khoá, client)] mọi khoá Lightvisual ở `gen_video` (Owner chốt 29/10: "mặc định dùng
+        ncc này để gen video"), đúng thứ tự trên General, kèm chế độ cấp. Khoá nhà khác (Seedvis)
+        trong cùng việc không vào vòng."""
+        from autoedit.aigen.lightvisual import LightvisualClient
         from autoedit.treatment.dich import doc_ket_viec
 
         cd = doc_ket_viec("gen_video") or {}
-        if cd.get("key") and "lightvisual" in (cd.get("base_url") or ""):
-            from autoedit.aigen.lightvisual import LightvisualClient
+        ds = [k for k in (cd.get("ds") or [cd]) if k.get("key") and "lightvisual" in (k.get("base_url") or "")]
+        return ([(k.get("id") or "", LightvisualClient(api_key=k["key"], base_url=k["base_url"])) for k in ds],
+                cd.get("che_do") or "")
 
-            return LightvisualClient(api_key=cd["key"], base_url=cd["base_url"])
-        if bat_buoc:
+    def _lv(self):
+        """(client, id khoá) cho một lượt GỬI video Grok; gen_video không có khoá Lightvisual -> None.
+        Nhiều khoá (user duyệt 30/10: nhiều tài khoản cho đỡ nghẽn) -> xoay vòng. `du_phong` (failover
+        ở General) -> luôn khoá đầu: hết số dư thì Owner tự gỡ, KHÔNG tự đổi (luật cứng 5)."""
+        ds, che_do = self._ds_lv()
+        if not ds:
+            return None
+        kid, m = ds[0] if che_do == "du_phong" else ds[next(self._LUOT) % len(ds)]
+        return m, kid
+
+    def _hoi_lan_luot(self, kid: str, lam):
+        """HỎI / TẢI task Lightvisual đã gửi bằng khoá `kid`. Còn khoá đó -> chỉ nó (hỏi nhầm tài
+        khoản là mất video); `vid` cũ không mang khoá -> khoá đầu như trước; khoá đã thu hồi -> lần
+        lượt các khoá còn lại (GET không tốn tiền), hết thì ném lỗi cuối. Không còn khoá Lightvisual
+        -> báo rõ, đừng đem hỏi nhầm Seedvis."""
+        ds, _ = self._ds_lv()
+        if not ds:
             raise RuntimeError("Video này dựng ở Lightvisual mà khoá gen_video không còn là Lightvisual — "
                                "Owner gán lại ở General › API Keys › Theo app › Treatment › gen_video.")
-        return None
+        loi = None
+        for k, m in (([x for x in ds if x[0] == kid] or ds) if kid else ds[:1]):
+            try:
+                return lam(k, m)
+            except Exception as exc:  # noqa: BLE001 — sang khoá kế
+                loi = exc
+        raise loi
 
     def _may(self):
         from autoedit.treatment.dich import doc_ket_viec
@@ -3402,7 +3427,7 @@ class _VeVideo:
     @property
     def credit(self):
         try:
-            if self._lv():      # /balance của Lightvisual báo 0đ cả khi gói ngày đang chạy
+            if self._ds_lv()[0]:      # /balance của Lightvisual báo 0đ cả khi gói ngày đang chạy
                 return None
             m = self._may()
             return m.tai_khoan().get("credit") if hasattr(m, "tai_khoan") else None
@@ -3419,31 +3444,47 @@ class _VeVideo:
         return not v or v == (doc_ket_viec("gen_canh") or {}).get("key")
 
     def _cua(self, model):
-        """Video GROK đi Lightvisual khi két cấp, còn lại `_may()`. Lỗi thì báo, KHÔNG tự đổi
-        sang nhà kia (luật cứng 5) — đổi nhà là Owner gỡ / gán khoá ở General."""
-        return ("grok" in (model or "") and self._lv()) or self._may()
+        """(client, id khoá): video GROK đi Lightvisual khi két cấp, còn lại `_may()`. Lỗi thì báo,
+        KHÔNG tự đổi sang nhà kia (luật cứng 5) — đổi nhà là Owner gỡ / gán khoá ở General."""
+        return ("grok" in (model or "") and self._lv()) or (self._may(), "")
 
     def bat_dau(self, prompt, anh, giay, am, model=None):
+        """Mã task Lightvisual mang id khoá đã gửi (`lv_job_x@api-012`) để hỏi đúng tài khoản."""
+        m, kid = self._cua(model)
         kw = {"model": model} if model else {}
-        return self._cua(model).gen_video_i2v(prompt, anh, giay=giay, am=am, **kw)
+        return _gan_khoa(m.gen_video_i2v(prompt, anh, giay=giay, am=am, **kw), kid)
 
     def bat_dau_ref(self, prompt, anh, giay, model=None):
         """Drama: dựng từ ảnh tham chiếu (Grok `multi-image-to-video`)."""
-        m = self._cua(model)
+        m, kid = self._cua(model)
         if not hasattr(m, "gen_video_ref"):
             raise RuntimeError("Nhà video đang cấp không có đường ảnh tham chiếu — "
                                "drama cần Seedvis (Owner cấp ở General › API Keys › gen_video).")
-        return m.gen_video_ref(prompt, anh, giay=giay, **({"model": model} if model else {}))
+        return _gan_khoa(m.gen_video_ref(prompt, anh, giay=giay, **({"model": model} if model else {})), kid)
 
     def trang_thai(self, tid):
         from autoedit.aigen.lightvisual import TIEN_TO_TASK
 
-        lv = str(tid).startswith(TIEN_TO_TASK)      # nhà theo mã task: đổi khoá giữa chừng không lạc
-        return (self._lv(bat_buoc=True) if lv else self._may()).trang_thai_video(tid)
+        if not str(tid).startswith(TIEN_TO_TASK):      # nhà theo mã task: đổi khoá giữa chừng không lạc
+            return self._may().trang_thai_video(tid)
+        ma, _, kid = str(tid).partition("@")
+
+        def hoi(k, m):
+            r = m.trang_thai_video(ma)
+            # Đường tải mang khoá đã nhận task: route gọi `tai_ve` ngay sau, phải tải đúng tài khoản.
+            return dict(r, video_url=r["video_url"] + "#" + k) if r.get("video_url") and k else r
+        return self._hoi_lan_luot(kid, hoi)
 
     def tai_ve(self, url, dich):
-        lv = "lightvisual.studio" in (url or "")
-        return (self._lv(bat_buoc=True) if lv else self._may()).tai_video(url, dich)
+        if "lightvisual.studio" not in (url or ""):
+            return self._may().tai_video(url, dich)
+        url, _, kid = url.partition("#")
+        return self._hoi_lan_luot(kid, lambda k, m: m.tai_video(url, dich))
+
+
+def _gan_khoa(tid, kid: str) -> str:
+    """Mã task + id khoá két (không phải giá trị khoá). Seedvis / khoá không id -> giữ nguyên mã."""
+    return f"{tid}@{kid}" if kid else str(tid)
 
 
 def _ve_video_mac_dinh(kho: Kho):

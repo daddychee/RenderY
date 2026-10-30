@@ -371,8 +371,10 @@ def doc_ket_viec(viec: str = VIEC) -> dict:
     ds = muc.get("khoa") or []
     if not ds:
         return {}
+    # `ds` + `che_do`: MỌI khoá Owner gán cho việc (nút "+ key" ở General) và chế độ cấp —
+    # video Grok xoay vòng nhiều tài khoản Lightvisual (user duyệt 30/10). Nơi khác chỉ dùng khoá đầu.
     return {"key": ds[0].get("key", ""), "base_url": ds[0].get("base_url", ""),
-            "model": muc.get("model", "")}
+            "model": muc.get("model", ""), "ds": ds, "che_do": muc.get("che_do", "")}
 
 
 def dia_chi_chat(url: str) -> str:
