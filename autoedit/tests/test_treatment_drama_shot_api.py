@@ -219,6 +219,25 @@ def test_the_shot_nhac_khung_cat_dinh_nguoi_ngoai_shot(tmp_path):
     assert ds[0]["chu_the"] == "Marcus" and any("dính Ghost" in n for n in ds[0]["nhac"])
 
 
+def test_the_shot_nhac_nhay_hinh_voi_shot_cuoi_clip_truoc(tmp_path):
+    """User chốt 31/10: P002 mở bằng đúng cỡ, đúng người như shot cuối P001 (MS Tasha) -> thẻ shot
+    đầu P002 nhắc; shot khác và clip đầu cảnh không nhắc."""
+    kho, c = _san(tmp_path)
+    p1, p2 = _clip(kho), _clip(kho, j=1)
+    cuoi = json.loads(p1["sh"])[-1]
+    assert (cuoi["co"], cuoi["co_mat"]) == ("MS", ["Tasha"])
+
+    def giong(x):
+        sh = json.loads(x["sh"])
+        sh[0].update(co="MS", goc="eye", co_mat=["Tasha"])
+        x["sh"] = json.dumps(sh, ensure_ascii=False)
+
+    kho.sua_canh("D1", "C1", p2["id"], giong, "test")
+    ds = c.get(f"/api/tap/D1/C1/canh/{p2['id']}/shot").json()
+    assert any("nhảy hình" in n and "P001" in n for n in ds[0]["nhac"]), ds[0]["nhac"]
+    assert not any("nhảy hình" in n for x in c.get(f"/api/tap/D1/C1/canh/{p1['id']}/shot").json() for n in x["nhac"])
+
+
 def test_mot_shot_hai_nguoi_khong_qua_vai_gui_nguyen_anh_dan_canh(tmp_path):
     va = VeAnhGia()
     kho, c = _san(tmp_path, va=va)

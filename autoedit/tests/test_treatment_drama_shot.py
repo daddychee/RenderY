@@ -213,6 +213,18 @@ def test_nhac_lap_khi_ta_phong():
     assert drama.nhac_lap("") == []
 
 
+def test_nhac_nhay_hinh_cung_co_cung_nguoi():
+    """User chốt 31/10: shot đầu clip cùng cỡ, cùng người với shot cuối clip trước là nhảy hình;
+    cùng cỡ khác người (đối đáp) thì được. DM002 C008: P064 -> P065 CU Denise, P065 -> P066 MS."""
+    cu = {"co": "CU", "co_mat": ["Denise"]}
+    assert "P064" in drama.nhac_nhay(cu, {"co": "CU", "co_mat": ["denise"]}, "P064")[0]
+    assert drama.nhac_nhay(cu, {"co": "CU", "co_mat": ["Nia"]}, "P064") == []          # đối đáp
+    assert drama.nhac_nhay(cu, {"co": "MCU", "co_mat": ["Denise"]}, "P064") == []
+    assert drama.nhac_nhay({"co": "MS", "co_mat": ["Denise", "Nia"]}, {"co": "MS", "co_mat": ["Nia", "Denise"]}, "P065")
+    assert drama.nhac_nhay(None, cu, "") == []
+    assert drama.nhac_nhay({"co": "WS", "co_mat": []}, {"co": "WS", "co_mat": []}, "P001") == []   # ngoại cảnh không người
+
+
 # ───────────────────────────── prompt ảnh ─────────────────────────────────────
 def test_anh_qua_vai_sat_ban_do():
     """P031 shot 2 (`ghep_dm4.py`): câu Image 1 khác — bản đo viết tay thêm
@@ -230,7 +242,8 @@ def test_anh_qua_vai_sat_ban_do():
         f"exact room, background and light; it is the same moment. {SHEET[0]} {SHEET[1]}\n\n"
         "Camera position: on the same side of the room as the master shot, just behind Nia's right shoulder, angled "
         "toward Hattie. Behind Hattie: the slim dark wooden console with the framed botanical prints and the tall "
-        f"taupe wall panel, exactly as in Image 1. No window behind Hattie. {CHO}\n\n"
+        "taupe wall panel, exactly as in Image 1. No window behind Hattie. Where they are: Nia on the low wooden "
+        "bench right by the floor-to-ceiling windows. Seated people stay seated.\n\n"
         f"Nia: {CHU_N} Hattie: {CHU_H} Keep consistent: Nia wears dark blue jeans, a white t-shirt, and a worn "
         "mustard knit cardigan; Hattie wears a plain grey wool cardigan over a cream blouse, gold-rimmed glasses, and "
         "a faded canvas tote bag on her right shoulder. Exactly one Nia and one Hattie in frame, nobody else.\n\n"
@@ -248,7 +261,7 @@ def test_anh_mot_nguoi_huong_nhin_va_nguoi_ngoai_khung():
     assert ("Camera position: on the same side of the room as the master shot, near Hattie's place at the right end "
             "of the cream sofa, angled toward Nia. "
             "Behind Nia: the floor-to-ceiling windows, the sheer curtains and the hazy city, exactly as in Image 1. "
-            "Hattie is off-screen to the right and does not appear. " + CHO) in p3
+            "Hattie is off-screen to the right and does not appear. Seated people stay seated.") in p3
     assert "Exactly one Nia in frame, nobody else." in p3
     assert p3.count("Image 2") == 1 and "Image 3" not in p3
     p4 = drama.prompt_anh_shot(PD, SH[3], 3, T, NGUOI, [], "medium close-up, eye level: Hattie on the right.")
@@ -278,7 +291,44 @@ def test_anh_ca_canh_dung_nguyen_anh_dan_canh():
     p = drama.prompt_anh_shot(PD, SH[0], 0, T, NGUOI, [], "medium shot, eye level: both seated.")
     assert LOI_REF["truong_doan"].format(i=1) in p
     assert "crop" not in p and "Camera position" not in p and "looks" not in p
-    assert CHO in p and "Exactly one Hattie and one Nia in frame, nobody else." in p
+    assert ("Where they are: Hattie at the right end of the cream sofa; Nia on the low wooden bench right by the "
+            "floor-to-ceiling windows. Seated people stay seated.") in p
+    assert "Exactly one Hattie and one Nia in frame, nobody else." in p
+
+
+def test_anh_cau_cho_chi_nguoi_trong_khung():
+    """PA1 (user chốt 31/10): câu `cho` nêu MỌI người của cảnh kèm chỗ — người ngoài shot được vẽ
+    đúng chỗ đó (đo DM002: 4/6 ca thừa người mà mảnh cắt không có họ; test dựng P066 s1 WS 2/2
+    thừa Miles). Ảnh shot chỉ nêu chỗ người TRONG KHUNG; ảnh dàn cảnh vẫn dùng `cho` đầy đủ."""
+    pd = dict(PD, cho=CHO + " Miles stands by the door.", vi_tri=dict(PD["vi_tri"], Miles="by the front door"))
+    for s, k in ((SH[0], 0), (SH[1], 1), (SH[2], 2)):
+        p = drama.prompt_anh_shot(pd, s, k, T, NGUOI, [], "x.")
+        assert "Miles" not in p and "cream sofa, to Nia's" not in p, p
+    assert "Miles stands by the door." in drama.prompt_dan_canh(pd, list(NGUOI.values()), None)
+    cu = {k: v for k, v in PD.items() if k != "vi_tri"}          # dữ liệu cũ chưa có `vi_tri`: giữ `cho`
+    assert CHO in drama.prompt_anh_shot(cu, SH[0], 0, T, NGUOI, [], "x.")
+
+
+SUA = "Nia is crying, tears on her cheeks."
+
+
+def test_loi_sua_vao_prompt_anh_va_video_cua_dung_shot():
+    """User chốt 31/10: lời sửa lưu theo shot, áp cho cả ảnh lẫn video tới khi xoá."""
+    s = dict(SH[2], sua="Nia đang khóc", sua_en=SUA)
+    p = drama.prompt_anh_shot(PD, s, 2, T, NGUOI, [], "close-up, eye level: Nia's face fills the frame.")
+    khoi = p.split("\n\n")
+    assert khoi[0].startswith("Close-up, eye level") and khoi[1] == f"{drama.SUA_DAU} {SUA}"
+    v = drama.prompt_video_shot(PD, s, 2, T, NGUOI, TIENG, [], "close-up: Nia.", "", 6)
+    assert f"{drama.SUA_DAU} {SUA}" in v and "Nia đang khóc" not in v + p
+    assert drama.SUA_DAU not in drama.prompt_anh_shot(PD, SH[2], 2, T, NGUOI, [], "close-up: Nia.")
+    assert drama.SUA_DAU not in drama.prompt_video_shot(PD, SH[2], 2, T, NGUOI, TIENG, [], "x.", "", 6)
+
+
+def test_prompt_sua_anh_chinh_tu_anh_hien_tai():
+    p = drama.prompt_sua_anh(dict(SH[1], sua_en=SUA), NGUOI)
+    assert p.startswith(f"Edit Image 1: {SUA} Keep everything else in Image 1 exactly the same")
+    assert f"{SHEET[0]} {SHEET[1]}" in p and "Exactly one Nia and one Hattie in frame, nobody else." in p
+    assert "Image 4" not in p
 
 
 def test_anh_thu_tu_anh_gui_tam_theo_co_mat_roi_do_vat():

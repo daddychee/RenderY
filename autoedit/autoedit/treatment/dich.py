@@ -343,6 +343,21 @@ một động tác thì được; người phụ, đám đông chỉ thấy lưn
 Trả về JSON: {"truc": "...", "y": "...", "size": "", "giu": "...", "shots": \
 [{"lap": "...", "cach": "...", "mat": "...", "am": ""}]}"""
 
+# Ô "Yêu cầu sửa" của một shot drama (user chốt 31/10): người dựng gõ tiếng Việt, câu này đi
+# kèm prompt ảnh / video của đúng shot đó tới khi xoá.
+LENH_DRAMA_SUA = """Bạn dịch LỜI SỬA của người dựng phim cho MỘT shot của phim drama thành \
+câu tiếng Anh gửi kèm prompt vẽ ảnh và dựng video của shot đó.
+
+Bạn nhận: chữ shot (tiếng Việt), cỡ và góc máy, ai trong khung, và lời sửa (tiếng Việt).
+
+- Viết 1–2 câu tiếng Anh, thì hiện tại, tả đúng thứ PHẢI THẤY trong khung sau khi sửa.
+- Chỉ dịch điều người dựng nói: không thêm chi tiết, không tả lại cả shot.
+- Giữ nguyên tên nhân vật. KHÔNG gọi tên người không có trong khung (gọi tên là model vẽ \
+thêm người đó): lời sửa muốn bỏ người thì viết "Only <người trong khung> is in the frame."
+- Tả thứ nhìn thấy được: "tears run down her cheeks", không viết "she is sad".
+
+Trả về JSON: {"en": "..."}"""
+
 
 class DichLoi(RuntimeError):
     """Không dịch được — cột tiếng Anh giữ nguyên, người dùng bấm lại sau."""

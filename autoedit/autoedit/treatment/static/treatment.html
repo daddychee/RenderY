@@ -1963,7 +1963,7 @@ function theShot(x, s, k, t, dc){
       (vid ? '<button class="cp" onclick="xemVideo(\'' + vid + '\', \'' + ten + '.mp4\')">⛶ Cỡ lớn</button>' +
         '<a class="cp" href="' + vid + '" download="' + ten + '.mp4">↓ Tải video</a>' : '') + '</div>';
   h += (t.nhac || []).map(function(n){ return '<div class="nhac" style="margin-top:8px">' + thoat(n) + '</div>'; })
-                     .join("") +
+                     .join("") + veSuaShot(x, s, k, t, anh, ve, dang) +
     '<div class="dong-nho"><span>Độ dài</span><div class="hai" style="flex:1">' + GIAY_DRAMA.map(function(n){
       return '<button class="' + (n === g ? 'on' : '') + '"' + (khoa ? ' disabled' : ' onclick="datShotThe(' + k +
              ',\'gi\',\'' + n + '\')"') + '>' + n + ' s</button>'; }).join("") + '</div><span>' +
@@ -1997,6 +1997,100 @@ async function napPromptShot(el, k){
 function shotTheoK(k){
   var x = canhTheoMa(canhDangMo), s = x && dsShot(x)[k];
   return (s && s.sid) ? {x: x, s: s} : null;
+}
+/* Ô "Yêu cầu sửa" của MỘT shot (user haint 31/10: sửa 1/4 shot mà không phải Breakdown lại cả P —
+   30/10 làm vậy 13 clip, 38 ảnh + 18 video bỏ đi). Người dựng gõ tiếng Việt, máy dịch (`/sua`) ra
+   `sua_en`; câu này đi vào MỌI lần vẽ ảnh / gen video sau của shot, tới khi xoá hay Breakdown lại.
+   Chữ đang gõ dở giữ ở `SUA_NHAP`: thẻ shot vẽ lại (hỏi video 20 s một lần) không làm mất chữ. */
+var SUA_NHAP = {};
+function veSuaShot(x, s, k, t, anh, ve, dang){
+  var sua = s.sua || "", en = s.sua_en || "", key = x.id + s.sid,
+      nhap = Object.prototype.hasOwnProperty.call(SUA_NHAP, key) ? SUA_NHAP[key] : sua;
+  if(!SUA_DUOC)
+    return sua ? '<div class="nhom" style="margin-top:12px">Yêu cầu sửa</div><div class="ghi" style="margin-top:0">' +
+                 thoat(sua) + (en ? '<br><i>' + thoat(en) + '</i>' : '') + '</div>' : '';
+  var suaDuoc = anh && en && !ve && !dang;
+  return '<div class="nhom" style="margin-top:12px">Yêu cầu sửa<span class="nho"> — gõ tiếng Việt, máy dịch ' +
+      'sang tiếng Anh</span></div>' +
+    '<textarea class="o-sua" data-sua rows="2" style="width:100%;resize:vertical;display:block" placeholder="Ví ' +
+      'dụ: chỉ có Gloria trong khung, bỏ người đứng ở cửa" oninput="SUA_NHAP[\'' + key + '\'] = this.value">' +
+      thoat(nhap) + '</textarea>' +
+    (en ? '<p class="nhan" style="margin:8px 0 4px">Câu tiếng Anh gửi đi — sửa được</p>' +
+          '<div class="o-sua" data-sua-en contenteditable onblur="luuSuaEn(this,' + k + ')">' + thoat(en) + '</div>' : '') +
+    '<div class="hang-nut"><button data-luu-sua onclick="luuSua(event,' + k + ')">Lưu lời sửa</button>' +
+      '<button data-sua-anh onclick="suaAnhShot(event,' + k + ')"' + dv("sua_anh", x.ch, x.di, x.id, s.sid) +
+        (suaDuoc ? '' : ' disabled title="' + (!anh ? 'Shot chưa có ảnh' : !en ? 'Lưu lời sửa trước'
+                                                 : 'Shot đang vẽ ảnh hay dựng video') + '"') +
+        '>' + (ve ? 'Đang vẽ ảnh…' : 'Sửa ảnh này') + '</button>' +
+      (t.anh_cu ? '<button data-quay="anh" onclick="quayLaiShot(event,' + k + ',\'anh\')"' +
+        dv("quay_anh", x.ch, x.di, x.id, s.sid) + ((ve || dang) ? ' disabled' : '') + ' title="Đổi chỗ ảnh ' +
+        'đang dùng với bản trước — bấm lần nữa là về lại. Ảnh đổi thì phải duyệt lại.">Quay lại ảnh trước</button>' : '') +
+      (t.video_cu ? '<button data-quay="video" onclick="quayLaiShot(event,' + k + ',\'video\')"' +
+        dv("quay_video", x.ch, x.di, x.id, s.sid) + (dang ? ' disabled' : '') + ' title="Đổi chỗ video đang ' +
+        'dùng với bản trước — bấm lần nữa là về lại.">Quay lại video trước</button>' : '') + '</div>' +
+    (en ? '<div class="ghi">Vẽ lại ảnh / Gen video sẽ dùng lời sửa này. Xoá chữ ở ô trên rồi bấm Lưu lời sửa ' +
+          'là bỏ lời sửa.</div>' : '');
+}
+async function luuSua(ev, k){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  var x = o.x, sid = o.s.sid, key = x.id + sid, nut = ev && ev.target,
+      the = nut && nut.closest(".buoc"), oChu = the && the.querySelector("textarea[data-sua]"),
+      chu = (oChu ? oChu.value : (o.s.sua || "")).trim();
+  await maCanhChac(); await hangGhiCanh;    // máy chủ ghi `sh` của bản trong kho — xả sửa đang chờ
+  await banRon(nut, chu ? "Đang dịch…" : "Đang xoá…", async function(){
+    var r;
+    try { r = await api(duongShot(x, sid) + "/sua", "POST", {sua: chu}); }
+    catch(e){ return bao(e.message, true); }
+    delete SUA_NHAP[key];
+    var nhac = (r && r.nhac) || [];
+    bao((chu ? "Đã lưu lời sửa shot " : "Đã xoá lời sửa shot ") + (k + 1) +
+        (nhac.length ? "<br>" + nhac.map(thoat).join("<br>") : ""), nhac.length > 0);
+    // Nạp lại TRƯỚC mọi cú sửa khác: `datShot` gửi cả `sh` trong tay, bản cũ là xoá mất lời sửa.
+    await taiLaiChuong(x.ch); veSb();
+  });
+  napShot(x);
+}
+/* Sửa tay câu tiếng Anh. KHÔNG vẽ lại hộp: chữ trên màn hình đã đúng, và vẽ lại lúc rời ô là nút
+   người dựng vừa nhấn (Sửa ảnh này) bị thay mất — cú bấm rơi vào khoảng không. */
+function luuSuaEn(o, k){
+  var p = shotTheoK(k); if(!p || !SUA_DUOC) return;
+  var shs = dsShot(p.x), s = shs[k], moi = docChu(o).trim();
+  if(!s || moi === (s.sua_en || "").trim()) return;
+  if(!moi){
+    o.textContent = s.sua_en || "";
+    return bao("Câu tiếng Anh không để trống được — muốn bỏ lời sửa thì xoá chữ ở ô tiếng Việt rồi bấm " +
+               "<b>Lưu lời sửa</b>.", true);
+  }
+  s.sua_en = moi;
+  datKhoaCanh(p.x, "sh", JSON.stringify(shs));
+}
+async function suaAnhShot(ev, k){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  var x = o.x, sid = o.s.sid, khoa = x.id + sid;
+  if(SHOT_VE[khoa]) return;
+  await maCanhChac(); await hangGhiCanh;    // câu tiếng Anh vừa sửa tay phải tới máy chủ trước
+  SHOT_VE[khoa] = 1;
+  try {
+    await banRon(ev && ev.target, "Đang sửa ảnh…", async function(){
+      try { await api(duongShot(x, sid) + "/sua-anh", "POST"); }
+      catch(e){ return bao(e.message, true); }
+      napSoDu(1);
+      await taiLaiChuong(x.ch); veSb();
+    });
+  } finally { delete SHOT_VE[khoa]; }
+  napShot(x);
+}
+async function quayLaiShot(ev, k, loai){
+  if(!SUA_DUOC) return;
+  var o = shotTheoK(k); if(!o) return;
+  await banRon(ev && ev.target, "Đang đổi…", async function(){
+    try { await api(duongShot(o.x, o.s.sid) + "/quay-lai", "POST", {loai: loai}); }
+    catch(e){ return bao(e.message, true); }
+    await taiLaiChuong(o.x.ch); veSb();
+  });
+  napShot(o.x);
 }
 function datShotThe(k, khoa, gt){
   var x = canhTheoMa(canhDangMo); if(!x || !SUA_DUOC) return;
@@ -3126,7 +3220,8 @@ async function theoDoiChuong(hen){
    làm thì khoá kèm tên. Hỏi 3 giây một lần khi có việc, 15 giây khi rảnh. Khoá ở trang chỉ là
    nhắc — tab cũ bấm thì máy chủ vẫn trả 409. */
 var DANG = {viec: [], chuong: [], asset: null}, KY_DANG = "", LUOT_DANG = 0;
-var NHOM_VIEC = {breakdown: "chu", prompt: "chu", bo_tro: "chu", dich: "chu", mo_ta: "asset", ref: "asset"};
+var NHOM_VIEC = {breakdown: "chu", prompt: "chu", bo_tro: "chu", dich: "chu", mo_ta: "asset", ref: "asset",
+                 sua_anh: "anh", quay_anh: "anh", quay_video: "video"};   // nút ô sửa shot khoá theo việc ảnh / video
 /* Thuộc tính cho nút gen: việc + chỗ, để `khoaNutDang` biết nút nào đụng việc đang chạy. */
 function dv(viec, ch, i, ma, sid){
   return ' data-viec="' + viec + '" data-ch="' + (ch || "") + '" data-i="' + (i == null ? "" : i) +

@@ -591,6 +591,20 @@ def nhac_qua_vai(s: dict, lt: list[dict]) -> list[str]:
     return []
 
 
+def nhac_nhay(cuoi: dict | None, dau: dict, ma_truoc: str) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) nhảy hình: shot đầu clip cùng cỡ, cùng người với shot
+    cuối clip trước trong cảnh (user chốt 31/10; cùng cỡ khác người — đối đáp — thì được). Mỗi
+    shot một video nối cứng. Đo DM002+DM003 31/10: giữa hai clip 63/484 chỗ nối, trong một clip
+    3/1019 — kịch bản viết từng clip riêng; Breakdown chép đúng `Hình:` nên người dựng đổi cỡ."""
+    if not cuoi:
+        return []
+    a, b = ({str(n).lower() for n in x.get("co_mat") or []} for x in (cuoi, dau))
+    if not a or a != b or not dau.get("co") or cuoi.get("co") != dau.get("co"):
+        return []
+    return [f"nhảy hình: cùng cỡ {dau['co']}, cùng {', '.join(dau['co_mat'])} với shot cuối {ma_truoc}: "
+            "đổi cỡ shot này hoặc shot đó"]
+
+
 def nhac_luat1(s: dict, lt: list[dict], thay) -> list[str]:
     """NHẮC (không chặn — luật cứng 5) luật 1 user chốt 30/10: "voice của ai thì là hình của
     người đó". Shot có câu: một người nói, khung chỉ có người đó, hay qua vai người nghe (hai
@@ -695,6 +709,42 @@ def _cham(x: str) -> str:
 def _ps(pd: dict, k: int) -> dict:
     ds = pd.get("shots") or []
     return ds[k] if 0 <= k < len(ds) and isinstance(ds[k], dict) else {}
+
+
+NGOI_YEN = "Seated people stay seated."
+
+
+def _cho_khung(pd: dict, ten: list[str]) -> str:
+    """PA1 (user chốt 31/10): câu chỗ của ẢNH SHOT chỉ nêu người `ten` (trong khung) theo `vi_tri`.
+    `cho` nêu mọi người của cảnh — người ngoài shot được vẽ đúng chỗ đó (DM002: 4/6 ca thừa người
+    mà mảnh cắt không có họ). Dữ liệu chưa có `vi_tri`: giữ `cho` như cũ."""
+    if not pd.get("vi_tri"):
+        return str(pd.get("cho") or "").strip()
+    cho = [f"{n} {_cua(pd.get('vi_tri'), n).rstrip('.')}" for n in ten if _cua(pd.get("vi_tri"), n)]
+    return " ".join(x for x in (f"Where they are: {'; '.join(cho)}." if cho else "", NGOI_YEN) if x)
+
+
+# Lời sửa người dựng gõ cho MỘT shot (user chốt 31/10: lưu theo shot, áp cho ảnh lẫn video tới khi
+# xoá; Breakdown lại là shot mới, mất lời sửa). `sua` tiếng Việt, `sua_en` máy dịch.
+SUA_DAU = "Requested change for this shot (it overrides anything else in this prompt):"
+
+
+def _cau_sua(s: dict) -> str:
+    en = str(s.get("sua_en") or "").strip()
+    return f"{SUA_DAU} {_cham(en)}" if en else ""
+
+
+def prompt_sua_anh(s: dict, nguoi: dict[str, dict]) -> str:
+    """Nút "Sửa ảnh này": Image 1 = ảnh shot HIỆN TẠI, Image 2.. = tấm người trong khung (giữ mặt).
+    Hợp bỏ người thừa, biểu cảm, tay, đồ vật; đổi cỡ, góc thì vẽ lại."""
+    co = list(s.get("co_mat") or [])
+    tam = [n for n in co if n in nguoi]
+    return " ".join(x for x in (
+        f"Edit Image 1: {_cham(str(s.get('sua_en') or ''))} Keep everything else in Image 1 exactly the same: the "
+        "framing, camera angle and distance, the room, the light, and every person's face, hair, clothing and place.",
+        " ".join(LOI_REF["nhan_vat"].format(i=i) for i in range(2, 2 + len(tam))),
+        f"Exactly {' and '.join('one ' + n for n in co)} in frame, nobody else." if co else "",
+        "Photorealistic film still, 16:9.") if x)
 
 
 def prompt_dan_canh(pd: dict, nguoi: list[dict], noi: dict | None) -> str:
@@ -810,10 +860,9 @@ def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], d
     ots = s.get("goc") == "ots"
     kia = _nguoi_kia(s, lt, ai, nguoi) if ai else ""
     mat = str(_ps(pd, k).get("mat") or "").strip().rstrip(".")
-    cho = str(pd.get("cho") or "").strip()
     if ca_canh(s) or not ai:
         loi = [LOI_REF["truong_doan"].format(i=1)]
-        may = [cho]
+        may = [_cho_khung(pd, co)]
     else:
         # `vi_tri` (chỗ riêng từng người theo đồ đạc) cho lại đúng chữ bản đo; vắng thì chữ chung
         cho_s, cho_o = _cua(pd.get("vi_tri"), ai), _cua(pd.get("vi_tri"), kia)
@@ -834,7 +883,7 @@ def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], d
         if kia and not ots:
             p = _phia_nhin(pd, ai, kia)
             may.append(f"{kia} is off-screen" + (f" to the {p}" if p else "") + " and does not appear.")
-        may.append(cho)
+        may.append(_cho_khung(pd, [n for n in co if n.lower() != ai.lower()]))     # chỗ S đã ở câu Image 1
     tam = [n for n in co if n in nguoi]
     loi += [LOI_REF["nhan_vat"].format(i=i) for i in range(2, 2 + len(tam))]
     loi += [LOI_REF.get(d.get("loai"), LOI_REF["dao_cu"]).format(i=i) for i, d in enumerate(do, 2 + len(tam))]
@@ -845,7 +894,7 @@ def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], d
         f"Keep consistent: {giu}." if giu else "",
         f"Exactly {' and '.join('one ' + n for n in co)} in frame, nobody else." if co else "Nobody in frame.") if x)
     khoi = [" ".join(x for x in (_hoa(kh), f"{mat}." if mat else "", _cau_nhin(pd, s, ai, kia),
-                                  "Photorealistic film still, 16:9.") if x),
+                                  "Photorealistic film still, 16:9.") if x), _cau_sua(s),
             " ".join(loi), " ".join(x for x in may if x), nguoi_khung, str(pd.get("look") or "").strip()]
     return "\n\n".join(x for x in khoi if x)
 
@@ -868,7 +917,7 @@ def prompt_video_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict],
     if mat and mat_ai and not any(mat.lower().startswith(n.lower()) for n in co):
         mat = f"{mat_ai}: {mat[:1].lower() + mat[1:]}"
     dong = [" ".join(x for x in (may.strip(), _hoa(kh), f"Continue this camera move for the full {giay} seconds.") if x)]
-    dong += [x for x in (f"{mat}." if mat else "", _cau_nhin(pd, s, ai, kia)) if x]
+    dong += [x for x in (f"{mat}." if mat else "", _cau_nhin(pd, s, ai, kia), _cau_sua(s)) if x]
     if cs:
         x = lt[cs[0]]
         if x["nghi"]:
