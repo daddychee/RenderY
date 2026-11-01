@@ -301,6 +301,26 @@ class Phan(unittest.TestCase):
         self.assertNotEqual(dt, sach)
         self.assertFalse(any("Damon có mặt" in x for x in dy.kiem_hai_luat(dt)), "người ở đầu dây: không nhắc")
 
+    def test_nhay_hinh_giua_hai_clip(self):
+        # User chốt 31/10: shot đầu clip sau cùng cỡ, cùng người với shot cuối clip trước là nhảy hình; khác người thì được.
+        # Đo DM002+DM003: giữa hai clip 63/484 chỗ nối, trong một clip 3/1019.
+        grok = CLIP.replace("Seedance 10s", "Grok 15s")
+        dau = ("# Phần 1 · A · 1 phút\n\n## C001 · Shop · sáng · N01\nCó mặt: Nia, Damon\n"
+               "Mở cảnh: Nia trái · Damon phải\nMáy dàn cảnh: nhìn từ cửa vào quầy\n\n")
+        p1 = grok.format(ma="P001", khung="Nia, Damon", hinh="shot 1 toàn theo hướng máy dàn cảnh, máy đứng yên, một cú liền: "
+                         "Nia đặt hộp lên quầy. Shot 2 cận Nia, trong khung chỉ có Nia, máy đứng yên: mắt nhìn Damon bên phải khung.")
+        p2 = "shot 1 cận Nia, trong khung chỉ có Nia, máy đứng yên: môi khép. Shot 2 cận Damon, trong khung chỉ có Damon, máy đứng yên."
+        vb = dau + p1 + "\n" + grok.format(ma="P002", khung="Nia, Damon", hinh=p2)
+        nhac = [x for x in dy.kiem_hai_luat(vb) if "nhảy hình" in x]
+        self.assertEqual(len(nhac), 1, nhac)
+        self.assertIn("P002", nhac[0])
+        self.assertIn("P001", nhac[0])
+        for cu, moi in (("shot 1 cận Nia, trong khung chỉ có Nia", "shot 1 cận Damon, trong khung chỉ có Damon"),   # đối đáp
+                        ("shot 1 cận Nia,", "shot 1 trung Nia,"),
+                        ("shot 1 cận Nia, trong khung chỉ có Nia", "shot 1 góc thấp cận Damon, trong khung chỉ có Damon")):
+            self.assertFalse(any("nhảy hình" in x for x in dy.kiem_hai_luat(vb.replace(cu, moi, 1))), moi)
+        self.assertTrue(any("nhảy hình" in x for x in dy.kiem_hai_luat(vb.replace("shot 1 cận Nia,", "shot 1 góc thấp cận Nia,", 1))))
+
     def test_establishing(self):
         # User chốt 30/10: ngoại cảnh lần đầu mỗi cặp nơi–buổi. Đo thật trên treatment: `Khung:` để trống chạy được.
         est = ("# Phần 1 · A · 1 phút\n\n## C001 · Mặt tiền Shop · trưa · N01\nCó mặt:\nMáy dàn cảnh: bên kia phố nhìn thẳng mặt tiền\n"

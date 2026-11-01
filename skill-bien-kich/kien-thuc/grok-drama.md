@@ -2,7 +2,7 @@
 
 Nguồn sự thật cho `/bien-kich-grok`: kịch bản drama thoại gen cả phim bằng Grok (108 credit mỗi video). Thay mục 2, 3, 4, 8, 9 của `drama-thoai.md`; mục 1 (khuôn file), 5 (thoại, lời nghĩ), 6 (nhịp), 7 (ghi chú nối) đọc ở `drama-thoai.md`, dùng chung. Grok mạnh ở một người nói, giữ mặt; yếu ở cú máy, hành động thân thể, đông người, đồ nhỏ, ô, cảnh tối trong nhà. **Mục 0 đứng trên mọi mục khác.**
 
-**Máy lo, không cần nhớ:** `py -3 cong-cu/kiem_drama.py <file phần>` nhận kịch bản Grok khi có clip `Máy: Grok …`: LỖI clip không phải `Grok 10s`/`Grok 15s` (Veo, Seedance), trần 3 từ mỗi giây; NHẮC chữ hành động nặng, `Khung:` quá 4 người, ô trong cảnh trong nhà, đám đông có mặt rõ, clip/phút, lời nghĩ. NHẮC "clip Grok không có cú máy hay góc có ý đồ" là của bản chép cũ: **giữ, không sửa** (mục 0, luật 2). `py -3 cong-cu/dan_y_drama.py phan <file phần>` LỖI `Khung: —` (cảnh không người để trống); NHẮC hai luật: cảnh thiếu khối đầu cảnh (cảnh không người chỉ cần `Máy dàn cảnh:`), clip đầu cảnh thiếu người có mặt, cú máy động, đặc tả, shot định vị giữa cảnh, người có mặt nói mà không có ở `Khung:`. NHẮC thì sửa, hay giữ và ghi lý do vào báo cáo.
+**Máy lo, không cần nhớ:** `py -3 cong-cu/kiem_drama.py <file phần>` nhận kịch bản Grok khi có clip `Máy: Grok …`: LỖI clip không phải `Grok 10s`/`Grok 15s` (Veo, Seedance), trần 3 từ mỗi giây; NHẮC chữ hành động nặng, `Khung:` quá 4 người, ô trong cảnh trong nhà, đám đông có mặt rõ, clip/phút, lời nghĩ. NHẮC "clip Grok không có cú máy hay góc có ý đồ" là của bản chép cũ: **giữ, không sửa** (mục 0, luật 2). `py -3 cong-cu/dan_y_drama.py phan <file phần>` LỖI `Khung: —` (cảnh không người để trống); NHẮC hai luật: cảnh thiếu khối đầu cảnh (cảnh không người chỉ cần `Máy dàn cảnh:`), clip đầu cảnh thiếu người có mặt, cú máy động, đặc tả, shot định vị giữa cảnh, người có mặt nói mà không có ở `Khung:`, nhảy hình giữa hai clip (mục 3 điều 10). NHẮC thì sửa, hay giữ và ghi lý do vào báo cáo.
 
 ## 0. Hai luật (anh/chị chốt 30/10)
 
@@ -74,6 +74,7 @@ Thoại: Brooke (lạnh): "And who are you to speak at my table?"
 7. **Ánh sáng theo ảnh:** cảnh đêm ghi chữ `đêm` ở tiêu đề cảnh (web gửi ảnh đêm). Trong nhà tránh cận mặt khi chỉ một đèn nhỏ (da lốm đốm): cho nơi một nguồn sáng rõ (đèn trần, cửa sổ, đèn bếp).
 8. **Mưa, ô:** mưa chỉ thấy ngoài kính, trong nhà khô; trong nhà không cầm ô, ô gập để ở cửa (Grok hay mở ô, vẽ hai ô).
 9. **Lời nghĩ:** Grok mấp máy môi ở khoảng nửa số clip lời nghĩ; giữ ít (máy nhắc quá 10%), điều giấu mà có người tâm sự thì nói thành thoại. Shot lời nghĩ: trong khung chỉ người nghĩ.
+10. **Nối clip, không nhảy hình** (anh/chị chốt 31/10): shot đầu clip sau **không cùng cỡ, cùng người** với shot cuối clip trước trong cảnh; đổi cỡ (cận ↔ trung, qua vai) hoặc mở bằng người khác. Cùng cỡ khác người (đối đáp) thì được. Treatment nối cứng mỗi shot một video nên hai cận liền nhau của cùng một người thành nhảy hình. Đo DM002, DM003: giữa hai clip 63/484 chỗ nối cùng cỡ cùng người (60 cận), trong một clip 3/1019: viết clip sau thì đọc lại shot cuối clip trước.
 
 ## 8. Cỡ cảnh và góc (máy đứng yên)
 

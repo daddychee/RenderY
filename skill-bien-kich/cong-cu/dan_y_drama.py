@@ -491,6 +491,28 @@ RE_MAY_DONG = re.compile(r"đẩy vào(?! (?:tay|túi|trong|lòng|ngực|ngườ
                          r"vòng từ|vòng quanh|nửa vòng|bám lưng|bám theo|chuyển nét|trượt ngang|zoom|dolly", re.I)
 RE_DAC_TA = re.compile(r"đặc tả|cực cận", re.I)
 RE_VANG = re.compile(r"điện thoại|loa|bộ đàm|sau cửa|qua cửa|ngoài khung", re.I)
+RE_SHOT = re.compile(r"\bshot\s*\d+", re.I)
+RE_CO = re.compile(r"(?<!\w)(trung rộng|cận trung|toàn|trung|cận|qua vai)(?!\w)(.*)", re.I)
+RE_CHI_CO = re.compile(r"trong khung chỉ có ([^,.:;]+)", re.I)
+
+
+def _co_ai(shot: str, ten: list[str]) -> tuple | None:
+    """(cỡ, người) của một shot `Hình:`: cỡ ở cụm đầu ("shot 2 góc thấp cận Brooke"), người ở "trong
+    khung chỉ có X", ngay sau cỡ, hay cả shot ("trung, Denise bên trái khung…"). Không đọc được: None."""
+    m = RE_CO.search(re.split(r"[,.:;]", shot, maxsplit=1)[0])
+    if not m:
+        return None
+    chi = RE_CHI_CO.search(shot)
+    for vung in (chi.group(1),) if chi else (m.group(2), shot):
+        if ai := frozenset(n for n in ten if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", vung)):
+            return m.group(1).lower(), ai
+    return None
+
+
+def _shot_dau_cuoi(h: str) -> tuple[str, str]:
+    m = list(RE_SHOT.finditer(h))
+    doan = [h[a.start():b.start() if b else None] for a, b in zip(m, m[1:] + [None])] if m else [h]
+    return doan[0], doan[-1]
 
 
 def kiem_hai_luat(vb: str) -> list[str]:
@@ -519,6 +541,10 @@ def kiem_hai_luat(vb: str) -> list[str]:
                     nhac.append(f"{ma}: '{m.group(0)}' — không đặc tả; vật thấy trong tay ở shot trung, cận (luật 2)")
                 if j and "định vị" in h.lower():
                     nhac.append(f"{ma}: shot định vị giữa cảnh — chỉ shot toàn mở cảnh (luật 2)")
+                tr = canh["clip"][j - 1] if j else None
+                if tr and (x := _co_ai(_shot_dau_cuoi(tr["hinh"] or "")[1], co)) and x == _co_ai(_shot_dau_cuoi(h)[0], co):
+                    nhac.append(f"{ma}: shot đầu cùng cỡ, cùng người với shot cuối {tr['ma']} ({x[0]} {', '.join(sorted(x[1]))}) — "
+                                "nhảy hình: đổi cỡ hay đổi người")
                 for lt in c["thoai"]:
                     if lt["ten"] in co and lt["ten"] not in (c["khung"] or []) and not RE_VANG.search(lt["cach"]):
                         nhac.append(f"dòng {lt['dong']} · {c['ma']}: {lt['ten']} có mặt mà không có ở Khung: câu sẽ phát trên mặt "
