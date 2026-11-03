@@ -345,18 +345,32 @@ Trả về JSON: {"truc": "...", "y": "...", "size": "", "giu": "...", "shots": 
 
 # Ô "Yêu cầu sửa" của một shot drama (user chốt 31/10): người dựng gõ tiếng Việt, câu này đi
 # kèm prompt ảnh / video của đúng shot đó tới khi xoá.
-LENH_DRAMA_SUA = """Bạn dịch LỜI SỬA của người dựng phim cho MỘT shot của phim drama thành \
-câu tiếng Anh gửi kèm prompt vẽ ảnh và dựng video của shot đó.
+# haint 03/11: lời sửa còn phải đổi các Ô của shot (cỡ, góc, máy, người trong khung, nội dung, câu
+# tả khung, nét diễn) — chỉ thêm câu thì prompt có hai lệnh ngược nhau ("Close-up…" + "đổi trung cảnh").
+LENH_DRAMA_SUA = """Bạn sửa MỘT shot của phim drama theo LỜI SỬA của người dựng (tiếng Việt).
 
-Bạn nhận: chữ shot (tiếng Việt), cỡ và góc máy, ai trong khung, và lời sửa (tiếng Việt).
+Bạn nhận: shot hiện tại (JSON — các ô người dựng thấy), những người của clip được phép vào khung, \
+ba bảng mã, và lời sửa.
 
-- Viết 1–2 câu tiếng Anh, thì hiện tại, tả đúng thứ PHẢI THẤY trong khung sau khi sửa.
+Trả về hai thứ:
+1. "en": 1–2 câu tiếng Anh, thì hiện tại, tả đúng thứ PHẢI THẤY trong khung sau khi sửa. Câu này đi \
+kèm prompt ảnh và video của shot, và là lệnh khi người dựng bấm "Sửa ảnh này".
 - Chỉ dịch điều người dựng nói: không thêm chi tiết, không tả lại cả shot.
-- Giữ nguyên tên nhân vật. KHÔNG gọi tên người không có trong khung (gọi tên là model vẽ \
-thêm người đó): lời sửa muốn bỏ người thì viết "Only <người trong khung> is in the frame."
+- Giữ nguyên tên nhân vật. KHÔNG gọi tên người không có trong khung SAU khi sửa (gọi tên là model \
+vẽ thêm người đó): lời sửa muốn bỏ người thì viết "Only <người trong khung> is in the frame."
 - Tả thứ nhìn thấy được: "tears run down her cheeks", không viết "she is sad".
+2. "doi": CHỈ những ô lời sửa làm đổi, ghi giá trị MỚI; ô không đổi thì không ghi.
+- "co", "goc", "cd": MÃ trong ba bảng (cỡ cảnh, góc máy, chuyển động máy).
+- "co_mat": danh sách người THẤY trong khung sau khi sửa, chép đúng tên trong danh sách người của clip.
+- "t": nội dung shot, tiếng Việt 1–2 câu — viết lại khi cỡ, người hay hành động đổi.
+- "lap": câu tiếng Anh tả khung hình (ai ở đâu trong khung, thấy tới đâu trên người) — PHẢI viết \
+lại khi cỡ, góc hay người trong khung đổi, và chỉ tả thứ thấy được ở cỡ mới.
+- "mat": tiếng Anh, nét mặt và cử chỉ diễn trong shot — viết lại khi lời sửa đổi biểu cảm, hành động.
+- "am": tiếng Anh, tiếng động riêng của shot — chỉ khi lời sửa nói về âm thanh.
+- "cach": tiếng Anh, cách nói câu thoại — chỉ khi lời sửa nói về giọng, cách nói.
+Không đổi câu thoại: lời sửa về chữ thoại thì bỏ qua phần đó.
 
-Trả về JSON: {"en": "..."}"""
+Trả về JSON: {"en": "...", "doi": {"co": "MS", "lap": "..."}}"""
 
 
 class DichLoi(RuntimeError):

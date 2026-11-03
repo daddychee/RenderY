@@ -262,6 +262,40 @@ CD_DRAMA = {k: v for k, v in CD_CHU.items() if k != "orbit"}
 # `sua`/`sua_en`: lời sửa riêng shot (user chốt 31/10) — tiếng Việt người dựng gõ, tiếng Anh máy dịch.
 KHOA_SHOT = {"t", "co", "goc", "cd", "lap", "cau", "sid", "co_mat", "huong", "gi", "sua", "sua_en"}
 _RE_SID = re.compile(r"s[0-9a-f]{6}")
+# Ô lời sửa được đổi (haint 03/11): của `sh` và của chữ prompt shot (`pd.shots`). Thoại không đổi.
+_O_SH = ("t", "co", "goc", "cd", "co_mat", "lap")
+_O_PD = ("mat", "am", "cach")
+_O_KHUNG = {"co", "goc", "co_mat", "lap"}       # đổi một trong số này là ảnh đã vẽ hết khớp
+_O_TEN = {"co": "cỡ", "goc": "góc", "cd": "máy", "co_mat": "người trong khung"}
+
+
+def _doi_shot(doi, cu: dict, nguoi: list[str], co_pd: bool) -> tuple[dict, list[str]]:
+    """Ô LLM đề nghị đổi -> {ô: [cũ, mới]} đã kiểm + nhắc chỗ bỏ qua. Mã ngoài bảng, tên ngoài clip
+    thì không ghi (LLM chỉ đề nghị, Python giữ cửa); ô không đổi thì không tính."""
+    ra, nhac = {}, []
+    bang = {"co": CO_CHU, "goc": GOC_CHU, "cd": CD_DRAMA}
+    ten = {n.lower(): n for n in nguoi}
+    for o, v in (doi if isinstance(doi, dict) else {}).items():
+        if o in bang:
+            if v not in bang[o]:
+                nhac.append(f"bỏ qua {_O_TEN[o]} “{v}”: không có trong bảng mã")
+                continue
+        elif o == "co_mat":
+            ds = [str(x) for x in v] if isinstance(v, list) else []
+            if la := [x for x in ds if x.lower() not in ten]:
+                nhac.append(f"bỏ qua {', '.join(la)}: không phải người của clip này")
+            v = list(dict.fromkeys(ten[x.lower()] for x in ds if x.lower() in ten))
+            if ds and not v:
+                continue
+        elif o in ("t", "lap") or (o in _O_PD and co_pd):
+            v = str(v or "").strip()
+            if not v:
+                continue
+        else:
+            continue
+        if v != cu.get(o):
+            ra[o] = [cu.get(o), v]
+    return ra, nhac
 
 
 def _sid_moi(da_co: set) -> str:
@@ -1681,7 +1715,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         kho.dat_tk_video(tap, chuong, [x["id"] for x in ds if x["id"] in chon])
         return _tk_chuong(tap, chuong)
 
-    @app.post("/api/tap/{tap}/{chuong}/tk-video/kiem")
+    @app.post("/api/tap/{tap}/{chuong}/tk-video/doc-lai")
     def kiem_tk_video(tap: str, chuong: str):
         """Nút Kiểm lại (vừa mua gói): đọc số dư ngay, không chờ 0h / 12h. Không tốn tiền."""
         if hasattr(ve_video, "tk_video"):
@@ -3029,8 +3063,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         kh, giay = khung_shot(dict(s, cd="")), mdrama.giay_shot(s, lt)
         may = CD_DRAMA.get(s.get("cd") or "") or CD_DRAMA["static"]
         return {"pd": pd, "s": s, "nguoi": nguoi, "do": do, "giay": giay, "lt": lt,
-                "anh": (mdrama.prompt_vao(pd, list(vao["nv"].values()), vao["tr"]["ten"], vao["tr"]["chung"],
-                                          vao["vao"], do) if vao
+                "anh": (mdrama.chen_sua(mdrama.prompt_vao(pd, list(vao["nv"].values()), vao["tr"]["ten"],
+                                                          vao["tr"]["chung"], vao["vao"], do), s) if vao
                         else mdrama.prompt_anh_shot(pd, s, k, t, nguoi, do, kh)),
                 "video": mdrama.prompt_video_shot(pd, s, k, t, nguoi, tieng, do, kh, may, giay)}
 
@@ -3204,38 +3238,60 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                  than: dict = Body(default={})):
         """Lời sửa tiếng Việt -> LLM dịch 1–2 câu tiếng Anh, lưu theo shot: mọi lần vẽ ảnh / gen
         video sau của shot này mang câu đó (`drama.SUA_DAU`). Rỗng = xoá."""
+        import json as _json
+
         ai = _ghi_duoc(request)
         sua = str((than or {}).get("sua") or "").strip()
         c, sh, k = _shot_cua(tap, chuong, ma, sid)
-        en, nhac = "", []
+        pd = mdrama.doc_pd(c.get("pd"))
+        ps = dict((pd.get("shots") or [])[k]) if k < len(pd.get("shots") or []) else None
+        en, nhac, doi = "", [], {}
         if sua:
             if not hasattr(ky_thuat, "drama_sua"):
                 raise HTTPException(503, "Chưa bật bộ dịch lời sửa.")
-            s, co = sh[k], sh[k].get("co_mat") or []
+            s, nguoi = sh[k], list(_nguoi_canh({x["ma"]: x for x in kho.ds_so(tap)}, [c]))
+            cu = {o: s.get(o) for o in _O_SH} | {o: (ps or {}).get(o) for o in _O_PD}
             try:
-                en = str((ky_thuat.drama_sua(
-                    f"Shot: {s.get('t') or ''}\nCỡ, góc: {khung_shot(dict(s, cd=''))}\n"
-                    f"Trong khung: {', '.join(co) or 'không ai'}\nLời sửa: {sua}") or {}).get("en") or "").strip()
+                ra = ky_thuat.drama_sua(
+                    f"Shot hiện tại: {_json.dumps(cu, ensure_ascii=False)}\n"
+                    f"Người của clip: {', '.join(nguoi) or 'không ai'}\n"
+                    f"BẢNG CỠ (mã: nghĩa): {'; '.join(f'{a}: {b}' for a, b in CO_CHU.items())}\n"
+                    f"BẢNG GÓC (mã: nghĩa): {'; '.join(f'{a}: {b}' for a, b in GOC_CHU.items())}\n"
+                    f"BẢNG CHUYỂN ĐỘNG (mã: nghĩa): {'; '.join(f'{a}: {b}' for a, b in CD_DRAMA.items())}\n"
+                    f"Lời sửa: {sua}") or {}
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Dịch lời sửa hỏng: {exc}") from exc
+            en = str(ra.get("en") or "").strip()
             if not en:
                 raise HTTPException(502, "LLM không trả câu tiếng Anh — bấm lại.")
+            doi, nhac = _doi_shot(ra.get("doi"), cu, nguoi, ps is not None)
             # gọi tên người ngoài khung là model vẽ thêm người đó (kiểm thử 28/10, P013)
-            ngoai = [n for n in _nguoi_canh({x["ma"]: x for x in kho.ds_so(tap)}, [c])
-                     if n.lower() not in {x.lower() for x in co}]
-            if x := mdrama.nhac_ten(en, ngoai):
-                nhac = [f"câu tiếng Anh nhắc {', '.join(x)}: người không có trong khung shot — model sẽ vẽ "
-                        "thêm; sửa câu, hoặc thêm vào Trong khung"]
+            co = doi["co_mat"][1] if "co_mat" in doi else s.get("co_mat") or []
+            if x := mdrama.nhac_ten(en, [n for n in nguoi if n.lower() not in {y.lower() for y in co}]):
+                nhac.append(f"câu tiếng Anh nhắc {', '.join(x)}: người không có trong khung shot — model sẽ "
+                            "vẽ thêm; sửa câu, hoặc thêm vào Trong khung")
 
-        def lam(s):
-            if sua:
-                s.update(sua=sua, sua_en=en)
-            else:
-                s.pop("sua", None)
-                s.pop("sua_en", None)
+        def va(y):
+            sh2 = mdrama.doc_sh(y.get("sh"))
+            for i, s in enumerate(sh2):
+                if s.get("sid") != sid:
+                    continue
+                if sua:
+                    s.update(sua=sua, sua_en=en, **{o: v[1] for o, v in doi.items() if o in _O_SH})
+                else:
+                    s.pop("sua", None)
+                    s.pop("sua_en", None)
+                moi = {o: v[1] for o, v in doi.items() if o in _O_PD}
+                p2 = mdrama.doc_pd(y.get("pd"))
+                if moi and i < len(p2.get("shots") or []):
+                    p2["shots"][i] = dict(p2["shots"][i], **moi)
+                    y["pd"] = _json.dumps(p2, ensure_ascii=False)
+            y["sh"] = _json.dumps(sh2, ensure_ascii=False)
 
-        _sua_sh(tap, chuong, ma, sid, lam, ai)
-        return {"sua": sua, "sua_en": en, "nhac": nhac}
+        _va_canh(tap, chuong, ma, va, ai)
+        if _O_KHUNG & set(doi):          # khung đổi: ảnh đã vẽ không còn khớp, phải duyệt lại
+            _sua_ss(tap, chuong, ma, sid, lambda o: o.pop("duyet", None), ai)
+        return {"sua": sua, "sua_en": en, "nhac": nhac, "doi": doi}
 
     @app.post("/api/tap/{tap}/{chuong}/canh/{ma}/shot/{sid}/sua-anh")
     @_dang("anh")

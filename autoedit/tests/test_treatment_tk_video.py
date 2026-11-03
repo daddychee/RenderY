@@ -165,7 +165,7 @@ def test_chuong_luu_tick_va_tra_trang_thai(tmp_path):
     assert r.json()["tick"] == ["a", "c"], "đúng thứ tự két, bỏ khoá không còn"
     assert [x["id"] for x in c.get("/api/tap/D1/C1/tk-video").json()["ds"] if x["tick"]] == ["a", "c"]
     assert c.get("/api/tap/D1/C2/tk-video").json()["tick"] == [], "mỗi chương một bộ tick"
-    assert c.post("/api/tap/D1/C1/tk-video/kiem").status_code == 200 and vv.kiem == 1
+    assert c.post("/api/tap/D1/C1/tk-video/doc-lai").status_code == 200 and vv.kiem == 1
     c.headers.update({"X-Remote-Actions": ""})
     assert c.put("/api/tap/D1/C1/tk-video", json={"tick": ["a"]}).status_code == 403
 

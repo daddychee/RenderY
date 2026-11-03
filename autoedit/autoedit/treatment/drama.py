@@ -734,6 +734,12 @@ def _cau_sua(s: dict) -> str:
     return f"{SUA_DAU} {_cham(en)}" if en else ""
 
 
+def chen_sua(p: str, s: dict) -> str:
+    """Lời sửa vào sau khối đầu của một prompt ảnh dựng sẵn (shot người vào), như `prompt_anh_shot`."""
+    dau, _, sau = p.partition("\n\n")
+    return "\n\n".join(x for x in (dau, _cau_sua(s), sau) if x)
+
+
 def prompt_sua_anh(s: dict, nguoi: dict[str, dict]) -> str:
     """Nút "Sửa ảnh này": Image 1 = ảnh shot HIỆN TẠI, Image 2.. = tấm người trong khung (giữ mặt).
     Hợp bỏ người thừa, biểu cảm, tay, đồ vật; đổi cỡ, góc thì vẽ lại."""

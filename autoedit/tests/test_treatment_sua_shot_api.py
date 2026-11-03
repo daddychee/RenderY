@@ -21,11 +21,11 @@ SUA_EN = "Tasha is crying, tears on her cheeks."
 class KyThuatSua(KyThuatBoCuc):
     def __init__(self):
         super().__init__()
-        self.sua, self.en = [], SUA_EN
+        self.sua, self.en, self.doi = [], SUA_EN, {}
 
     def drama_sua(self, than):
         self.sua.append(than)
-        return {"en": self.en}
+        return {"en": self.en, "doi": dict(self.doi)}
 
 
 class VeAnhDem(VeAnhGia):
@@ -77,8 +77,8 @@ def test_luu_loi_sua_may_dich_roi_vao_prompt_anh_va_video(tmp_path):
     kho, c, p1, sid, goc = _san(tmp_path, kt=kt)
     r = c.post(goc + "/sua", json={"sua": "Tasha đang khóc"})
     assert r.status_code == 200, r.text
-    assert r.json() == {"sua": "Tasha đang khóc", "sua_en": SUA_EN, "nhac": []}
-    assert "Lời sửa: Tasha đang khóc" in kt.sua[-1] and "Trong khung: Tasha" in kt.sua[-1]
+    assert r.json() == {"sua": "Tasha đang khóc", "sua_en": SUA_EN, "nhac": [], "doi": {}}
+    assert "Lời sửa: Tasha đang khóc" in kt.sua[-1] and '"co_mat": ["Tasha"]' in kt.sua[-1]
     s = next(x for x in json.loads(_clip(kho)["sh"]) if x["sid"] == sid)
     assert (s["sua"], s["sua_en"]) == ("Tasha đang khóc", SUA_EN)
     pr = c.get(goc + "/prompt").json()
@@ -94,8 +94,81 @@ def test_luu_loi_sua_may_dich_roi_vao_prompt_anh_va_video(tmp_path):
     assert len(nhac) == 1 and "Marcus" in nhac[0] and "không có trong khung" in nhac[0]
     # xoá = lưu rỗng, không gọi LLM
     n = len(kt.sua)
-    assert c.post(goc + "/sua", json={"sua": "  "}).json() == {"sua": "", "sua_en": "", "nhac": []}
+    assert c.post(goc + "/sua", json={"sua": "  "}).json() == {"sua": "", "sua_en": "", "nhac": [], "doi": {}}
     assert len(kt.sua) == n and "sua_en" not in next(x for x in json.loads(_clip(kho)["sh"]) if x["sid"] == sid)
+
+
+def _s(kho, sid):
+    return next(x for x in json.loads(_clip(kho)["sh"]) if x["sid"] == sid)
+
+
+def test_loi_sua_doi_o_tick_cua_shot_va_prompt_ghep_tu_o_moi(tmp_path):
+    """haint 03/11: shot Breakdown cận Nia muốn đổi trung cảnh — lời sửa phải đổi cả ô tick, câu tả khung,
+    nội dung shot, nét diễn; prompt ảnh + video ghép lại từ ô mới. Đổi cỡ thì ảnh cũ hết khớp: bỏ duyệt."""
+    kt = KyThuatSua()
+    kho, c, p1, sid, goc = _san(tmp_path, kt=kt)
+    c.post(goc + "/anh")
+    c.post(goc + "/duyet")
+    s0 = _s(kho, sid)
+    kt.doi = {"co": "CU", "goc": "low", "lap": "Tasha's face fills the frame, chin raised",
+              "t": "Cận Tasha, ngẩng lên.", "mat": "jaw set, eyes wet", "cau": [5]}
+    r = c.post(goc + "/sua", json={"sua": "đổi thành cận Tasha góc thấp, mắt ngấn nước"})
+    assert r.status_code == 200, r.text
+    d = r.json()["doi"]
+    assert d["co"] == [s0["co"], "CU"] and d["goc"] == [s0["goc"], "low"] and d["mat"][1] == "jaw set, eyes wet"
+    assert "cau" not in d, "thoại không đổi qua lời sửa"
+    th = kt.sua[-1]
+    assert "Lời sửa: đổi thành cận Tasha góc thấp" in th and "BẢNG CỠ" in th and '"co": "MS"' in th
+    s = _s(kho, sid)
+    assert (s["co"], s["goc"], s["lap"], s["t"], s["cau"]) == (
+        "CU", "low", "Tasha's face fills the frame, chin raised", "Cận Tasha, ngẩng lên.", s0["cau"])
+    k = [x["sid"] for x in json.loads(_clip(kho)["sh"])].index(sid)
+    assert json.loads(_clip(kho)["pd"])["shots"][k]["mat"] == "jaw set, eyes wet"
+    pr = c.get(goc + "/prompt").json()
+    assert pr["anh"].startswith("Close-up, low angle") and "Tasha's face fills the frame, chin raised" in pr["anh"]
+    assert s0["lap"] not in pr["anh"]
+    assert "close-up, low angle" in pr["video"].lower() and "jaw set, eyes wet" in pr["video"]
+    assert not _the(c, p1, sid)["duyet"], "đổi cỡ: ảnh cũ không còn khớp"
+
+
+def test_loi_sua_chi_doi_net_dien_giu_duyet(tmp_path):
+    kt = KyThuatSua()
+    kho, c, p1, sid, goc = _san(tmp_path, kt=kt)
+    c.post(goc + "/anh")
+    c.post(goc + "/duyet")
+    kt.doi = {"mat": "tears run down her cheeks"}
+    assert set(c.post(goc + "/sua", json={"sua": "Tasha khóc"}).json()["doi"]) == {"mat"}
+    assert _the(c, p1, sid)["duyet"], "khung không đổi: ảnh vẫn dùng được"
+
+
+def test_loi_sua_ma_sai_ten_la_khong_ghi_va_nhac(tmp_path):
+    kt = KyThuatSua()
+    kho, c, p1, sid, goc = _san(tmp_path, kt=kt)
+    s0 = _s(kho, sid)
+    kt.doi = {"co": "XL", "cd": "spin", "co_mat": ["tasha", "Bob"], "goc": "high"}
+    r = c.post(goc + "/sua", json={"sua": "góc cao"}).json()
+    assert set(r["doi"]) == {"goc"}, "Bob không có trong clip; tasha = Tasha như cũ"
+    assert any("XL" in n for n in r["nhac"]) and any("spin" in n for n in r["nhac"]) and any("Bob" in n for n in r["nhac"])
+    s = _s(kho, sid)
+    assert (s["co"], s["cd"], s["co_mat"], s["goc"]) == (s0["co"], s0["cd"], s0["co_mat"], "high")
+
+
+def test_shot_nguoi_vao_cung_mang_loi_sua(tmp_path):
+    from test_treatment_hai_luat import KtVao
+    from test_treatment_hai_luat import _san as _san_vao
+
+    class Kt(KtVao):
+        def drama_sua(self, than):
+            return {"en": "Ruth holds a red umbrella."}
+
+    kho, c, ma, sh = _san_vao(tmp_path, Kt())
+    for i in (0, 1):
+        c.post(f"/api/tap/D1/C1/dong/{i}/dan-canh")
+        c.post(f"/api/tap/D1/C1/dong/{i}/dan-canh/duyet")
+    goc = f"/api/tap/D1/C1/canh/{ma}/shot/{sh[0]['sid']}"
+    assert c.post(goc + "/sua", json={"sua": "Ruth cầm ô đỏ"}).status_code == 200
+    p = c.get(goc + "/prompt").json()["anh"]
+    assert p.startswith("Image 1 is the master wide shot") and f"{drama.SUA_DAU} Ruth holds a red umbrella." in p
 
 
 def test_sua_tay_cau_tieng_anh_qua_patch_sh(tmp_path):

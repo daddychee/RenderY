@@ -210,3 +210,23 @@ def test_quay_lai_video_truoc_hien_khi_co_video_cu(chrome, may):
     assert _cho(lambda: ("POST", f"{may['p1']}/shot/{s1}/quay-lai", {"loai": "video"}) in gui, 5, pg=pg), gui
     assert _cho(lambda: nut.count() == 1 and nut.is_enabled(), 10, pg=pg), "bấm lần nữa là về lại"
     assert not loi, loi
+
+
+def test_loi_sua_doi_co_thi_the_shot_doi_theo(chrome, may):
+    """haint 03/11: lời sửa đổi cỡ thì nhãn cỡ trên thẻ shot đổi theo, thông báo ghi ô đã đổi."""
+    co0 = _sh(may)[0]["co"]
+    moi = "ECU" if co0 != "ECU" else "CU"
+    may["kt"].doi = {"co": moi, "lap": "Nia's eyes fill the frame"}
+    loi = []
+    pg = _mo_clip(chrome, may, loi)
+    the1 = pg.locator("#theShot .buoc").nth(0)
+    nhan = {"ECU": "Extreme close-up", "CU": "Close-up"}[moi]
+    assert nhan not in the1.inner_text()
+    the1.locator("textarea[data-sua]").fill("đổi thành đặc tả mắt Nia")
+    the1.locator("button[data-luu-sua]").click()
+    assert _cho(lambda: "Đã đổi: cỡ" in pg.inner_text("#toast"), 10, pg=pg)
+    assert f"→ {nhan}" in pg.inner_text("#toast") and "vẽ lại rồi duyệt" in pg.inner_text("#toast")
+    assert _sh(may)[0]["co"] == moi
+    assert _cho(lambda: nhan in the1.inner_text(), 10, pg=pg), "thẻ shot đổi theo ô mới"
+    _chup(the1, "3_doi_co.png")
+    assert not loi, loi

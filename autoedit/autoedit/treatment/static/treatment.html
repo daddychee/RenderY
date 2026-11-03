@@ -2038,6 +2038,19 @@ function veSuaShot(x, s, k, t, anh, ve, dang){
     (en ? '<div class="ghi">Vẽ lại ảnh / Gen video sẽ dùng lời sửa này. Xoá chữ ở ô trên rồi bấm Lưu lời sửa ' +
           'là bỏ lời sửa.</div>' : '');
 }
+/* Ô lời sửa đã đổi (haint 03/11): máy chủ trả {ô: [cũ, mới]}; ô tick hiện ngay sau khi nạp lại chương. */
+var TEN_O = {co: "cỡ", goc: "góc", cd: "máy", co_mat: "người trong khung", t: "nội dung", lap: "câu tả khung",
+             mat: "nét diễn", am: "tiếng động", cach: "cách nói"};
+function chuDoi(doi){
+  var nhan = function(o, v){
+    return Array.isArray(v) ? v.join(", ") || "không ai" : ({co: NHAN_CO, goc: NHAN_GOC, cd: NHAN_CD}[o] || {})[v] || v;
+  };
+  var ds = Object.keys(doi).map(function(o){
+    return TEN_O[o] + (/^(co|goc|cd|co_mat)$/.test(o) ? " " + nhan(o, doi[o][0]) + " → " + nhan(o, doi[o][1]) : "");
+  });
+  return ds.length ? "<br>Đã đổi: " + thoat(ds.join("; ")) +
+    (doi.co || doi.goc || doi.co_mat || doi.lap ? " — ảnh cũ không còn khớp: vẽ lại rồi duyệt." : "") : "";
+}
 async function luuSua(ev, k){
   if(!SUA_DUOC) return;
   var o = shotTheoK(k); if(!o) return;
@@ -2050,8 +2063,8 @@ async function luuSua(ev, k){
     try { r = await api(duongShot(x, sid) + "/sua", "POST", {sua: chu}); }
     catch(e){ return bao(e.message, true); }
     delete SUA_NHAP[key];
-    var nhac = (r && r.nhac) || [];
-    bao((chu ? "Đã lưu lời sửa shot " : "Đã xoá lời sửa shot ") + (k + 1) +
+    var nhac = (r && r.nhac) || [], doi = (r && r.doi) || {};
+    bao((chu ? "Đã lưu lời sửa shot " : "Đã xoá lời sửa shot ") + (k + 1) + chuDoi(doi) +
         (nhac.length ? "<br>" + nhac.map(thoat).join("<br>") : ""), nhac.length > 0);
     // Nạp lại TRƯỚC mọi cú sửa khác: `datShot` gửi cả `sh` trong tay, bản cũ là xoá mất lời sửa.
     await taiLaiChuong(x.ch); veSb();
@@ -3191,7 +3204,7 @@ async function napTk(ch, kiem){
   ch = ch || chuongChay();
   var e = document.getElementById("tkVideo"), r;
   if(!ch){ e.innerHTML = ""; return; }
-  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/tk-video" + (kiem ? "/kiem" : ""), kiem ? "POST" : "GET"); }
+  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/tk-video" + (kiem ? "/doc-lai" : ""), kiem ? "POST" : "GET"); }
   catch(err){ if(kiem) bao(err.message, true); return; }
   TK_TICK[ch] = r.tick || [];
   if(ch !== chuongChay()) return;
