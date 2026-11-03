@@ -879,6 +879,45 @@ def prompt_vao(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict, vao:
     return prompt_dan_noi(pd, nguoi, cu_ten, pd_cu, do)
 
 
+_RE_NGUOI_EN = re.compile(r"\b(?:faces?|eyes?|jaw|lips?|mouth|heads?|shoulders?|chest|chin|cheeks?|brows?|gaze|hair|"
+                          r"neck)\b", re.I)
+
+
+def dac_ta_vat(s: dict) -> bool:
+    """Shot đặc tả tay/đồ (haint 03/11): CU/ECU, câu khung `lap` không có mặt, đầu, vai; `t` mở bằng tay
+    hay đồ, không mở bằng tên người. Đo DM002+DM003: bắt 49/1048 CU/ECU, đọc tay 49/49 đúng."""
+    lap = str(s.get("lap") or "")
+    if s.get("co") not in ("CU", "ECU") or not lap or _RE_NGUOI_EN.search(lap):
+        return False
+    dau = re.split(r"[,.;:]", str(s.get("t") or ""), maxsplit=1)[0]
+    return bool(re.search(r"(?<!\w)(?:tay|ngón)(?!\w)", dau, re.I)) or not (
+        _RE_MAT.search(dau) or nhac_ten(dau, s.get("co_mat") or []))
+
+
+def _prompt_dac_ta(pd: dict, s: dict, k: int, nguoi: dict[str, dict], do: list[dict], kh: str) -> str:
+    """Ảnh shot đặc tả tay/đồ: bỏ mọi thứ của khuôn shot người (câu nhìn, máy hướng tới người, sau lưng,
+    tả mặt, "Exactly one X") — prod DM002+DM003 32/46 ảnh ra có mặt người, 29 ở cỡ MS/MCU. Ảnh gửi y như
+    shot người; tấm nhân vật chỉ lấy tay, da, tay áo; câu `mat` có mặt, mắt thì bỏ. Giữ câu áo `giu` của người
+    trong khung: đo P011 03/11 bỏ câu này thì tay áo lấy theo người trong mảnh cắt (Brooke, vest đen)."""
+    co = list(s.get("co_mat") or [])
+    tam = [n for n in co if n in nguoi]
+    mat = " ".join(c for c in re.split(r"(?<=[.!?])\s+", str(_ps(pd, k).get("mat") or "").strip())
+                   if c and not _RE_NGUOI_EN.search(c))
+    loi = ["Image 1 shows this room at the same moment: take only its surfaces, colours and light. Do not copy its "
+           "framing or its people; this shot is much closer."]
+    loi += [f"Image {i} is a character sheet of {n}: {n}'s hands, skin tone and sleeves exactly as in Image {i}; "
+            "ignore the face." for i, n in enumerate(tam, 2)]
+    loi += [LOI_REF.get(d.get("loai"), LOI_REF["dao_cu"]).format(i=i) for i, d in enumerate(do, 2 + len(tam))]
+    giu = "; ".join(c.strip() for n in co for c in str(pd.get("giu") or "").strip().rstrip(".").split(";")
+                    if nhac_ten(c, [n]))
+    chi = (f"{_ke(co)} {'appears' if len(co) == 1 else 'appear'} only as hands and forearms: no face, no head, no "
+           "shoulders in frame, nobody else." if co else "No face, no head, no person in frame.")
+    khoi = [" ".join(x for x in (_hoa(kh), _cham(mat), "Photorealistic film still, 16:9.") if x), _cau_sua(s),
+            " ".join(loi), " ".join(x for x in (f"Keep consistent: {giu}." if giu else "", chi) if x),
+            str(pd.get("look") or "").strip()]
+    return "\n\n".join(x for x in khoi if x)
+
+
 def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], do: list[dict], kh: str) -> str:
     """Prompt ẢNH KHUNG ĐẦU shot `k` (tính từ 0) — khuôn `ghep_dm4.py`.
 
@@ -888,7 +927,10 @@ def prompt_anh_shot(pd: dict, s: dict, k: int, t: str, nguoi: dict[str, dict], d
          `chu_the` rỗng;
       2. tấm từng tên trong `s["co_mat"]` có trong `nguoi`, đúng thứ tự;
       3. `do`.
-    Câu `truc` của LLM KHÔNG vào đây (L6: viết theo khung hình, vẽ thêm người)."""
+    Câu `truc` của LLM KHÔNG vào đây (L6: viết theo khung hình, vẽ thêm người).
+    Shot đặc tả tay/đồ: `_prompt_dac_ta`, cùng thứ tự ảnh."""
+    if dac_ta_vat(s):
+        return _prompt_dac_ta(pd, s, k, nguoi, do, kh)
     lt = loi_thoai(t)
     ai = chu_the(s, lt)
     co = list(s.get("co_mat") or [])

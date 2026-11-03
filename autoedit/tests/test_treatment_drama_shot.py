@@ -345,6 +345,40 @@ def test_loi_sua_vao_prompt_anh_va_video_cua_dung_shot():
     assert drama.SUA_DAU not in drama.prompt_video_shot(PD, SH[2], 2, T, NGUOI, TIENG, [], "x.", "", 6)
 
 
+# ───────────────────────────── shot đặc tả tay/đồ ─────────────────────────────
+TAY = {"co": "ECU", "goc": "high", "cd": "static", "cau": [], "co_mat": ["Nia"],
+       "t": "Đặc tả bàn tay phải Nia đặt mấy tờ tiền nhàu xuống khăn bàn trắng.",
+       "lap": "Nia's right hand fills the frame as it sets a few crumpled bills down on the white tablecloth"}
+
+
+def test_dac_ta_vat_nhan_shot_tay_do():
+    """haint 03/11: shot đặc tả tay/đồ đi khuôn shot người. Đo DM002+DM003: bắt 49/1048 CU/ECU, đọc tay 49/49 đúng."""
+    assert drama.dac_ta_vat(TAY)
+    assert drama.dac_ta_vat(dict(TAY, co="CU", co_mat=[], t="Đặc tả ổ khóa số bạc của tủ đồ số 14 lệch một góc.",
+                                 lap="The silver combination lock of locker fourteen hanging askew"))
+    for s in (dict(TAY, co="MS"), dict(TAY, lap=""),
+              dict(TAY, lap="Nia's face fills the frame, her right hand rising to her cheek"),
+              dict(TAY, co="CU", t="Cận Nia, cô giơ một ngón tay phải lên.", lap="Nia fills the frame, raising one finger")):
+        assert not drama.dac_ta_vat(s), s
+
+
+def test_anh_dac_ta_tay_bo_khuon_shot_nguoi():
+    """Prod DM002+DM003: 32/46 ảnh đặc tả tay/đồ ra có mặt người (29 ở cỡ MS/MCU). Prompt cũ: câu nhìn, máy
+    hướng tới người, tả mặt, "Exactly one Nia" — bỏ hết; tấm nhân vật chỉ lấy da, tay, tay áo."""
+    pd = dict(PD, shots=[{"mat": "The hand lays the bills flat. Nia's eyes stay down, mouth closed."}])
+    s = dict(TAY, sua_en=SUA)
+    p = drama.prompt_anh_shot(pd, s, 0, T, NGUOI, [], "extreme close-up, high angle: " + TAY["lap"] + ".")
+    for chu in ("looks toward", "Camera position", "Exactly one", "Behind Nia", "off-screen", "large expressive eyes",
+                "Where they", "eyes stay down", "Hattie wears"):
+        assert chu not in p, chu
+    # Đo 03/11 P011: bỏ câu áo thì tay áo lấy theo người trong mảnh cắt (Brooke, vest đen) -> giữ `giu` người trong khung
+    for chu in ("The hand lays the bills flat.", "no face", "sleeves exactly as in Image 2", f"{drama.SUA_DAU} {SUA}", LOOK,
+                "Keep consistent: Nia wears dark blue jeans"):
+        assert chu in p, chu
+    assert p.startswith("Extreme close-up") and "Image 2 is a character sheet of Nia" in p and "Image 3" not in p
+    assert "No face" in drama.prompt_anh_shot(pd, dict(TAY, co_mat=[]), 0, T, NGUOI, [], "x.")
+
+
 def test_prompt_sua_anh_chinh_tu_anh_hien_tai():
     p = drama.prompt_sua_anh(dict(SH[1], sua_en=SUA), NGUOI)
     assert p.startswith(f"Edit Image 1: {SUA} Keep everything else in Image 1 exactly the same")
