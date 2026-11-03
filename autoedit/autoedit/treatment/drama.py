@@ -87,7 +87,9 @@ def _moc(ghi_chu: str) -> set[int]:
 def nhan_vat(dau: list[str]) -> list[dict]:
     """Cụm cố định -> nhân vật. Mỗi `dạng` (bộ đồ) là một asset riêng: tấm nhân
     vật vẽ theo cụm, đổi đồ là đổi tấm. Giọng lấy ở bảng Nhân vật, đổi đồ không
-    đổi giọng."""
+    đổi giọng. Chỉ dòng mã `NV` (như `cum` của máy kiểm skill): dòng VẬT người viết
+    thêm (DM005 03/11: `VT01` cuốn sổ vẽ thành tấm người) bỏ qua — đồ vật đi đường
+    `_tim_do_vat` của app, đọc chữ clip rồi gán vào clip."""
     giong = {}
     for h in doc_bang(dau, "Nhân vật và bối cảnh"):
         if h and h[0]:
@@ -96,7 +98,7 @@ def nhan_vat(dau: list[str]) -> list[dict]:
              for h in doc_bang(dau, "Nhân vật và bối cảnh") if h and h[0]}
     ra = []
     for h in doc_bang(dau, "Cụm cố định"):
-        if len(h) < 3 or not h[0] or not h[2]:
+        if len(h) < 3 or not h[0].upper().startswith("NV") or not h[2]:
             continue
         ten, dang = _ten(h[1])
         ma = h[0].lower() + (f"_d{dang}" if dang else "")

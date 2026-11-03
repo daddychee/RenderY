@@ -120,6 +120,33 @@ def test_so_tai_san_tu_kich_ban():
     assert n["yc"] == "phòng bệnh riêng, giường trắng, cửa sổ lớn bên hông"
 
 
+# Bảng Cụm cố định của DM005 (dựng lại từ sổ trong kho 03/11, bỏ cột Ghi chú): người viết thêm dòng VẬT.
+CUM_DM005 = (
+    "## Cụm cố định\n| Mã | Tên | Cụm tiếng Anh (nguyên văn) | Ghi chú |\n|---|---|---|---|\n"
+    "| NV01 | Danielle (she) | Beautiful Black woman about 35, slim, warm brown skin, soft tired eyes, natural curly "
+    "black hair pulled back in a low bun, a small beauty mark above her right eyebrow, wearing navy blue nurse scrubs "
+    "over a white long-sleeve undershirt and a thin silver cross necklace | |\n"
+    '| VT01 | Cuốn sổ | a small worn blue cloth-covered savings passbook with faded gold letters "Larkfield Savings '
+    'Bank" and the number "000017" on the cover | |\n'
+    '| VT02 | Chìa P | an old brass key on a small round leather tag stamped with the letter "P" | |\n'
+    '| VT03 | Thẻ bảo vệ của bố | a silver metal security badge engraved "LARKFIELD SECURITY · C. GAINES · 17" | |\n'
+    '| VT04 | Thỏa thuận 1987 | a yellowed folded document with a typed heading "Founding Share Agreement · 1987", '
+    "two signatures in blue ink and a round embossed notary seal | |\n")
+
+
+def test_dong_vat_o_cum_co_dinh_khong_thanh_nhan_vat():
+    """DM005 (haint duyệt 03/11): dòng VT của Cụm cố định vào sổ thành nhân vật — Gen toàn bộ asset vẽ
+    cuốn sổ thành tấm cận mặt + toàn thân. Chỉ dòng NV là người (như `cum` của máy kiểm skill); đồ vật
+    đi đường riêng (`_tim_do_vat` đọc chữ clip rồi gán vào clip — chỉ chạy khi sổ chưa có đồ vật)."""
+    assert [x["ma"] for x in drama.nhan_vat(CUM_DM005.splitlines())] == ["nv01"]
+    vt = "\n".join(CUM_DM005.splitlines()[4:]) + "\n"
+    kb = KICH_BAN.replace("charcoal grey suit, white shirt, no tie | |\n",
+                          "charcoal grey suit, white shirt, no tie | |\n" + vt)
+    assert kb != KICH_BAN
+    r = drama.tach_tap(kb)
+    assert not r["loi"] and r["so"] == drama.tach_tap(KICH_BAN)["so"]
+
+
 def test_kich_ban_loi_thi_tra_loi_khong_tach():
     hong = KICH_BAN.replace("Máy: Grok 15s\nKhung: Tasha\nHình: cận", "Máy: Grok 20s\nKhung: Tasha\nHình: cận")
     r = drama.tach_tap(hong)
