@@ -199,6 +199,12 @@ textarea.dan{width:100%;min-height:240px;background:var(--panel);color:var(--tex
 .tien-do{font-size:11.5px;color:var(--muted);white-space:nowrap}
 .tien-do b{color:var(--text)}
 .tien-do .thieu{color:var(--warn);font-weight:700}
+.tk-video{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px}
+.tk-video label{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:6px;
+  padding:2px 7px;background:var(--panel);cursor:pointer;white-space:nowrap}
+.tk-video label small{font-size:10.5px;color:var(--muted)}
+.tk-video label.xanh small{color:var(--good)}
+.tk-video label.do small{color:var(--bad)}
 .ref-nho{width:34px;height:34px;border-radius:6px;object-fit:cover;
   border:1px solid var(--line);vertical-align:middle;margin-right:5px}
 /* ─── màn storyboard: bảng thẻ (user chốt 24/09) ─── */
@@ -572,6 +578,7 @@ footer button{background:var(--accent);color:#fff;border:0;border-radius:8px;
     <!-- không mang `chi-sua`: nút chỉ hiện ở chương drama, `theoDoiChuong` tự quyết -->
     <button class="icon-btn" id="nutChuong" onclick="chayChuong()" hidden
             title="Breakdown, viết prompt, vẽ + MÁY TỰ DUYỆT ảnh dàn cảnh, vẽ ảnh khung đầu mọi shot — dừng ở duyệt ảnh shot, không gen video">Generate All</button>
+    <span class="tk-video" id="tkVideo"></span>
   </div>
   <div id="ketChuong"></div>
   <div class="sb-canvas" id="sbCanvas"></div>
@@ -2179,11 +2186,11 @@ async function genVideoShot(ev, k){
   var x = o.x, sid = o.s.sid;
   if(DANG_SHOT[x.id + sid]) return bao("Shot này đang dựng video rồi — đợi xong đã.", true);
   await maCanhChac(); await hangGhiCanh;
-  var nha = await chonNha(); if(nha === null) return;
+  var nha = coTk(x.ch) ? "" : await chonNha(); if(nha === null) return;
   await banRon(ev && ev.target, "Đang gửi…", async function(){
     try { await api(duongShot(x, sid) + "/video", "POST", {nha: nha || undefined}); }
-    catch(e){ return bao(e.message, true); }
-    napSoDu(1);
+    catch(e){ napTk(x.ch); return bao(e.message, true); }
+    napTk(x.ch); napSoDu(1);
     await taiLaiChuong(x.ch); veSb();
     theoDoiShot(x.ch, x.id, sid);
   });
@@ -2494,12 +2501,12 @@ async function genVideo(ev, noi){
   if(!SUA_DUOC) return;
   var x = await maCanhChac(); if(!x) return;
   if(x.vid) return bao("Cảnh này đang dựng video rồi — đợi xong đã.", true);
-  var nha = await chonNha(); if(nha === null) return;
+  var nha = coTk(x.ch) ? "" : await chonNha(); if(nha === null) return;
   await banRon(ev && ev.target, "Đang gửi…", async function(){
     try { await api("/api/tap/" + TAP_MA + "/" + x.ch + "/canh/" + x.id +
                     "/video", "POST", {noi: !!noi, nha: nha || undefined}); }
-    catch(e){ return bao(e.message, true); }
-    napSoDu(1);
+    catch(e){ napTk(x.ch); return bao(e.message, true); }
+    napTk(x.ch); napSoDu(1);
     await taiLaiChuong(x.ch); veSb(); moCanh(canhDangMo);
     theoDoiVideo(x.ch, x.id);
   });
@@ -3168,7 +3175,46 @@ function veKetChuong(h, mo){
   var k = document.getElementById("ketChuong");
   k.className = h ? "khoa" : ""; k.innerHTML = h ? "<div>" + h + "</div>" : "";
 }
+/* TÀI KHOẢN GEN VIDEO tick theo chương (haint 03/11): hai tài khoản Lightvisual, một cái hết gói là cứ
+   hai lượt hỏng một. Chương có tick thì bấm gen video gửi thẳng, không hỏi nhà; máy chủ chỉ xoay giữa
+   tài khoản đã tick còn gen được, tài khoản đỏ tự bỏ qua. Trạng thái máy chủ đọc lại lúc 0h / 12h, gói
+   hết giờ đổi đỏ đúng giờ; Kiểm lại đọc ngay (miễn phí). veSb gọi liên tục: chỉ hỏi khi đổi chương
+   hoặc qua mỗi 5 phút. */
+var TK_TICK = {}, TK_MOC = "";
+function coTk(ch){ return !!(TK_TICK[ch] || []).length; }
+function theoDoiTk(){
+  var ch = chuongChay(), moc = TAP_MA + "/" + ch + "/" + Math.floor(Date.now() / 300000);
+  if(moc === TK_MOC) return;
+  TK_MOC = moc; napTk(ch);
+}
+async function napTk(ch, kiem){
+  ch = ch || chuongChay();
+  var e = document.getElementById("tkVideo"), r;
+  if(!ch){ e.innerHTML = ""; return; }
+  try { r = await api("/api/tap/" + TAP_MA + "/" + ch + "/tk-video" + (kiem ? "/kiem" : ""), kiem ? "POST" : "GET"); }
+  catch(err){ if(kiem) bao(err.message, true); return; }
+  TK_TICK[ch] = r.tick || [];
+  if(ch !== chuongChay()) return;
+  e.innerHTML = !(r.ds || []).length ? "" : '<span class="nhan" style="margin:0">Video</span>' +
+    r.ds.map(function(x){
+      return '<label class="' + (x.xanh === true ? "xanh" : x.xanh === false ? "do" : "") + '" title="' +
+        thoat(x.ten + " — " + x.chu) + '"><input type="checkbox" data-tk="' + thoat(x.id) + '"' +
+        (x.tick ? " checked" : "") + (SUA_DUOC ? "" : " disabled") + ' onchange="tickTk()">' + thoat(x.ten) +
+        ' <small>' + thoat(x.chu) + '</small></label>';
+    }).join("") +
+    '<button class="cp" onclick="napTk(\'\', 1)" title="Đọc lại số dư ngay — dùng khi vừa mua gói. Không ' +
+      'tốn tiền.">Kiểm lại</button>';
+}
+async function tickTk(){
+  var ch = chuongChay(); if(!ch || !SUA_DUOC) return;
+  var tick = Array.prototype.map.call(document.querySelectorAll("#tkVideo input[data-tk]:checked"),
+                                      function(o){ return o.dataset.tk; });
+  try { TK_TICK[ch] = (await api("/api/tap/" + TAP_MA + "/" + ch + "/tk-video", "PUT", {tick: tick})).tick || []; }
+  catch(e){ bao(e.message, true); }
+  napTk(ch);
+}
 async function theoDoiChuong(hen){
+  theoDoiTk();
   var ch = chuongChay(), khoa = TAP_MA + "/" + ch, e = document.getElementById("viecChuong");
   document.getElementById("nutChuong").hidden = !SUA_DUOC || !ch;
   if(!ch){ e.textContent = ""; veKetChuong(""); return; }
@@ -4389,6 +4435,7 @@ window.addEventListener("beforeunload", function(){
   await aiDay();
   batNutGhi();
   setInterval(aiDay, 60000);   // bản mới lên máy chủ thì tab đang mở biết ngay
+  setInterval(theoDoiTk, 60000);   // trạng thái tài khoản gen video: gói hết giờ, mốc 0h / 12h
   napSoDu(); setInterval(napSoDu, 60000);
   await napTap();
   if(!TOI) khaiTen();

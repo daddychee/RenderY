@@ -8,7 +8,8 @@ này để gen video"; ảnh vẫn GPT Image 2 ở Seedvis). Cùng hình dạng 
   * Lượt đầu có lúc 502 "Hệ thống đang xử lý lượng lớn yêu cầu… thử lại 5–10 giây (Không mất
     Credits)" -> thử lại.
   * File ra 1264×720 và kèm một luồng ảnh bìa mjpeg -> bỏ bằng chép luồng (không encode lại).
-  * `/balance` báo 0đ / PAYG cả khi gói đang chạy: không dùng làm số dư.
+  * `/balance` báo 0đ / PAYG cả khi gói đang chạy: không dùng làm số dư. Đo lại 03/11: giờ trả
+    thêm `plan_expires_at` -> `tai_khoan` đọc được gói còn hạn hay không (miễn phí).
 Mã task bắt đầu `lv_job_` — `_VeVideo` nhận nhà theo tiền tố đó.
 """
 
@@ -19,6 +20,7 @@ import re
 import shutil
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -126,6 +128,14 @@ class LightvisualClient:
         return self._nop({"model": _model(model), "prompt": _the(prompt), "seconds": giay_grok(giay),
                           "resolution": "720p",
                           "reference_images": [{"url": _data_url_jpeg(Path(p))} for p in anh]})
+
+    def tai_khoan(self) -> dict:
+        """`credit` (đồng, PAYG) + `het_goi` = giờ hết gói (epoch), None khi không có gói. Đo 03/11:
+        gói đã hết vẫn còn `plan` + `plan_expires_at` cũ — so giờ là biết."""
+        d = self._goi("GET", "/balance", thu_lai_429=False)
+        het = d.get("plan_expires_at") if d.get("plan") else None
+        return {"credit": d.get("credits") or 0, "goi": d.get("plan_name") or "",
+                "het_goi": datetime.fromisoformat(str(het).replace("Z", "+00:00")).timestamp() if het else None}
 
     def trang_thai_video(self, task_id: str) -> dict:
         """Một lần hỏi. Hình dạng như SeedvisClient: {status: succeeded|failed|queued|processing,

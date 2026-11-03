@@ -1657,9 +1657,58 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(400, f"Prompt video ghi {', '.join(lech)} giây mà Gensuite (Muse) luôn dựng "
                                      f"{giay} giây — sửa số giây trong ô Prompt video, hoặc chọn nhà khác.")
 
-    def _kw_nha(nha: str) -> dict:
+    def _kw_nha(nha: str, khoa: str = "") -> dict:
         # Không chọn nhà thì không truyền: bộ dựng cũ / giả không có tham số `nha` vẫn chạy.
-        return {"nha": nha} if nha else {}
+        return ({"nha": nha} | ({"khoa": khoa} if khoa else {})) if nha else {}
+
+    # ── tài khoản gen video tick theo CHƯƠNG (haint 03/11): một tài khoản hết gói là hết bấm hai lần ──
+    vong_tk = itertools.count()
+
+    def _tk_chuong(tap: str, chuong: str) -> dict:
+        tick = set(kho.tk_video(tap, chuong))
+        ds = ve_video.tk_video() if hasattr(ve_video, "tk_video") else []
+        return {"ds": [dict(x, tick=x["id"] in tick) for x in ds], "tick": [x["id"] for x in ds if x["id"] in tick]}
+
+    @app.get("/api/tap/{tap}/{chuong}/tk-video")
+    def tk_video(tap: str, chuong: str):
+        return _tk_chuong(tap, chuong)
+
+    @app.put("/api/tap/{tap}/{chuong}/tk-video")
+    def dat_tk_video(tap: str, chuong: str, request: Request, than: dict = Body(default={})):
+        _ghi_duoc(request)
+        chon = {str(x) for x in (than or {}).get("tick") or []}
+        ds = ve_video.tk_video() if hasattr(ve_video, "tk_video") else []
+        kho.dat_tk_video(tap, chuong, [x["id"] for x in ds if x["id"] in chon])
+        return _tk_chuong(tap, chuong)
+
+    @app.post("/api/tap/{tap}/{chuong}/tk-video/kiem")
+    def kiem_tk_video(tap: str, chuong: str):
+        """Nút Kiểm lại (vừa mua gói): đọc số dư ngay, không chờ 0h / 12h. Không tốn tiền."""
+        if hasattr(ve_video, "tk_video"):
+            ve_video.tk_video(moi=True)
+        return _tk_chuong(tap, chuong)
+
+    def _gui_video(tap: str, chuong: str, nha: str, lam):
+        """`lam(nha, khoa)` -> mã task. Chương có tick: chỉ gửi qua tài khoản đã tick còn gen được, xoay
+        vòng; gửi hỏng vì hết tiền (bộ dựng tự đánh đỏ) thì sang tài khoản kế — một lần bấm. User chọn
+        03/11: tài khoản đỏ máy tự bỏ qua. Chưa tick: nhà người dựng chọn khi bấm, như cũ."""
+        tick = set(kho.tk_video(tap, chuong))
+        if not tick or not hasattr(ve_video, "tk_video"):
+            return lam(nha, "")
+
+        def cua():
+            return [x for x in ve_video.tk_video() if x["id"] in tick]
+        dung = [x for x in cua() if x["xanh"] is not False]
+        n = next(vong_tk) % len(dung) if dung else 0
+        for x in dung[n:] + dung[:n]:
+            try:
+                return lam(x["nha"], x["id"])
+            except Exception:
+                if next((y["xanh"] for y in cua() if y["id"] == x["id"]), None) is not False:
+                    raise               # hỏng vì lý do khác: báo như cũ
+        raise HTTPException(409, "Mọi tài khoản gen video đã tick ở chương này đều không gen được: " +
+                            "; ".join(f"{x['ten']} — {x['chu']}" for x in cua()) +
+                            ". Tick tài khoản khác ở thanh Storyboard, hoặc mua gói rồi bấm Kiểm lại.")
 
     def _mo_ta_ts(so: list[dict], c: dict) -> str:
         """Khối mô tả tài sản chêm vào prompt — CHỈ cho tài sản CHƯA có ref.
@@ -2546,15 +2595,19 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                                      ("noi_" + ma + ".png"))
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f"Trích khung cuối hỏng: {exc}") from exc
-        gui = _theo_nha(c, nha)
-        p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
-        _chan_lech_giay(p, giay, nha)
-        try:
-            m = _mo_hinh(tap, c, "video")
-            dau = _dau_video(tap, c)
-            tid = ve_video.bat_dau(p, dau_vao, giay, False, **({"model": m} if m else {}), **_kw_nha(nha))
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        dau = _dau_video(tap, c)
+
+        def gui_di(nha, khoa):
+            gui = _theo_nha(c, nha)
+            p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
+            _chan_lech_giay(p, giay, nha)
+            try:
+                m = _mo_hinh(tap, c, "video")
+                return ve_video.bat_dau(p, dau_vao, giay, False, **({"model": m} if m else {}),
+                                        **_kw_nha(nha, khoa))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        tid = _gui_video(tap, chuong, nha, gui_di)
         kho.ghi_vet(tap, ma, "video_cho", dau)
         # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
         _va_canh(tap, chuong, ma, lambda x: x.update(vid=str(tid)), ai)
@@ -2567,8 +2620,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         trừ 108 credit — chặn trước khi gửi."""
         if not hasattr(ve_video, "bat_dau_ref"):
             raise HTTPException(503, "Bộ dựng video chưa có đường ảnh tham chiếu (Grok).")
-        gui = _theo_nha(c, nha)
-        p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
+        p = _prompt_video(tap, c)
         if not p:
             raise HTTPException(400, "Clip này chưa có prompt — bấm “Viết prompt cảnh” trước, "
                                      "hoặc tự sửa thẳng vào ô Prompt video.")
@@ -2583,12 +2635,17 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if len(ref) > mdrama.ANH_TOI_DA:
             raise HTTPException(400, f"{len(ref)} ảnh tham chiếu, Grok chỉ nhận tốt tới "
                                      f"{mdrama.ANH_TOI_DA} — bớt asset của clip này.")
-        _chan_lech_giay(p, giay, nha)
         dau = _dau_video(tap, c)
-        try:
-            tid = ve_video.bat_dau_ref(p, ref, giay, model=mdrama.MODEL_VIDEO, **_kw_nha(nha))
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+
+        def gui_di(nha, khoa):
+            gui = _theo_nha(c, nha)
+            p, giay = _prompt_video(tap, gui), _giay_clip(tap, gui)
+            _chan_lech_giay(p, giay, nha)
+            try:
+                return ve_video.bat_dau_ref(p, ref, giay, model=mdrama.MODEL_VIDEO, **_kw_nha(nha, khoa))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        tid = _gui_video(tap, chuong, nha, gui_di)
         kho.ghi_vet(tap, ma, "video_cho", dau)
         # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
         _va_canh(tap, chuong, ma, lambda x: x.update(vid=str(tid)), ai)
@@ -3256,13 +3313,16 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
         if not (_ss(c).get(sid) or {}).get("duyet"):
             raise HTTPException(400, "Ảnh của shot này chưa được duyệt. Tiền video chỉ đốt sau cổng duyệt "
                                      "— xem ảnh rồi bấm Duyệt ảnh đã.")
-        sh = [*sh]
-        sh[k] = _theo_nha(sh[k], nha)
-        g = _ghep_shot(tap, c, sh, k)
-        try:
-            tid = ve_video.bat_dau(g["video"], anh, g["giay"], False, model=mdrama.MODEL_VIDEO, **_kw_nha(nha))
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        def gui(nha, khoa):
+            s2 = [*sh]
+            s2[k] = _theo_nha(sh[k], nha)
+            g = _ghep_shot(tap, c, s2, k)
+            try:
+                return ve_video.bat_dau(g["video"], anh, g["giay"], False, model=mdrama.MODEL_VIDEO,
+                                        **_kw_nha(nha, khoa))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Dựng video hỏng: {exc}") from exc
+        tid = _gui_video(tap, chuong, nha, gui)
         # Task ĐÃ trả tiền: mã phải xuống kho bất kể ai đang giữ chương.
         _sua_ss(tap, chuong, ma, sid, lambda o: o.update(vid=str(tid)), ai)
         return {"ok": True, "vid": str(tid)}
@@ -3644,6 +3704,48 @@ def _chua_khoa(nha: str) -> str:
     return f"Chưa có khoá {_TEN_NHA[nha]} — Owner cấp ở General › API Keys › Theo app › Treatment › {viec}."
 
 
+# Lỗi hết tiền của ba nhà: Lightvisual 402 "Số dư không đủ…", Gensuite 402 "hết credit".
+_HET_TIEN = re.compile(r"HTTP 402|số dư không đủ|insufficient|hết credit|not enough credit", re.I)
+GIA_GROK = 108                  # credit Seedvis một clip Grok 1.5 (seedvis.py): ít hơn là gửi hỏng
+
+
+def _moc_doc(now: float) -> float:
+    """Mốc đọc lại số dư gần nhất trước `now`: 0h hoặc 12h giờ máy (haint 03/11)."""
+    t = time.localtime(now)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 12 if t.tm_hour >= 12 else 0, 0, 0, 0, 0, -1))
+
+
+def _doc_so_du(m) -> dict:
+    """{} = nhà không có đường đọc số dư (Gensuite); {"loi"} = đọc hỏng (mạng chớp: chưa rõ, không đỏ)."""
+    if not hasattr(m, "tai_khoan"):
+        return {}
+    try:
+        return dict(m.tai_khoan())
+    except Exception as exc:  # noqa: BLE001
+        return {"loi": str(exc)[:120]}
+
+
+def _gio_tk(t: float, now: float) -> str:
+    cung_ngay = time.localtime(t)[:3] == time.localtime(now)[:3]
+    return time.strftime("%H:%M" if cung_ngay else "%H:%M %d/%m", time.localtime(t))
+
+
+def _xet_tk(e: dict, now: float, nha: str) -> dict:
+    """Gen được không, tính ở GIỜ HỎI từ lần đọc gần nhất: gói hết giờ là đỏ ngay."""
+    if e.get("do"):
+        return {"xanh": False, "chu": e["do"]}
+    if e.get("loi"):
+        return {"xanh": None, "chu": f"không đọc được số dư ({e['loi']})"}
+    if "credit" not in e:
+        return {"xanh": None, "chu": "chưa rõ số dư"}
+    het, cr = e.get("het_goi"), int(e.get("credit") or 0)
+    if het and now < het:
+        return {"xanh": True, "chu": f"gói tới {_gio_tk(het, now)}"}
+    if cr >= (GIA_GROK if nha == "seedvis" else 1):
+        return {"xanh": True, "chu": f"còn {cr:,} {'cr' if nha == 'seedvis' else 'đ'}".replace(",", ".")}
+    return {"xanh": False, "chu": f"hết gói lúc {_gio_tk(het, now)}" if het else f"hết tiền (còn {cr})"}
+
+
 class _VeVideo:
     """Seedance qua ArkClient, khoá lấy từ KÉT bằng slug của Treatment.
 
@@ -3774,11 +3876,49 @@ class _VeVideo:
             ra.append({"ma": nha, "co": co, "ly_do": "" if co else _chua_khoa(nha)})
         return ra
 
-    def _cua(self, model, nha=None):
+    # ── trạng thái từng tài khoản gen video, cho ô tick theo chương (haint 03/11) ──
+    _TT: dict = {}                  # id khoá -> lần đọc số dư gần nhất (+ `do` = gửi hỏng vì hết tiền)
+
+    def tk_video(self, moi: bool = False, bay_gio: float | None = None) -> list[dict]:
+        """Mọi tài khoản ở gen_video, đúng thứ tự General: {id, nha, ten, xanh, chu}. `xanh` None = chưa
+        đọc được (Gensuite không có số dư) — vẫn gửi, đỏ khi gửi hỏng vì hết tiền. Số dư đọc lại ở lần
+        hỏi đầu tiên sau 0h / 12h (haint 03/11) hoặc khi bấm Kiểm lại (`moi`); gói hết giờ biết trước
+        thì đỏ đúng giờ đó, không chờ đọc lại."""
+        from autoedit.treatment.dich import doc_ket_viec
+
+        now = time.time() if bay_gio is None else bay_gio
+        may = {kid: (nha, m) for nha in NHA_VIDEO for kid, m in self._ds_khoa(nha)[0]}
+        ra = []
+        for k in (doc_ket_viec("gen_video") or {}).get("ds") or []:
+            if (k.get("id") or "") not in may:
+                continue
+            kid, (nha, m) = k["id"], may[k["id"]]
+            e = self._TT.get(kid)
+            if moi or not e or e["doc"] < _moc_doc(now):
+                e = self._TT[kid] = dict(_doc_so_du(m), doc=now)
+            ra.append({"id": kid, "nha": nha, "ten": f"{_TEN_NHA[nha]} · {k.get('tai_khoan') or kid}",
+                       **_xet_tk(e, now, nha)})
+        return ra
+
+    def danh_do(self, kid: str, ly_do: str = "hết tiền") -> None:
+        """Gửi / task hỏng vì hết tiền: đỏ tới lần đọc số dư sau (0h, 12h, Kiểm lại)."""
+        if kid:
+            self._TT.setdefault(kid, {"doc": time.time()})["do"] = f"{ly_do} lúc {time.strftime('%H:%M')}"
+
+    def _gui(self, kid: str, lam):
+        try:
+            return lam()
+        except Exception as exc:
+            if _HET_TIEN.search(str(exc)):
+                self.danh_do(kid)
+            raise
+
+    def _cua(self, model, nha=None, khoa=None):
         """(client, id khoá). Không chọn nhà: video GROK đi Lightvisual khi két cấp, còn lại `_may()`
         (như cũ). Chọn nhà (user 30/10): chỉ các khoá của nhà đó ở gen_video, xoay vòng trong đó;
         Seedvis không có khoá ở gen_video thì về `_may()` (gen_canh). Thiếu khoá thì báo, KHÔNG tự đổi
-        sang nhà khác (luật cứng 5) — đổi nhà là người dựng chọn lại hay Owner gán khoá ở General."""
+        sang nhà khác (luật cứng 5) — đổi nhà là người dựng chọn lại hay Owner gán khoá ở General.
+        `khoa` = đúng tài khoản chương đã tick (haint 03/11): không xoay vòng."""
         if not nha:
             return ("grok" in (model or "") and self._chon_khoa()) or (self._may(), "")
         if nha not in NHA_VIDEO:
@@ -3786,6 +3926,11 @@ class _VeVideo:
         if nha == "lightvisual" and model and "grok" not in model:
             raise RuntimeError(f"Lightvisual chỉ chạy Grok — model video của cảnh này là {model}. "
                                "Chọn Seedvis, hoặc đổi model cảnh sang Grok.")
+        if khoa:
+            m = dict(self._ds_khoa(nha)[0]).get(khoa)
+            if m is None:
+                raise RuntimeError(f"Khoá {khoa} không còn ở gen_video — tick tài khoản khác.")
+            return m, khoa
         r = self._chon_khoa(nha)
         if r:
             return r
@@ -3800,20 +3945,21 @@ class _VeVideo:
                 return m, ""
         raise RuntimeError(_chua_khoa(nha))
 
-    def bat_dau(self, prompt, anh, giay, am, model=None, nha=None):
+    def bat_dau(self, prompt, anh, giay, am, model=None, nha=None, khoa=None):
         """Mã task Lightvisual / Gensuite / Seedvis của gen_video mang id khoá đã gửi (`lv_job_x@api-012`)
         để hỏi đúng tài khoản. `nha` = nhà người dựng chọn khi bấm; không có thì két quyết như cũ."""
-        m, kid = self._cua(model, nha)
+        m, kid = self._cua(model, nha, khoa)
         kw = {"model": model} if model else {}
-        return _gan_khoa(m.gen_video_i2v(prompt, anh, giay=giay, am=am, **kw), kid)
+        return _gan_khoa(self._gui(kid, lambda: m.gen_video_i2v(prompt, anh, giay=giay, am=am, **kw)), kid)
 
-    def bat_dau_ref(self, prompt, anh, giay, model=None, nha=None):
+    def bat_dau_ref(self, prompt, anh, giay, model=None, nha=None, khoa=None):
         """Drama: dựng từ ảnh tham chiếu (Grok `multi-image-to-video`, Muse 1–3 ảnh)."""
-        m, kid = self._cua(model, nha)
+        m, kid = self._cua(model, nha, khoa)
         if not hasattr(m, "gen_video_ref"):
             raise RuntimeError("Nhà video đang cấp không có đường ảnh tham chiếu — "
                                "drama cần Seedvis (Owner cấp ở General › API Keys › gen_video).")
-        return _gan_khoa(m.gen_video_ref(prompt, anh, giay=giay, **({"model": model} if model else {})), kid)
+        kw = {"model": model} if model else {}
+        return _gan_khoa(self._gui(kid, lambda: m.gen_video_ref(prompt, anh, giay=giay, **kw)), kid)
 
     def trang_thai(self, tid):
         from autoedit.aigen.gensuite import TIEN_TO_TASK as GS
@@ -3836,7 +3982,11 @@ class _VeVideo:
             if nha == "gensuite":
                 return dict(r, video_url=f"{r['video_url']}#{GS}{k}")
             return dict(r, video_url=r["video_url"] + "#" + k) if k and nha == "lightvisual" else r
-        return self._hoi_lan_luot(kid, hoi, nha)
+        r = self._hoi_lan_luot(kid, hoi, nha)
+        # Lightvisual nhận task rồi mới báo hết tiền sau ~10 s (đo 29/10): đánh đỏ khoá đã nhận task.
+        if r.get("status") == "failed" and _HET_TIEN.search(str(r.get("loi") or "")):
+            self.danh_do(kid)
+        return r
 
     def tai_ve(self, url, dich):
         from autoedit.aigen.gensuite import TIEN_TO_TASK as GS

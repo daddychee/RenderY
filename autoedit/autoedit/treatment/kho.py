@@ -96,6 +96,10 @@ class Kho:
         for ten in ("tong", "model_anh", "model_video", "loai", "khuon"):
             if ct and ten not in ct:
                 self.cn.execute(f"ALTER TABLE tap ADD COLUMN {ten} TEXT NOT NULL DEFAULT ''")
+        # `tk_video` 03/11 (haint): tài khoản gen video tick theo chương — JSON list id khoá két.
+        cc = {r["name"] for r in self.cn.execute("PRAGMA table_info(chuong)")}
+        if cc and "tk_video" not in cc:
+            self.cn.execute("ALTER TABLE chuong ADD COLUMN tk_video TEXT NOT NULL DEFAULT ''")
         self.cn.commit()
         self._va_ma_canh()
 
@@ -190,6 +194,19 @@ class Kho:
             (tap, chuan, thu_tu))
         self.cn.commit()
         return chuan
+
+    def tk_video(self, tap: str, chuong: str) -> list[str]:
+        """Id khoá két (gen_video) chương này được gửi video; rỗng = người dựng chọn nhà khi bấm."""
+        r = self.cn.execute("SELECT tk_video FROM chuong WHERE tap=? AND ma=?", (tap, chuong)).fetchone()
+        try:
+            return [str(x) for x in json.loads((r["tk_video"] if r else "") or "[]")]
+        except (TypeError, ValueError):
+            return []
+
+    def dat_tk_video(self, tap: str, chuong: str, ds: list[str]) -> None:
+        with self._khoa:
+            self.cn.execute("UPDATE chuong SET tk_video=? WHERE tap=? AND ma=?", (json.dumps(ds), tap, chuong))
+            self.cn.commit()
 
     def ds_chuong(self, tap: str) -> list[dict]:
         """H -> C1..Cn -> E. Sắp theo TÊN là sai cả hai đầu ('E' trước 'H',
