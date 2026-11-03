@@ -362,6 +362,26 @@ def test_dac_ta_vat_nhan_shot_tay_do():
         assert not drama.dac_ta_vat(s), s
 
 
+def test_dac_ta_vat_lat_anh_face_up_va_tay_o_nguc():
+    """haint 03/11 (DM003 P192): "flipping it face-up" bị tính là MẶT, "into the inner pocket… to his chest" bị
+    tính là NGƯỜI -> shot tay đi khuôn shot người, ảnh ra Damon ngồi cả người. Mặt, đầu mới là người; khung
+    "from the chest up" (màn hình chiếu Julian, P280) và chuyển nét sang người khác (P109) vẫn là shot người."""
+    lat = dict(TAY, co="CU", goc="pov", co_mat=["Damon"], t="Cận bàn tay Damon lật tấm ảnh úp trên mặt bàn lên.",
+               lap="Damon's right hand filling the frame, flipping the upturned photo face-up off the black tabletop")
+    tui = dict(lat, t="Cận bàn tay Damon nhét tấm ảnh vào túi trong áo vest.",
+               lap="Damon's right hand slides the folded photo into the inner pocket of his jacket, up to his chest")
+    assert drama.dac_ta_vat(lat) and drama.dac_ta_vat(tui)
+    for s in (dict(lat, t="Đặc tả màn hình tivi, Julian đứng ở bục.", co_mat=["Julian"],
+                   lap="The television screen fills the frame with Julian at a podium, shown from the chest up"),
+              dict(lat, lap="Evelyn's right hand sets a gift bag down, then focus racks across to Nia on the left"),
+              dict(lat, lap="Damon's right hand lifts the photo, face-down photo in view, his face above it")):
+        assert not drama.dac_ta_vat(s), s
+    pd = {"giu": "", "shots": [{"mat": ""}]}
+    p = drama.prompt_anh_shot(pd, tui, 0, "", {}, [], "close-up: " + tui["lap"] + ".")
+    assert "Damon appears only from the neck down: no face, no head in frame" in p, p
+    assert "only as hands and forearms" in drama.prompt_anh_shot(pd, lat, 0, "", {}, [], "x.")
+
+
 def test_anh_dac_ta_tay_bo_khuon_shot_nguoi():
     """Prod DM002+DM003: 32/46 ảnh đặc tả tay/đồ ra có mặt người (29 ở cỡ MS/MCU). Prompt cũ: câu nhìn, máy
     hướng tới người, tả mặt, "Exactly one Nia" — bỏ hết; tấm nhân vật chỉ lấy da, tay, tay áo."""

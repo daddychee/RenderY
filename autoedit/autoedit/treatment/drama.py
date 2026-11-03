@@ -881,8 +881,13 @@ def prompt_vao(pd: dict, nguoi: list[dict], cu_ten: list[str], pd_cu: dict, vao:
     return prompt_dan_noi(pd, nguoi, cu_ten, pd_cu, do)
 
 
-_RE_NGUOI_EN = re.compile(r"\b(?:faces?|eyes?|jaw|lips?|mouth|heads?|shoulders?|chest|chin|cheeks?|brows?|gaze|hair|"
-                          r"neck)\b", re.I)
+# Mặt, đầu mới là "có người" (haint 03/11 DM003 P192: "flipping it face-up" bị tính là mặt, tay nhét ảnh vào túi
+# "to his chest" bị tính là người -> ảnh ra Damon ngồi cả người). Khung "from the chest up" (màn hình chiếu người,
+# P280) và chuyển nét sang người khác (P109) vẫn là shot người.
+_RE_NGUOI_EN = re.compile(r"\b(?:faces?(?!-(?:up|down))|eyes?|jaw|lips?|mouth|heads?|chin|cheeks?|brows?|gaze|hair)\b"
+                          r"|\b(?:chest|waist|shoulders?)[- ]up\b|\brack(?:s|ing)? focus|\bfocus (?:racks|pulls|shifts|moves)",
+                          re.I)
+_RE_THAN = re.compile(r"\b(?:chest|torso|shirt|lapel|pocket|waist)\b", re.I)    # thấy cả thân: "từ cổ trở xuống"
 
 
 def dac_ta_vat(s: dict) -> bool:
@@ -912,8 +917,10 @@ def _prompt_dac_ta(pd: dict, s: dict, k: int, nguoi: dict[str, dict], do: list[d
     loi += [LOI_REF.get(d.get("loai"), LOI_REF["dao_cu"]).format(i=i) for i, d in enumerate(do, 2 + len(tam))]
     giu = "; ".join(c.strip() for n in co for c in str(pd.get("giu") or "").strip().rstrip(".").split(";")
                     if nhac_ten(c, [n]))
-    chi = (f"{_ke(co)} {'appears' if len(co) == 1 else 'appear'} only as hands and forearms: no face, no head, no "
-           "shoulders in frame, nobody else." if co else "No face, no head, no person in frame.")
+    chi = ((f"{_ke(co)} {'appears' if len(co) == 1 else 'appear'} only from the neck down: no face, no head in frame, "
+            "nobody else.") if co and _RE_THAN.search(str(s.get("lap") or "")) else
+           (f"{_ke(co)} {'appears' if len(co) == 1 else 'appear'} only as hands and forearms: no face, no head, no "
+            "shoulders in frame, nobody else.") if co else "No face, no head, no person in frame.")
     khoi = [" ".join(x for x in (_hoa(kh), _cham(mat), "Photorealistic film still, 16:9.") if x), _cau_sua(s),
             " ".join(loi), " ".join(x for x in (f"Keep consistent: {giu}." if giu else "", chi) if x),
             str(pd.get("look") or "").strip()]
