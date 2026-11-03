@@ -308,9 +308,10 @@ class Kho:
 
     def ds_so(self, tap: str) -> list[dict]:
         ra = []
-        for r in self.cn.execute(
-                "SELECT ma, loai, ten, chu, pr, tb, yc, tieng FROM so WHERE tap=? "
-                "ORDER BY thu_tu, ma", (tap,)):
+        with self._khoa:        # cùng kết nối: đọc giữa DELETE và INSERT của `luu_so` luồng khác là sổ rỗng
+            hang = self.cn.execute("SELECT ma, loai, ten, chu, pr, tb, yc, tieng FROM so WHERE tap=? "
+                                   "ORDER BY thu_tu, ma", (tap,)).fetchall()
+        for r in hang:
             d = dict(r)
             # Sổ phải biết tài sản nào ĐÃ có ref — để đếm được việc còn dở.
             # Kèm TEM PHIÊN BẢN (mtime): vẽ lại ref thì đường ảnh phải đổi, không
@@ -345,11 +346,14 @@ class Kho:
                          (x.get("tb") or "").strip(),
                          (x.get("yc") or "").strip(),
                          (x.get("tieng") or "").strip(), i))
-        self.cn.execute("DELETE FROM so WHERE tap=?", (tap,))
-        self.cn.executemany(
-            "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, tb, yc, tieng, "
-            "thu_tu) VALUES(?,?,?,?,?,?,?,?,?,?)", sach)
-        self.cn.commit()
+        # Generate All ghi sổ từ nhiều luồng (2 cảnh LLM, 6 luồng ảnh) trên MỘT kết nối: không khoá là
+        # "cannot commit - no transaction is active" (đo 03/11, test chạy chương chập chờn).
+        with self._khoa:
+            self.cn.execute("DELETE FROM so WHERE tap=?", (tap,))
+            self.cn.executemany(
+                "INSERT OR REPLACE INTO so(tap, ma, loai, ten, chu, pr, tb, yc, tieng, "
+                "thu_tu) VALUES(?,?,?,?,?,?,?,?,?,?)", sach)
+            self.cn.commit()
 
     # ------------------------------------------------------------- lưu / đọc
     def doc(self, tap: str, chuong: str) -> dict:
@@ -556,9 +560,10 @@ class Kho:
             return True
 
     def nha(self, tap: str, chuong: str, nguoi: str) -> None:
-        self.cn.execute("DELETE FROM khoa WHERE tap=? AND chuong=? AND nguoi=?",
-                        (tap, chuong, nguoi))
-        self.cn.commit()
+        with self._khoa:
+            self.cn.execute("DELETE FROM khoa WHERE tap=? AND chuong=? AND nguoi=?",
+                            (tap, chuong, nguoi))
+            self.cn.commit()
 
     # ------------------------------------------------------------ dấu vết
     # DẤU đầu vào đã sinh ra kết quả của một bước (prompt / anh / video) — để
