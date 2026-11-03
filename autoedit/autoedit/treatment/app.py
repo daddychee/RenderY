@@ -3094,7 +3094,7 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
                        "sua": s.get("sua") or "", "sua_en": s.get("sua_en") or "",
                        "anh_cu": bool(a and _cu(a).exists()), "video_cu": bool(v and _cu(v).exists()),
                        "nhac": mdrama.nhac_lap(s.get("lap") or "") + mdrama.nhac_qua_vai(s, lt)
-                       + mdrama.nhac_khung(pd, s, lt) + mdrama.nhac_luat1(s, lt, thay)
+                       + mdrama.nhac_khung(pd, s, lt) + mdrama.nhac_luat1(s, lt, thay) + mdrama.nhac_ngoai_khung(s)
                        + (mdrama.nhac_nhay(cuoi, s, tr["pm"]) if k == 0 and tr else [])
                        + ([f"shot người vào: ảnh vẽ trên ảnh dàn cảnh {vao['tr']['en']}, "
                            f"{', '.join(vao['vao'])} đứng ở cửa"]
@@ -4140,8 +4140,8 @@ _LENH_BREAKDOWN_DRAMA = (
     "tả từng shot), câu thoại đánh số [0], [1]… Việc của bạn: BREAKDOWN clip thành các SHOT và đặt "
     "cỡ cảnh · góc máy · chuyển động máy cho từng shot.\n\n"
     "LUẬT:\n"
-    "1. Theo `Hình:`: mỗi \"shot n\" của biên kịch là MỘT shot, đúng thứ tự. `Hình:` không chia shot thì "
-    "mỗi lượt người nói một shot.\n"
+    "1. Theo `Hình:`: mỗi \"shot n\" của biên kịch là MỘT shot, đúng thứ tự (trừ luật 9). `Hình:` không chia "
+    "shot thì mỗi lượt người nói một shot.\n"
     "2. Mỗi shot ít nhất 2,5 giây: clip 6 giây tối đa 2 shot, 10 giây tối đa 4, 15 giây tối đa 6 — "
     "nhiều hơn thì gộp các shot liền nhau.\n"
     "3. `cau`: mảng số câu thoại shot đó nói; shot không ai nói thì []. MỌI câu có mặt đúng một lần, "
@@ -4158,7 +4158,12 @@ _LENH_BREAKDOWN_DRAMA = (
     "7. `ly_do`: một câu vì sao chọn mã đó.\n"
     "8. `co_mat`: tên những người THẤY ĐƯỢC trong khung shot đó, chép đúng tên ở dòng \"trong khung\" của "
     "clip — qua vai thì có cả người ở tiền cảnh; cận một người thì chỉ người đó; người nói từ ngoài "
-    "khung không có tên ở đây.\n\n"
+    "khung không có tên ở đây.\n"
+    "9. Shot CU/ECU chỉ chứa thứ THẤY ĐƯỢC ở cỡ đó (CU: đầu, vai; ECU mặt: chỉ mặt) — ảnh vẽ đủ mọi thứ `t` "
+    "nhắc nên lùi ra. Shot cận/đặc tả mặt của biên kịch mà có hành động của bộ phận NGOÀI khung (tay, vai, "
+    "chân…), hay chuyển nét từ tay/đồ ở tiền cảnh sang mặt: tách thành shot đặc tả tay/đồ riêng và shot cận "
+    "mặt, `t` mỗi shot chỉ tả thứ trong khung của nó, câu thoại ở shot mặt. Tách mà vượt luật 2 thì KHÔNG "
+    "tách: nới cỡ shot đó (MCU, MS) để thấy cả tay.\n\n"
     "BẢNG CỠ (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CO_CHU.items()) + "\n"
     "BẢNG GÓC (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in GOC_CHU.items()) + "\n"
     "BẢNG CHUYỂN ĐỘNG (mã: nghĩa): " + "; ".join(f"{k}: {v}" for k, v in CD_DRAMA.items()) + "\n\n"

@@ -509,10 +509,38 @@ def _co_ai(shot: str, ten: list[str]) -> tuple | None:
     return None
 
 
-def _shot_dau_cuoi(h: str) -> tuple[str, str]:
+def _cac_shot(h: str) -> list[str]:
     m = list(RE_SHOT.finditer(h))
-    doan = [h[a.start():b.start() if b else None] for a, b in zip(m, m[1:] + [None])] if m else [h]
+    return [h[a.start():b.start() if b else None] for a, b in zip(m, m[1:] + [None])] if m else [h]
+
+
+def _shot_dau_cuoi(h: str) -> tuple[str, str]:
+    doan = _cac_shot(h)
     return doan[0], doan[-1]
+
+
+# Cận chỉ thấy đầu, vai (mục 3 điều 11). "bước chân" là tiếng; "chân ly", "khăn tay", "mặt bàn" là đồ.
+RE_NGOAI = re.compile(r"(?<!\w)(?:tay|ngón|vai|đùi|(?<!bước )chân(?! (?:ly|bàn|ghế|đèn)))(?!\w)", re.I)
+# Cận thấy vai; "siết ngón" là cử chỉ ba nhịp (mục 8): đo DM002+DM003 ra trung 14/37, gần cận không nhắc 213/745.
+RE_NGOAI_CAN = re.compile(r"(?<!\w)(?<!ngón )(?<!khăn )(?:tay|đùi|(?<!bước )chân(?! (?:ly|bàn|ghế|đèn)))(?!\w)", re.I)
+# Chỗ trên mặt: tay chạm tới đó (che miệng, lau nước mắt) thì cận thấy.
+RE_MAT = re.compile(r"(?<!\w)(?:mắt|môi|miệng|má|mũi|cằm|trán|tai|tóc|lau|mặt(?! (?:bàn|quầy|sàn|đất|nước|kính|gỗ|bục)))(?!\w)",
+                    re.I)
+
+
+def _ngoai_khung(shot: str, ten: list[str]) -> str:
+    """Bộ phận ngoài khung ("tay", "vai"…) mà một shot cận, đặc tả MẶT ghi hành động; không có: "". Cận: tay
+    lên tới mặt (che miệng, áp điện thoại lên tai) thì thấy được, không tính."""
+    dau = re.split(r"[,.:;]", shot, maxsplit=1)[0]
+    co, dac = RE_CO.search(dau), RE_DAC_TA.search(dau)
+    if not (dac or (co and co.group(1).lower() == "cận")) or RE_NGOAI.search(dau):
+        return ""
+    if not RE_MAT.search(dau) and not any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", dau) for n in ten):
+        return ""
+    for c in re.split(r"[,.:;]", shot[len(dau):]):
+        if (m := (RE_NGOAI if dac else RE_NGOAI_CAN).search(c)) and (dac or not RE_MAT.search(c)):
+            return m.group(0)
+    return ""
 
 
 def kiem_hai_luat(vb: str) -> list[str]:
@@ -545,6 +573,10 @@ def kiem_hai_luat(vb: str) -> list[str]:
                 if tr and (x := _co_ai(_shot_dau_cuoi(tr["hinh"] or "")[1], co)) and x == _co_ai(_shot_dau_cuoi(h)[0], co):
                     nhac.append(f"{ma}: shot đầu cùng cỡ, cùng người với shot cuối {tr['ma']} ({x[0]} {', '.join(sorted(x[1]))}) — "
                                 "nhảy hình: đổi cỡ hay đổi người")
+                for k, d in enumerate(_cac_shot(h), 1):
+                    if w := _ngoai_khung(d, co):
+                        nhac.append(f"{ma}: shot {k} có '{w}' ngoài khung — cận chỉ thấy đầu, vai: hành động đó ghi ở shot "
+                                    "trung riêng, hay đổi cả shot thành trung (mục 3 điều 11)")
                 for lt in c["thoai"]:
                     if lt["ten"] in co and lt["ten"] not in (c["khung"] or []) and not RE_VANG.search(lt["cach"]):
                         nhac.append(f"dòng {lt['dong']} · {c['ma']}: {lt['ten']} có mặt mà không có ở Khung: câu sẽ phát trên mặt "

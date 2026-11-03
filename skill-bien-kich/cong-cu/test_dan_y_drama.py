@@ -321,6 +321,34 @@ class Phan(unittest.TestCase):
             self.assertFalse(any("nhảy hình" in x for x in dy.kiem_hai_luat(vb.replace(cu, moi, 1))), moi)
         self.assertTrue(any("nhảy hình" in x for x in dy.kiem_hai_luat(vb.replace("shot 1 cận Nia,", "shot 1 góc thấp cận Nia,", 1))))
 
+    def test_can_co_hanh_dong_ngoai_khung(self):
+        # haint 03/11: cận, đặc tả mặt mà có hành động tay, vai, chân ngoài khung -> ảnh khung đầu lùi ra trung cảnh.
+        grok = CLIP.replace("Seedance 10s", "Grok 15s")
+        dau = ("# Phần 1 · A · 1 phút\n\n## C001 · Shop · sáng · N01\nCó mặt: Nia, Damon\n"
+               "Mở cảnh: Nia trái · Damon phải\nMáy dàn cảnh: nhìn từ cửa vào quầy\n\n")
+        vb = dau + grok.format(ma="P001", khung="Nia, Damon", hinh="shot 1 toàn theo hướng máy dàn cảnh, máy đứng yên, một cú "
+                               "liền: Nia đặt hộp lên quầy. Shot 2 cận Nia, trong khung chỉ có Nia, máy đứng yên: hai tay chống "
+                               "mép quầy, mắt nhìn Damon bên phải khung.")
+        nhac = [x for x in dy.kiem_hai_luat(vb) if "cận chỉ thấy đầu, vai" in x]
+        self.assertEqual(len(nhac), 1, nhac)
+        for chu in ("P001", "shot 2", "'tay'"):
+            self.assertIn(chu, nhac[0])
+        for cu, moi in (("hai tay chống mép quầy", "môi mím chặt"),
+                        ("hai tay chống mép quầy", "đưa tay trái lên che miệng"),        # tay lên tới mặt: thấy ở cận
+                        ("Shot 2 cận Nia", "Shot 2 trung Nia"),                         # trung thấy tay
+                        ("Shot 2 cận Nia", "Shot 2 cận bàn tay Nia"),                   # cận tay, không phải mặt
+                        ("hai tay chống mép quầy", "lắng nghe tiếng bước chân ngoài cửa"),
+                        ("hai tay chống mép quầy", "vai co lại"),                       # cận thấy vai
+                        ("hai tay chống mép quầy", "siết ngón tay quanh quai túi"),     # cử chỉ ba nhịp (mục 8): đo gần nền
+                        ("hai tay chống mép quầy", "xoay chân ly nước"),                # DM003 P102: chân ly là đồ
+                        ("hai tay chống mép quầy", "lấy mu bàn tay lau đi"),            # DM003 P113: lau nước mắt, tay ở mặt
+                        ("hai tay chống mép quầy", "lấy khăn tay lau cặp kính")):
+            self.assertFalse(any("cận chỉ thấy đầu, vai" in x for x in dy.kiem_hai_luat(vb.replace(cu, moi, 1))), moi)
+        for moi in ("Shot 2 cực cận Nia", "Shot 2 góc thấp cận Nia"):
+            self.assertTrue(any("cận chỉ thấy đầu, vai" in x for x in dy.kiem_hai_luat(vb.replace("Shot 2 cận Nia", moi, 1))), moi)
+        dt = vb.replace("Shot 2 cận Nia", "Shot 2 cực cận Nia", 1).replace("hai tay chống mép quầy", "siết ngón tay quanh quai túi")
+        self.assertTrue(any("'ngón'" in x for x in dy.kiem_hai_luat(dt)), "cực cận mặt: ngón cũng ngoài khung")
+
     def test_establishing(self):
         # User chốt 30/10: ngoại cảnh lần đầu mỗi cặp nơi–buổi. Đo thật trên treatment: `Khung:` để trống chạy được.
         est = ("# Phần 1 · A · 1 phút\n\n## C001 · Mặt tiền Shop · trưa · N01\nCó mặt:\nMáy dàn cảnh: bên kia phố nhìn thẳng mặt tiền\n"
