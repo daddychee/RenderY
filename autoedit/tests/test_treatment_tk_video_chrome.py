@@ -121,3 +121,23 @@ def test_tick_tai_khoan_chuong_gui_thang_khong_hoi_nha(chrome, may):
     pg.wait_for_selector(HOP)
     assert len(gui) == 1
     assert not loi, loi
+
+
+def test_hang_tai_khoan_khong_bop_thanh_tien_do_man_hep(chrome, may):
+    """Prod 03/11 15:30: ô tick nằm TRONG thanh công cụ (không xuống dòng) thì màn 1280–1366 px bóp thanh
+    tiến độ cả tập `#vetTap` còn rộng 0, các ô xếp dọc cao 6.220 px, đẩy Storyboard xuống tít dưới —
+    3/4 máy của team "không hiện giao diện". Ô tick phải ở hàng riêng."""
+    g = may["goi"]
+    for d in ("breakdown", "prompt-drama"):
+        g(f"/api/tap/D1/C1/dong/0/{d}", "POST")
+    loi = []
+    pg = _mo(chrome.new_context(viewport={"width": 1280, "height": 800}), may, loi)
+    pg.click("#mSb")
+    pg.evaluate("doiMan_chuong('C1')")
+    assert _cho(lambda: pg.locator("#tkVideo label").count() == 4, 5, pg=pg)
+    assert pg.evaluate("document.getElementById('vetTap').getBoundingClientRect().width") > 200
+    hop = pg.evaluate("document.querySelector('#manSb .vet-hop').getBoundingClientRect().height")
+    assert hop < 120, hop
+    tk = pg.evaluate("document.getElementById('tkVideo').getBoundingClientRect().top")
+    assert tk < 250, "hàng tài khoản ngay dưới thanh công cụ"
+    assert not loi, loi
