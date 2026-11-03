@@ -605,6 +605,35 @@ def nhac_nhay(cuoi: dict | None, dau: dict, ma_truoc: str) -> list[str]:
             "đổi cỡ shot này hoặc shot đó"]
 
 
+# "bước chân" là tiếng, "mặt bàn" là đồ — không phải bộ phận người.
+_RE_NGOAI = re.compile(r"(?<!\w)(?:tay|ngón|vai|đùi|(?<!bước )chân)(?!\w)", re.I)
+_RE_MAT = re.compile(r"(?<!\w)(?:mắt|môi|mặt(?! (?:bàn|quầy|sàn|đất|nước|kính|gỗ|bục|trong|ngoài|trước|sau)))(?!\w)", re.I)
+_RE_NET = re.compile(r"(?:chuyển|dồn|dịch) nét|nét (?:rồi )?chuyển", re.I)     # "dịch nét": LLM Breakdown viết
+
+
+def nhac_ngoai_khung(s: dict) -> list[str]:
+    """NHẮC (không chặn — luật cứng 5) shot ECU mặt có thứ ngoài khung: chuyển nét từ tay/đồ ở tiền
+    cảnh sang mặt, hay mặt kèm hành động tay, vai, chân — ảnh khung đầu vẽ đủ thứ chữ nhắc nên lùi
+    ra (haint 03/11: ECU mắt Nia có tay -> ảnh từ bụng đổ lên). Đo DM002+DM003 03/11: chuyển nét 31
+    shot, ảnh ra trung cảnh 28; mặt + tay 4. CU có tay rộng 94/177, không tay 182/660: không nhắc CU."""
+    if s.get("co") != "ECU":
+        return []
+    t = str(s.get("t") or "")
+
+    def la_mat(x):
+        return _RE_MAT.search(x) or any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", x) for n in s.get("co_mat") or [] if n)
+
+    if n := _RE_NET.search(t):
+        sau = re.split(r"[,.;:]", t[n.end():], maxsplit=1)[0]
+        return (["đặc tả chuyển nét từ tay/đồ ở tiền cảnh sang mặt: ảnh ra trung cảnh — tách thành shot đặc tả "
+                 "tay/đồ và shot cận mặt, hoặc nới cỡ (MCU, MS)"] if la_mat(sau) and not _RE_NGOAI.search(sau) else [])
+    dau = re.split(r"[,.;:]", t, maxsplit=1)[0]
+    if la_mat(dau) and not _RE_NGOAI.search(dau) and (m := _RE_NGOAI.search(t[len(dau):])):
+        return [f"đặc tả mặt mà có '{m.group(0)}' ngoài khung: ảnh lùi ra cho thấy cả {m.group(0)} — tách hành "
+                "động đó ra shot đặc tả riêng, hoặc nới cỡ (CU, MCU)"]
+    return []
+
+
 def nhac_luat1(s: dict, lt: list[dict], thay) -> list[str]:
     """NHẮC (không chặn — luật cứng 5) luật 1 user chốt 30/10: "voice của ai thì là hình của
     người đó". Shot có câu: một người nói, khung chỉ có người đó, hay qua vai người nghe (hai

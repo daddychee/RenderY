@@ -238,6 +238,22 @@ def test_the_shot_nhac_nhay_hinh_voi_shot_cuoi_clip_truoc(tmp_path):
     assert not any("nhảy hình" in n for x in c.get(f"/api/tap/D1/C1/canh/{p1['id']}/shot").json() for n in x["nhac"])
 
 
+def test_the_shot_nhac_dac_ta_mat_co_tay(tmp_path):
+    """haint 03/11: ECU mặt có cả hành động tay -> thẻ shot đó nhắc tách hay nới cỡ; shot khác không."""
+    kho, c = _san(tmp_path)
+    p1 = _clip(kho)
+
+    def ecu(x):
+        sh = json.loads(x["sh"])
+        sh[1].update(co="ECU", co_mat=["Tasha"], t="Cực cận Tasha, tay trái siết mép giường, mắt ngấn nước.")
+        x["sh"] = json.dumps(sh, ensure_ascii=False)
+
+    kho.sua_canh("D1", "C1", p1["id"], ecu, "test")
+    ds = c.get(f"/api/tap/D1/C1/canh/{p1['id']}/shot").json()
+    assert any("tách" in n and "'tay'" in n for n in ds[1]["nhac"]), ds[1]["nhac"]
+    assert not any("tách" in n for k, x in enumerate(ds) if k != 1 for n in x["nhac"])
+
+
 def test_mot_shot_hai_nguoi_khong_qua_vai_gui_nguyen_anh_dan_canh(tmp_path):
     va = VeAnhGia()
     kho, c = _san(tmp_path, va=va)

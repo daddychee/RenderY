@@ -225,6 +225,27 @@ def test_nhac_nhay_hinh_cung_co_cung_nguoi():
     assert drama.nhac_nhay({"co": "WS", "co_mat": []}, {"co": "WS", "co_mat": []}, "P001") == []   # ngoại cảnh không người
 
 
+def test_nhac_ngoai_khung_dac_ta_mat_co_tay():
+    """haint 03/11: ECU mắt Nia mà nội dung có hành động tay -> ảnh từ bụng đổ lên. Đo DM002+DM003: ECU chuyển nét
+    từ tay/đồ sang mặt ra trung cảnh 28/31; CU có tay chỉ hơi rộng hơn CU không tay (94/177 so với 182/660) — không nhắc CU."""
+    b = {"co": "ECU", "co_mat": ["Nia"], "t": "Đặc tả tay phải Nia siết chặt khăn ăn trên đùi, tiền cảnh rõ nét rồi "
+                                              "chuyển nét lên mặt Nia."}
+    a = {"co": "ECU", "co_mat": ["Nia"], "t": "Cực cận Nia, tay phải chống vào tường, tay trái bịt miệng, thở dốc."}
+    for s in (b, a, dict(b, t="Đặc tả hộp giấy nâu sắc nét ở tiền cảnh, nét chuyển sang Nia bên trái khung."),
+              dict(b, t="Đặc tả tay phải Nia siết chặt khăn ăn trên đùi, nét rõ ở tiền cảnh rồi dịch nét sang mặt cô.")):
+        n = drama.nhac_ngoai_khung(s)
+        assert len(n) == 1 and "tách" in n[0] and "nới cỡ" in n[0], (s["t"], n)
+    assert drama.nhac_ngoai_khung(dict(a, co="CU")) == [] and drama.nhac_ngoai_khung(dict(b, co="MS")) == []
+    for t in ("Cực cận mắt Nia ngấn nước, môi mím lại.",
+              "Đặc tả bàn tay phải Nia đặt mấy tờ tiền nhàu xuống khăn bàn trắng.",              # đặc tả tay: đúng cỡ
+              "Đặc tả bàn tay phải Julian chạm nhẹ lên má trái Nia.",
+              "Đặc tả tập giấy phạt trên mặt bàn nhựa, tay phải Nia với tới nhận bút.",           # 'mặt bàn' không phải mặt
+              "Cực cận gương mặt Nia, cô nín thở, lắng nghe tiếng bước chân ngoài hành lang.",    # tiếng chân
+              "Đặc tả tờ đơn rõ nét ở tiền cảnh, rồi chuyển nét sang bàn tay phải Nia lật trang.",
+              'Đặc tả bàn tay Nia nhấc thẻ, rồi chuyển nét sang bảng tên "NIA" trên ngực trái cô.', ""):
+        assert drama.nhac_ngoai_khung({"co": "ECU", "co_mat": ["Nia"], "t": t}) == [], t
+
+
 # ───────────────────────────── prompt ảnh ─────────────────────────────────────
 def test_anh_qua_vai_sat_ban_do():
     """P031 shot 2 (`ghep_dm4.py`): câu Image 1 khác — bản đo viết tay thêm
@@ -405,6 +426,8 @@ def test_lenh_llm_khop_hop_dong():
         assert k in dich.LENH_DRAMA_CANH
     assert "thứ sau lưng" not in dich.LENH_DRAMA_CLIP.split("`lap`")[1].split("KHÔNG tả phông")[0]
     assert "KHÔNG tả phông" in dich.LENH_DRAMA_CLIP
+    # haint 03/11: `lap` của ECU mắt nhắc tay là ảnh lùi ra tới bụng
+    assert "không nhắc tay" in dich.LENH_DRAMA_CLIP.split("`lap`")[1].split("`cach`")[0]
 
 
 def test_khung_mac_dinh_hai_nguoi_giu_hop_da_do():

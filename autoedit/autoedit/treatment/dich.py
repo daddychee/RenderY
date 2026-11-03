@@ -325,8 +325,9 @@ thể. Không cần thì "".
 - `shots`: ĐÚNG bằng số SHOT ĐÃ CHỐT, cùng thứ tự, mỗi shot:
   · `lap`: tiếng Anh, CÁI GÌ LẤP KHUNG theo đúng cỡ và góc đã chốt — ai, ở đâu \
 trong khung (trái/phải theo trục), thấy tới đâu (cận thì mặt tới đâu, qua vai \
-thì vai ai ở tiền cảnh). KHÔNG tả phông, thứ sau lưng hay đồ đạc phía sau (không \
-chữ "behind"): phông lấy từ ảnh dàn cảnh. Hệ thống ghép thành "{cỡ}, {góc}: \
+thì vai ai ở tiền cảnh). Cận, đặc tả (CU, ECU) chỉ tả thứ trong khung ở cỡ đó: \
+không nhắc tay, vai, thân ngoài khung (nhắc tay là ảnh lùi ra tới bụng). KHÔNG \
+tả phông, thứ sau lưng hay đồ đạc phía sau (không chữ "behind"): phông lấy từ ảnh dàn cảnh. Hệ thống ghép thành "{cỡ}, {góc}: \
 {lap}." Không lặp lại tên cỡ/góc/máy. CHỈ nhắc người TRONG KHUNG. Không dolly \
 zoom, không vòng 360.
   · `cach`: DELIVERY tiếng Anh — nhịp, ngắt, nhấn, chỗ giọng vỡ (theo cách nói \

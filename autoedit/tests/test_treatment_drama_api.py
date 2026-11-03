@@ -365,6 +365,15 @@ def test_lenh_breakdown_drama_may_doi_co_thi_ma_la_co_luc_bat_dau():
     assert "đẩy vào tới cận → MCU + push_in" in _LENH_BREAKDOWN_DRAMA
 
 
+def test_lenh_breakdown_drama_tach_hanh_dong_ngoai_khung_cua_can():
+    """haint 03/11: ECU mắt có cả hành động tay -> ảnh từ bụng đổ lên. Luật 1 (một shot biên kịch là
+    một shot) có ngoại lệ: tách đặc tả tay/đồ; không đủ giây (luật 2) thì nới cỡ."""
+    assert "(trừ luật 9)" in _LENH_BREAKDOWN_DRAMA.split("\n2.")[0]
+    luat9 = _LENH_BREAKDOWN_DRAMA.split("\n9. ")[1].split("\n")[0]
+    for chu in ("NGOÀI khung", "chuyển nét", "tách", "luật 2", "nới cỡ"):
+        assert chu in luat9, chu
+
+
 def test_viet_prompt_chua_breakdown_thi_chan_khong_goi_LLM(tmp_path):
     kt = KyThuatGia()
     kho, c = _bo(tmp_path, kt=kt)
