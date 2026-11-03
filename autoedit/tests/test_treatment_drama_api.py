@@ -623,6 +623,23 @@ def test_ref_nhan_vat_khuon_2_can_roi_toan_than_roi_ghep_tam_4_3(tmp_path):
     assert abs(tam.width / tam.height - 4 / 3) < 0.01
 
 
+def test_anh_can_mat_dan_nguoi_thuong_khong_giong_nguoi_noi_tieng(tmp_path):
+    """haint 03/11: nhân vật vẽ ra giống người nổi tiếng. Câu dặn vào ảnh CẬN (toàn thân sửa
+    từ ảnh cận nên mặt theo). Sổ cũ lưu `pr` từ trước khi có câu — vẽ lại vẫn có, đúng một lần."""
+    from autoedit.treatment import tai_san
+    assert "not resemble any actor, singer, model, athlete or other public figure" in tai_san.NGUOI_THUONG
+    va = VeAnhGia()
+    kho, c = _bo(tmp_path, va=va)
+    _tap_drama(c)
+    kho.luu_so("D1", [dict(x, pr="OLD CLOSE-UP PROMPT.") if x["ma"] == "nv02" else x for x in kho.ds_so("D1")])
+    assert c.post("/api/tap/D1/so/nv01/ref-sinh").status_code == 200
+    assert c.post("/api/tap/D1/so/nv02/ref-sinh").status_code == 200
+    moi, toan, cu, _ = va.goi
+    assert moi["prompt"].count(tai_san.NGUOI_THUONG) == 1 and "Beautiful Black woman about 28" in moi["prompt"]
+    assert cu["prompt"] == "OLD CLOSE-UP PROMPT. " + tai_san.NGUOI_THUONG
+    assert tai_san.NGUOI_THUONG not in toan["prompt"], "toàn thân giữ mặt của ảnh cận, không dặn lại"
+
+
 def test_ref_noi_chon_16_9_do_vat_1_1_nen_trang(tmp_path):
     va = VeAnhGia()
     kho, c = _bo(tmp_path, va=va)

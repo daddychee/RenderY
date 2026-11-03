@@ -14,10 +14,10 @@ kiem · LỖI: thiếu mục, cột của khuôn; `Trả tựa ở` trỏ mốc 
   dòng `dẫn sai` gặt trong phần (phim dưới 10 phút miễn hai luật này); dòng `dẫn sai` không ghi "Khán giả tưởng …; thật …"; mốc không thuộc
   phần nào; Gieo và gặt: loại lạ, Gieo ở không bắt đầu bằng
   mã mốc, Gặt ở sai dạng, gặt trước gieo, mã mốc không có ở Bảng mốc, `vết` thiếu trái/phải (hay cả người, hai bên…) hay thiếu `tới Nxx`; LỖI Cụm cố định (như `phan`).
-  NHẮC: dàn ý không kể Cụm cố định quá khoảng 12.000 token; Việc quá 2 câu; cụm có chữ già, xấu da.
+  NHẮC: dàn ý không kể Cụm cố định quá khoảng 12.000 token; Việc quá 2 câu; cụm có chữ già, xấu da, dưới 3 nét mặt riêng, so với người thật.
 phan · LỖI: thiếu mục Nhân vật, Cụm cố định; thiếu dòng NV, dòng NV thiếu cụm hay thiếu tuổi; tên ở `Có mặt:`/`Khung:` không có ở Cụm cố định;
   dòng G có gieo hay gặt trong mốc của phần mà thiếu ở dòng `- Gieo, gặt:` của `## Ghi chú nối`, hay trỏ clip không có trong phần; mã G lạ.
-  NHẮC: cụm có chữ già, xấu da; phần đầu file khác dàn ý; `Hình:` nhắc vết (vết, bầm, sẹo, băng, máu, rách, sưng) mà câu đó không có trái, phải;
+  NHẮC: cụm có chữ già, xấu da, dưới 3 nét mặt riêng, so với người thật; phần đầu file khác dàn ý; `Hình:` nhắc vết (vết, bầm, sẹo, băng, máu, rách, sưng) mà câu đó không có trái, phải;
   % giây có lời của phần từ 20 clip (ước: từ / 2,5 từ mỗi giây, không quá giây clip) ngoài 60–80%; cảnh từ 3 clip không clip nào thưa lời (tối đa 1,5 từ
   mỗi giây: nhịp diễn); clip đầu cảnh không có shot định vị (rộng, toàn).
   Kịch bản Grok, hai luật (grok-drama.md mục 0): cảnh thiếu `Mở cảnh:`/`Máy dàn cảnh:` (cảnh không người, tức establishing, chỉ cần
@@ -44,6 +44,15 @@ KY_TU_MOT_TOKEN = 1.7                        # như muc_luc.py (không import đ
 COT_NV_DOC = ("Tên", "Vai", "Giọng")         # `doc` bỏ cột ngoại hình
 RE_TUOI = re.compile(r"\b\d{1,2}\b|\b(teen\w*|twenties|thirties|forties|fifties|sixties|seventies|eighties|nineties)\b", re.I)
 RE_XAU = re.compile(r"eye ?bags|under-eye|dark circles|wrinkle|uneven skin|blemish|acne|pockmark|sagging|greying|graying", re.I)
+# Nét mặt riêng, mỗi mẫu một loại (haint 03/11: cụm "đẹp" chung chung thì tấm nhân vật ra mặt giống người nổi tiếng).
+NET_MAT = tuple(re.compile(p, re.I) for p in (
+    r"\b(?:oval|round|square|long|narrow|wide|broad|heart-shaped|diamond-shaped|angular)\b[\w\s-]{0,12}\bface\b",
+    r"\bnose\b", r"\b(?:eye)?brows?\b", r"\bjaw\w*|\bchin\b", r"\bcheekbones?\b", r"\blips?\b", r"\bforehead\b",
+    r"\b(?:wide|close|deep)[- ]?set\b|\bhooded\b|\balmond-shaped\b|\b(?:up|down)turned eyes\b",
+    r"\bmoles?\b|\bfreckle\w*|\bbeauty mark\b|\bbirthmark\b|\bdimples?\b|\bgap\b"))
+NET_TOI_THIEU = 3
+RE_NGUOI_THAT = re.compile(r"\bresembl\w*|\blook-?alike\b|\blooks? like\b|\bcelebrit\w*|\bfamous\b|"
+                           r"\b(?:actor|actress|singer|rapper|supermodel|athlete)\b", re.I)
 RE_MOC = re.compile(r"\bN(\d{2,3})\b")
 RE_KHOANG = re.compile(r"^(\d+(?:[,.]\d+)?)\s*(?:[–-]\s*(\d+(?:[,.]\d+)?))?$")
 RE_DO_DAI = re.compile(r"Độ dài:\s*(\d+(?:[,.]\d+)?)\s*phút", re.I)
@@ -173,6 +182,11 @@ def kiem_cum(dau: list[str], vb: str | None) -> tuple[list[str], list[str]]:
             loi.append(f"{h['ma']} {h['ten']}: cụm thiếu tuổi (about 24, early thirties…)")
         if x := RE_XAU.search(h["cum"]):
             nhac.append(f"{h['ma']} {h['ten']}: cụm có '{x.group(0)}'; cặp chính drama da đen phải trẻ, đẹp (kẻ ác thì giữ được)")
+        if (n := sum(1 for p in NET_MAT if p.search(h["cum"]))) < NET_TOI_THIEU:
+            nhac.append(f"{h['ma']} {h['ten']}: cụm có {n} nét mặt riêng, cần 3–4 (dáng mặt, mũi, lông mày, hàm hay cằm, khoảng cách "
+                        "mắt, nốt ruồi hay tàn nhang): mặt đẹp chung chung thì tấm nhân vật ra giống người nổi tiếng")
+        if x := RE_NGUOI_THAT.search(h["cum"]):
+            nhac.append(f"{h['ma']} {h['ten']}: cụm có '{x.group(0)}'; không ghi tên hay so với người thật (diễn viên, ca sĩ, người mẫu)")
         if ten_ma.setdefault(h["ten"], h["ma"]) != h["ma"]:
             loi.append(f"{h['ten']}: hai mã {ten_ma[h['ten']]} và {h['ma']} (đổi đồ giữa phim thì cùng mã, Tên ghi ', dạng 2')")
     if vb is not None and hang:

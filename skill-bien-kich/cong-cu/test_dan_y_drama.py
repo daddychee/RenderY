@@ -43,8 +43,8 @@ Bà là mẹ tỷ phú; khán giả biết ở N01; vỡ ở N09.
 ## Cụm cố định
 | Mã | Tên | Cụm tiếng Anh (nguyên văn) | Ghi chú |
 |---|---|---|---|
-| NV01 | Nia (she) | Beautiful Black woman about 24, CUMTIENGANH | |
-| NV02 | Damon (he) | Handsome Black man in his early thirties, grey suit | |
+| NV01 | Nia (she) | Beautiful Black woman about 24, a long oval face, a broad nose, thick straight brows, CUMTIENGANH | |
+| NV02 | Damon (he) | Handsome Black man in his early thirties, a square jaw, wide-set eyes, a mole under his left eye, grey suit | |
 
 ## Kẻ ác từng vòng
 | Kẻ ác | Vào ở | Bị xử ở | Bị xử thế nào (tăng bậc) |
@@ -159,6 +159,11 @@ class KiemDanY(unittest.TestCase):
     def test_cum_co_dinh(self):
         self.co(doi(DAN_Y, "Beautiful Black woman about 24, ", "Beautiful Black woman, "), "NV01 Nia: cụm thiếu tuổi")
         self.co(doi(DAN_Y, "grey suit", "grey suit, dark circles"), "dark circles", nhac=True)
+
+    def test_cum_net_mat_rieng(self):
+        """haint 03/11: cụm "đẹp" chung chung thì tấm nhân vật ra mặt giống người nổi tiếng."""
+        self.co(doi(DAN_Y, "a mole under his left eye, ", ""), "NV02 Damon: cụm có 2 nét mặt riêng", nhac=True)
+        self.co(doi(DAN_Y, "grey suit", "grey suit, resembles a young movie star"), "'resembles'", nhac=True)
 
     def test_nhac(self):
         self.co(doi(DAN_Y, "Việc mốc 3.", 'Một. Hai: "A. B." Ba!'), "N03: Việc 3 câu", nhac=True)

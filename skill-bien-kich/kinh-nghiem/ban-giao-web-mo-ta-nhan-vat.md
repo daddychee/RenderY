@@ -5,6 +5,7 @@ Bối cảnh: phim the-shop-girl (drama_thoai). Web tả ảnh cặp chính sai 
 ## Việc 1 (cần làm trước khi gen lại ảnh the-shop-girl): bỏ khuyết điểm cho cặp chính drama
 - `app/bang_tai_san.py` dòng ~316, prompt bảng tài sản: "`mo_ta` … người có 2 đến 3 khuyết điểm cụ thể". Đây là nguồn của "under-eye bags, uneven skin".
 - Đề xuất: phim drama (`loai_phim.la_drama`) thì nhân vật có cụm mở bằng `Beautiful`/`Handsome` (hay cặp chính, người khán giả thương) không thêm khuyết điểm về da, mắt, tuổi. Khuyết điểm nhỏ để ảnh trông như người thật (nếu cần) chỉ ở tóc con, nếp áo. Kẻ ác giữ luật cũ.
+- Bổ sung 03/11 (haint, RenderY: nhân vật vẽ ra giống người nổi tiếng): không khuyết điểm vẫn giữ, nhưng mỗi cụm có 3–4 nét mặt riêng (dáng mặt, mũi, lông mày, hàm hay cằm, khoảng cách mắt, nốt ruồi hay tàn nhang: dấu tự nhiên, không phải khuyết điểm), không so với người thật. Luật ở `kien-thuc/drama-thoai.md` mục 1.
 - Tra xem luật này có nguồn ở file nguyên tắc (`L2-phim-nhan-vat.md` mục "2. Bắt buộc có") không; nếu có thì sửa ở đó cho drama.
 
 ## Việc 2 (nên làm cùng): `mo_ta` và `nhan_dang` theo cụm của kịch bản

@@ -32,8 +32,12 @@ DAI = "FICTIONAL CHARACTER SHEET - AI GENERATED - NOT A REAL PERSON"
 NEN_XAM = ("Plain mid-grey studio background, soft even light, no harsh shadows. Shot on a 50 mm lens at f/2.8, fine "
            "digital noise in the shadows, natural colour. No text, no labels, no watermark, no logo, not a cartoon, "
            "not CGI, not glossy, no beauty retouching.")
+# haint báo 03/11: nhân vật vẽ ra giống người nổi tiếng (mô tả "đẹp" chung chung kéo model về mặt quen).
+# Chỉ vào ảnh CẬN: toàn thân sửa từ ảnh cận nên mặt theo.
+NGUOI_THUONG = ("The person is a private, ordinary individual, not a celebrity, with an original face of their own "
+                "that does not resemble any actor, singer, model, athlete or other public figure.")
 CAN_MAT = ("Realistic photograph, a very large sharp close-up portrait of the face, front view turned slightly to one "
-           "side, neutral expression. The person: {mo_ta} " + NEN_XAM)
+           "side, neutral expression. The person: {mo_ta} " + NGUOI_THUONG + " " + NEN_XAM)
 TOAN_THAN = ("Same person as in the image: the same face, hair, skin and blemishes. Realistic full-length photograph of "
              "this person standing straight facing the camera, arms relaxed at the sides, the whole body from the top "
              "of the head to the feet in frame, the face clearly visible. The person: {mo_ta} " + NEN_XAM)

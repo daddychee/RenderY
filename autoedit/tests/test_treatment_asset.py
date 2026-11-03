@@ -166,6 +166,18 @@ def test_lenh_ref_doi_NHIEU_GOC_cho_nhan_vat_va_dao_cu():
     assert i >= 0
 
 
+def test_lenh_asset_2_doi_NET_MAT_RIENG_khong_giong_nguoi_that():
+    """haint 03/11: mô tả "đẹp" chung chung thì model vẽ ra mặt giống người nổi tiếng —
+    LLM viết mô tả nhân vật phải ghi 3–4 nét mặt riêng và không so với người thật."""
+    from autoedit.treatment.dich import _LENH_ASSET_2
+
+    t = _LENH_ASSET_2.lower()
+    assert "3–4 nét mặt riêng" in t
+    for tu in ("mũi", "lông mày", "hàm", "khoảng cách mắt", "nốt ruồi"):
+        assert tu in t, f"thiếu nét: {tu}"
+    assert "người thật" in t and "resembles" in t
+
+
 def test_boi_canh_KHONG_bi_ep_phong_trang():
     """Nền trắng cho một bối cảnh là vô nghĩa — bối cảnh cần khung tả không
     gian, không phải bản cắt rời."""
