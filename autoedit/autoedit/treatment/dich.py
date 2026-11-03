@@ -195,7 +195,8 @@ Trả về JSON: {"chu": "...", "pr": "..."}"""
 # Tập MỚI (khuôn "2", user chốt 27/10: luật tài sản Padoma cho cả narration lẫn
 # drama). LLM chỉ viết MÔ TẢ; prompt ảnh là khuôn câu cố định `tai_san.py` ghép.
 # Luật mô tả lấy từ Padoma `skill bien kich/kien-thuc/drama-thoai.md` mục 1
-# (cụm nhân vật) và `grok-phim.md` mục 2 (không chữ làm người nhỏ đi).
+# (cụm nhân vật) và `grok-phim.md` mục 2 (không chữ làm người nhỏ đi). Nét mặt riêng:
+# haint báo 03/11 nhân vật vẽ ra giống người nổi tiếng (cùng luật skill `drama-thoai.md` mục 1).
 _LENH_ASSET_2 = """Bạn viết HỒ SƠ NHẬN DẠNG cho một tài sản. Ảnh tham chiếu sẽ vẽ \
 theo khuôn câu cố định của hệ thống, chỉ chêm đoạn `chu` của bạn vào.
 
@@ -209,7 +210,11 @@ his early thirties"), giới, dáng, da, nét mặt, tóc (màu, kiểu), quần
 phụ kiện (mũ, kính, túi), dấu riêng ghi trái/phải CỦA CHÍNH nhân vật ("a small \
 scar on the left side of his chin"). Không tên riêng, không cảm xúc, không bối \
 cảnh. KHÔNG chữ làm người nhỏ đi (small, tiny, petite, frail, slight, \
-diminutive, little old lady), trừ trẻ em.
+diminutive, little old lady), trừ trẻ em. Nét mặt: 3–4 nét mặt riêng, cụ thể \
+(dáng mặt, dáng và độ rộng mũi, dáng lông mày, đường hàm hay cằm, khoảng cách mắt, \
+một dấu tự nhiên như nốt ruồi, tàn nhang) — vai đẹp vẫn đẹp, nhưng mặt "đẹp" chung \
+chung thì ảnh vẽ ra giống người nổi tiếng. Không so với người thật \
+("looks like", "resembles", tên diễn viên, ca sĩ, người mẫu, vận động viên).
   · đồ vật (`dao_cu`): 1–2 câu: hình dáng, cỡ so với bàn tay, chất liệu, màu, vết \
 mòn. Chữ in trên vật ghi trong ngoặc kép đúng từng chữ.
   · bối cảnh (`boi_canh`): 2–3 câu tả nơi chốn KHÔNG CÓ NGƯỜI: bố cục, tường, sàn, \

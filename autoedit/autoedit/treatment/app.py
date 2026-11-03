@@ -913,6 +913,8 @@ def tao_app(kho: Kho, dich=None, goi_y=None, ky_thuat=None,
             raise HTTPException(400, "Asset này chưa có mô tả tiếng Anh — bấm “Sinh Asset” "
                                      "trước, ảnh vẽ theo mô tả đó.")
         pr = (muc.get("pr") or "").strip() or mtai_san.pr_mau(loai, chu)
+        if loai == "nhan_vat" and mtai_san.NGUOI_THUONG not in pr:     # sổ lưu `pr` trước 03/11: vẽ lại vẫn dặn
+            pr += " " + mtai_san.NGUOI_THUONG
         try:
             dich = kho.duong_ref(tap, ma, ".png")
         except ValueError as exc:
